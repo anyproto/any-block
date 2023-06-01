@@ -1,0 +1,167 @@
+syntax = "proto3";
+package anytype;
+option go_package = "pb";
+
+import "models.proto";
+import "events.proto";
+import "google/protobuf/struct.proto";
+
+// The element of change tree which is used to store and apply smartBlock history internally.
+message Change {
+    repeated string previous_ids = 1; // Identificators of previous changes
+    string last_snapshot_id = 2; // Identificator of the last snapshot
+    repeated string previous_meta_ids = 5; // Identificators of the last changes with details/relations content
+    repeated Content content = 3; // Set of actions to apply
+    Snapshot snapshot = 4; // Snapshot; when not null, the Content will be ignored
+    repeated FileKeys fileKeys = 6; // File keys related to changes content
+    int64 timestamp = 7; // Creation timestamp
+    uint32 version = 8; // Version of business logic
+
+    message Snapshot {
+        map<string, string> logHeads = 1; // logId -> lastChangeId
+        anytype.model.SmartBlockSnapshotBase data = 2; // snapshot data
+        repeated FileKeys fileKeys = 3; // all file keys related to doc
+    }
+
+    message FileKeys {
+        string hash = 1;
+        map<string, string> keys = 2;
+    }
+
+    message Content {
+        oneof value {
+            BlockCreate blockCreate = 1;
+            BlockUpdate blockUpdate = 2;
+            BlockRemove blockRemove = 3;
+            BlockMove blockMove = 4;
+            BlockDuplicate blockDuplicate = 5;
+            RelationAdd relationAdd = 50;
+            RelationRemove relationRemove = 51;
+            DetailsSet detailsSet = 100;
+            DetailsUnset detailsUnset = 101;
+
+            
+            _RelationAdd old_relationAdd = 102 [deprecated=true];
+            _RelationRemove old_relationRemove = 103 [deprecated=true];
+            _RelationUpdate old_relationUpdate = 104 [deprecated=true];
+
+            ObjectTypeAdd objectTypeAdd = 105;
+            ObjectTypeRemove objectTypeRemove = 106;
+            StoreKeySet storeKeySet = 107;
+            StoreKeyUnset storeKeyUnset = 108;
+
+            StoreSliceUpdate storeSliceUpdate = 109;
+        }
+    }
+
+    message BlockCreate {
+        string targetId = 1;
+        anytype.model.Block.Position position = 2;
+        repeated anytype.model.Block blocks = 3;
+    }
+
+    message BlockUpdate {
+        repeated Event.Message events = 2;
+    }
+
+    message BlockRemove {
+        repeated string ids = 1;
+    }
+
+    message BlockMove {
+        string targetId = 1;
+        anytype.model.Block.Position position = 2;
+        repeated string ids = 3;
+    }
+
+    message BlockDuplicate {
+        string targetId = 1;
+        anytype.model.Block.Position position = 2;
+        repeated string ids = 3;
+    }
+
+    message DetailsSet {
+        string key = 1;
+        google.protobuf.Value value = 2;
+    }
+
+    message DetailsUnset {
+        string key = 1;
+    }
+
+    message RelationAdd {
+        repeated anytype.model.RelationLink relationLinks = 1;
+    }
+
+    message RelationRemove {
+        repeated string relationKey = 1;
+    }
+
+    message _RelationAdd {
+        anytype.model.Relation relation = 2;
+    }
+
+    message _RelationUpdate {
+        message Dict {
+            repeated anytype.model.Relation.Option dict = 2;
+        }
+
+        message ObjectTypes {
+            repeated string objectTypes = 1;
+        }
+
+        string key = 1;
+        oneof value {
+            anytype.model.RelationFormat format = 2;
+            string name = 3;
+            google.protobuf.Value defaultValue = 4;
+            ObjectTypes objectTypes = 5;
+            bool multi = 6;
+            Dict selectDict = 7;
+        }
+    }
+
+    message _RelationRemove {
+        string key = 1;
+    }
+
+    message ObjectTypeAdd {
+        string url = 1;
+    }
+
+    message ObjectTypeRemove {
+        string url = 1;
+    }
+
+    message StoreKeySet {
+        repeated string path = 1;
+        google.protobuf.Value value = 2;
+    }
+
+    message StoreKeyUnset {
+        repeated string path = 1;
+    }
+
+    message StoreSliceUpdate {
+        string key = 1;
+        oneof operation {
+            Add add = 2;
+            Remove remove = 3;
+            Move move = 4;
+        }
+
+        message Add {
+            string afterId = 1;
+            repeated string ids = 2;
+        }
+
+        message Remove {
+            repeated string ids = 1;
+        }
+
+        message Move {
+            string afterId = 1;
+            repeated string ids = 2;
+        }
+    }
+}
