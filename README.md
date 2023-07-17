@@ -1,15 +1,14 @@
 # Any-Block
-`any-block` describes data structures used in Anytype software.
+Protocol describing data structures used in Anytype software.
 
 ## Description
 We use [Protocol Buffers](https://en.wikipedia.org/wiki/Protocol_Buffers) to efficiently describe structured data in a binary format for network communication and storage. It offers smaller message sizes and faster serialization/deserialization than JSON or XML. 
 
 Protobuf facilitates data exchange between different systems written in different languages, while also providing automatic code generation for various programming languages.
 
-`models.proto` —
-`changes.proto` — 
-`events.proto` —
-`snapshot.proto` —
+- `models.proto` describes the base data structures used to represent objects and their components. 
+- `changes.proto` outlines CRDT-changes of objects and their blocks. Changes related to block updates are linked to events from `events.proto`. 
+- `events.proto` describes the events about the changes of objects and blocks. These events are used to notify clients and also serve as CDRT changes to be stored in an object's tree.
 
 ## Contribution
 Thank you for your desire to develop Anytype together. 
