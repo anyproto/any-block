@@ -2,25 +2,37 @@ syntax = "proto3";
 package anytype;
 option go_package = "pb";
 
-import "models.proto";
-import "events.proto";
+import "pkg/lib/pb/model/protos/models.proto";
+import "pb/protos/events.proto";
 import "google/protobuf/struct.proto";
 
-// The element of change tree which is used to store and apply smartBlock history internally.
+// the element of change tree used to store and internal apply smartBlock history
 message Change {
-    repeated string previous_ids = 1; // Identificators of previous changes
-    string last_snapshot_id = 2; // Identificator of the last snapshot
-    repeated string previous_meta_ids = 5; // Identificators of the last changes with details/relations content
-    repeated Content content = 3; // Set of actions to apply
-    Snapshot snapshot = 4; // Snapshot; when not null, the Content will be ignored
-    repeated FileKeys fileKeys = 6; // File keys related to changes content
-    int64 timestamp = 7; // Creation timestamp
-    uint32 version = 8; // Version of business logic
+    // ids of previous changes
+    repeated string previous_ids = 1;
+    // id of the last snapshot
+    string last_snapshot_id = 2;
+    // ids of the last changes with details/relations content
+    repeated string previous_meta_ids = 5;
+    // set of actions to apply
+    repeated Content content = 3;
+    // snapshot - when not null, the Content will be ignored
+    Snapshot snapshot = 4;
+    // file keys related to changes content
+    repeated FileKeys fileKeys = 6;
+    // creation timestamp
+    int64 timestamp = 7;
+
+    // version of business logic
+    uint32 version = 8;
 
     message Snapshot {
-        map<string, string> logHeads = 1; // logId -> lastChangeId
-        anytype.model.SmartBlockSnapshotBase data = 2; // snapshot data
-        repeated FileKeys fileKeys = 3; // all file keys related to doc
+        // logId -> lastChangeId
+        map<string, string> logHeads = 1;
+        // snapshot data
+        anytype.model.SmartBlockSnapshotBase data = 2;
+        // all file keys related to doc
+        repeated FileKeys fileKeys = 3;
     }
 
     message FileKeys {
@@ -40,10 +52,10 @@ message Change {
             DetailsSet detailsSet = 100;
             DetailsUnset detailsUnset = 101;
 
-            
-            _RelationAdd old_relationAdd = 102 [deprecated=true];
-            _RelationRemove old_relationRemove = 103 [deprecated=true];
-            _RelationUpdate old_relationUpdate = 104 [deprecated=true];
+            // deprecated
+            _RelationAdd old_relationAdd = 102;
+            _RelationRemove old_relationRemove = 103;
+            _RelationUpdate old_relationUpdate = 104;
 
             ObjectTypeAdd objectTypeAdd = 105;
             ObjectTypeRemove objectTypeRemove = 106;

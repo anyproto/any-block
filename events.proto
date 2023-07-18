@@ -2,7 +2,7 @@ syntax = "proto3";
 package anytype;
 option go_package = "pb";
 
-import "models.proto";
+import "pkg/lib/pb/model/protos/models.proto";
 import "google/protobuf/struct.proto";
 
 /*
@@ -71,8 +71,10 @@ message Event {
             Block.Dataview.TargetObjectIdSet blockDataviewTargetObjectIdSet = 126;
             Block.Dataview.IsCollectionSet blockDataviewIsCollectionSet = 127;
 
-            Block.Dataview.OldRelationDelete blockDataviewOldRelationDelete = 24 [deprecated=true];
-            Block.Dataview.OldRelationSet blockDataviewOldRelationSet = 23 [deprecated=true];
+            // deprecated
+            Block.Dataview.OldRelationDelete blockDataviewOldRelationDelete = 24;
+            // deprecated
+            Block.Dataview.OldRelationSet blockDataviewOldRelationSet = 23;
 
 
 
@@ -97,11 +99,11 @@ message Event {
 
     message Account {
         /**
-        * Message that will be sent to the front on each account found after an AccountRecoverRequest.
+        * Message, that will be sent to the front on each account found after an AccountRecoverRequest
         */
         message Show {
-            int32 index = 1; // Account's index in the list of all found accounts 
-            anytype.model.Account account = 2; // Account that has been found for the mnemonic
+            int32 index = 1; // Number of an account in an all found accounts list
+            anytype.model.Account account = 2; // An Account, that has been found for the mnemonic
         }
 
         message Details {
@@ -124,7 +126,7 @@ message Event {
 
     message Object {
         message Details {
-            // Amends existing state, i.e., add a new key-value pair or update an existing key-value pair
+            // Amend (i.e. add a new key-value pair or update an existing key-value pair) existing state
             message Amend {
                 message KeyValue {
                     string key = 1;
@@ -135,14 +137,14 @@ message Event {
                 repeated string subIds = 3;
             }
 
-            // Overwrites current state
+            // Overwrite current state
             message Set {
                 string id = 1; // context objectId
                 google.protobuf.Struct details = 2; // can not be a partial state. Should replace client details state
                 repeated string subIds = 3;
             }
 
-            // Unsets existing detail keys
+            // Unset existing detail keys
             message Unset {
                 string id = 1; // context objectId
                 repeated string keys = 2;
@@ -151,6 +153,7 @@ message Event {
         }
 
         message Subscription {
+
             // Adds new document to subscriptions
             message Add {
                 string id = 1; // object id
@@ -172,9 +175,12 @@ message Event {
             }
 
             message Counters {
-                int64 total = 1; // total available records
-                int64 nextCount = 2; // how many records available after
-                int64 prevCount = 3; // how many records available before
+                // total available records
+                int64 total = 1;
+                // how many records available after
+                int64 nextCount = 2;
+                // how many records available before
+                int64 prevCount = 3;
 
                 string subId = 4; // subscription id
             }
@@ -201,7 +207,8 @@ message Event {
 
 
         message Remove {
-            repeated string ids = 1; // notifies that objects were removed
+            // notifies that objects were removed
+            repeated string ids = 1;
         }
 
         message Restrictions {
@@ -239,6 +246,9 @@ message Event {
             repeated string filePath = 2; // filepaths to the files
         }
 
+        /*
+         *
+        */
         message Delete {
             repeated string blockIds = 1;
         }
@@ -484,9 +494,19 @@ message Event {
             message Widget {
                 string id = 1;
                 Layout layout = 2;
+                Limit limit = 3;
+                ViewId viewId = 4;
 
                 message Layout {
                     anytype.model.Block.Content.Widget.Layout value = 1;
+                }
+
+                message Limit {
+                    int32 value = 1;
+                }
+
+                message ViewId {
+                    string value = 1;
                 }
             }
         }
@@ -676,10 +696,10 @@ message Event {
         }
 
         message Dataview {
-            // Sent when the view have been changed or added
+            // sent when the view have been changed or added
             message ViewSet {
-                string id = 1; // Dataview block's id
-                string viewId = 2; // View id, clients should double-check this to make sure they don't switch the active view in the middle
+                string id = 1; // dataview block's id
+                string viewId = 2; // view id, client should double check this to make sure client doesn't switch the active view in the middle
                 anytype.model.Block.Content.Dataview.View view = 3;
             }
 
@@ -701,6 +721,7 @@ message Event {
                     string groupRelationKey = 7; // Group view by this relationKey
                     bool groupBackgroundColors = 8; // Enable backgrounds in groups
                     int32 pageLimit = 9;
+                    string defaultTemplateId = 10; // Id of template object set default for the view
                 }
 
                 message Filter {
@@ -780,51 +801,51 @@ message Event {
             }
 
             message ViewDelete {
-                string id = 1; // Dataview block's id
-                string viewId = 2; // View id to remove
+                string id = 1; // dataview block's id
+                string viewId = 2; // view id to remove
             }
 
 
             message ViewOrder {
-                string id = 1; // Dataview block's id
-                repeated string viewIds = 2; // View ids in new order
+                string id = 1; // dataview block's id
+                repeated string viewIds = 2; // view ids in new order
             }
 
             message SourceSet {
-                string id = 1; // Dataview block's id
+                string id = 1; // dataview block's id
                 repeated string source = 2;
             }
 
             message OldRelationDelete {
-                string id = 1; // Dataview block's id
-                string relationKey = 2; // Relation key to remove
+                string id = 1; // dataview block's id
+                string relationKey = 2; // relation key to remove
             }
 
-            // Sent when the dataview relation has been changed or added
+            // sent when the dataview relation has been changed or added
             message OldRelationSet {
-                string id = 1; // Dataview block's id
-                string relationKey = 2; // Relation key to update
+                string id = 1; // dataview block's id
+                string relationKey = 2; // relation key to update
                 anytype.model.Relation relation = 3;
             }
 
             message RelationDelete {
-                string id = 1; // Dataview block's id
-                repeated string relationKeys = 2; // Relation key to remove
+                string id = 1; // dataview block's id
+                repeated string relationKeys = 2; // relation key to remove
             }
 
-            // Dent when the dataview relation has been changed or added
+            // sent when the dataview relation has been changed or added
             message RelationSet {
-                string id = 1; // Dataview block's id
-                repeated anytype.model.RelationLink relationLinks = 2; // Relation id to update
+                string id = 1; // dataview block's id
+                repeated anytype.model.RelationLink relationLinks = 2; // relation id to update
             }
 
             message GroupOrderUpdate {
-                string id = 1; // Dataview block's id
+                string id = 1; // dataview block's id
                 anytype.model.Block.Content.Dataview.GroupOrder groupOrder = 2;
             }
 
             message ObjectOrderUpdate {
-                string id = 1; // Dataview block's id
+                string id = 1; // dataview block's id
                 string viewId = 2;
                 string groupId = 3;
                 repeated SliceChange sliceChanges = 4;
@@ -837,7 +858,7 @@ message Event {
             }
 
             enum SliceOperation {
-                SliceOperationNone = 0; // Not used
+                SliceOperationNone = 0; // not used
                 SliceOperationAdd = 1;
                 SliceOperationMove = 2;
                 SliceOperationRemove = 3;
@@ -845,12 +866,12 @@ message Event {
             }
 
             message TargetObjectIdSet {
-                string id = 1; // Dataview block's id
+                string id = 1; // dataview block's id
                 string targetObjectId = 2;
             }
 
             message IsCollectionSet {
-                string id = 1; // Dataview block's id
+                string id = 1; // dataview block's id
                 bool value = 2;
             }
         }
@@ -858,46 +879,47 @@ message Event {
 
     message User {
         message Block {
+
             /**
-            * Middleware sends this message to front-ends when the following occurs:
+            *  Middleware to front end event message, that will be sent in this scenario:
             * Precondition: user A opened a block
             * 1. User B opens the same block
             * 2. User A receives a message about p.1
             */
             message Join {
-                Account account = 1; // Account of the user who opened a block
+                Account account = 1; // Account of the user, that opened a block
             }
 
             /**
-            * Middleware sends this message to front-ends when the following occurs:
+            *  Middleware to front end event message, that will be sent in this scenario:
             * Precondition: user A and user B opened the same block
             * 1. User B closes the block
             * 2. User A receives a message about p.1
             */
             message Left {
-                Account account = 1; // Account of the user who left a block
+                Account account = 1; // Account of the user, that left the block
             }
 
             /**
-            * Middleware sends this message to front-ends when the following occurs:
+            * Middleware to front end event message, that will be sent in this scenario:
             * Precondition: user A and user B opened the same block
             * 1. User B sets cursor or selects a text region into a text block
             * 2. User A receives a message about p.1
             */
             message TextRange {
-                Account account = 1; // Account of the user who selected a text
-                string blockId = 2; // Id of the selected text block
+                Account account = 1; // Account of the user, that selected a text
+                string blockId = 2; // Id of the text block, that have a selection
                 anytype.model.Range range = 3; // Range of the selection
             }
 
             /**
-            * Middleware sends this message to front-ends when the following occurs:
+            * Middleware to front end event message, that will be sent in this scenario:
             * Precondition: user A and user B opened the same block
             * 1. User B selects some inner blocks
             * 2. User A receives a message about p.1
             */
             message SelectRange {
-                Account account = 1; // Account of the user who selected blocks
+                Account account = 1; // Account of the user, that selected blocks
                 repeated string blockIdsArray = 2; // Ids of selected blocks.
             }
         }
@@ -966,6 +988,7 @@ message Event {
                 Syncing = 2;
                 Synced = 3;
                 Failed = 4;
+                IncompatibleVersion = 5;
             }
         }
     }

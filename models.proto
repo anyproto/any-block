@@ -8,7 +8,8 @@ message SmartBlockSnapshotBase {
     repeated Block blocks = 1;
     google.protobuf.Struct details = 2;
     google.protobuf.Struct fileKeys = 3;
-    repeated Relation extraRelations = 4 [deprecated=true];
+    // deprecated
+    repeated Relation extraRelations = 4;
     repeated string objectTypes = 5;
     google.protobuf.Struct collections = 6;
     repeated string removedCollectionKeys = 8;
@@ -16,7 +17,7 @@ message SmartBlockSnapshotBase {
 }
 
 enum SmartBlockType {
-    AccountOld = 0 [deprecated=true];
+    AccountOld = 0; // deprecated
 
     Page = 0x10;
     ProfilePage = 0x11;
@@ -29,7 +30,7 @@ enum SmartBlockType {
     Template = 0x120;
     BundledTemplate = 0x121;
 
-    BundledRelation = 0x200 [deprecated=true];
+    BundledRelation = 0x200; // DEPRECATED
     SubObject = 0x201;
     BundledObjectType = 0x202;
     AnytypeProfile = 0x203;
@@ -130,7 +131,7 @@ message Block {
         */
         message Link {
             string targetBlockId = 1; // id of the target block
-            Style style = 2 [deprecated=true];
+            Style style = 2; // deprecated
             google.protobuf.Struct fields = 3;
             IconSize iconSize = 4;
             CardStyle cardStyle = 5;
@@ -181,10 +182,14 @@ message Block {
         */
         message Bookmark {
             string url = 1;
-            string title = 2 [deprecated=true]; // Get this data from the target object.
-            string description = 3 [deprecated=true]; // Get this data from the target object.
-            string imageHash = 4 [deprecated=true]; // Get this data from the target object.
-            string faviconHash = 5 [deprecated=true]; // Get this data from the target object.
+            // Deprecated. Get this data from the target object.
+            string title = 2;
+            // Deprecated. Get this data from the target object.
+            string description = 3;
+            // Deprecated. Get this data from the target object.
+            string imageHash = 4;
+            // Deprecated. Get this data from the target object.
+            string faviconHash = 5;
 
             LinkPreview.Type type = 6;
             string targetObjectId = 7;
@@ -244,7 +249,7 @@ message Block {
                 Header1 = 1;
                 Header2 = 2;
                 Header3 = 3;
-                Header4 = 4 [deprecated=true];
+                Header4 = 4; // deprecated
                 Quote = 5;
                 Code = 6;
                 Title = 7; // currently only one block of this style can exists on a page
@@ -298,7 +303,8 @@ message Block {
         message Dataview {
             repeated string source = 1;
             repeated View views = 2;
-            repeated model.Relation relations = 4 [deprecated=true];
+            // deprecated
+            repeated model.Relation relations = 4;
             string activeView = 3; // saved within a session
             repeated GroupOrder groupOrders = 12;
             repeated ObjectOrder objectOrders = 13;
@@ -320,6 +326,7 @@ message Block {
                 string groupRelationKey = 11; // Group view by this relationKey
 				        bool groupBackgroundColors = 12; // Enable backgrounds in groups
                 int32 pageLimit = 13;
+                string defaultTemplateId = 14;
 
                 enum Type {
                     Table = 0;
@@ -339,7 +346,7 @@ message Block {
                 string key = 1;
                 bool isVisible = 2;
                 int32 width = 3; // the displayed column % calculated based on other visible relations
-                // @exclude bool isReadOnly = 4 [deprecated=true];
+                // bool isReadOnly = 4; // deprecated
 
                 bool dateIncludeTime = 5;
                 TimeFormat timeFormat = 6;
@@ -490,6 +497,8 @@ message Block {
 
         message Widget {
             Layout layout = 1;
+            int32 limit = 2;
+            string viewId = 3;
 
             enum Layout {
                 Link = 0;
@@ -628,16 +637,6 @@ message Restrictions {
         DVCreateObject = 2;
         DVViews = 3;
     }
-}
-
-message ThreadDeeplinkPayload {
-    string key = 1;
-    repeated string addrs = 2;
-}
-
-message ThreadCreateQueueEntry {
-    string collectionThread = 1;
-    string threadId = 2;
 }
 
 message Object {
@@ -812,7 +811,7 @@ message ObjectView {
         repeated RelationWithValue relations = 2;
     }
 
-    repeated Relation relations = 7 [deprecated=true]; //Use relationLinks instead
+    repeated Relation relations = 7; // DEPRECATED, use relationLinks instead
     repeated RelationLink relationLinks = 10;
 
     Restrictions restrictions = 8; // object restrictions
