@@ -2,7 +2,7 @@ syntax = "proto3";
 package anytype;
 option go_package = "pb";
 
-import "pkg/lib/pb/model/protos/models.proto";
+import "models.proto";
 import "google/protobuf/struct.proto";
 
 /*
