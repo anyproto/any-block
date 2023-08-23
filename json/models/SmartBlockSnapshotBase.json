@@ -1,0 +1,1577 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/SmartBlockSnapshotBase",
+    "definitions": {
+        "SmartBlockSnapshotBase": {
+            "properties": {
+                "blocks": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block"
+                    },
+                    "type": "array"
+                },
+                "details": {
+                    "additionalProperties": true,
+                    "type": "object"
+                },
+                "fileKeys": {
+                    "additionalProperties": true,
+                    "type": "object"
+                },
+                "extraRelations": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Relation"
+                    },
+                    "type": "array",
+                    "description": "deprecated"
+                },
+                "objectTypes": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "collections": {
+                    "additionalProperties": true,
+                    "type": "object"
+                },
+                "removedCollectionKeys": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "relationLinks": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.RelationLink"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Smart Block Snapshot Base"
+        },
+        "anytype.model.Block": {
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "fields": {
+                    "additionalProperties": true,
+                    "type": "object"
+                },
+                "restrictions": {
+                    "$ref": "#/definitions/anytype.model.Block.Restrictions",
+                    "additionalProperties": true
+                },
+                "childrenIds": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "backgroundColor": {
+                    "type": "string"
+                },
+                "align": {
+                    "enum": [
+                        "AlignLeft",
+                        0,
+                        "AlignCenter",
+                        1,
+                        "AlignRight",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Align"
+                },
+                "verticalAlign": {
+                    "enum": [
+                        "VerticalAlignTop",
+                        0,
+                        "VerticalAlignMiddle",
+                        1,
+                        "VerticalAlignBottom",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Vertical Align"
+                },
+                "smartblock": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Smartblock",
+                    "additionalProperties": true
+                },
+                "text": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Text",
+                    "additionalProperties": true
+                },
+                "file": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.File",
+                    "additionalProperties": true
+                },
+                "layout": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Layout",
+                    "additionalProperties": true
+                },
+                "div": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Div",
+                    "additionalProperties": true
+                },
+                "bookmark": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Bookmark",
+                    "additionalProperties": true
+                },
+                "icon": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Icon",
+                    "additionalProperties": true
+                },
+                "link": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Link",
+                    "additionalProperties": true
+                },
+                "dataview": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Dataview",
+                    "additionalProperties": true
+                },
+                "relation": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Relation",
+                    "additionalProperties": true
+                },
+                "featuredRelations": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.FeaturedRelations",
+                    "additionalProperties": true
+                },
+                "latex": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Latex",
+                    "additionalProperties": true
+                },
+                "tableOfContents": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.TableOfContents",
+                    "additionalProperties": true
+                },
+                "table": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Table",
+                    "additionalProperties": true
+                },
+                "tableColumn": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.TableColumn",
+                    "additionalProperties": true
+                },
+                "tableRow": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.TableRow",
+                    "additionalProperties": true
+                },
+                "widget": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Widget",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Block"
+        },
+        "anytype.model.Block.Content.Bookmark": {
+            "properties": {
+                "url": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Deprecated. Get this data from the target object."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Deprecated. Get this data from the target object."
+                },
+                "imageHash": {
+                    "type": "string",
+                    "description": "Deprecated. Get this data from the target object."
+                },
+                "faviconHash": {
+                    "type": "string",
+                    "description": "Deprecated. Get this data from the target object."
+                },
+                "type": {
+                    "enum": [
+                        "Unknown",
+                        0,
+                        "Page",
+                        1,
+                        "Image",
+                        2,
+                        "Text",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "targetObjectId": {
+                    "type": "string"
+                },
+                "state": {
+                    "enum": [
+                        "Empty",
+                        0,
+                        "Fetching",
+                        1,
+                        "Done",
+                        2,
+                        "Error",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "State"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Bookmark",
+            "description": "Bookmark is to keep a web-link and to preview a content."
+        },
+        "anytype.model.Block.Content.Dataview": {
+            "properties": {
+                "source": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "views": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Dataview.View"
+                    },
+                    "type": "array"
+                },
+                "relations": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Relation"
+                    },
+                    "type": "array",
+                    "description": "deprecated"
+                },
+                "activeView": {
+                    "type": "string",
+                    "description": "saved within a session"
+                },
+                "groupOrders": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Dataview.GroupOrder"
+                    },
+                    "type": "array"
+                },
+                "objectOrders": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Dataview.ObjectOrder"
+                    },
+                    "type": "array"
+                },
+                "relationLinks": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.RelationLink"
+                    },
+                    "type": "array"
+                },
+                "TargetObjectId": {
+                    "type": "string"
+                },
+                "isCollection": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Dataview"
+        },
+        "anytype.model.Block.Content.Dataview.Filter": {
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "operator": {
+                    "enum": [
+                        "And",
+                        0,
+                        "Or",
+                        1
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Operator"
+                },
+                "RelationKey": {
+                    "type": "string"
+                },
+                "relationProperty": {
+                    "type": "string"
+                },
+                "condition": {
+                    "enum": [
+                        "None",
+                        0,
+                        "Equal",
+                        1,
+                        "NotEqual",
+                        2,
+                        "Greater",
+                        3,
+                        "Less",
+                        4,
+                        "GreaterOrEqual",
+                        5,
+                        "LessOrEqual",
+                        6,
+                        "Like",
+                        7,
+                        "NotLike",
+                        8,
+                        "In",
+                        9,
+                        "NotIn",
+                        10,
+                        "Empty",
+                        11,
+                        "NotEmpty",
+                        12,
+                        "AllIn",
+                        13,
+                        "NotAllIn",
+                        14,
+                        "ExactIn",
+                        15,
+                        "NotExactIn",
+                        16,
+                        "Exists",
+                        17
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Condition"
+                },
+                "value": {
+                    "oneOf": [
+                        {
+                            "type": "array"
+                        },
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "object"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ],
+                    "title": "Value",
+                    "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of that variants, absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
+                },
+                "quickOption": {
+                    "enum": [
+                        "ExactDate",
+                        0,
+                        "Yesterday",
+                        1,
+                        "Today",
+                        2,
+                        "Tomorrow",
+                        3,
+                        "LastWeek",
+                        4,
+                        "CurrentWeek",
+                        5,
+                        "NextWeek",
+                        6,
+                        "LastMonth",
+                        7,
+                        "CurrentMonth",
+                        8,
+                        "NextMonth",
+                        9,
+                        "NumberOfDaysAgo",
+                        10,
+                        "NumberOfDaysNow",
+                        11
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Quick Option"
+                },
+                "format": {
+                    "enum": [
+                        "longtext",
+                        0,
+                        "shorttext",
+                        1,
+                        "number",
+                        2,
+                        "status",
+                        3,
+                        "tag",
+                        11,
+                        "date",
+                        4,
+                        "file",
+                        5,
+                        "checkbox",
+                        6,
+                        "url",
+                        7,
+                        "email",
+                        8,
+                        "phone",
+                        9,
+                        "emoji",
+                        10,
+                        "object",
+                        100,
+                        "relations",
+                        101
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Relation Format",
+                    "description": "RelationFormat describes how the underlying data is stored in the google.protobuf.Value and how it should be validated/sanitized"
+                },
+                "includeTime": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Filter"
+        },
+        "anytype.model.Block.Content.Dataview.GroupOrder": {
+            "properties": {
+                "viewId": {
+                    "type": "string"
+                },
+                "viewGroups": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Dataview.ViewGroup"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Group Order"
+        },
+        "anytype.model.Block.Content.Dataview.ObjectOrder": {
+            "properties": {
+                "viewId": {
+                    "type": "string"
+                },
+                "groupId": {
+                    "type": "string"
+                },
+                "objectIds": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Object Order"
+        },
+        "anytype.model.Block.Content.Dataview.Relation": {
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "isVisible": {
+                    "type": "boolean"
+                },
+                "width": {
+                    "type": "integer",
+                    "description": "the displayed column % calculated based on other visible relations"
+                },
+                "dateIncludeTime": {
+                    "type": "boolean",
+                    "title": "bool isReadOnly = 4; // deprecated",
+                    "description": "bool isReadOnly = 4; // deprecated"
+                },
+                "timeFormat": {
+                    "enum": [
+                        "Format12",
+                        0,
+                        "Format24",
+                        1
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Time Format"
+                },
+                "dateFormat": {
+                    "enum": [
+                        "MonthAbbrBeforeDay",
+                        0,
+                        "MonthAbbrAfterDay",
+                        1,
+                        "Short",
+                        2,
+                        "ShortUS",
+                        3,
+                        "ISO",
+                        4
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Date Format"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Relation"
+        },
+        "anytype.model.Block.Content.Dataview.Sort": {
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "RelationKey": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "Asc",
+                        0,
+                        "Desc",
+                        1,
+                        "Custom",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "customOrder": {
+                    "items": {
+                        "oneOf": [
+                            {
+                                "type": "array"
+                            },
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "object"
+                            },
+                            {
+                                "type": "string"
+                            }
+                        ],
+                        "title": "Value",
+                        "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of that variants, absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
+                    },
+                    "additionalProperties": true,
+                    "type": "array"
+                },
+                "format": {
+                    "enum": [
+                        "longtext",
+                        0,
+                        "shorttext",
+                        1,
+                        "number",
+                        2,
+                        "status",
+                        3,
+                        "tag",
+                        11,
+                        "date",
+                        4,
+                        "file",
+                        5,
+                        "checkbox",
+                        6,
+                        "url",
+                        7,
+                        "email",
+                        8,
+                        "phone",
+                        9,
+                        "emoji",
+                        10,
+                        "object",
+                        100,
+                        "relations",
+                        101
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Relation Format",
+                    "description": "RelationFormat describes how the underlying data is stored in the google.protobuf.Value and how it should be validated/sanitized"
+                },
+                "includeTime": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Sort"
+        },
+        "anytype.model.Block.Content.Dataview.View": {
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "Table",
+                        0,
+                        "List",
+                        1,
+                        "Gallery",
+                        2,
+                        "Kanban",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sorts": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Dataview.Sort"
+                    },
+                    "type": "array"
+                },
+                "filters": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Dataview.Filter"
+                    },
+                    "type": "array"
+                },
+                "relations": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Dataview.Relation"
+                    },
+                    "type": "array",
+                    "description": "relations fields/columns options, also used to provide the order"
+                },
+                "coverRelationKey": {
+                    "type": "string",
+                    "description": "Relation used for cover in gallery"
+                },
+                "hideIcon": {
+                    "type": "boolean",
+                    "description": "Hide icon near name"
+                },
+                "cardSize": {
+                    "enum": [
+                        "Small",
+                        0,
+                        "Medium",
+                        1,
+                        "Large",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Size"
+                },
+                "coverFit": {
+                    "type": "boolean",
+                    "description": "Image fits container"
+                },
+                "groupRelationKey": {
+                    "type": "string",
+                    "description": "Group view by this relationKey"
+                },
+                "groupBackgroundColors": {
+                    "type": "boolean",
+                    "description": "Enable backgrounds in groups"
+                },
+                "pageLimit": {
+                    "type": "integer",
+                    "description": "Limit of objects shown in widget"
+                },
+                "defaultTemplateId": {
+                    "type": "string",
+                    "description": "Default template that is chosen for new object created within the view"
+                },
+                "defaultObjectTypeId": {
+                    "type": "string",
+                    "description": "Default object type that is chosen for new object created within the view"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "View"
+        },
+        "anytype.model.Block.Content.Dataview.ViewGroup": {
+            "properties": {
+                "groupId": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "backgroundColor": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "View Group"
+        },
+        "anytype.model.Block.Content.Div": {
+            "properties": {
+                "style": {
+                    "enum": [
+                        "Line",
+                        0,
+                        "Dots",
+                        1
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Style"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Div",
+            "description": "Divider: block, that contains only one horizontal thin line"
+        },
+        "anytype.model.Block.Content.FeaturedRelations": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Featured Relations"
+        },
+        "anytype.model.Block.Content.File": {
+            "properties": {
+                "hash": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "None",
+                        0,
+                        "File",
+                        1,
+                        "Image",
+                        2,
+                        "Video",
+                        3,
+                        "Audio",
+                        4,
+                        "PDF",
+                        5
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "mime": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "string"
+                },
+                "addedAt": {
+                    "type": "string"
+                },
+                "state": {
+                    "enum": [
+                        "Empty",
+                        0,
+                        "Uploading",
+                        1,
+                        "Done",
+                        2,
+                        "Error",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "State"
+                },
+                "style": {
+                    "enum": [
+                        "Auto",
+                        0,
+                        "Link",
+                        1,
+                        "Embed",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Style"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File"
+        },
+        "anytype.model.Block.Content.Icon": {
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Icon"
+        },
+        "anytype.model.Block.Content.Latex": {
+            "properties": {
+                "text": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Latex"
+        },
+        "anytype.model.Block.Content.Layout": {
+            "properties": {
+                "style": {
+                    "enum": [
+                        "Row",
+                        0,
+                        "Column",
+                        1,
+                        "Div",
+                        2,
+                        "Header",
+                        3,
+                        "TableRows",
+                        4,
+                        "TableColumns",
+                        5
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Style"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Layout",
+            "description": "Layout have no visual representation, but affects on blocks, that it contains. Row/Column layout blocks creates only automatically, after some of a D\u0026D operations, for example"
+        },
+        "anytype.model.Block.Content.Link": {
+            "properties": {
+                "targetBlockId": {
+                    "type": "string",
+                    "description": "id of the target block"
+                },
+                "style": {
+                    "enum": [
+                        "Page",
+                        0,
+                        "Dataview",
+                        1,
+                        "Dashboard",
+                        2,
+                        "Archive",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Style"
+                },
+                "fields": {
+                    "additionalProperties": true,
+                    "type": "object"
+                },
+                "iconSize": {
+                    "enum": [
+                        "SizeNone",
+                        0,
+                        "SizeSmall",
+                        1,
+                        "SizeMedium",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Icon Size"
+                },
+                "cardStyle": {
+                    "enum": [
+                        "Text",
+                        0,
+                        "Card",
+                        1,
+                        "Inline",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Card Style"
+                },
+                "description": {
+                    "enum": [
+                        "None",
+                        0,
+                        "Added",
+                        1,
+                        "Content",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Description"
+                },
+                "relations": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Link",
+            "description": "Link: block to link some content from an external sources."
+        },
+        "anytype.model.Block.Content.Relation": {
+            "properties": {
+                "key": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Relation"
+        },
+        "anytype.model.Block.Content.Smartblock": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Smartblock"
+        },
+        "anytype.model.Block.Content.Table": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Table"
+        },
+        "anytype.model.Block.Content.TableColumn": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Table Column"
+        },
+        "anytype.model.Block.Content.TableOfContents": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Table Of Contents"
+        },
+        "anytype.model.Block.Content.TableRow": {
+            "properties": {
+                "isHeader": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Table Row"
+        },
+        "anytype.model.Block.Content.Text": {
+            "properties": {
+                "text": {
+                    "type": "string"
+                },
+                "style": {
+                    "enum": [
+                        "Paragraph",
+                        0,
+                        "Header1",
+                        1,
+                        "Header2",
+                        2,
+                        "Header3",
+                        3,
+                        "Header4",
+                        4,
+                        "Quote",
+                        5,
+                        "Code",
+                        6,
+                        "Title",
+                        7,
+                        "Checkbox",
+                        8,
+                        "Marked",
+                        9,
+                        "Numbered",
+                        10,
+                        "Toggle",
+                        11,
+                        "Description",
+                        12,
+                        "Callout",
+                        13
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Style"
+                },
+                "marks": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Text.Marks",
+                    "additionalProperties": true,
+                    "description": "list of marks to apply to the text"
+                },
+                "checked": {
+                    "type": "boolean"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "iconEmoji": {
+                    "type": "string",
+                    "description": "used with style Callout"
+                },
+                "iconImage": {
+                    "type": "string",
+                    "description": "in case both image and emoji are set, image should has a priority in the UI"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Text"
+        },
+        "anytype.model.Block.Content.Text.Mark": {
+            "properties": {
+                "range": {
+                    "$ref": "#/definitions/anytype.model.Range",
+                    "additionalProperties": true,
+                    "description": "range of symbols to apply this mark. From(symbol) To(symbol)"
+                },
+                "type": {
+                    "enum": [
+                        "Strikethrough",
+                        0,
+                        "Keyboard",
+                        1,
+                        "Italic",
+                        2,
+                        "Bold",
+                        3,
+                        "Underscored",
+                        4,
+                        "Link",
+                        5,
+                        "TextColor",
+                        6,
+                        "BackgroundColor",
+                        7,
+                        "Mention",
+                        8,
+                        "Emoji",
+                        9,
+                        "Object",
+                        10
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "param": {
+                    "type": "string",
+                    "description": "link, color, etc"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Mark"
+        },
+        "anytype.model.Block.Content.Text.Marks": {
+            "properties": {
+                "marks": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Text.Mark"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Marks"
+        },
+        "anytype.model.Block.Content.Widget": {
+            "properties": {
+                "layout": {
+                    "enum": [
+                        "Link",
+                        0,
+                        "Tree",
+                        1,
+                        "List",
+                        2,
+                        "CompactList",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Layout"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "viewId": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Widget"
+        },
+        "anytype.model.Block.Restrictions": {
+            "properties": {
+                "read": {
+                    "type": "boolean"
+                },
+                "edit": {
+                    "type": "boolean"
+                },
+                "remove": {
+                    "type": "boolean"
+                },
+                "drag": {
+                    "type": "boolean"
+                },
+                "dropOn": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Restrictions"
+        },
+        "anytype.model.Range": {
+            "properties": {
+                "from": {
+                    "type": "integer"
+                },
+                "to": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Range",
+            "description": "General purpose structure, uses in Mark."
+        },
+        "anytype.model.Relation": {
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Key under which the value is stored in the map. Must be unique for the object type. It usually auto-generated bsonid, but also may be something human-readable in case of prebuilt types."
+                },
+                "format": {
+                    "enum": [
+                        "longtext",
+                        0,
+                        "shorttext",
+                        1,
+                        "number",
+                        2,
+                        "status",
+                        3,
+                        "tag",
+                        11,
+                        "date",
+                        4,
+                        "file",
+                        5,
+                        "checkbox",
+                        6,
+                        "url",
+                        7,
+                        "email",
+                        8,
+                        "phone",
+                        9,
+                        "emoji",
+                        10,
+                        "object",
+                        100,
+                        "relations",
+                        101
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Relation Format",
+                    "description": "RelationFormat describes how the underlying data is stored in the google.protobuf.Value and how it should be validated/sanitized"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "name to show (can be localized for bundled types)"
+                },
+                "defaultValue": {
+                    "oneOf": [
+                        {
+                            "type": "array"
+                        },
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "object"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ],
+                    "title": "Value",
+                    "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of that variants, absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
+                },
+                "dataSource": {
+                    "enum": [
+                        "details",
+                        0,
+                        "derived",
+                        1,
+                        "account",
+                        2,
+                        "local",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Data Source"
+                },
+                "hidden": {
+                    "type": "boolean",
+                    "description": "internal, not displayed to user (e.g. coverX, coverY)"
+                },
+                "readOnly": {
+                    "type": "boolean",
+                    "description": "value not editable by user tobe renamed to readonlyValue"
+                },
+                "readOnlyRelation": {
+                    "type": "boolean",
+                    "description": "relation metadata, eg name and format is not editable by user"
+                },
+                "multi": {
+                    "type": "boolean",
+                    "description": "allow multiple values (stored in pb list)"
+                },
+                "objectTypes": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "URL of object type, empty to allow link to any object"
+                },
+                "selectDict": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Relation.Option"
+                    },
+                    "type": "array",
+                    "description": "index 10, 11 was used in internal-only builds. Can be reused, but may break some test accounts  default dictionary with unique values to choose for select/multiSelect format"
+                },
+                "maxCount": {
+                    "type": "integer",
+                    "description": "max number of values can be set for this relation. 0 means no limit. 1 means the value can be stored in non-repeated field"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "scope": {
+                    "enum": [
+                        "object",
+                        0,
+                        "type",
+                        1,
+                        "setOfTheSameType",
+                        2,
+                        "objectsOfTheSameType",
+                        3,
+                        "library",
+                        4
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Scope"
+                },
+                "creator": {
+                    "type": "string",
+                    "description": "creator profile id"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Relation",
+            "description": "Relation describe the human-interpreted relation type. It may be something like \"Date of creation, format=date\" or \"Assignee, format=objectId, objectType=person\""
+        },
+        "anytype.model.Relation.Option": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "id generated automatically if omitted"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string",
+                    "description": "stored"
+                },
+                "relationKey": {
+                    "type": "string",
+                    "description": "4 is reserved for old relation format  stored"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Option"
+        },
+        "anytype.model.RelationLink": {
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "format": {
+                    "enum": [
+                        "longtext",
+                        0,
+                        "shorttext",
+                        1,
+                        "number",
+                        2,
+                        "status",
+                        3,
+                        "tag",
+                        11,
+                        "date",
+                        4,
+                        "file",
+                        5,
+                        "checkbox",
+                        6,
+                        "url",
+                        7,
+                        "email",
+                        8,
+                        "phone",
+                        9,
+                        "emoji",
+                        10,
+                        "object",
+                        100,
+                        "relations",
+                        101
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Relation Format",
+                    "description": "RelationFormat describes how the underlying data is stored in the google.protobuf.Value and how it should be validated/sanitized"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Relation Link"
+        }
+    }
+}

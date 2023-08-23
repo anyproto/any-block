@@ -1,0 +1,49 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/LinkPreview",
+    "definitions": {
+        "LinkPreview": {
+            "properties": {
+                "url": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "imageUrl": {
+                    "type": "string"
+                },
+                "faviconUrl": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "Unknown",
+                        0,
+                        "Page",
+                        1,
+                        "Image",
+                        2,
+                        "Text",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Link Preview"
+        }
+    }
+}

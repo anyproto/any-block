@@ -1,0 +1,41 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/RelationOptions",
+    "definitions": {
+        "RelationOptions": {
+            "properties": {
+                "options": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Relation.Option"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Relation Options"
+        },
+        "anytype.model.Relation.Option": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "id generated automatically if omitted"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string",
+                    "description": "stored"
+                },
+                "relationKey": {
+                    "type": "string",
+                    "description": "4 is reserved for old relation format  stored"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Option"
+        }
+    }
+}

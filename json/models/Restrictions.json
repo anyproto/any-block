@@ -1,0 +1,71 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/Restrictions",
+    "definitions": {
+        "Restrictions": {
+            "properties": {
+                "object": {
+                    "items": {
+                        "enum": [
+                            "None",
+                            0,
+                            "Delete",
+                            1,
+                            "Relations",
+                            2,
+                            "Blocks",
+                            3,
+                            "Details",
+                            4,
+                            "TypeChange",
+                            5,
+                            "LayoutChange",
+                            6,
+                            "Template",
+                            7,
+                            "Duplicate",
+                            8
+                        ]
+                    },
+                    "type": "array",
+                    "title": "Object Restriction"
+                },
+                "dataview": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Restrictions.DataviewRestrictions"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Restrictions"
+        },
+        "anytype.model.Restrictions.DataviewRestrictions": {
+            "properties": {
+                "blockId": {
+                    "type": "string"
+                },
+                "restrictions": {
+                    "items": {
+                        "enum": [
+                            "DVNone",
+                            0,
+                            "DVRelation",
+                            1,
+                            "DVCreateObject",
+                            2,
+                            "DVViews",
+                            3
+                        ]
+                    },
+                    "type": "array",
+                    "title": "Dataview Restriction"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Dataview Restrictions"
+        }
+    }
+}

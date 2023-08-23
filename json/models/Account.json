@@ -1,0 +1,249 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/Account",
+    "definitions": {
+        "Account": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "User's thread id"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "User name, that associated with this account"
+                },
+                "avatar": {
+                    "$ref": "#/definitions/anytype.model.Account.Avatar",
+                    "additionalProperties": true,
+                    "description": "Avatar of a user's account"
+                },
+                "config": {
+                    "$ref": "#/definitions/anytype.model.Account.Config",
+                    "additionalProperties": true
+                },
+                "status": {
+                    "$ref": "#/definitions/anytype.model.Account.Status",
+                    "additionalProperties": true
+                },
+                "info": {
+                    "$ref": "#/definitions/anytype.model.Account.Info",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Account",
+            "description": "* Contains basic information about a user account"
+        },
+        "anytype.model.Account.Avatar": {
+            "properties": {
+                "image": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.File",
+                    "additionalProperties": true,
+                    "description": "Image of the avatar. Contains the hash to retrieve the image."
+                },
+                "color": {
+                    "type": "string",
+                    "description": "Color of the avatar, used if image not set."
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Avatar",
+            "description": "* Avatar of a user's account. It could be an image or color"
+        },
+        "anytype.model.Account.Config": {
+            "properties": {
+                "enableDataview": {
+                    "type": "boolean"
+                },
+                "enableDebug": {
+                    "type": "boolean"
+                },
+                "enablePrereleaseChannel": {
+                    "type": "boolean"
+                },
+                "enableSpaces": {
+                    "type": "boolean"
+                },
+                "extra": {
+                    "additionalProperties": true,
+                    "type": "object"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+        },
+        "anytype.model.Account.Info": {
+            "properties": {
+                "homeObjectId": {
+                    "type": "string",
+                    "description": "home dashboard block id"
+                },
+                "archiveObjectId": {
+                    "type": "string",
+                    "description": "archive block id"
+                },
+                "profileObjectId": {
+                    "type": "string",
+                    "description": "profile block id"
+                },
+                "marketplaceWorkspaceId": {
+                    "type": "string",
+                    "description": "marketplace workspace id"
+                },
+                "deviceId": {
+                    "type": "string"
+                },
+                "accountSpaceId": {
+                    "type": "string",
+                    "description": "marketplace template id"
+                },
+                "widgetsId": {
+                    "type": "string"
+                },
+                "gatewayUrl": {
+                    "type": "string",
+                    "description": "gateway url for fetching static files"
+                },
+                "localStoragePath": {
+                    "type": "string",
+                    "description": "path to local storage"
+                },
+                "timeZone": {
+                    "type": "string",
+                    "description": "time zone from config"
+                },
+                "analyticsId": {
+                    "type": "string"
+                },
+                "networkId": {
+                    "type": "string",
+                    "description": "network id to which anytype is connected"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Info"
+        },
+        "anytype.model.Account.Status": {
+            "properties": {
+                "statusType": {
+                    "enum": [
+                        "Active",
+                        0,
+                        "PendingDeletion",
+                        1,
+                        "StartedDeletion",
+                        2,
+                        "Deleted",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Status Type"
+                },
+                "deletionDate": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Status"
+        },
+        "anytype.model.Block.Content.File": {
+            "properties": {
+                "hash": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "None",
+                        0,
+                        "File",
+                        1,
+                        "Image",
+                        2,
+                        "Video",
+                        3,
+                        "Audio",
+                        4,
+                        "PDF",
+                        5
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "mime": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "string"
+                },
+                "addedAt": {
+                    "type": "string"
+                },
+                "state": {
+                    "enum": [
+                        "Empty",
+                        0,
+                        "Uploading",
+                        1,
+                        "Done",
+                        2,
+                        "Error",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "State"
+                },
+                "style": {
+                    "enum": [
+                        "Auto",
+                        0,
+                        "Link",
+                        1,
+                        "Embed",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Style"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File"
+        }
+    }
+}

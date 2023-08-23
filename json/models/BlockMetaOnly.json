@@ -1,0 +1,21 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/BlockMetaOnly",
+    "definitions": {
+        "BlockMetaOnly": {
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "fields": {
+                    "additionalProperties": true,
+                    "type": "object"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Block Meta Only",
+            "description": "Used to decode block meta only, without the content itself"
+        }
+    }
+}

@@ -1,0 +1,185 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/ObjectType",
+    "definitions": {
+        "ObjectType": {
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "leave empty in case you want to create the new one"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "name of objectType (can be localized for bundled types)"
+                },
+                "relationLinks": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.RelationLink"
+                    },
+                    "type": "array",
+                    "description": "cannot contain more than one Relation with the same RelationType"
+                },
+                "layout": {
+                    "enum": [
+                        "basic",
+                        0,
+                        "profile",
+                        1,
+                        "todo",
+                        2,
+                        "set",
+                        3,
+                        "objectType",
+                        4,
+                        "relation",
+                        5,
+                        "file",
+                        6,
+                        "dashboard",
+                        7,
+                        "image",
+                        8,
+                        "note",
+                        9,
+                        "space",
+                        10,
+                        "bookmark",
+                        11,
+                        "relationOptionsList",
+                        12,
+                        "relationOption",
+                        13,
+                        "collection",
+                        14,
+                        "database",
+                        20
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Layout"
+                },
+                "iconEmoji": {
+                    "type": "string",
+                    "description": "emoji symbol"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "readonly": {
+                    "type": "boolean"
+                },
+                "types": {
+                    "items": {
+                        "enum": [
+                            "AccountOld",
+                            0,
+                            "Page",
+                            16,
+                            "ProfilePage",
+                            17,
+                            "Home",
+                            32,
+                            "Archive",
+                            48,
+                            "Widget",
+                            112,
+                            "File",
+                            256,
+                            "Template",
+                            288,
+                            "BundledTemplate",
+                            289,
+                            "BundledRelation",
+                            512,
+                            "SubObject",
+                            513,
+                            "BundledObjectType",
+                            514,
+                            "AnytypeProfile",
+                            515,
+                            "Date",
+                            516,
+                            "Workspace",
+                            518,
+                            "MissingObject",
+                            519
+                        ]
+                    },
+                    "type": "array",
+                    "title": "Smart Block Type"
+                },
+                "isArchived": {
+                    "type": "boolean",
+                    "description": "sets locally to hide object type from set and some other places"
+                },
+                "installedByDefault": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Object Type"
+        },
+        "anytype.model.RelationLink": {
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "format": {
+                    "enum": [
+                        "longtext",
+                        0,
+                        "shorttext",
+                        1,
+                        "number",
+                        2,
+                        "status",
+                        3,
+                        "tag",
+                        11,
+                        "date",
+                        4,
+                        "file",
+                        5,
+                        "checkbox",
+                        6,
+                        "url",
+                        7,
+                        "email",
+                        8,
+                        "phone",
+                        9,
+                        "emoji",
+                        10,
+                        "object",
+                        100,
+                        "relations",
+                        101
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Relation Format",
+                    "description": "RelationFormat describes how the underlying data is stored in the google.protobuf.Value and how it should be validated/sanitized"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Relation Link"
+        }
+    }
+}

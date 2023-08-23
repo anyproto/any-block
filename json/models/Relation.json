@@ -1,0 +1,195 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/Relation",
+    "definitions": {
+        "Relation": {
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Key under which the value is stored in the map. Must be unique for the object type. It usually auto-generated bsonid, but also may be something human-readable in case of prebuilt types."
+                },
+                "format": {
+                    "enum": [
+                        "longtext",
+                        0,
+                        "shorttext",
+                        1,
+                        "number",
+                        2,
+                        "status",
+                        3,
+                        "tag",
+                        11,
+                        "date",
+                        4,
+                        "file",
+                        5,
+                        "checkbox",
+                        6,
+                        "url",
+                        7,
+                        "email",
+                        8,
+                        "phone",
+                        9,
+                        "emoji",
+                        10,
+                        "object",
+                        100,
+                        "relations",
+                        101
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Relation Format",
+                    "description": "RelationFormat describes how the underlying data is stored in the google.protobuf.Value and how it should be validated/sanitized"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "name to show (can be localized for bundled types)"
+                },
+                "defaultValue": {
+                    "oneOf": [
+                        {
+                            "type": "array"
+                        },
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "object"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ],
+                    "title": "Value",
+                    "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of that variants, absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
+                },
+                "dataSource": {
+                    "enum": [
+                        "details",
+                        0,
+                        "derived",
+                        1,
+                        "account",
+                        2,
+                        "local",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Data Source"
+                },
+                "hidden": {
+                    "type": "boolean",
+                    "description": "internal, not displayed to user (e.g. coverX, coverY)"
+                },
+                "readOnly": {
+                    "type": "boolean",
+                    "description": "value not editable by user tobe renamed to readonlyValue"
+                },
+                "readOnlyRelation": {
+                    "type": "boolean",
+                    "description": "relation metadata, eg name and format is not editable by user"
+                },
+                "multi": {
+                    "type": "boolean",
+                    "description": "allow multiple values (stored in pb list)"
+                },
+                "objectTypes": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "URL of object type, empty to allow link to any object"
+                },
+                "selectDict": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Relation.Option"
+                    },
+                    "type": "array",
+                    "description": "index 10, 11 was used in internal-only builds. Can be reused, but may break some test accounts  default dictionary with unique values to choose for select/multiSelect format"
+                },
+                "maxCount": {
+                    "type": "integer",
+                    "description": "max number of values can be set for this relation. 0 means no limit. 1 means the value can be stored in non-repeated field"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "scope": {
+                    "enum": [
+                        "object",
+                        0,
+                        "type",
+                        1,
+                        "setOfTheSameType",
+                        2,
+                        "objectsOfTheSameType",
+                        3,
+                        "library",
+                        4
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Scope"
+                },
+                "creator": {
+                    "type": "string",
+                    "description": "creator profile id"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Relation",
+            "description": "Relation describe the human-interpreted relation type. It may be something like \"Date of creation, format=date\" or \"Assignee, format=objectId, objectType=person\""
+        },
+        "anytype.model.Relation.Option": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "id generated automatically if omitted"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string",
+                    "description": "stored"
+                },
+                "relationKey": {
+                    "type": "string",
+                    "description": "4 is reserved for old relation format  stored"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Option"
+        }
+    }
+}

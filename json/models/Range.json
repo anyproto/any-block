@@ -1,0 +1,20 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/Range",
+    "definitions": {
+        "Range": {
+            "properties": {
+                "from": {
+                    "type": "integer"
+                },
+                "to": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Range",
+            "description": "General purpose structure, uses in Mark."
+        }
+    }
+}
