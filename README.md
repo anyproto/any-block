@@ -10,6 +10,8 @@ Protobuf facilitates data exchange between different systems written in differen
 - `changes.proto` outlines CRDT-changes of objects and their blocks. Changes related to block updates are linked to events from `events.proto`. 
 - `events.proto` describes the events about the changes of objects and blocks. These events are used to notify clients and also serve as CDRT changes to be stored in an object's tree.
 
+JSON Schemas are generated automatically using [protoc-gen-jsonschema](https://github.com/chrusty/protoc-gen-jsonschema).
+
 ## Contribution
 Thank you for your desire to develop Anytype together!
 
