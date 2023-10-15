@@ -46,6 +46,10 @@
                         "$ref": "#/definitions/anytype.model.RelationLink"
                     },
                     "type": "array"
+                },
+                "key": {
+                    "type": "string",
+                    "description": "this field is not passing to the crdt changes and can be only set in the snapshot"
                 }
             },
             "additionalProperties": true,
@@ -709,7 +713,9 @@
                         "Gallery",
                         2,
                         "Kanban",
-                        3
+                        3,
+                        "Calendar",
+                        4
                     ],
                     "oneOf": [
                         {

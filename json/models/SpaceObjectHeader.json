@@ -1,0 +1,16 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/SpaceObjectHeader",
+    "definitions": {
+        "SpaceObjectHeader": {
+            "properties": {
+                "spaceID": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Space Object Header"
+        }
+    }
+}

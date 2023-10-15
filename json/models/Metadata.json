@@ -1,0 +1,29 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/Metadata",
+    "definitions": {
+        "Metadata": {
+            "properties": {
+                "identity": {
+                    "$ref": "#/definitions/anytype.model.Metadata.Payload.IdentityPayload",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+        },
+        "anytype.model.Metadata.Payload.IdentityPayload": {
+            "properties": {
+                "profileSymKey": {
+                    "type": "string",
+                    "format": "binary",
+                    "binaryEncoding": "base64"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Identity Payload"
+        }
+    }
+}

@@ -97,10 +97,12 @@
                     "type": "string"
                 },
                 "accountSpaceId": {
-                    "type": "string",
-                    "description": "marketplace template id"
+                    "type": "string"
                 },
                 "widgetsId": {
+                    "type": "string"
+                },
+                "spaceViewId": {
                     "type": "string"
                 },
                 "gatewayUrl": {

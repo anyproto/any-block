@@ -54,6 +54,14 @@
                         516,
                         "Workspace",
                         518,
+                        "STRelation",
+                        521,
+                        "STType",
+                        528,
+                        "STRelationOption",
+                        529,
+                        "SpaceView",
+                        530,
                         "MissingObject",
                         519
                     ],
@@ -752,7 +760,9 @@
                         "Gallery",
                         2,
                         "Kanban",
-                        3
+                        3,
+                        "Calendar",
+                        4
                     ],
                     "oneOf": [
                         {
