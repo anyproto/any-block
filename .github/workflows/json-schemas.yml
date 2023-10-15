@@ -34,8 +34,8 @@ jobs:
       # generate json schemas
       - name: Generate JSON Schemas
         run: |
-          mkdir json
-          mkdir json/models
+          mkdir -p json
+          mkdir -p json/models
           protoc --jsonschema_out=./json/models --proto_path=. models.proto
       
       # commit and push changes
