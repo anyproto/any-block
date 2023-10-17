@@ -105,6 +105,9 @@
                 "spaceViewId": {
                     "type": "string"
                 },
+                "techSpaceId": {
+                    "type": "string"
+                },
                 "gatewayUrl": {
                     "type": "string",
                     "description": "gateway url for fetching static files"
