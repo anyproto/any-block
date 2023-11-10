@@ -49,7 +49,11 @@
                 },
                 "key": {
                     "type": "string",
-                    "description": "this field is not passing to the crdt changes and can be only set in the snapshot"
+                    "description": "only used for pb backup purposes, ignored in other cases"
+                },
+                "originalCreatedTimestamp": {
+                    "type": "string",
+                    "description": "ignored in import/export in favor of createdDate relation. Used to store original user-side object creation timestamp"
                 }
             },
             "additionalProperties": true,
