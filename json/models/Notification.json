@@ -1,0 +1,177 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/Notification",
+    "definitions": {
+        "Notification": {
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "createTime": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "Created",
+                        0,
+                        "Shown",
+                        1,
+                        "Read",
+                        2,
+                        "Replied",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Status"
+                },
+                "isLocal": {
+                    "type": "boolean"
+                },
+                "import": {
+                    "$ref": "#/definitions/anytype.model.Notification.Import",
+                    "additionalProperties": true
+                },
+                "export": {
+                    "$ref": "#/definitions/anytype.model.Notification.Export",
+                    "additionalProperties": true
+                },
+                "space": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Notification"
+        },
+        "anytype.model.Notification.Export": {
+            "properties": {
+                "errorCode": {
+                    "enum": [
+                        "NULL",
+                        0,
+                        "UNKNOWN_ERROR",
+                        1,
+                        "BAD_INPUT",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Code"
+                },
+                "exportType": {
+                    "enum": [
+                        "Markdown",
+                        0,
+                        "Protobuf",
+                        1,
+                        "JSON",
+                        2,
+                        "DOT",
+                        3,
+                        "SVG",
+                        4,
+                        "GRAPH_JSON",
+                        5
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Format"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Export"
+        },
+        "anytype.model.Notification.Import": {
+            "properties": {
+                "processId": {
+                    "type": "string"
+                },
+                "errorCode": {
+                    "enum": [
+                        "NULL",
+                        0,
+                        "UNKNOWN_ERROR",
+                        1,
+                        "BAD_INPUT",
+                        2,
+                        "INTERNAL_ERROR",
+                        3,
+                        "NO_OBJECTS_TO_IMPORT",
+                        5,
+                        "IMPORT_IS_CANCELED",
+                        6,
+                        "LIMIT_OF_ROWS_OR_RELATIONS_EXCEEDED",
+                        7,
+                        "FILE_LOAD_ERROR",
+                        8
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Code"
+                },
+                "importType": {
+                    "enum": [
+                        "Notion",
+                        0,
+                        "Markdown",
+                        1,
+                        "External",
+                        2,
+                        "Pb",
+                        3,
+                        "Html",
+                        4,
+                        "Txt",
+                        5,
+                        "Csv",
+                        6
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "spaceId": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Import"
+        }
+    }
+}
