@@ -42,6 +42,10 @@
                     "$ref": "#/definitions/anytype.model.Notification.Export",
                     "additionalProperties": true
                 },
+                "galleryImport": {
+                    "$ref": "#/definitions/anytype.model.Notification.GalleryImport",
+                    "additionalProperties": true
+                },
                 "space": {
                     "type": "string"
                 }
@@ -101,6 +105,51 @@
             "type": "object",
             "title": "Export"
         },
+        "anytype.model.Notification.GalleryImport": {
+            "properties": {
+                "processId": {
+                    "type": "string"
+                },
+                "errorCode": {
+                    "enum": [
+                        "NULL",
+                        0,
+                        "UNKNOWN_ERROR",
+                        1,
+                        "BAD_INPUT",
+                        2,
+                        "INTERNAL_ERROR",
+                        3,
+                        "NO_OBJECTS_TO_IMPORT",
+                        5,
+                        "IMPORT_IS_CANCELED",
+                        6,
+                        "LIMIT_OF_ROWS_OR_RELATIONS_EXCEEDED",
+                        7,
+                        "FILE_LOAD_ERROR",
+                        8
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Error Code"
+                },
+                "spaceId": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Gallery Import"
+        },
         "anytype.model.Notification.Import": {
             "properties": {
                 "processId": {
@@ -133,7 +182,7 @@
                             "type": "integer"
                         }
                     ],
-                    "title": "Code"
+                    "title": "Error Code"
                 },
                 "importType": {
                     "enum": [
