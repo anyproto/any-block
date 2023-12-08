@@ -1004,6 +1004,35 @@
             "properties": {
                 "text": {
                     "type": "string"
+                },
+                "processor": {
+                    "enum": [
+                        "Latex",
+                        0,
+                        "Mermaid",
+                        1,
+                        "Chart",
+                        2,
+                        "Youtube",
+                        3,
+                        "Vimeo",
+                        4,
+                        "Soundcloud",
+                        5,
+                        "GoogleMaps",
+                        6,
+                        "Miro",
+                        7
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Processor"
                 }
             },
             "additionalProperties": true,
