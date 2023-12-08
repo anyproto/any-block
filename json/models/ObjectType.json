@@ -145,6 +145,10 @@
                 "key": {
                     "type": "string",
                     "description": "name of objectType (can be localized for bundled types)"
+                },
+                "revision": {
+                    "type": "string",
+                    "description": "revision of system objectType. Used to check if we should change type content or not"
                 }
             },
             "additionalProperties": true,

@@ -175,6 +175,10 @@
                 "creator": {
                     "type": "string",
                     "description": "creator profile id"
+                },
+                "revision": {
+                    "type": "string",
+                    "description": "revision of system relation. Used to check if we should change relation content or not"
                 }
             },
             "additionalProperties": true,
