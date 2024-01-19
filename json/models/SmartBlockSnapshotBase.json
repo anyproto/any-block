@@ -719,7 +719,9 @@
                         "Kanban",
                         3,
                         "Calendar",
-                        4
+                        4,
+                        "Graph",
+                        5
                     ],
                     "oneOf": [
                         {
