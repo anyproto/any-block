@@ -844,6 +844,9 @@
                 "addedAt": {
                     "type": "string"
                 },
+                "targetObjectId": {
+                    "type": "string"
+                },
                 "state": {
                     "enum": [
                         "Empty",

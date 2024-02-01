@@ -1,0 +1,35 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/FileInfo",
+    "definitions": {
+        "FileInfo": {
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "encryptionKeys": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.FileEncryptionKey"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File Info"
+        },
+        "anytype.model.FileEncryptionKey": {
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File Encryption Key"
+        }
+    }
+}

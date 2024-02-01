@@ -65,7 +65,9 @@
                         "Identity",
                         532,
                         "MissingObject",
-                        519
+                        519,
+                        "FileObject",
+                        533
                     ],
                     "oneOf": [
                         {
@@ -945,6 +947,9 @@
                     "type": "string"
                 },
                 "addedAt": {
+                    "type": "string"
+                },
+                "targetObjectId": {
                     "type": "string"
                 },
                 "state": {

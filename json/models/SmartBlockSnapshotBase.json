@@ -22,8 +22,7 @@
                     "items": {
                         "$ref": "#/definitions/anytype.model.Relation"
                     },
-                    "type": "array",
-                    "description": "deprecated"
+                    "type": "array"
                 },
                 "objectTypes": {
                     "items": {
@@ -54,6 +53,10 @@
                 "originalCreatedTimestamp": {
                     "type": "string",
                     "description": "ignored in import/export in favor of createdDate relation. Used to store original user-side object creation timestamp"
+                },
+                "fileInfo": {
+                    "$ref": "#/definitions/anytype.model.FileInfo",
+                    "additionalProperties": true
                 }
             },
             "additionalProperties": true,
@@ -902,6 +905,9 @@
                 "addedAt": {
                     "type": "string"
                 },
+                "targetObjectId": {
+                    "type": "string"
+                },
                 "state": {
                     "enum": [
                         "Empty",
@@ -1380,6 +1386,35 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Restrictions"
+        },
+        "anytype.model.FileEncryptionKey": {
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File Encryption Key"
+        },
+        "anytype.model.FileInfo": {
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "encryptionKeys": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.FileEncryptionKey"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File Info"
         },
         "anytype.model.Range": {
             "properties": {
