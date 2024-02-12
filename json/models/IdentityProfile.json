@@ -1,0 +1,41 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/IdentityProfile",
+    "definitions": {
+        "IdentityProfile": {
+            "properties": {
+                "identity": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "iconCid": {
+                    "type": "string"
+                },
+                "iconEncryptionKeys": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.FileEncryptionKey"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Identity Profile"
+        },
+        "anytype.model.FileEncryptionKey": {
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File Encryption Key"
+        }
+    }
+}

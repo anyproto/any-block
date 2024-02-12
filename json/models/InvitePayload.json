@@ -1,0 +1,52 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/InvitePayload",
+    "definitions": {
+        "InvitePayload": {
+            "properties": {
+                "creatorIdentity": {
+                    "type": "string"
+                },
+                "creatorName": {
+                    "type": "string"
+                },
+                "inviteKey": {
+                    "type": "string",
+                    "format": "binary",
+                    "binaryEncoding": "base64"
+                },
+                "spaceId": {
+                    "type": "string"
+                },
+                "spaceName": {
+                    "type": "string"
+                },
+                "spaceIconCid": {
+                    "type": "string"
+                },
+                "spaceIconEncryptionKeys": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.FileEncryptionKey"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Invite Payload"
+        },
+        "anytype.model.FileEncryptionKey": {
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File Encryption Key"
+        }
+    }
+}

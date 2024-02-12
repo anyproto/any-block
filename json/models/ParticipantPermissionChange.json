@@ -1,0 +1,37 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/ParticipantPermissionChange",
+    "definitions": {
+        "ParticipantPermissionChange": {
+            "properties": {
+                "identity": {
+                    "type": "string"
+                },
+                "perms": {
+                    "enum": [
+                        "Reader",
+                        0,
+                        "Writer",
+                        1,
+                        "Owner",
+                        2,
+                        "NoPermissions",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Participant Permissions"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Participant Permission Change"
+        }
+    }
+}

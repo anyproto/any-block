@@ -46,6 +46,10 @@
                     "$ref": "#/definitions/anytype.model.Notification.GalleryImport",
                     "additionalProperties": true
                 },
+                "requestToJoin": {
+                    "$ref": "#/definitions/anytype.model.Notification.RequestToJoin",
+                    "additionalProperties": true
+                },
                 "space": {
                     "type": "string"
                 }
@@ -221,6 +225,25 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Import"
+        },
+        "anytype.model.Notification.RequestToJoin": {
+            "properties": {
+                "spaceId": {
+                    "type": "string"
+                },
+                "identity": {
+                    "type": "string"
+                },
+                "identityName": {
+                    "type": "string"
+                },
+                "identityIcon": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request To Join"
         }
     }
 }

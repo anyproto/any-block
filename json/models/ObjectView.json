@@ -64,6 +64,8 @@
                         530,
                         "Identity",
                         532,
+                        "Participant",
+                        534,
                         "MissingObject",
                         519,
                         "FileObject",

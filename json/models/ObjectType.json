@@ -59,6 +59,8 @@
                         17,
                         "spaceView",
                         18,
+                        "participant",
+                        19,
                         "pdf",
                         20
                     ],
@@ -128,6 +130,8 @@
                             530,
                             "Identity",
                             532,
+                            "Participant",
+                            534,
                             "MissingObject",
                             519,
                             "FileObject",
