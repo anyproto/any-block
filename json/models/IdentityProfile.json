@@ -18,6 +18,9 @@
                         "$ref": "#/definitions/anytype.model.FileEncryptionKey"
                     },
                     "type": "array"
+                },
+                "description": {
+                    "type": "string"
                 }
             },
             "additionalProperties": true,
