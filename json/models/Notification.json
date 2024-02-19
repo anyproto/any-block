@@ -50,6 +50,10 @@
                     "$ref": "#/definitions/anytype.model.Notification.RequestToJoin",
                     "additionalProperties": true
                 },
+                "test": {
+                    "$ref": "#/definitions/anytype.model.Notification.Test",
+                    "additionalProperties": true
+                },
                 "space": {
                     "type": "string"
                 }
@@ -244,6 +248,11 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Request To Join"
+        },
+        "anytype.model.Notification.Test": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Test"
         }
     }
 }
