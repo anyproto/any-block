@@ -24,7 +24,9 @@
                             "Template",
                             7,
                             "Duplicate",
-                            8
+                            8,
+                            "CreateObjectOfThisType",
+                            9
                         ]
                     },
                     "type": "array",

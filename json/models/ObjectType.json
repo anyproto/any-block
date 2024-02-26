@@ -155,6 +155,10 @@
                 "revision": {
                     "type": "string",
                     "description": "revision of system objectType. Used to check if we should change type content or not"
+                },
+                "restrictObjectCreation": {
+                    "type": "boolean",
+                    "description": "restricts creating objects of this type for users"
                 }
             },
             "additionalProperties": true,
