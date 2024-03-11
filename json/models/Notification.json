@@ -54,7 +54,30 @@
                     "$ref": "#/definitions/anytype.model.Notification.Test",
                     "additionalProperties": true
                 },
+                "participantRequestApproved": {
+                    "$ref": "#/definitions/anytype.model.Notification.ParticipantRequestApproved",
+                    "additionalProperties": true
+                },
+                "requestToLeave": {
+                    "$ref": "#/definitions/anytype.model.Notification.RequestToLeave",
+                    "additionalProperties": true
+                },
+                "participantRemove": {
+                    "$ref": "#/definitions/anytype.model.Notification.ParticipantRemove",
+                    "additionalProperties": true
+                },
+                "participantRequestDecline": {
+                    "$ref": "#/definitions/anytype.model.Notification.ParticipantRequestDecline",
+                    "additionalProperties": true
+                },
+                "participantPermissionsChange": {
+                    "$ref": "#/definitions/anytype.model.Notification.ParticipantPermissionsChange",
+                    "additionalProperties": true
+                },
                 "space": {
+                    "type": "string"
+                },
+                "aclHeadId": {
                     "type": "string"
                 }
             },
@@ -234,6 +257,97 @@
             "type": "object",
             "title": "Import"
         },
+        "anytype.model.Notification.ParticipantPermissionsChange": {
+            "properties": {
+                "spaceId": {
+                    "type": "string"
+                },
+                "permissions": {
+                    "enum": [
+                        "Reader",
+                        0,
+                        "Writer",
+                        1,
+                        "Owner",
+                        2,
+                        "NoPermissions",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Participant Permissions"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Participant Permissions Change"
+        },
+        "anytype.model.Notification.ParticipantRemove": {
+            "properties": {
+                "identity": {
+                    "type": "string"
+                },
+                "identityName": {
+                    "type": "string"
+                },
+                "identityIcon": {
+                    "type": "string"
+                },
+                "spaceId": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Participant Remove"
+        },
+        "anytype.model.Notification.ParticipantRequestApproved": {
+            "properties": {
+                "spaceId": {
+                    "type": "string"
+                },
+                "permissions": {
+                    "enum": [
+                        "Reader",
+                        0,
+                        "Writer",
+                        1,
+                        "Owner",
+                        2,
+                        "NoPermissions",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Participant Permissions"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Participant Request Approved"
+        },
+        "anytype.model.Notification.ParticipantRequestDecline": {
+            "properties": {
+                "spaceId": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Participant Request Decline"
+        },
         "anytype.model.Notification.RequestToJoin": {
             "properties": {
                 "spaceId": {
@@ -252,6 +366,25 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Request To Join"
+        },
+        "anytype.model.Notification.RequestToLeave": {
+            "properties": {
+                "spaceId": {
+                    "type": "string"
+                },
+                "identity": {
+                    "type": "string"
+                },
+                "identityName": {
+                    "type": "string"
+                },
+                "identityIcon": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request To Leave"
         },
         "anytype.model.Notification.Test": {
             "additionalProperties": true,

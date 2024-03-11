@@ -135,7 +135,9 @@
                             "MissingObject",
                             519,
                             "FileObject",
-                            533
+                            533,
+                            "NotificationObject",
+                            535
                         ]
                     },
                     "type": "array",
