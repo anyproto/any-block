@@ -282,6 +282,9 @@
                         }
                     ],
                     "title": "Participant Permissions"
+                },
+                "spaceName": {
+                    "type": "string"
                 }
             },
             "additionalProperties": true,
@@ -300,6 +303,9 @@
                     "type": "string"
                 },
                 "spaceId": {
+                    "type": "string"
+                },
+                "spaceName": {
                     "type": "string"
                 }
             },
@@ -332,6 +338,9 @@
                         }
                     ],
                     "title": "Participant Permissions"
+                },
+                "spaceName": {
+                    "type": "string"
                 }
             },
             "additionalProperties": true,
@@ -341,6 +350,9 @@
         "anytype.model.Notification.ParticipantRequestDecline": {
             "properties": {
                 "spaceId": {
+                    "type": "string"
+                },
+                "spaceName": {
                     "type": "string"
                 }
             },
@@ -361,6 +373,9 @@
                 },
                 "identityIcon": {
                     "type": "string"
+                },
+                "spaceName": {
+                    "type": "string"
                 }
             },
             "additionalProperties": true,
@@ -379,6 +394,9 @@
                     "type": "string"
                 },
                 "identityIcon": {
+                    "type": "string"
+                },
+                "spaceName": {
                     "type": "string"
                 }
             },
