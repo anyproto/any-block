@@ -21,6 +21,9 @@
                 },
                 "description": {
                     "type": "string"
+                },
+                "globalName": {
+                    "type": "string"
                 }
             },
             "additionalProperties": true,

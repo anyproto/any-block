@@ -1,0 +1,101 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/MembershipTierData",
+    "definitions": {
+        "MembershipTierData": {
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "description": "this is a unique ID of the tier you should hardcode this in your app and provide icon, graphics, etc for each tier  (even for old/historical/inactive/hidden tiers)"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "localazied name of the tier"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "just a short technical description you don't have to use it, you can use your own UI-friendly texts"
+                },
+                "isActive": {
+                    "type": "boolean",
+                    "description": "can you buy it (ON ALL PLATFORMS, without clarification)?"
+                },
+                "isTest": {
+                    "type": "boolean",
+                    "description": "is this tier for debugging only?"
+                },
+                "isHiddenTier": {
+                    "type": "boolean",
+                    "description": "hidden tiers are only visible once user got them"
+                },
+                "periodType": {
+                    "enum": [
+                        "PeriodTypeUnknown",
+                        0,
+                        "PeriodTypeUnlimited",
+                        1,
+                        "PeriodTypeDays",
+                        2,
+                        "PeriodTypeWeeks",
+                        3,
+                        "PeriodTypeMonths",
+                        4,
+                        "PeriodTypeYears",
+                        5
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Period Type"
+                },
+                "periodValue": {
+                    "type": "integer",
+                    "description": "i.e. \"5 days\" or \"3 years\""
+                },
+                "priceStripeUsdCents": {
+                    "type": "integer",
+                    "description": "this one is a price we use ONLY on Stripe platform"
+                },
+                "anyNamesCountIncluded": {
+                    "type": "integer",
+                    "description": "number of ANY NS names that this tier includes  (not counted as a \"feature\" and not in the features list)"
+                },
+                "anyNameMinLength": {
+                    "type": "integer",
+                    "description": "somename.any - len of 8"
+                },
+                "features": {
+                    "additionalProperties": {
+                        "$ref": "#/definitions/anytype.model.MembershipTierData.Feature",
+                        "additionalProperties": true
+                    },
+                    "type": "object",
+                    "description": "each tier has a set of features each feature has a unique key: \"storage\", \"invites\", etc not using enum here to provide dynamic feature list:  \"stoageGB\" -\u003e {64, \"\"} \"invites\" -\u003e {120, \"\"} \"spaces-public\" -\u003e {10, \"\"} ..."
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Membership Tier Data"
+        },
+        "anytype.model.MembershipTierData.Feature": {
+            "properties": {
+                "valueUint": {
+                    "type": "integer",
+                    "description": "usually feature has uint value like \"storage\" - 120"
+                },
+                "valueStr": {
+                    "type": "string",
+                    "description": "in case feature will have string value"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Feature"
+        }
+    }
+}

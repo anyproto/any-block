@@ -1,0 +1,83 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/Membership",
+    "definitions": {
+        "Membership": {
+            "properties": {
+                "tier": {
+                    "type": "integer",
+                    "description": "it was Tier before, changed to int32 to allow dynamic values"
+                },
+                "status": {
+                    "enum": [
+                        "StatusUnknown",
+                        0,
+                        "StatusPending",
+                        1,
+                        "StatusActive",
+                        2,
+                        "StatusPendingRequiresFinalization",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Status"
+                },
+                "dateStarted": {
+                    "type": "string"
+                },
+                "dateEnds": {
+                    "type": "string"
+                },
+                "isAutoRenew": {
+                    "type": "boolean"
+                },
+                "paymentMethod": {
+                    "enum": [
+                        "MethodCard",
+                        0,
+                        "MethodCrypto",
+                        1,
+                        "MethodApplePay",
+                        2,
+                        "MethodGooglePay",
+                        3,
+                        "MethodAppleInapp",
+                        4,
+                        "MethodGoogleInapp",
+                        5
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Payment Method"
+                },
+                "requestedAnyName": {
+                    "type": "string",
+                    "description": "can be empty if user did not ask for any name"
+                },
+                "userEmail": {
+                    "type": "string",
+                    "description": "if the email was verified by the user or set during the checkout - it will be here"
+                },
+                "subscribeToNewsletter": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Membership"
+        }
+    }
+}
