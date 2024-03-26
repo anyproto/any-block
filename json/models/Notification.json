@@ -177,6 +177,9 @@
                 },
                 "name": {
                     "type": "string"
+                },
+                "spaceName": {
+                    "type": "string"
                 }
             },
             "additionalProperties": true,
@@ -250,6 +253,9 @@
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "spaceName": {
                     "type": "string"
                 }
             },
