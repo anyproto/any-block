@@ -70,12 +70,11 @@
                     "description": "somename.any - len of 8"
                 },
                 "features": {
-                    "additionalProperties": {
-                        "$ref": "#/definitions/anytype.model.MembershipTierData.Feature",
-                        "additionalProperties": true
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.MembershipTierData.Feature"
                     },
-                    "type": "object",
-                    "description": "each tier has a set of features each feature has a unique key: \"storage\", \"invites\", etc not using enum here to provide dynamic feature list:  \"stoageGB\" -\u003e {64, \"\"} \"invites\" -\u003e {120, \"\"} \"spaces-public\" -\u003e {10, \"\"} ..."
+                    "type": "array",
+                    "description": "each tier has a set of features the key is FeatureId"
                 }
             },
             "additionalProperties": true,
@@ -84,6 +83,31 @@
         },
         "anytype.model.MembershipTierData.Feature": {
             "properties": {
+                "featureId": {
+                    "enum": [
+                        "Unknown",
+                        0,
+                        "StorageGBs",
+                        1,
+                        "Invites",
+                        2,
+                        "SpaceWriters",
+                        3,
+                        "SpaceReaders",
+                        4,
+                        "SharedSpaces",
+                        5
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Feature Id"
+                },
                 "valueUint": {
                     "type": "integer",
                     "description": "usually feature has uint value like \"storage\" - 120"
