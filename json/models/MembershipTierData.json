@@ -16,17 +16,9 @@
                     "type": "string",
                     "description": "just a short technical description you don't have to use it, you can use your own UI-friendly texts"
                 },
-                "isActive": {
-                    "type": "boolean",
-                    "description": "can you buy it (ON ALL PLATFORMS, without clarification)?"
-                },
                 "isTest": {
                     "type": "boolean",
                     "description": "is this tier for debugging only?"
-                },
-                "isHiddenTier": {
-                    "type": "boolean",
-                    "description": "hidden tiers are only visible once user got them"
                 },
                 "periodType": {
                     "enum": [
@@ -63,63 +55,27 @@
                 },
                 "anyNamesCountIncluded": {
                     "type": "integer",
-                    "description": "number of ANY NS names that this tier includes  (not counted as a \"feature\" and not in the features list)"
+                    "description": "number of ANY NS names that this tier includes  also in the \"features\" list (see below)"
                 },
                 "anyNameMinLength": {
                     "type": "integer",
-                    "description": "somename.any - len of 8"
+                    "description": "somename.any - is of len 8"
                 },
                 "features": {
                     "items": {
-                        "$ref": "#/definitions/anytype.model.MembershipTierData.Feature"
+                        "type": "string"
                     },
                     "type": "array",
-                    "description": "each tier has a set of features the key is FeatureId"
+                    "description": "localized strings for the features"
+                },
+                "colorStr": {
+                    "type": "string",
+                    "description": "green, blue, red, purple, custom"
                 }
             },
             "additionalProperties": true,
             "type": "object",
             "title": "Membership Tier Data"
-        },
-        "anytype.model.MembershipTierData.Feature": {
-            "properties": {
-                "featureId": {
-                    "enum": [
-                        "Unknown",
-                        0,
-                        "StorageGBs",
-                        1,
-                        "Invites",
-                        2,
-                        "SpaceWriters",
-                        3,
-                        "SpaceReaders",
-                        4,
-                        "SharedSpaces",
-                        5
-                    ],
-                    "oneOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "integer"
-                        }
-                    ],
-                    "title": "Feature Id"
-                },
-                "valueUint": {
-                    "type": "integer",
-                    "description": "usually feature has uint value like \"storage\" - 120"
-                },
-                "valueStr": {
-                    "type": "string",
-                    "description": "in case feature will have string value"
-                }
-            },
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Feature"
         }
     }
 }
