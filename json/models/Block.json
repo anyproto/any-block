@@ -545,9 +545,6 @@
         },
         "anytype.model.Block.Content.Dataview.Sort": {
             "properties": {
-                "id": {
-                    "type": "string"
-                },
                 "RelationKey": {
                     "type": "string"
                 },
@@ -639,6 +636,28 @@
                 },
                 "includeTime": {
                     "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "emptyPlacement": {
+                    "enum": [
+                        "NotSpecified",
+                        0,
+                        "Start",
+                        1,
+                        "End",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Empty Type"
                 }
             },
             "additionalProperties": true,
