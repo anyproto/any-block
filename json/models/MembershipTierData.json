@@ -6,7 +6,7 @@
             "properties": {
                 "id": {
                     "type": "integer",
-                    "description": "this is a unique ID of the tier you should hardcode this in your app and provide icon, graphics, etc for each tier  (even for old/historical/inactive/hidden tiers)"
+                    "description": "this is a unique Payment Node ID of the tier WARNING: tiers can be sorted differently, not according to their IDs!"
                 },
                 "name": {
                     "type": "string",
@@ -14,11 +14,11 @@
                 },
                 "description": {
                     "type": "string",
-                    "description": "just a short technical description you don't have to use it, you can use your own UI-friendly texts"
+                    "description": "just a short technical description"
                 },
                 "isTest": {
                     "type": "boolean",
-                    "description": "is this tier for debugging only?"
+                    "description": "is this tier for testing and debugging only?"
                 },
                 "periodType": {
                     "enum": [
@@ -71,6 +71,27 @@
                 "colorStr": {
                     "type": "string",
                     "description": "green, blue, red, purple, custom"
+                },
+                "stripeProductId": {
+                    "type": "string",
+                    "description": "Stripe platform-specific data:"
+                },
+                "stripeManageUrl": {
+                    "type": "string"
+                },
+                "iosProductId": {
+                    "type": "string",
+                    "description": "iOS platform-specific data:"
+                },
+                "iosManageUrl": {
+                    "type": "string"
+                },
+                "androidProductId": {
+                    "type": "string",
+                    "description": "Android platform-specific data:"
+                },
+                "androidManageUrl": {
+                    "type": "string"
                 }
             },
             "additionalProperties": true,

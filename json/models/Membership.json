@@ -40,18 +40,16 @@
                 },
                 "paymentMethod": {
                     "enum": [
-                        "MethodCard",
+                        "MethodNone",
                         0,
-                        "MethodCrypto",
+                        "MethodCard",
                         1,
-                        "MethodApplePay",
+                        "MethodCrypto",
                         2,
-                        "MethodGooglePay",
+                        "MethodInappApple",
                         3,
-                        "MethodAppleInapp",
-                        4,
-                        "MethodGoogleInapp",
-                        5
+                        "MethodInappGoogle",
+                        4
                     ],
                     "oneOf": [
                         {
