@@ -42,7 +42,7 @@
                     "enum": [
                         "MethodNone",
                         0,
-                        "MethodCard",
+                        "MethodStripe",
                         1,
                         "MethodCrypto",
                         2,
