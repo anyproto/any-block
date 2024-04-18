@@ -61,9 +61,24 @@
                     ],
                     "title": "Payment Method"
                 },
-                "requestedAnyName": {
+                "nsName": {
                     "type": "string",
                     "description": "can be empty if user did not ask for any name"
+                },
+                "nsNameType": {
+                    "enum": [
+                        "AnyName",
+                        0
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Nameservice Name Type"
                 },
                 "userEmail": {
                     "type": "string",
