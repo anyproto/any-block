@@ -104,6 +104,12 @@
                 "history": {
                     "$ref": "#/definitions/anytype.model.ObjectView.HistorySize",
                     "additionalProperties": true
+                },
+                "blockParticipants": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.ObjectView.BlockParticipant"
+                    },
+                    "type": "array"
                 }
             },
             "additionalProperties": true,
@@ -1455,6 +1461,19 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Restrictions"
+        },
+        "anytype.model.ObjectView.BlockParticipant": {
+            "properties": {
+                "blockId": {
+                    "type": "string"
+                },
+                "participantId": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Block Participant"
         },
         "anytype.model.ObjectView.DetailsSet": {
             "properties": {
