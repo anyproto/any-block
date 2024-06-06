@@ -223,16 +223,16 @@
                     },
                     "type": "array"
                 },
+                "activeView": {
+                    "type": "string",
+                    "description": "do not generate changes for this field"
+                },
                 "relations": {
                     "items": {
                         "$ref": "#/definitions/anytype.model.Relation"
                     },
                     "type": "array",
                     "description": "deprecated"
-                },
-                "activeView": {
-                    "type": "string",
-                    "description": "saved within a session"
                 },
                 "groupOrders": {
                     "items": {
