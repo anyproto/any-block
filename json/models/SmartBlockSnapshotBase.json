@@ -1363,7 +1363,9 @@
                         "List",
                         2,
                         "CompactList",
-                        3
+                        3,
+                        "View",
+                        4
                     ],
                     "oneOf": [
                         {
