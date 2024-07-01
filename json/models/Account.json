@@ -8,15 +8,6 @@
                     "type": "string",
                     "description": "User's thread id"
                 },
-                "name": {
-                    "type": "string",
-                    "description": "User name, that associated with this account"
-                },
-                "avatar": {
-                    "$ref": "#/definitions/anytype.model.Account.Avatar",
-                    "additionalProperties": true,
-                    "description": "Avatar of a user's account"
-                },
                 "config": {
                     "$ref": "#/definitions/anytype.model.Account.Config",
                     "additionalProperties": true
@@ -34,23 +25,6 @@
             "type": "object",
             "title": "Account",
             "description": "* Contains basic information about a user account"
-        },
-        "anytype.model.Account.Avatar": {
-            "properties": {
-                "image": {
-                    "$ref": "#/definitions/anytype.model.Block.Content.File",
-                    "additionalProperties": true,
-                    "description": "Image of the avatar. Contains the hash to retrieve the image."
-                },
-                "color": {
-                    "type": "string",
-                    "description": "Color of the avatar, used if image not set."
-                }
-            },
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Avatar",
-            "description": "* Avatar of a user's account. It could be an image or color"
         },
         "anytype.model.Account.Config": {
             "properties": {
@@ -162,96 +136,6 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Status"
-        },
-        "anytype.model.Block.Content.File": {
-            "properties": {
-                "hash": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "type": {
-                    "enum": [
-                        "None",
-                        0,
-                        "File",
-                        1,
-                        "Image",
-                        2,
-                        "Video",
-                        3,
-                        "Audio",
-                        4,
-                        "PDF",
-                        5
-                    ],
-                    "oneOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "integer"
-                        }
-                    ],
-                    "title": "Type"
-                },
-                "mime": {
-                    "type": "string"
-                },
-                "size": {
-                    "type": "string"
-                },
-                "addedAt": {
-                    "type": "string"
-                },
-                "targetObjectId": {
-                    "type": "string"
-                },
-                "state": {
-                    "enum": [
-                        "Empty",
-                        0,
-                        "Uploading",
-                        1,
-                        "Done",
-                        2,
-                        "Error",
-                        3
-                    ],
-                    "oneOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "integer"
-                        }
-                    ],
-                    "title": "State"
-                },
-                "style": {
-                    "enum": [
-                        "Auto",
-                        0,
-                        "Link",
-                        1,
-                        "Embed",
-                        2
-                    ],
-                    "oneOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "integer"
-                        }
-                    ],
-                    "title": "Style"
-                }
-            },
-            "additionalProperties": true,
-            "type": "object",
-            "title": "File"
         }
     }
 }
