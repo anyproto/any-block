@@ -55,7 +55,7 @@
                 },
                 "anyNamesCountIncluded": {
                     "type": "integer",
-                    "description": "number of ANY NS names that this tier includes  also in the \"features\" list (see below)"
+                    "description": "number of ANY NS names that this tier includes also in the \"features\" list (see below)"
                 },
                 "anyNameMinLength": {
                     "type": "integer",

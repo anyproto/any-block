@@ -71,7 +71,9 @@
                         "FileObject",
                         533,
                         "NotificationObject",
-                        535
+                        535,
+                        "DevicesObject",
+                        536
                     ],
                     "oneOf": [
                         {
