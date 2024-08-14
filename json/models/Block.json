@@ -270,10 +270,12 @@
                 },
                 "operator": {
                     "enum": [
-                        "And",
+                        "No",
                         0,
                         "Or",
-                        1
+                        1,
+                        "And",
+                        2
                     ],
                     "oneOf": [
                         {
@@ -442,6 +444,12 @@
                 },
                 "includeTime": {
                     "type": "boolean"
+                },
+                "nestedFilters": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Dataview.Filter"
+                    },
+                    "type": "array"
                 }
             },
             "additionalProperties": true,
