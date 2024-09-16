@@ -47,7 +47,11 @@
                         "participant",
                         19,
                         "pdf",
-                        20
+                        20,
+                        "chat",
+                        21,
+                        "chatDerived",
+                        22
                     ],
                     "oneOf": [
                         {

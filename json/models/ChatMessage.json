@@ -1,0 +1,235 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/ChatMessage",
+    "definitions": {
+        "ChatMessage": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Unique message identifier"
+                },
+                "orderId": {
+                    "type": "string",
+                    "description": "Used for subscriptions"
+                },
+                "creator": {
+                    "type": "string",
+                    "description": "Identifier for the message creator"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "modifiedAt": {
+                    "type": "string"
+                },
+                "replyToMessageId": {
+                    "type": "string",
+                    "description": "Identifier for the message being replied to"
+                },
+                "message": {
+                    "$ref": "#/definitions/anytype.model.ChatMessage.MessageContent",
+                    "additionalProperties": true,
+                    "description": "Message content"
+                },
+                "attachments": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.ChatMessage.Attachment"
+                    },
+                    "type": "array",
+                    "description": "Attachments slice"
+                },
+                "reactions": {
+                    "$ref": "#/definitions/anytype.model.ChatMessage.Reactions",
+                    "additionalProperties": true,
+                    "description": "Reactions to the message"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Chat Message"
+        },
+        "anytype.model.Block.Content.Text.Mark": {
+            "properties": {
+                "range": {
+                    "$ref": "#/definitions/anytype.model.Range",
+                    "additionalProperties": true,
+                    "description": "range of symbols to apply this mark. From(symbol) To(symbol)"
+                },
+                "type": {
+                    "enum": [
+                        "Strikethrough",
+                        0,
+                        "Keyboard",
+                        1,
+                        "Italic",
+                        2,
+                        "Bold",
+                        3,
+                        "Underscored",
+                        4,
+                        "Link",
+                        5,
+                        "TextColor",
+                        6,
+                        "BackgroundColor",
+                        7,
+                        "Mention",
+                        8,
+                        "Emoji",
+                        9,
+                        "Object",
+                        10
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "param": {
+                    "type": "string",
+                    "description": "link, color, etc"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Mark"
+        },
+        "anytype.model.ChatMessage.Attachment": {
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Identifier for the attachment object"
+                },
+                "type": {
+                    "enum": [
+                        "FILE",
+                        0,
+                        "IMAGE",
+                        1,
+                        "LINK",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Attachment Type"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attachment"
+        },
+        "anytype.model.ChatMessage.MessageContent": {
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "The text content of the message part"
+                },
+                "style": {
+                    "enum": [
+                        "Paragraph",
+                        0,
+                        "Header1",
+                        1,
+                        "Header2",
+                        2,
+                        "Header3",
+                        3,
+                        "Header4",
+                        4,
+                        "Quote",
+                        5,
+                        "Code",
+                        6,
+                        "Title",
+                        7,
+                        "Checkbox",
+                        8,
+                        "Marked",
+                        9,
+                        "Numbered",
+                        10,
+                        "Toggle",
+                        11,
+                        "Description",
+                        12,
+                        "Callout",
+                        13
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Style"
+                },
+                "marks": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Block.Content.Text.Mark"
+                    },
+                    "type": "array",
+                    "description": "List of marks applied to the text"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Message Content"
+        },
+        "anytype.model.ChatMessage.Reactions": {
+            "properties": {
+                "reactions": {
+                    "additionalProperties": {
+                        "$ref": "#/definitions/anytype.model.ChatMessage.Reactions.IdentityList",
+                        "additionalProperties": true
+                    },
+                    "type": "object",
+                    "description": "Map of emoji to list of user IDs"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Reactions"
+        },
+        "anytype.model.ChatMessage.Reactions.IdentityList": {
+            "properties": {
+                "ids": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "List of user IDs"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Identity List"
+        },
+        "anytype.model.Range": {
+            "properties": {
+                "from": {
+                    "type": "integer"
+                },
+                "to": {
+                    "type": "integer"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Range",
+            "description": "General purpose structure, uses in Mark."
+        }
+    }
+}

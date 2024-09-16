@@ -73,7 +73,11 @@
                         "NotificationObject",
                         535,
                         "DevicesObject",
-                        536
+                        536,
+                        "ChatObject",
+                        537,
+                        "ChatDerivedObject",
+                        544
                     ],
                     "oneOf": [
                         {
@@ -248,6 +252,10 @@
                 "widget": {
                     "$ref": "#/definitions/anytype.model.Block.Content.Widget",
                     "additionalProperties": true
+                },
+                "chat": {
+                    "$ref": "#/definitions/anytype.model.Block.Content.Chat",
+                    "additionalProperties": true
                 }
             },
             "additionalProperties": true,
@@ -325,6 +333,11 @@
             "type": "object",
             "title": "Bookmark",
             "description": "Bookmark is to keep a web-link and to preview a content."
+        },
+        "anytype.model.Block.Content.Chat": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Chat"
         },
         "anytype.model.Block.Content.Dataview": {
             "properties": {

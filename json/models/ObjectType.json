@@ -62,7 +62,11 @@
                         "participant",
                         19,
                         "pdf",
-                        20
+                        20,
+                        "chat",
+                        21,
+                        "chatDerived",
+                        22
                     ],
                     "oneOf": [
                         {
@@ -139,7 +143,11 @@
                             "NotificationObject",
                             535,
                             "DevicesObject",
-                            536
+                            536,
+                            "ChatObject",
+                            537,
+                            "ChatDerivedObject",
+                            544
                         ]
                     },
                     "type": "array",
