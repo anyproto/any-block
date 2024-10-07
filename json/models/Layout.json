@@ -51,7 +51,9 @@
                         "chat",
                         21,
                         "chatDerived",
-                        22
+                        22,
+                        "tag",
+                        23
                     ],
                     "oneOf": [
                         {
