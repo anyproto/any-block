@@ -149,7 +149,9 @@
                             "ChatObject",
                             537,
                             "ChatDerivedObject",
-                            544
+                            544,
+                            "AccountObject",
+                            545
                         ]
                     },
                     "type": "array",
