@@ -67,6 +67,10 @@
                     "type": "string",
                     "description": "marketplace workspace id"
                 },
+                "workspaceObjectId": {
+                    "type": "string",
+                    "description": "workspace object id. used for space-level chat"
+                },
                 "deviceId": {
                     "type": "string"
                 },
