@@ -841,6 +841,9 @@
                         }
                     ],
                     "title": "Empty Type"
+                },
+                "noCollate": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": true,
