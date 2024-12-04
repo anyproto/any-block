@@ -75,7 +75,8 @@
                     "type": "string"
                 },
                 "accountSpaceId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "the first created private space. It's filled only when account is created"
                 },
                 "widgetsId": {
                     "type": "string"
