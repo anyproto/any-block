@@ -493,7 +493,7 @@
                         }
                     ],
                     "title": "Value",
-                    "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of that variants, absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
+                    "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of these variants. Absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
                 },
                 "quickOption": {
                     "enum": [
@@ -770,7 +770,7 @@
                             }
                         ],
                         "title": "Value",
-                        "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of that variants, absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
+                        "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of these variants. Absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
                     },
                     "additionalProperties": true,
                     "type": "array"
@@ -952,6 +952,27 @@
                 "defaultObjectTypeId": {
                     "type": "string",
                     "description": "Default object type that is chosen for new object created within the view"
+                },
+                "align": {
+                    "enum": [
+                        "AlignLeft",
+                        0,
+                        "AlignCenter",
+                        1,
+                        "AlignRight",
+                        2,
+                        "AlignJustify",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Align"
                 }
             },
             "additionalProperties": true,
@@ -1677,7 +1698,7 @@
                         }
                     ],
                     "title": "Value",
-                    "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of that variants, absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
+                    "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of these variants. Absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
                 },
                 "dataSource": {
                     "enum": [
