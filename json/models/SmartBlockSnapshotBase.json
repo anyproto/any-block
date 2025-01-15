@@ -658,6 +658,27 @@
                         }
                     ],
                     "title": "Formula Type"
+                },
+                "align": {
+                    "enum": [
+                        "AlignLeft",
+                        0,
+                        "AlignCenter",
+                        1,
+                        "AlignRight",
+                        2,
+                        "AlignJustify",
+                        3
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Align"
                 }
             },
             "additionalProperties": true,
@@ -890,27 +911,6 @@
                 "defaultObjectTypeId": {
                     "type": "string",
                     "description": "Default object type that is chosen for new object created within the view"
-                },
-                "align": {
-                    "enum": [
-                        "AlignLeft",
-                        0,
-                        "AlignCenter",
-                        1,
-                        "AlignRight",
-                        2,
-                        "AlignJustify",
-                        3
-                    ],
-                    "oneOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "integer"
-                        }
-                    ],
-                    "title": "Align"
                 }
             },
             "additionalProperties": true,
