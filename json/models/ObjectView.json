@@ -1893,7 +1893,9 @@
                             "Duplicate",
                             8,
                             "CreateObjectOfThisType",
-                            9
+                            9,
+                            "Publish",
+                            10
                         ]
                     },
                     "type": "array",
