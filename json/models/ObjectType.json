@@ -175,6 +175,14 @@
                 "restrictObjectCreation": {
                     "type": "boolean",
                     "description": "restricts creating objects of this type for users"
+                },
+                "iconColor": {
+                    "type": "string",
+                    "description": "color of object type icon"
+                },
+                "iconName": {
+                    "type": "string",
+                    "description": "name of object type icon"
                 }
             },
             "additionalProperties": true,
