@@ -105,6 +105,10 @@
                 "networkId": {
                     "type": "string",
                     "description": "network id to which anytype is connected"
+                },
+                "ethereumAddress": {
+                    "type": "string",
+                    "description": "we have Any PK AND Ethereum PK derived from one seed phrase"
                 }
             },
             "additionalProperties": true,
