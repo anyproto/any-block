@@ -347,7 +347,8 @@
                     "items": {
                         "type": "string"
                     },
-                    "type": "array"
+                    "type": "array",
+                    "description": "can be set for detached(without TargetObjectId) inline sets"
                 },
                 "views": {
                     "items": {
@@ -385,7 +386,8 @@
                     "type": "array"
                 },
                 "TargetObjectId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "empty for original set/collection objects and for detached inline sets"
                 },
                 "isCollection": {
                     "type": "boolean"
