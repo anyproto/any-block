@@ -1,0 +1,42 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/ChatState",
+    "definitions": {
+        "ChatState": {
+            "properties": {
+                "messages": {
+                    "$ref": "#/definitions/anytype.model.ChatState.UnreadState",
+                    "additionalProperties": true,
+                    "description": "unread messages"
+                },
+                "mentions": {
+                    "$ref": "#/definitions/anytype.model.ChatState.UnreadState",
+                    "additionalProperties": true,
+                    "description": "unread mentions"
+                },
+                "dbTimestamp": {
+                    "type": "string",
+                    "description": "reflects the state of the chat db at the moment of sending response/event that includes this state"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Chat State"
+        },
+        "anytype.model.ChatState.UnreadState": {
+            "properties": {
+                "oldestOrderId": {
+                    "type": "string",
+                    "description": "oldest(in the lex sorting) unread message order id. Client should ALWAYS scroll through unread messages from the oldest to the newest"
+                },
+                "counter": {
+                    "type": "integer",
+                    "description": "total number of unread messages"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Unread State"
+        }
+    }
+}

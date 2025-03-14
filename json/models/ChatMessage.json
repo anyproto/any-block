@@ -22,6 +22,10 @@
                 "modifiedAt": {
                     "type": "string"
                 },
+                "addedAt": {
+                    "type": "string",
+                    "description": "Message received and added to db at"
+                },
                 "replyToMessageId": {
                     "type": "string",
                     "description": "Identifier for the message being replied to"
@@ -42,6 +46,10 @@
                     "$ref": "#/definitions/anytype.model.ChatMessage.Reactions",
                     "additionalProperties": true,
                     "description": "Reactions to the message"
+                },
+                "read": {
+                    "type": "boolean",
+                    "description": "Message read status"
                 }
             },
             "additionalProperties": true,
