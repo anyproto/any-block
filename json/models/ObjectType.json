@@ -10,7 +10,7 @@
                 },
                 "name": {
                     "type": "string",
-                    "description": "name of objectType (can be localized for bundled types)"
+                    "description": "name of objectType in singular form (can be localized for bundled types)"
                 },
                 "relationLinks": {
                     "items": {
@@ -183,6 +183,10 @@
                 "iconName": {
                     "type": "string",
                     "description": "name of object type icon"
+                },
+                "pluralName": {
+                    "type": "string",
+                    "description": "name of objectType in plural form (can be localized for bundled types)"
                 }
             },
             "additionalProperties": true,
