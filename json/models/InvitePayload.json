@@ -10,7 +10,7 @@
                 "creatorName": {
                     "type": "string"
                 },
-                "inviteKey": {
+                "aclKey": {
                     "type": "string",
                     "format": "binary",
                     "binaryEncoding": "base64"
@@ -29,6 +29,28 @@
                         "$ref": "#/definitions/anytype.model.FileEncryptionKey"
                     },
                     "type": "array"
+                },
+                "inviteType": {
+                    "enum": [
+                        "JoinAsMember",
+                        0,
+                        "JoinAsGuest",
+                        1
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Invite Type"
+                },
+                "guestKey": {
+                    "type": "string",
+                    "format": "binary",
+                    "binaryEncoding": "base64"
                 }
             },
             "additionalProperties": true,
