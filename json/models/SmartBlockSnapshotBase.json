@@ -1474,6 +1474,9 @@
                 },
                 "viewId": {
                     "type": "string"
+                },
+                "autoAdded": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": true,
