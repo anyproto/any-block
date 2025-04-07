@@ -14,7 +14,7 @@
                     "additionalProperties": true,
                     "description": "unread mentions"
                 },
-                "dbTimestamp": {
+                "lastStateId": {
                     "type": "string",
                     "description": "reflects the state of the chat db at the moment of sending response/event that includes this state"
                 }

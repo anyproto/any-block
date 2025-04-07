@@ -10,7 +10,7 @@
                 },
                 "orderId": {
                     "type": "string",
-                    "description": "Used for subscriptions"
+                    "description": "Lexicographical id for message in order of tree traversal"
                 },
                 "creator": {
                     "type": "string",
@@ -22,9 +22,9 @@
                 "modifiedAt": {
                     "type": "string"
                 },
-                "addedAt": {
+                "stateId": {
                     "type": "string",
-                    "description": "Message received and added to db at"
+                    "description": "stateId is ever-increasing id (BSON ObjectId) for this message. Unlike orderId, this ID is ordered by the time messages are added. For example, it's useful to prevent accidental reading of messages from the past when a ChatReadMessages request is sent: a message from the past may appear, but the client is still unaware of it"
                 },
                 "replyToMessageId": {
                     "type": "string",
@@ -50,6 +50,9 @@
                 "read": {
                     "type": "boolean",
                     "description": "Message read status"
+                },
+                "mentionRead": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": true,
