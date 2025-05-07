@@ -92,6 +92,10 @@
                 },
                 "androidManageUrl": {
                     "type": "string"
+                },
+                "offer": {
+                    "type": "string",
+                    "description": "\"limited offer\" or somehing like that"
                 }
             },
             "additionalProperties": true,
