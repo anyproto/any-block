@@ -32,10 +32,12 @@
                 },
                 "inviteType": {
                     "enum": [
-                        "JoinAsMember",
+                        "Member",
                         0,
-                        "JoinAsGuest",
-                        1
+                        "Guest",
+                        1,
+                        "WithoutApprove",
+                        2
                     ],
                     "oneOf": [
                         {
