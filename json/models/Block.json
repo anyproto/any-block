@@ -852,6 +852,10 @@
                 "defaultObjectTypeId": {
                     "type": "string",
                     "description": "Default object type that is chosen for new object created within the view"
+                },
+                "endRelationKey": {
+                    "type": "string",
+                    "description": "Group view by this relationKey"
                 }
             },
             "additionalProperties": true,
