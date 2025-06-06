@@ -198,6 +198,10 @@
                 "revision": {
                     "type": "string",
                     "description": "revision of system relation. Used to check if we should change relation content or not"
+                },
+                "includeTime": {
+                    "type": "boolean",
+                    "description": "indicates whether value of relation with date format should be processed with seconds precision"
                 }
             },
             "additionalProperties": true,
