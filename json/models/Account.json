@@ -71,6 +71,10 @@
                     "type": "string",
                     "description": "workspace object id. used for space-level chat"
                 },
+                "spaceChatId": {
+                    "type": "string",
+                    "description": "space-level chat if exists"
+                },
                 "deviceId": {
                     "type": "string"
                 },
