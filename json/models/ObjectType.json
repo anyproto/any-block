@@ -68,7 +68,13 @@
                         "chatDerived",
                         22,
                         "tag",
-                        23
+                        23,
+                        "notification",
+                        24,
+                        "missingObject",
+                        25,
+                        "devices",
+                        26
                     ],
                     "oneOf": [
                         {
