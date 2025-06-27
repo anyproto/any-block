@@ -261,7 +261,9 @@
                         "Txt",
                         5,
                         "Csv",
-                        6
+                        6,
+                        "Obsidian",
+                        7
                     ],
                     "oneOf": [
                         {
