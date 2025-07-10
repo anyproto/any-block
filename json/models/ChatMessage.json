@@ -53,6 +53,9 @@
                 },
                 "mentionRead": {
                     "type": "boolean"
+                },
+                "synced": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": true,
