@@ -54,6 +54,9 @@
                 "mentionRead": {
                     "type": "boolean"
                 },
+                "hasMention": {
+                    "type": "boolean"
+                },
                 "synced": {
                     "type": "boolean"
                 }
