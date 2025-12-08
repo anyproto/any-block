@@ -48,7 +48,7 @@
                         19,
                         "pdf",
                         20,
-                        "chat",
+                        "chatDeprecated",
                         21,
                         "chatDerived",
                         22,
@@ -277,6 +277,10 @@
                 "relationKey": {
                     "type": "string",
                     "description": "4 is reserved for old relation format  stored"
+                },
+                "orderId": {
+                    "type": "string",
+                    "description": "lexicographic id of relation option for ordering"
                 }
             },
             "additionalProperties": true,

@@ -1,0 +1,63 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/IdentityProfileWithKey",
+    "definitions": {
+        "IdentityProfileWithKey": {
+            "properties": {
+                "identityProfile": {
+                    "$ref": "#/definitions/anytype.model.IdentityProfile",
+                    "additionalProperties": true
+                },
+                "requestMetadata": {
+                    "type": "string",
+                    "format": "binary",
+                    "binaryEncoding": "base64"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Identity Profile With Key"
+        },
+        "anytype.model.FileEncryptionKey": {
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "File Encryption Key"
+        },
+        "anytype.model.IdentityProfile": {
+            "properties": {
+                "identity": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "iconCid": {
+                    "type": "string"
+                },
+                "iconEncryptionKeys": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.FileEncryptionKey"
+                    },
+                    "type": "array"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "globalName": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Identity Profile"
+        }
+    }
+}

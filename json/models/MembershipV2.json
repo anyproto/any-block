@@ -1,0 +1,11 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/MembershipV2",
+    "definitions": {
+        "MembershipV2": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Membership V 2"
+        }
+    }
+}

@@ -10,6 +10,15 @@
                 "creatorName": {
                     "type": "string"
                 },
+                "creatorIconCid": {
+                    "type": "string"
+                },
+                "creatorIconEncryptionKeys": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.FileEncryptionKey"
+                    },
+                    "type": "array"
+                },
                 "aclKey": {
                     "type": "string",
                     "format": "binary",
@@ -23,6 +32,12 @@
                 },
                 "spaceIconCid": {
                     "type": "string"
+                },
+                "spaceIconOption": {
+                    "type": "integer"
+                },
+                "spaceUxType": {
+                    "type": "integer"
                 },
                 "spaceIconEncryptionKeys": {
                     "items": {

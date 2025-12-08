@@ -113,6 +113,10 @@
                 "ethereumAddress": {
                     "type": "string",
                     "description": "we have Any PK AND Ethereum PK derived from one seed phrase"
+                },
+                "metaDataKey": {
+                    "type": "string",
+                    "description": "symmetric key for encrypting profile metadata"
                 }
             },
             "additionalProperties": true,

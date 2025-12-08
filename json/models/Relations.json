@@ -206,6 +206,10 @@
                 "relationKey": {
                     "type": "string",
                     "description": "4 is reserved for old relation format  stored"
+                },
+                "orderId": {
+                    "type": "string",
+                    "description": "lexicographic id of relation option for ordering"
                 }
             },
             "additionalProperties": true,
