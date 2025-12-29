@@ -861,6 +861,10 @@
                 "endRelationKey": {
                     "type": "string",
                     "description": "Group view by this relationKey"
+                },
+                "wrapContent": {
+                    "type": "boolean",
+                    "description": "Wrap content in view"
                 }
             },
             "additionalProperties": true,
