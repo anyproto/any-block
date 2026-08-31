@@ -1,18 +1,63 @@
-# Any-Block
-Protocol describing data structures used in Anytype software.
+# AnyBlock
 
-## Description
-We use [Protocol Buffers](https://en.wikipedia.org/wiki/Protocol_Buffers) to efficiently describe structured data in a binary format for network communication and storage. It offers smaller message sizes and faster serialization/deserialization than JSON or XML. 
+AnyBlock is Anytype's open interchange project. It contains both generations
+of the format, the codecs between them, bundle tooling, and conformance data.
 
-Protobuf facilitates data exchange between different systems written in different languages, while also providing automatic code generation for various programming languages.
+- **AnyBlock v1** is the protobuf wire format used by Anytype for models,
+  events, changes, and snapshots.
+- **AnyBlock v2** is the readable, interoperable import/export and API-base
+  format. Its first public `formatVersion` is `2.0`; later grammar revisions
+  in this family use `2.1`, `2.2`, and so on.
 
-- `models.proto` describes the base data structures used to represent objects and their components. 
-- `changes.proto` outlines CRDT-changes of objects and their blocks. Changes related to block updates are linked to events from `events.proto`. 
-- `events.proto` describes the events about the changes of objects and blocks. These events are used to notify clients and also serve as CDRT changes to be stored in an object's tree.
+## Repository layout
 
-JSON Schemas are generated automatically using [protoc-gen-jsonschema](https://github.com/chrusty/protoc-gen-jsonschema).
+```text
+format/v1/           v1 protobuf sources, generated Go bindings, conformance data
+format/v2/           v2 specification, JSON schemas, examples, conformance data
+codec/anyblockjson/  Go codec between v1 snapshots and v2 documents
+bundle/              v2 bundle validation and composition
+cmd/anyblock/        command-line validation and conversion tools
+js/                  future JavaScript/Wasm packages
+```
+
+A caller imports the two together — v1 types in, AnyBlock JSON out:
+
+```go
+import (
+	"github.com/anyproto/any-block/codec/anyblockjson"
+	v1 "github.com/anyproto/any-block/format/v1/model"
+)
+```
+
+`format/v1` and `format/v2` own the wire/JSON format artifacts, `codec/anyblockjson`
+is the Go conversion API, and `bundle` and `cmd/anyblock` provide the bundle
+and command-line surfaces. `Options.TableColumnHeaders` remains opt-in so
+backup output is stable.
+
+The four historical root-level v1 `.proto` paths are retained as generated
+compatibility mirrors. Their canonical editable sources live in
+`format/v1/proto/`; see [the v1 mirror rules](format/v1/README.md).
+
+Start with [format/v1/README.md](format/v1/README.md) or
+[format/v2/README.md](format/v2/README.md). The normative v2 definition is
+[format/v2/SPEC.md](format/v2/SPEC.md).
+
+## Development
+
+```sh
+go test ./...
+go vet ./...
+go generate ./codec/anyblockjson ./format/v1
+```
+
+The format and codec READMEs list the pinned generator installation commands
+used by CI.
+
+Fixture and corpus rules for contributors are in
+[FIXTURE_POLICY.md](FIXTURE_POLICY.md).
 
 ## Contribution
+
 Thank you for your desire to develop Anytype together!
 
 ❤️ This project and everyone involved in it is governed by the [Code of Conduct](https://github.com/anyproto/.github/blob/main/docs/CODE_OF_CONDUCT.md).

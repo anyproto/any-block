@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/authoring/object.schema.json",
+  "formatVersion": "2.0",
+  "kind": "object_type",
+  "id": "type-habit",
+  "internal_key": "habit",
+  "icon": { "format": "icon", "name": "repeat", "color": "teal" },
+  "properties": {
+    "Name": "Habit",
+    "Description": "One habit you are building."
+  },
+  "type_settings": {
+    "layout": "basic",
+    "plural_name": "Habits",
+    "default_view": "table",
+    "property_definitions": [
+      { "property": "Frequency", "section": "featured" },
+      { "property": "Streak", "section": "featured" },
+      { "property": "Last done" }
+    ]
+  },
+  "blocks": [
+    {
+      "type": "dataview",
+      "properties": [
+        { "property": "Name", "format": "text" },
+        { "property": "Frequency", "format": "select" },
+        { "property": "Streak", "format": "number" },
+        { "property": "Last done", "format": "date" }
+      ],
+      "views": [
+        {
+          "name": "All habits",
+          "sorts": [ { "property": "Streak", "direction": "desc" } ],
+          "columns": [
+            { "property": "Name" },
+            { "property": "Frequency" },
+            { "property": "Streak" },
+            { "property": "Last done" }
+          ]
+        },
+        {
+          "type": "kanban",
+          "name": "By frequency",
+          "group_by": "Frequency",
+          "columns": [
+            { "property": "Name" },
+            { "property": "Streak" }
+          ]
+        },
+        {
+          "name": "Daily",
+          "filters": [
+            { "property": "Frequency", "condition": "in", "value": [ "Daily" ] }
+          ],
+          "columns": [
+            { "property": "Name" },
+            { "property": "Streak" },
+            { "property": "Last done" }
+          ]
+        }
+      ]
+    }
+  ]
+}

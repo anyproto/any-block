@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/authoring/index.schema.json",
+  "formatVersion": "2.0",
+  "name": "Habit Tracker",
+  "description": "Small habits, tracked without ceremony.",
+  "icon": { "format": "emoji", "emoji": "🌱" },
+  "entrypoint": "page-start",
+  "widgets": [
+    { "target": "page-start" },
+    { "target": "type-habit", "layout": "view", "limit": 6 },
+    { "target": "habit-weekly-review", "card_style": "card" },
+    { "target": "_favorite", "layout": "compact_list", "limit": 4 }
+  ]
+}

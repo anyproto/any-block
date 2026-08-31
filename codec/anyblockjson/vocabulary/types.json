@@ -1,0 +1,531 @@
+[
+  {
+    "id": "recipe",
+    "name": "Recipe",
+    "pluralName": "Recipes",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 4,
+    "iconName": "pizza",
+    "hidden": false,
+    "layout": "basic",
+    "relations": [
+      "tag",
+      "ingredients",
+      "time"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "note",
+    "name": "Note",
+    "pluralName": "Notes",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 2,
+    "iconName": "create",
+    "hidden": false,
+    "layout": "note",
+    "relations": [
+      "tag"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "contact",
+    "name": "Contact",
+    "pluralName": "Contacts",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 8,
+    "iconName": "id-card",
+    "hidden": false,
+    "layout": "profile",
+    "relations": [
+      "tag",
+      "company",
+      "email",
+      "phone"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "bookmark",
+    "name": "Bookmark",
+    "pluralName": "Bookmarks",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 4,
+    "iconName": "bookmark",
+    "hidden": false,
+    "layout": "bookmark",
+    "relations": [
+      "tag",
+      "picture",
+      "source"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "date",
+    "name": "Date",
+    "pluralName": "Dates",
+    "types": [
+      "Date"
+    ],
+    "iconColor": 9,
+    "iconName": "calendar",
+    "hidden": true,
+    "layout": "date",
+    "relations": [
+      "tag"
+    ],
+    "revision": 1
+  },
+  {
+    "id": "task",
+    "name": "Task",
+    "pluralName": "Tasks",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 10,
+    "iconName": "checkbox",
+    "hidden": false,
+    "layout": "todo",
+    "relations": [
+      "tag",
+      "assignee",
+      "done",
+      "dueDate",
+      "linkedProjects",
+      "status"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "relation",
+    "name": "Property",
+    "pluralName": "Properties",
+    "types": [
+      "SubObject",
+      "BundledRelation"
+    ],
+    "iconColor": 7,
+    "iconName": "share-social",
+    "hidden": true,
+    "layout": "relation",
+    "relations": [
+      "relationFormat",
+      "relationMaxCount",
+      "relationDefaultValue",
+      "relationFormatObjectTypes"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "book",
+    "name": "Book",
+    "pluralName": "Books",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 3,
+    "iconName": "book",
+    "hidden": false,
+    "layout": "basic",
+    "relations": [
+      "tag",
+      "author",
+      "starred",
+      "status",
+      "url"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "video",
+    "name": "Video",
+    "pluralName": "Video",
+    "types": [
+      "File"
+    ],
+    "iconColor": 6,
+    "iconName": "videocam",
+    "hidden": false,
+    "layout": "file",
+    "relations": [
+      "addedDate",
+      "origin",
+      "fileExt",
+      "sizeInBytes",
+      "heightInPixels",
+      "widthInPixels",
+      "fileMimeType",
+      "camera",
+      "cameraIso",
+      "aperture",
+      "exposure"
+    ],
+    "restrictObjectCreation": true,
+    "revision": 5
+  },
+  {
+    "id": "dashboard",
+    "name": "Dashboard",
+    "types": [
+      "Home"
+    ],
+    "emoji": "",
+    "hidden": true,
+    "layout": "dashboard",
+    "relations": [],
+    "restrictObjectCreation": true
+  },
+  {
+    "id": "movie",
+    "name": "Movie",
+    "pluralName": "Movies",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 5,
+    "iconName": "film",
+    "hidden": false,
+    "layout": "basic",
+    "relations": [
+      "tag",
+      "genre",
+      "status"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "objectType",
+    "name": "Type",
+    "pluralName": "Types",
+    "types": [
+      "SubObject",
+      "BundledObjectType"
+    ],
+    "iconColor": 9,
+    "iconName": "extension-puzzle",
+    "hidden": true,
+    "layout": "objectType",
+    "relations": [
+      "recommendedRelations",
+      "recommendedLayout"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "relationOption",
+    "name": "Property option",
+    "types": [
+      "SubObject"
+    ],
+    "hidden": true,
+    "layout": "relationOption",
+    "relations": [],
+    "revision": 1
+  },
+  {
+    "id": "space",
+    "name": "Space settings",
+    "pluralName": "Spaces",
+    "types": [
+      "Workspace"
+    ],
+    "iconColor": 10,
+    "iconName": "folder",
+    "hidden": true,
+    "layout": "space",
+    "relations": [
+      "tag"
+    ],
+    "restrictObjectCreation": true,
+    "revision": 4
+  },
+  {
+    "id": "spaceView",
+    "name": "Space",
+    "pluralName": "Spaces",
+    "types": [
+      "SpaceView"
+    ],
+    "iconColor": 10,
+    "iconName": "folder",
+    "hidden": true,
+    "layout": "spaceView",
+    "relations": [
+      "tag"
+    ],
+    "restrictObjectCreation": true,
+    "revision": 2
+  },
+  {
+    "id": "participant",
+    "name": "Space member",
+    "pluralName": "Space members",
+    "types": [
+      "Participant"
+    ],
+    "iconColor": 3,
+    "iconName": "person",
+    "hidden": false,
+    "layout": "participant",
+    "relations": [
+      "tag"
+    ],
+    "restrictObjectCreation": true,
+    "revision": 4
+  },
+  {
+    "id": "template",
+    "name": "Template",
+    "pluralName": "Templates",
+    "types": [
+      "Template"
+    ],
+    "iconColor": 8,
+    "iconName": "copy",
+    "hidden": false,
+    "layout": "basic",
+    "relations": [
+      "targetObjectType",
+      "templateIsBundled"
+    ],
+    "restrictObjectCreation": true,
+    "revision": 4
+  },
+  {
+    "id": "set",
+    "name": "Query",
+    "pluralName": "Queries",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 6,
+    "iconName": "search",
+    "hidden": false,
+    "layout": "set",
+    "relations": [
+      "tag",
+      "setOf"
+    ],
+    "revision": 4
+  },
+  {
+    "id": "collection",
+    "name": "Collection",
+    "pluralName": "Collections",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 7,
+    "iconName": "layers",
+    "hidden": false,
+    "layout": "collection",
+    "relations": [
+      "tag"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "diaryEntry",
+    "name": "Diary Entry",
+    "pluralName": "Diary Entries",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 2,
+    "iconName": "reader",
+    "hidden": false,
+    "layout": "basic",
+    "relations": [
+      "tag",
+      "mood"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "page",
+    "name": "Page",
+    "pluralName": "Pages",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 8,
+    "iconName": "document",
+    "hidden": false,
+    "layout": "basic",
+    "relations": [
+      "tag"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "image",
+    "name": "Image",
+    "pluralName": "Images",
+    "types": [
+      "File"
+    ],
+    "iconColor": 10,
+    "iconName": "image",
+    "hidden": false,
+    "layout": "image",
+    "relations": [
+      "addedDate",
+      "origin",
+      "fileExt",
+      "sizeInBytes",
+      "heightInPixels",
+      "widthInPixels",
+      "fileMimeType",
+      "camera",
+      "cameraIso",
+      "aperture",
+      "exposure",
+      "focalRatio"
+    ],
+    "restrictObjectCreation": true,
+    "revision": 5
+  },
+  {
+    "id": "profile",
+    "name": "Human",
+    "pluralName": "Humans",
+    "types": [
+      "Page",
+      "ProfilePage"
+    ],
+    "iconColor": 3,
+    "iconName": "man",
+    "hidden": true,
+    "layout": "profile",
+    "relations": [
+      "tag"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "audio",
+    "name": "Audio",
+    "pluralName": "Audio",
+    "types": [
+      "File"
+    ],
+    "iconColor": 5,
+    "iconName": "musical-notes",
+    "hidden": false,
+    "layout": "file",
+    "relations": [
+      "addedDate",
+      "origin",
+      "fileExt",
+      "sizeInBytes",
+      "fileMimeType",
+      "artist",
+      "audioAlbum",
+      "audioGenre",
+      "releasedYear",
+      "audioAlbumTrackNumber",
+      "audioLyrics"
+    ],
+    "restrictObjectCreation": true,
+    "revision": 5
+  },
+  {
+    "id": "goal",
+    "name": "Goal",
+    "pluralName": "Goals",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 4,
+    "iconName": "flag",
+    "hidden": false,
+    "layout": "todo",
+    "relations": [
+      "tag",
+      "dueDate",
+      "progress",
+      "status"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "file",
+    "name": "File",
+    "pluralName": "Files",
+    "types": [
+      "File"
+    ],
+    "iconColor": 7,
+    "iconName": "attach",
+    "hidden": false,
+    "layout": "file",
+    "relations": [
+      "addedDate",
+      "origin",
+      "fileExt",
+      "sizeInBytes",
+      "fileMimeType"
+    ],
+    "restrictObjectCreation": true,
+    "revision": 5
+  },
+  {
+    "id": "project",
+    "name": "Project",
+    "pluralName": "Projects",
+    "types": [
+      "Page"
+    ],
+    "iconColor": 3,
+    "iconName": "hammer",
+    "hidden": false,
+    "layout": "basic",
+    "relations": [
+      "tag"
+    ],
+    "revision": 3
+  },
+  {
+    "id": "chatDerived",
+    "name": "Chat",
+    "pluralName": "Chats",
+    "types": [
+      "ChatDerivedObject"
+    ],
+    "iconColor": 7,
+    "iconName": "chatbubble",
+    "hidden": false,
+    "layout": "chatDerived",
+    "relations": [
+      "tag"
+    ],
+    "revision": 7
+  },
+  {
+    "id": "discussion",
+    "name": "Discussion",
+    "pluralName": "Discussions",
+    "types": [
+      "DiscussionObject"
+    ],
+    "iconColor": 7,
+    "iconName": "chatbox-ellipses",
+    "hidden": true,
+    "layout": "discussion",
+    "relations": [
+      "tag"
+    ],
+    "revision": 2
+  }
+]

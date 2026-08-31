@@ -1,0 +1,2898 @@
+// Code generated from Anytype's bundled vocabulary. DO NOT EDIT.
+// source: codec/anyblockjson/vocabulary/relations.json
+
+package vocabulary
+
+import (
+	"github.com/anyproto/any-block/codec/anyblockjson/domain"
+	model "github.com/anyproto/any-block/format/v1/model"
+)
+
+const RelationChecksum = "2ab1c36becd82f326e627ef3616b7eddab7008e1fd1e3afa95e11429f440d3a7"
+const (
+	RelationKeyTag                                  domain.RelationKey = "tag"
+	RelationKeyCamera                               domain.RelationKey = "camera"
+	RelationKeyHeightInPixels                       domain.RelationKey = "heightInPixels"
+	RelationKeyCreatedDate                          domain.RelationKey = "createdDate"
+	RelationKeyToBeDeletedDate                      domain.RelationKey = "toBeDeletedDate"
+	RelationKeyRelationFormatObjectTypes            domain.RelationKey = "relationFormatObjectTypes"
+	RelationKeyRelationKey                          domain.RelationKey = "relationKey"
+	RelationKeyRelationOptionColor                  domain.RelationKey = "relationOptionColor"
+	RelationKeyLatestAclHeadId                      domain.RelationKey = "latestAclHeadId"
+	RelationKeyDone                                 domain.RelationKey = "done"
+	RelationKeyMediaArtistURL                       domain.RelationKey = "mediaArtistURL"
+	RelationKeyTemplateIsBundled                    domain.RelationKey = "templateIsBundled"
+	RelationKeyRestrictions                         domain.RelationKey = "restrictions"
+	RelationKeyReadersLimit                         domain.RelationKey = "readersLimit"
+	RelationKeyWritersLimit                         domain.RelationKey = "writersLimit"
+	RelationKeySharedSpacesLimit                    domain.RelationKey = "sharedSpacesLimit"
+	RelationKeyIsHighlighted                        domain.RelationKey = "isHighlighted"
+	RelationKeyTasks                                domain.RelationKey = "tasks"
+	RelationKeySnippet                              domain.RelationKey = "snippet"
+	RelationKeyRelationFormat                       domain.RelationKey = "relationFormat"
+	RelationKeyRelationReadonlyValue                domain.RelationKey = "relationReadonlyValue"
+	RelationKeyIconImage                            domain.RelationKey = "iconImage"
+	RelationKeyIngredients                          domain.RelationKey = "ingredients"
+	RelationKeyGenre                                domain.RelationKey = "genre"
+	RelationKeyReleasedYear                         domain.RelationKey = "releasedYear"
+	RelationKeyCoverScale                           domain.RelationKey = "coverScale"
+	RelationKeyRelationDefaultValue                 domain.RelationKey = "relationDefaultValue"
+	RelationKeyLinkedProjects                       domain.RelationKey = "linkedProjects"
+	RelationKeyAudioAlbum                           domain.RelationKey = "audioAlbum"
+	RelationKeyLayoutAlign                          domain.RelationKey = "layoutAlign"
+	RelationKeyStatus                               domain.RelationKey = "status"
+	RelationKeyIsHidden                             domain.RelationKey = "isHidden"
+	RelationKeyIsHiddenDiscovery                    domain.RelationKey = "isHiddenDiscovery"
+	RelationKeyMediaArtistName                      domain.RelationKey = "mediaArtistName"
+	RelationKeyEmail                                domain.RelationKey = "email"
+	RelationKeyCompany                              domain.RelationKey = "company"
+	RelationKeyAperture                             domain.RelationKey = "aperture"
+	RelationKeyLastModifiedDate                     domain.RelationKey = "lastModifiedDate"
+	RelationKeyRecommendedRelations                 domain.RelationKey = "recommendedRelations"
+	RelationKeyCreator                              domain.RelationKey = "creator"
+	RelationKeyRecommendedLayout                    domain.RelationKey = "recommendedLayout"
+	RelationKeyLastOpenedDate                       domain.RelationKey = "lastOpenedDate"
+	RelationKeyAuthor                               domain.RelationKey = "author"
+	RelationKeyArtist                               domain.RelationKey = "artist"
+	RelationKeyDueDate                              domain.RelationKey = "dueDate"
+	RelationKeyIconEmoji                            domain.RelationKey = "iconEmoji"
+	RelationKeyCoverType                            domain.RelationKey = "coverType"
+	RelationKeyCoverY                               domain.RelationKey = "coverY"
+	RelationKeyTime                                 domain.RelationKey = "time"
+	RelationKeySizeInBytes                          domain.RelationKey = "sizeInBytes"
+	RelationKeyCollectionOf                         domain.RelationKey = "collectionOf"
+	RelationKeyIsReadonly                           domain.RelationKey = "isReadonly"
+	RelationKeyAddedDate                            domain.RelationKey = "addedDate"
+	RelationKeyAssignee                             domain.RelationKey = "assignee"
+	RelationKeyExposure                             domain.RelationKey = "exposure"
+	RelationKeyTargetObjectType                     domain.RelationKey = "targetObjectType"
+	RelationKeyIsFavorite                           domain.RelationKey = "isFavorite"
+	RelationKeySpaceId                              domain.RelationKey = "spaceId"
+	RelationKeyAudioGenre                           domain.RelationKey = "audioGenre"
+	RelationKeyName                                 domain.RelationKey = "name"
+	RelationKeyMood                                 domain.RelationKey = "mood"
+	RelationKeyAudioLyrics                          domain.RelationKey = "audioLyrics"
+	RelationKeyFocalRatio                           domain.RelationKey = "focalRatio"
+	RelationKeyPriority                             domain.RelationKey = "priority"
+	RelationKeyFileMimeType                         domain.RelationKey = "fileMimeType"
+	RelationKeyType                                 domain.RelationKey = "type"
+	RelationKeyLayout                               domain.RelationKey = "layout"
+	RelationKeyAudioAlbumTrackNumber                domain.RelationKey = "audioAlbumTrackNumber"
+	RelationKeyInternalFlags                        domain.RelationKey = "internalFlags"
+	RelationKeyCoverX                               domain.RelationKey = "coverX"
+	RelationKeyDescription                          domain.RelationKey = "description"
+	RelationKeyPicture                              domain.RelationKey = "picture"
+	RelationKeyId                                   domain.RelationKey = "id"
+	RelationKeyUrl                                  domain.RelationKey = "url"
+	RelationKeyCameraIso                            domain.RelationKey = "cameraIso"
+	RelationKeyIsDeleted                            domain.RelationKey = "isDeleted"
+	RelationKeyLinks                                domain.RelationKey = "links"
+	RelationKeyCoverId                              domain.RelationKey = "coverId"
+	RelationKeyLastModifiedBy                       domain.RelationKey = "lastModifiedBy"
+	RelationKeyRelationMaxCount                     domain.RelationKey = "relationMaxCount"
+	RelationKeyWidthInPixels                        domain.RelationKey = "widthInPixels"
+	RelationKeyProgress                             domain.RelationKey = "progress"
+	RelationKeySetOf                                domain.RelationKey = "setOf"
+	RelationKeyIsArchived                           domain.RelationKey = "isArchived"
+	RelationKeyFileExt                              domain.RelationKey = "fileExt"
+	RelationKeyFeaturedRelations                    domain.RelationKey = "featuredRelations"
+	RelationKeyPhone                                domain.RelationKey = "phone"
+	RelationKeySmartblockTypes                      domain.RelationKey = "smartblockTypes"
+	RelationKeySource                               domain.RelationKey = "source"
+	RelationKeySourceObject                         domain.RelationKey = "sourceObject"
+	RelationKeyOldAnytypeID                         domain.RelationKey = "oldAnytypeID"
+	RelationKeySpaceDashboardId                     domain.RelationKey = "spaceDashboardId"
+	RelationKeyIconOption                           domain.RelationKey = "iconOption"
+	RelationKeySpaceAccessibility                   domain.RelationKey = "spaceAccessibility"
+	RelationKeySpaceAccessType                      domain.RelationKey = "spaceAccessType"
+	RelationKeySpaceUxType                          domain.RelationKey = "spaceUxType"
+	RelationKeySourceFilePath                       domain.RelationKey = "sourceFilePath"
+	RelationKeyFileSyncStatus                       domain.RelationKey = "fileSyncStatus"
+	RelationKeyFileBackupStatus                     domain.RelationKey = "fileBackupStatus"
+	RelationKeyFileIndexingStatus                   domain.RelationKey = "fileIndexingStatus"
+	RelationKeyLastChangeId                         domain.RelationKey = "lastChangeId"
+	RelationKeyStarred                              domain.RelationKey = "starred"
+	RelationKeyDefaultTemplateId                    domain.RelationKey = "defaultTemplateId"
+	RelationKeyUniqueKey                            domain.RelationKey = "uniqueKey"
+	RelationKeyBacklinks                            domain.RelationKey = "backlinks"
+	RelationKeyIsUninstalled                        domain.RelationKey = "isUninstalled"
+	RelationKeyOrigin                               domain.RelationKey = "origin"
+	RelationKeySpaceLocalStatus                     domain.RelationKey = "spaceLocalStatus"
+	RelationKeySpaceRemoteStatus                    domain.RelationKey = "spaceRemoteStatus"
+	RelationKeySpaceShareableStatus                 domain.RelationKey = "spaceShareableStatus"
+	RelationKeyIsAclShared                          domain.RelationKey = "isAclShared"
+	RelationKeySpaceAccountStatus                   domain.RelationKey = "spaceAccountStatus"
+	RelationKeySpaceInviteFileCid                   domain.RelationKey = "spaceInviteFileCid"
+	RelationKeySpaceInviteFileKey                   domain.RelationKey = "spaceInviteFileKey"
+	RelationKeySpaceInviteType                      domain.RelationKey = "spaceInviteType"
+	RelationKeySpaceInviteGuestFileCid              domain.RelationKey = "spaceInviteGuestFileCid"
+	RelationKeySpaceInviteGuestFileKey              domain.RelationKey = "spaceInviteGuestFileKey"
+	RelationKeyGuestKey                             domain.RelationKey = "guestKey"
+	RelationKeyParticipantPermissions               domain.RelationKey = "participantPermissions"
+	RelationKeySpaceInvitePermissions               domain.RelationKey = "spaceInvitePermissions"
+	RelationKeySpaceInviteHeldByOwner               domain.RelationKey = "spaceInviteHeldByOwner"
+	RelationKeyIdentity                             domain.RelationKey = "identity"
+	RelationKeyParticipantStatus                    domain.RelationKey = "participantStatus"
+	RelationKeyMyParticipantStatus                  domain.RelationKey = "myParticipantStatus"
+	RelationKeyIdentityProfileLink                  domain.RelationKey = "identityProfileLink"
+	RelationKeyProfileOwnerIdentity                 domain.RelationKey = "profileOwnerIdentity"
+	RelationKeyTargetSpaceId                        domain.RelationKey = "targetSpaceId"
+	RelationKeyFileId                               domain.RelationKey = "fileId"
+	RelationKeyLastUsedDate                         domain.RelationKey = "lastUsedDate"
+	RelationKeyRevision                             domain.RelationKey = "revision"
+	RelationKeyImageKind                            domain.RelationKey = "imageKind"
+	RelationKeyCreatedInContext                     domain.RelationKey = "createdInContext"
+	RelationKeyCreatedInContextRef                  domain.RelationKey = "createdInContextRef"
+	RelationKeyCreatedInContextIgnored              domain.RelationKey = "createdInContextIgnored"
+	RelationKeyImportType                           domain.RelationKey = "importType"
+	RelationKeyGlobalName                           domain.RelationKey = "globalName"
+	RelationKeySyncStatus                           domain.RelationKey = "syncStatus"
+	RelationKeySyncDate                             domain.RelationKey = "syncDate"
+	RelationKeySyncError                            domain.RelationKey = "syncError"
+	RelationKeyHasChat                              domain.RelationKey = "hasChat"
+	RelationKeyChatId                               domain.RelationKey = "chatId"
+	RelationKeyDiscussionId                         domain.RelationKey = "discussionId"
+	RelationKeyMentions                             domain.RelationKey = "mentions"
+	RelationKeyTimestamp                            domain.RelationKey = "timestamp"
+	RelationKeyLayoutWidth                          domain.RelationKey = "layoutWidth"
+	RelationKeyResolvedLayout                       domain.RelationKey = "resolvedLayout"
+	RelationKeyFileVariantIds                       domain.RelationKey = "fileVariantIds"
+	RelationKeyFileVariantPaths                     domain.RelationKey = "fileVariantPaths"
+	RelationKeyFileVariantKeys                      domain.RelationKey = "fileVariantKeys"
+	RelationKeyFileVariantWidths                    domain.RelationKey = "fileVariantWidths"
+	RelationKeyFileVariantChecksums                 domain.RelationKey = "fileVariantChecksums"
+	RelationKeyFileVariantMills                     domain.RelationKey = "fileVariantMills"
+	RelationKeyFileVariantOptions                   domain.RelationKey = "fileVariantOptions"
+	RelationKeyFileSourceChecksum                   domain.RelationKey = "fileSourceChecksum"
+	RelationKeySpaceOrder                           domain.RelationKey = "spaceOrder"
+	RelationKeyOrderId                              domain.RelationKey = "orderId"
+	RelationKeyOneToOneIdentity                     domain.RelationKey = "oneToOneIdentity"
+	RelationKeyOneToOneInboxSentStatus              domain.RelationKey = "oneToOneInboxSentStatus"
+	RelationKeyOneToOneRequestMetadataKey           domain.RelationKey = "oneToOneRequestMetadataKey"
+	RelationKeyIconName                             domain.RelationKey = "iconName"
+	RelationKeyRecommendedFeaturedRelations         domain.RelationKey = "recommendedFeaturedRelations"
+	RelationKeyRecommendedHiddenRelations           domain.RelationKey = "recommendedHiddenRelations"
+	RelationKeyRecommendedFileRelations             domain.RelationKey = "recommendedFileRelations"
+	RelationKeyDefaultViewType                      domain.RelationKey = "defaultViewType"
+	RelationKeyDefaultTypeId                        domain.RelationKey = "defaultTypeId"
+	RelationKeyPluralName                           domain.RelationKey = "pluralName"
+	RelationKeyHeaderRelationsLayout                domain.RelationKey = "headerRelationsLayout"
+	RelationKeyApiObjectKey                         domain.RelationKey = "apiObjectKey"
+	RelationKeyRelationFormatIncludeTime            domain.RelationKey = "relationFormatIncludeTime"
+	RelationKeySpacePushNotificationMode            domain.RelationKey = "spacePushNotificationMode"
+	RelationKeySpacePushNotificationForceAllIds     domain.RelationKey = "spacePushNotificationForceAllIds"
+	RelationKeySpacePushNotificationForceMuteIds    domain.RelationKey = "spacePushNotificationForceMuteIds"
+	RelationKeySpacePushNotificationForceMentionIds domain.RelationKey = "spacePushNotificationForceMentionIds"
+	RelationKeySpacePushNotificationKey             domain.RelationKey = "spacePushNotificationKey"
+	RelationKeySpacePushNotificationEncryptionKey   domain.RelationKey = "spacePushNotificationEncryptionKey"
+	RelationKeySpaceJoinDate                        domain.RelationKey = "spaceJoinDate"
+	RelationKeyWidgetLayout                         domain.RelationKey = "widgetLayout"
+	RelationKeyWidgetLimit                          domain.RelationKey = "widgetLimit"
+	RelationKeyWidgetViewId                         domain.RelationKey = "widgetViewId"
+	RelationKeyIsMainChat                           domain.RelationKey = "isMainChat"
+	RelationKeyLastMessageDate                      domain.RelationKey = "lastMessageDate"
+	RelationKeyNotificationSubscribers              domain.RelationKey = "notificationSubscribers"
+	RelationKeyUnreadMessageCount                   domain.RelationKey = "unreadMessageCount"
+	RelationKeyUnreadMentionCount                   domain.RelationKey = "unreadMentionCount"
+	RelationKeyFileAvailableOffline                 domain.RelationKey = "fileAvailableOffline"
+	RelationKeyAnalyticsChatId                      domain.RelationKey = "analyticsChatId"
+	RelationKeyAnalyticsSpaceId                     domain.RelationKey = "analyticsSpaceId"
+	RelationKey_score                               domain.RelationKey = "_score"
+	RelationKey_final_score                         domain.RelationKey = "_final_score"
+	RelationKeyMigrationObjectContext               domain.RelationKey = "migrationObjectContext"
+	RelationKeyTemplateNamePrefillType              domain.RelationKey = "templateNamePrefillType"
+	RelationKeySpaceType                            domain.RelationKey = "spaceType"
+	RelationKeyHomepage                             domain.RelationKey = "homepage"
+	RelationKeyTemplatePlaceholders                 domain.RelationKey = "templatePlaceholders"
+)
+
+var (
+	relations = map[domain.RelationKey]*model.Relation{
+		RelationKeyAddedDate: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Date when the file were added into the anytype",
+			Format:           model.RelationFormat_date,
+			Id:               "_braddedDate",
+			IncludeTime:      true,
+			Key:              "addedDate",
+			MaxCount:         1,
+			Name:             "Added date",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAnalyticsChatId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Anonymous chat analytics id",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_branalyticsChatId",
+			Key:              "analyticsChatId",
+			MaxCount:         1,
+			Name:             "Analytics chat id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAnalyticsSpaceId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Anonymous space analytics id",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_branalyticsSpaceId",
+			Key:              "analyticsSpaceId",
+			MaxCount:         1,
+			Name:             "Analytics space id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAperture: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_braperture",
+			Key:              "aperture",
+			MaxCount:         1,
+			Name:             "Camera aperture",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyApiObjectKey: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Identifier to use in intergrations with Anytype API",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brapiObjectKey",
+			Key:              "apiObjectKey",
+			MaxCount:         1,
+			Name:             "API Object Key",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyArtist: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Name of artist",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_brartist",
+			Key:              "artist",
+			MaxCount:         1,
+			Name:             "Artist",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAssignee: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Person who is responsible for this task or object",
+			Format:           model.RelationFormat_object,
+			Id:               "_brassignee",
+			Key:              "assignee",
+			Name:             "Assignee",
+			ObjectTypes:      []string{TypePrefix + "contact", TypePrefix + "participant"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAudioAlbum: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Audio record's album name",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_braudioAlbum",
+			Key:              "audioAlbum",
+			MaxCount:         1,
+			Name:             "Album",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAudioAlbumTrackNumber: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Number of the track in the",
+			Format:           model.RelationFormat_number,
+			Id:               "_braudioAlbumTrackNumber",
+			Key:              "audioAlbumTrackNumber",
+			MaxCount:         1,
+			Name:             "Track #",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAudioGenre: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Audio record's genre name",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_braudioGenre",
+			Key:              "audioGenre",
+			MaxCount:         1,
+			Name:             "Audio genre",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAudioLyrics: {
+
+			DataSource:       model.Relation_details,
+			Description:      "The text lyrics of the music record",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_braudioLyrics",
+			Key:              "audioLyrics",
+			MaxCount:         1,
+			Name:             "Lyrics",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyAuthor: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_object,
+			Id:               "_brauthor",
+			Key:              "author",
+			Name:             "Author",
+			ObjectTypes:      []string{TypePrefix + "contact", TypePrefix + "participant"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyBacklinks: {
+
+			DataSource:       model.Relation_local,
+			Description:      "List of links coming to object",
+			Format:           model.RelationFormat_object,
+			Id:               "_brbacklinks",
+			Key:              "backlinks",
+			Name:             "Backlinks",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         3,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCamera: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Camera used to capture image or video",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_brcamera",
+			Key:              "camera",
+			MaxCount:         1,
+			Name:             "Camera",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCameraIso: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_number,
+			Id:               "_brcameraIso",
+			Key:              "cameraIso",
+			MaxCount:         1,
+			Name:             "ISO",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyChatId: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Chat id",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brchatId",
+			Key:              "chatId",
+			MaxCount:         1,
+			Name:             "Chat id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCollectionOf: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Point to the object types that can be added to collection. Empty means any object type can be added to the collection",
+			Format:           model.RelationFormat_object,
+			Id:               "_brcollectionOf",
+			Key:              "collectionOf",
+			Name:             "Collection of",
+			ObjectTypes:      []string{TypePrefix + "objectType"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCompany: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_object,
+			Id:               "_brcompany",
+			Key:              "company",
+			MaxCount:         1,
+			Name:             "Company",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCoverId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Can contains image hash, color or prebuild bg id, depends on coverType relation",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brcoverId",
+			Key:              "coverId",
+			MaxCount:         1,
+			Name:             "Cover image or color",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCoverScale: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Option that contains scale of Cover the image",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brcoverScale",
+			Key:              "coverScale",
+			MaxCount:         1,
+			Name:             "Cover scale",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCoverType: {
+
+			DataSource:       model.Relation_details,
+			Description:      "1-image, 2-color, 3-gradient, 4-prebuilt bg image, 5 - unsplash image. Value stored in coverId",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brcoverType",
+			Key:              "coverType",
+			MaxCount:         1,
+			Name:             "Cover type",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCoverX: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Image x offset of the provided image",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brcoverX",
+			Key:              "coverX",
+			MaxCount:         1,
+			Name:             "Cover x offset",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCoverY: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Image y offset of the provided image",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brcoverY",
+			Key:              "coverY",
+			MaxCount:         1,
+			Name:             "Cover y offset",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCreatedDate: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Date when the object was initially created",
+			Format:           model.RelationFormat_date,
+			Id:               "_brcreatedDate",
+			IncludeTime:      true,
+			Key:              "createdDate",
+			MaxCount:         1,
+			Name:             "Creation date",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCreatedInContext: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Object ID where the object was initially created",
+			Format:           model.RelationFormat_object,
+			Id:               "_brcreatedInContext",
+			Key:              "createdInContext",
+			MaxCount:         1,
+			Name:             "Created in context",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCreatedInContextIgnored: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Ignore this object's createdInContext link: it is excluded from cleanup suggestions and from automatic context-driven archival",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brcreatedInContextIgnored",
+			Key:              "createdInContextIgnored",
+			MaxCount:         1,
+			Name:             "Created in context ignored",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCreatedInContextRef: {
+
+			DataSource:       model.Relation_details,
+			Description:      "BlockID/RelationKey/MessageId where the object was initially created",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brcreatedInContextRef",
+			Key:              "createdInContextRef",
+			MaxCount:         1,
+			Name:             "Created in context inner locator",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyCreator: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Human which created this object",
+			Format:           model.RelationFormat_object,
+			Id:               "_brcreator",
+			Key:              "creator",
+			MaxCount:         1,
+			Name:             "Created by",
+			ObjectTypes:      []string{TypePrefix + "participant"},
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         2,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyDefaultTemplateId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "ID of template chosen as default for particular object type",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brdefaultTemplateId",
+			Key:              "defaultTemplateId",
+			MaxCount:         1,
+			Name:             "Default Template ID",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyDefaultTypeId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Default object type id that will be set to new sets/collections",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brdefaultTypeId",
+			Key:              "defaultTypeId",
+			MaxCount:         1,
+			Name:             "Default type id",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyDefaultViewType: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Default view type that will be used for new sets/collections",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brdefaultViewType",
+			Key:              "defaultViewType",
+			MaxCount:         1,
+			Name:             "Default view type",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyDescription: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_brdescription",
+			Key:              "description",
+			MaxCount:         1,
+			Name:             "Description",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyDiscussionId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Discussion id",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brdiscussionId",
+			Key:              "discussionId",
+			MaxCount:         1,
+			Name:             "Discussion id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyDone: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Done checkbox used to render action layout. ",
+			Format:           model.RelationFormat_checkbox,
+			Id:               "_brdone",
+			Key:              "done",
+			MaxCount:         1,
+			Name:             "Done",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyDueDate: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_date,
+			Id:               "_brdueDate",
+			Key:              "dueDate",
+			MaxCount:         1,
+			Name:             "Due date",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyEmail: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_email,
+			Id:               "_bremail",
+			Key:              "email",
+			MaxCount:         1,
+			Name:             "Email",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyExposure: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_brexposure",
+			Key:              "exposure",
+			MaxCount:         1,
+			Name:             "Camera exposure",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFeaturedRelations: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Important relations that always appear at the top of the object",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brfeaturedRelations",
+			Key:              "featuredRelations",
+			Name:             "Featured properties",
+			ObjectTypes:      []string{TypePrefix + "relation"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileAvailableOffline: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Is file available offline",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brfileAvailableOffline",
+			Key:              "fileAvailableOffline",
+			MaxCount:         1,
+			Name:             "Is file available offline",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileBackupStatus: {
+
+			DataSource:       model.Relation_details,
+			Description:      "File backup status",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brfileBackupStatus",
+			Key:              "fileBackupStatus",
+			MaxCount:         1,
+			Name:             "File backup status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileExt: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_brfileExt",
+			Key:              "fileExt",
+			MaxCount:         1,
+			Name:             "File extension",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brfileId",
+			Key:              "fileId",
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileIndexingStatus: {
+
+			DataSource:       model.Relation_details,
+			Description:      "File indexing status",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brfileIndexingStatus",
+			Key:              "fileIndexingStatus",
+			MaxCount:         1,
+			Name:             "File indexing status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileMimeType: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Mime type of object",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brfileMimeType",
+			Key:              "fileMimeType",
+			MaxCount:         1,
+			Name:             "Mime type",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileSourceChecksum: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brfileSourceChecksum",
+			Key:              "fileSourceChecksum",
+			MaxCount:         1,
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileSyncStatus: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "File sync status",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brfileSyncStatus",
+			Key:              "fileSyncStatus",
+			MaxCount:         1,
+			Name:             "File sync status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileVariantChecksums: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brfileVariantChecksums",
+			Key:              "fileVariantChecksums",
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileVariantIds: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brfileVariantIds",
+			Key:              "fileVariantIds",
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileVariantKeys: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brfileVariantKeys",
+			Key:              "fileVariantKeys",
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileVariantMills: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brfileVariantMills",
+			Key:              "fileVariantMills",
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileVariantOptions: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brfileVariantOptions",
+			Key:              "fileVariantOptions",
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileVariantPaths: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brfileVariantPaths",
+			Key:              "fileVariantPaths",
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFileVariantWidths: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brfileVariantWidths",
+			Key:              "fileVariantWidths",
+			Name:             "Underlying file id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyFocalRatio: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_number,
+			Id:               "_brfocalRatio",
+			Key:              "focalRatio",
+			MaxCount:         1,
+			Name:             "Focal ratio",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyGenre: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_tag,
+			Id:               "_brgenre",
+			Key:              "genre",
+			Name:             "Genre",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyGlobalName: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Name of profile that the user could be mentioned by",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brglobalName",
+			Key:              "globalName",
+			MaxCount:         1,
+			Name:             "Global name",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyGuestKey: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Guest key to read public space",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brguestKey",
+			Key:              "guestKey",
+			MaxCount:         1,
+			Name:             "Space guest key",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyHasChat: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Object has a chat",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brhasChat",
+			Key:              "hasChat",
+			MaxCount:         1,
+			Name:             "Has a chat",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyHeaderRelationsLayout: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Layout of header relations. Line or column",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brheaderRelationsLayout",
+			Key:              "headerRelationsLayout",
+			MaxCount:         1,
+			Name:             "Header properties layout",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyHeightInPixels: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Height of image/video in pixels",
+			Format:           model.RelationFormat_number,
+			Id:               "_brheightInPixels",
+			Key:              "heightInPixels",
+			MaxCount:         1,
+			Name:             "Height",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyHomepage: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Homepage of regular spaces. Could handle either object id or special constant",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brhomepage",
+			Key:              "homepage",
+			MaxCount:         1,
+			Name:             "Home page",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIconEmoji: {
+
+			DataSource:       model.Relation_details,
+			Description:      "1 emoji(can contains multiple UTF symbols) used as an icon",
+			Format:           model.RelationFormat_emoji,
+			Hidden:           true,
+			Id:               "_briconEmoji",
+			Key:              "iconEmoji",
+			MaxCount:         1,
+			Name:             "Emoji",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIconImage: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Image icon",
+			Format:           model.RelationFormat_file,
+			Hidden:           true,
+			Id:               "_briconImage",
+			Key:              "iconImage",
+			MaxCount:         1,
+			Name:             "Image",
+			ObjectTypes:      []string{TypePrefix + "image"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIconName: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Choose icon for the type among custom Anytype icons",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_briconName",
+			Key:              "iconName",
+			MaxCount:         1,
+			Name:             "Icon name",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIconOption: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Choose one of our pre-installed icons during On-boarding",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_briconOption",
+			Key:              "iconOption",
+			MaxCount:         1,
+			Name:             "Icon option",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyId: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Link to itself. Used in databases",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brid",
+			Key:              "id",
+			MaxCount:         1,
+			Name:             "Anytype ID",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIdentity: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Identity",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_bridentity",
+			Key:              "identity",
+			MaxCount:         1,
+			Name:             "Identity",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIdentityProfileLink: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Link to the profile attached to Anytype Identity",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_bridentityProfileLink",
+			Key:              "identityProfileLink",
+			MaxCount:         1,
+			Name:             "Profile link",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyImageKind: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Describes how this image is used",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brimageKind",
+			Key:              "imageKind",
+			MaxCount:         1,
+			Name:             "Image kind",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyImportType: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Import type, used to create object (notion, md and etc)",
+			Format:           model.RelationFormat_number,
+			Id:               "_brimportType",
+			Key:              "importType",
+			MaxCount:         1,
+			Name:             "Import Type",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIngredients: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_longtext,
+			Id:               "_bringredients",
+			Key:              "ingredients",
+			MaxCount:         1,
+			Name:             "Ingredients",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyInternalFlags: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Set of internal flags",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brinternalFlags",
+			Key:              "internalFlags",
+			Name:             "Internal flags",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsAclShared: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Specify if access control list is shared",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisAclShared",
+			Key:              "isAclShared",
+			MaxCount:         1,
+			Name:             "Is Acl Shared",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsArchived: {
+
+			DataSource:       model.Relation_account,
+			Description:      "Hides the object",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisArchived",
+			Key:              "isArchived",
+			MaxCount:         1,
+			Name:             "Archived",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsDeleted: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Relation that indicates document has been deleted",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisDeleted",
+			Key:              "isDeleted",
+			MaxCount:         1,
+			Name:             "Is deleted",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsFavorite: {
+
+			DataSource:       model.Relation_account,
+			Description:      "Adds the object to the home dashboard",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisFavorite",
+			Key:              "isFavorite",
+			MaxCount:         1,
+			Name:             "Favorited",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsHidden: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Specify if object is hidden",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisHidden",
+			Key:              "isHidden",
+			MaxCount:         1,
+			Name:             "Hidden",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsHiddenDiscovery: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Specify if object discovery is hidden",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisHiddenDiscovery",
+			Key:              "isHiddenDiscovery",
+			MaxCount:         1,
+			Name:             "Discovery hidden",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsHighlighted: {
+
+			DataSource:       model.Relation_account,
+			Description:      "Adds the object to the highlighted dataview in space",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisHighlighted",
+			Key:              "isHighlighted",
+			MaxCount:         1,
+			Name:             "Highlighted",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsMainChat: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Is this the main chat",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisMainChat",
+			Key:              "isMainChat",
+			MaxCount:         1,
+			Name:             "Is main chat",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsReadonly: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Indicates whether the object is read-only. Means it can't be edited and archived",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisReadonly",
+			Key:              "isReadonly",
+			MaxCount:         1,
+			Name:             "Readonly",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyIsUninstalled: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Relation that indicates document has been uninstalled",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brisUninstalled",
+			Key:              "isUninstalled",
+			MaxCount:         1,
+			Name:             "Is uninstalled",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLastChangeId: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Last change ID",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brlastChangeId",
+			Key:              "lastChangeId",
+			MaxCount:         1,
+			Name:             "Last change ID of the object",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLastMessageDate: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Date of the last message in a chat",
+			Format:           model.RelationFormat_date,
+			Id:               "_brlastMessageDate",
+			IncludeTime:      true,
+			Key:              "lastMessageDate",
+			MaxCount:         1,
+			Name:             "Last message date",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLastModifiedBy: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Human who updated the object last time",
+			Format:           model.RelationFormat_object,
+			Id:               "_brlastModifiedBy",
+			Key:              "lastModifiedBy",
+			MaxCount:         1,
+			Name:             "Last modified by",
+			ObjectTypes:      []string{TypePrefix + "participant"},
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLastModifiedDate: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Date when the object was modified last time",
+			Format:           model.RelationFormat_date,
+			Id:               "_brlastModifiedDate",
+			IncludeTime:      true,
+			Key:              "lastModifiedDate",
+			MaxCount:         1,
+			Name:             "Last modified date",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLastOpenedDate: {
+
+			DataSource:       model.Relation_account,
+			Description:      "Date when the object was modified last opened",
+			Format:           model.RelationFormat_date,
+			Id:               "_brlastOpenedDate",
+			IncludeTime:      true,
+			Key:              "lastOpenedDate",
+			MaxCount:         1,
+			Name:             "Last opened date",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLastUsedDate: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Last time object type was used",
+			Format:           model.RelationFormat_date,
+			Hidden:           true,
+			Id:               "_brlastUsedDate",
+			IncludeTime:      true,
+			Key:              "lastUsedDate",
+			MaxCount:         1,
+			Name:             "Last used date",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         2,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLatestAclHeadId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Latest Acl head id",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brlatestAclHeadId",
+			Key:              "latestAclHeadId",
+			MaxCount:         1,
+			Name:             "Latest acl head id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLayout: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Anytype layout ID(from pb enum)",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brlayout",
+			Key:              "layout",
+			MaxCount:         1,
+			Name:             "Layout",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLayoutAlign: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Specify visual align of the layout",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brlayoutAlign",
+			Key:              "layoutAlign",
+			MaxCount:         1,
+			Name:             "Layout align",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLayoutWidth: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Width of object's layout",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brlayoutWidth",
+			Key:              "layoutWidth",
+			MaxCount:         1,
+			Name:             "Layout width",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLinkedProjects: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_object,
+			Id:               "_brlinkedProjects",
+			Key:              "linkedProjects",
+			Name:             "Linked Projects",
+			ObjectTypes:      []string{TypePrefix + "project"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyLinks: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Outgoing links",
+			Format:           model.RelationFormat_object,
+			Id:               "_brlinks",
+			Key:              "links",
+			Name:             "Links",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         3,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyMediaArtistName: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Artist name",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brmediaArtistName",
+			Key:              "mediaArtistName",
+			MaxCount:         1,
+			Name:             "Media Artist Name",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyMediaArtistURL: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Artist URL",
+			Format:           model.RelationFormat_url,
+			Hidden:           true,
+			Id:               "_brmediaArtistURL",
+			Key:              "mediaArtistURL",
+			MaxCount:         1,
+			Name:             "Media Artist URL",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyMentions: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Objects that are mentioned in blocks of this object",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brmentions",
+			Key:              "mentions",
+			Name:             "Mentions",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyMigrationObjectContext: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Version of file context migration completed for this space",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brmigrationObjectContext",
+			Key:              "migrationObjectContext",
+			MaxCount:         1,
+			Name:             "Object Context Migration Version",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyMood: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_tag,
+			Id:               "_brmood",
+			Key:              "mood",
+			Name:             "Mood",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyMyParticipantStatus: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Current account status in space. Possible values: models.ParticipantStatus",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brmyParticipantStatus",
+			Key:              "myParticipantStatus",
+			MaxCount:         1,
+			Name:             "My participant status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyName: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Name of the object",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brname",
+			Key:              "name",
+			MaxCount:         1,
+			Name:             "Name",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyNotificationSubscribers: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Participants subscribed to notifications on this discussion",
+			Format:           model.RelationFormat_object,
+			Id:               "_brnotificationSubscribers",
+			Key:              "notificationSubscribers",
+			Name:             "Notification subscribers",
+			ObjectTypes:      []string{TypePrefix + "participant"},
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyOldAnytypeID: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_broldAnytypeID",
+			Key:              "oldAnytypeID",
+			MaxCount:         1,
+			Name:             "Old Anytype ID",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyOneToOneIdentity: {
+
+			DataSource:       model.Relation_local,
+			Description:      "OneToOne other participant identity",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_broneToOneIdentity",
+			Key:              "oneToOneIdentity",
+			MaxCount:         1,
+			Name:             "oneToOneIdentity",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyOneToOneInboxSentStatus: {
+
+			DataSource:       model.Relation_details,
+			Description:      "OneToOne Inbox invite sent status",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_broneToOneInboxSentStatus",
+			Key:              "oneToOneInboxSentStatus",
+			MaxCount:         1,
+			Name:             "OneToOne Inbox sent status",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyOneToOneRequestMetadataKey: {
+
+			DataSource:       model.Relation_details,
+			Description:      "OneToOne (second) participant RequestMetadata (key)",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_broneToOneRequestMetadataKey",
+			Key:              "oneToOneRequestMetadataKey",
+			MaxCount:         1,
+			Name:             "oneToOneRequestMetadataKey",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyOrderId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Lexicographic id for object ordering",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brorderId",
+			Key:              "orderId",
+			MaxCount:         1,
+			Name:             "Order id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyOrigin: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Source of objects in Anytype (clipboard, import)",
+			Format:           model.RelationFormat_number,
+			Id:               "_brorigin",
+			Key:              "origin",
+			MaxCount:         1,
+			Name:             "Origin",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyParticipantPermissions: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Participant permissions. Possible values: models.ParticipantPermissions",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brparticipantPermissions",
+			Key:              "participantPermissions",
+			MaxCount:         1,
+			Name:             "Participant permissions",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyParticipantStatus: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Participant status. Possible values: models.ParticipantStatus",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brparticipantStatus",
+			Key:              "participantStatus",
+			MaxCount:         1,
+			Name:             "Participant status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyPhone: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_phone,
+			Id:               "_brphone",
+			Key:              "phone",
+			MaxCount:         1,
+			Name:             "Phone",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyPicture: {
+
+			DataSource:       model.Relation_details,
+			Description:      "An image is an artifact that depicts visual perception, such as a photograph or other two-dimensional picture",
+			Format:           model.RelationFormat_file,
+			Hidden:           true,
+			Id:               "_brpicture",
+			Key:              "picture",
+			MaxCount:         1,
+			Name:             "Picture",
+			ObjectTypes:      []string{TypePrefix + "image"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyPluralName: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Name of Object type in plural form",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brpluralName",
+			Key:              "pluralName",
+			MaxCount:         1,
+			Name:             "Plural name",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyPriority: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Used to order tasks in list/canban",
+			Format:           model.RelationFormat_number,
+			Id:               "_brpriority",
+			Key:              "priority",
+			MaxCount:         1,
+			Name:             "Priority",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyProfileOwnerIdentity: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Link the profile object to specific Identity",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brprofileOwnerIdentity",
+			Key:              "profileOwnerIdentity",
+			MaxCount:         1,
+			Name:             "Anytype Identity",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyProgress: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_number,
+			Id:               "_brprogress",
+			Key:              "progress",
+			MaxCount:         1,
+			Name:             "Progress",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyReadersLimit: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Readers limit",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brreadersLimit",
+			Key:              "readersLimit",
+			MaxCount:         1,
+			Name:             "Readers limit",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRecommendedFeaturedRelations: {
+
+			DataSource:       model.Relation_details,
+			Description:      "List of recommended featured relations",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brrecommendedFeaturedRelations",
+			Key:              "recommendedFeaturedRelations",
+			Name:             "Recommended featured properties",
+			ObjectTypes:      []string{TypePrefix + "relation"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRecommendedFileRelations: {
+
+			DataSource:       model.Relation_details,
+			Description:      "List of recommended file-specific relations",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brrecommendedFileRelations",
+			Key:              "recommendedFileRelations",
+			Name:             "Recommended file properties",
+			ObjectTypes:      []string{TypePrefix + "relation"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRecommendedHiddenRelations: {
+
+			DataSource:       model.Relation_details,
+			Description:      "List of recommended relations that are hidden in layout",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brrecommendedHiddenRelations",
+			Key:              "recommendedHiddenRelations",
+			Name:             "Recommended hidden properties",
+			ObjectTypes:      []string{TypePrefix + "relation"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRecommendedLayout: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Recommended layout for new templates and objects of specific objec",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brrecommendedLayout",
+			Key:              "recommendedLayout",
+			MaxCount:         1,
+			Name:             "Recommended layout",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRecommendedRelations: {
+
+			DataSource:       model.Relation_details,
+			Description:      "List of recommended relations",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brrecommendedRelations",
+			Key:              "recommendedRelations",
+			Name:             "Recommended properties",
+			ObjectTypes:      []string{TypePrefix + "relation"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRelationDefaultValue: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brrelationDefaultValue",
+			Key:              "relationDefaultValue",
+			MaxCount:         1,
+			Name:             "Default value",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRelationFormat: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Type of the underlying value",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brrelationFormat",
+			Key:              "relationFormat",
+			MaxCount:         1,
+			Name:             "Format",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRelationFormatIncludeTime: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Should time be shown for relation values with date format",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brrelationFormatIncludeTime",
+			Key:              "relationFormatIncludeTime",
+			Name:             "IncludeTime",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRelationFormatObjectTypes: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Prioritized target types for the relation's value",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brrelationFormatObjectTypes",
+			Key:              "relationFormatObjectTypes",
+			Name:             "Property's target object types",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRelationKey: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Relation key",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brrelationKey",
+			Key:              "relationKey",
+			MaxCount:         1,
+			Name:             "Property key",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRelationMaxCount: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Relation allows multi values",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brrelationMaxCount",
+			Key:              "relationMaxCount",
+			MaxCount:         1,
+			Name:             "Max values",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRelationOptionColor: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Relation option color",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brrelationOptionColor",
+			Key:              "relationOptionColor",
+			MaxCount:         1,
+			Name:             "Property option color",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRelationReadonlyValue: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Indicates whether the relation value is readonly",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brrelationReadonlyValue",
+			Key:              "relationReadonlyValue",
+			MaxCount:         1,
+			Name:             "Property value is readonly",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyReleasedYear: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Year when this object were released",
+			Format:           model.RelationFormat_number,
+			Id:               "_brreleasedYear",
+			Key:              "releasedYear",
+			MaxCount:         1,
+			Name:             "Released year",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyResolvedLayout: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Layout resolved based on object self layout and type recommended layout",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brresolvedLayout",
+			Key:              "resolvedLayout",
+			MaxCount:         1,
+			Name:             "Resolved layout",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRestrictions: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Object restrictions list",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brrestrictions",
+			Key:              "restrictions",
+			Name:             "Object restrictions",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyRevision: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Revision of system object",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brrevision",
+			Key:              "revision",
+			MaxCount:         1,
+			Name:             "Revision",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySetOf: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Point to the object types or realtions used to aggregate the set. Empty means object of all types will be aggregated ",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brsetOf",
+			Key:              "setOf",
+			Name:             "Set of",
+			ObjectTypes:      []string{TypePrefix + "objectType"},
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySharedSpacesLimit: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Shared spaces limit",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brsharedSpacesLimit",
+			Key:              "sharedSpacesLimit",
+			MaxCount:         1,
+			Name:             "Shared spaces limit",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySizeInBytes: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Size of file/image in bytes",
+			Format:           model.RelationFormat_number,
+			Id:               "_brsizeInBytes",
+			Key:              "sizeInBytes",
+			MaxCount:         1,
+			Name:             "Size",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySmartblockTypes: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Stored for object type. Contains tge list of smartblock types used to create the object",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brsmartblockTypes",
+			Key:              "smartblockTypes",
+			Name:             "Smartblock types",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySnippet: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Plaintext extracted from the object's blocks ",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brsnippet",
+			Key:              "snippet",
+			MaxCount:         1,
+			Name:             "Snippet",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySource: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_url,
+			Id:               "_brsource",
+			Key:              "source",
+			MaxCount:         1,
+			Name:             "Source",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySourceFilePath: {
+
+			DataSource:       model.Relation_details,
+			Description:      "File path or url with original object",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brsourceFilePath",
+			Key:              "sourceFilePath",
+			MaxCount:         1,
+			Name:             "Source file path",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySourceObject: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_object,
+			Id:               "_brsourceObject",
+			Key:              "sourceObject",
+			MaxCount:         1,
+			Name:             "Source object",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceAccessType: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Space access type, see enum model.SpaceAccessType",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceAccessType",
+			Key:              "spaceAccessType",
+			MaxCount:         1,
+			Name:             "Space access type",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceAccessibility: {
+
+			DataSource:       model.Relation_details,
+			Description:      "There are two options of accessibility of workspace - private (0) or public (1)",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceAccessibility",
+			Key:              "spaceAccessibility",
+			MaxCount:         1,
+			Name:             "Space accessibility",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceAccountStatus: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Relation that indicates the status of space that the user is set. Possible values: models.SpaceStatus",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceAccountStatus",
+			Key:              "spaceAccountStatus",
+			MaxCount:         1,
+			Name:             "Space account status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceDashboardId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Space Dashboard object ID",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brspaceDashboardId",
+			Key:              "spaceDashboardId",
+			MaxCount:         1,
+			Name:             "Space Dashboard ID",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceId: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Space belongs to",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brspaceId",
+			Key:              "spaceId",
+			MaxCount:         1,
+			Name:             "Space ID",
+			ObjectTypes:      []string{TypePrefix + "space"},
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceInviteFileCid: {
+
+			DataSource:       model.Relation_details,
+			Description:      "CID of invite file for current space. It stored in SpaceView",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brspaceInviteFileCid",
+			Key:              "spaceInviteFileCid",
+			MaxCount:         1,
+			Name:             "CID of invite file for current space",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceInviteFileKey: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Encoded encryption key of invite file for current space. It stored in SpaceView",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brspaceInviteFileKey",
+			Key:              "spaceInviteFileKey",
+			MaxCount:         1,
+			Name:             "Encoded encryption key of invite file for current space",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceInviteGuestFileCid: {
+
+			DataSource:       model.Relation_details,
+			Description:      "CID of invite file for  for guest user in the current space. It's stored in SpaceView",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brspaceInviteGuestFileCid",
+			Key:              "spaceInviteGuestFileCid",
+			MaxCount:         1,
+			Name:             "Guest user invite file CID",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceInviteGuestFileKey: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Encoded encryption key of invite file for guest user in the current space. It's stored in SpaceView",
+			Format:           model.RelationFormat_shorttext,
+			Hidden:           true,
+			Id:               "_brspaceInviteGuestFileKey",
+			Key:              "spaceInviteGuestFileKey",
+			MaxCount:         1,
+			Name:             "Guest user invite file key",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceInviteHeldByOwner: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Set when the space invite is kept in the owner's account instead of the space, so that only the owner can share it",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brspaceInviteHeldByOwner",
+			Key:              "spaceInviteHeldByOwner",
+			MaxCount:         1,
+			Name:             "Invite is held by the space owner",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceInvitePermissions: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Invite permissions. Possible values: models.ParticipantPermissions",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceInvitePermissions",
+			Key:              "spaceInvitePermissions",
+			MaxCount:         1,
+			Name:             "Invite permissions",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceInviteType: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Encoded encryption key of invite file for current space. It stored in SpaceView",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceInviteType",
+			Key:              "spaceInviteType",
+			MaxCount:         1,
+			Name:             "Invite type of space",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceJoinDate: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Space join date",
+			Format:           model.RelationFormat_date,
+			Id:               "_brspaceJoinDate",
+			IncludeTime:      true,
+			Key:              "spaceJoinDate",
+			MaxCount:         1,
+			Name:             "Space join date",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceLocalStatus: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Relation that indicates the local status of space. Possible values: models.SpaceStatus",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceLocalStatus",
+			Key:              "spaceLocalStatus",
+			MaxCount:         1,
+			Name:             "Space local status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceOrder: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Space order",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brspaceOrder",
+			Key:              "spaceOrder",
+			MaxCount:         1,
+			Name:             "Space order",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpacePushNotificationEncryptionKey: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Push notifications encryption key (base64)",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brspacePushNotificationEncryptionKey",
+			Key:              "spacePushNotificationEncryptionKey",
+			MaxCount:         1,
+			Name:             "Push notifications encryption key",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpacePushNotificationForceAllIds: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Push notification all ids",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brspacePushNotificationForceAllIds",
+			Key:              "spacePushNotificationForceAllIds",
+			Name:             "Push force all ids",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpacePushNotificationForceMentionIds: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Push notification mention ids",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brspacePushNotificationForceMentionIds",
+			Key:              "spacePushNotificationForceMentionIds",
+			Name:             "Push force mentions ids",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpacePushNotificationForceMuteIds: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Push notification muted ids",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brspacePushNotificationForceMuteIds",
+			Key:              "spacePushNotificationForceMuteIds",
+			Name:             "Push force muted ids",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpacePushNotificationKey: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Push notifications space key (base64)",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brspacePushNotificationKey",
+			Key:              "spacePushNotificationKey",
+			MaxCount:         1,
+			Name:             "Push notifications space key",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpacePushNotificationMode: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Push notification mode - mute/all/mentions/custom (see model.SpacePushNotificationMode)",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspacePushNotificationMode",
+			Key:              "spacePushNotificationMode",
+			MaxCount:         1,
+			Name:             "Push notification mode",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceRemoteStatus: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Relation that indicates the remote status of space. Possible values: models.SpaceStatus",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceRemoteStatus",
+			Key:              "spaceRemoteStatus",
+			MaxCount:         1,
+			Name:             "Space remote status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceShareableStatus: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Specify if the space is shareable",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceShareableStatus",
+			Key:              "spaceShareableStatus",
+			MaxCount:         1,
+			Name:             "Space shareable status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceType: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Space type derived from space header, see spacedomain.SpaceType",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceType",
+			Key:              "spaceType",
+			MaxCount:         1,
+			Name:             "Space type",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySpaceUxType: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Space UX type, see enum model.SpaceUxType",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brspaceUxType",
+			Key:              "spaceUxType",
+			MaxCount:         1,
+			Name:             "Space UX type",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyStarred: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_checkbox,
+			Id:               "_brstarred",
+			Key:              "starred",
+			MaxCount:         1,
+			Name:             "Starred",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyStatus: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Task status",
+			Format:           model.RelationFormat_status,
+			Id:               "_brstatus",
+			Key:              "status",
+			MaxCount:         1,
+			Name:             "Status",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySyncDate: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Object sync date",
+			Format:           model.RelationFormat_date,
+			Hidden:           true,
+			Id:               "_brsyncDate",
+			IncludeTime:      true,
+			Key:              "syncDate",
+			MaxCount:         1,
+			Name:             "Sync date",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Revision:         1,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySyncError: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Object sync error",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brsyncError",
+			Key:              "syncError",
+			MaxCount:         1,
+			Name:             "Sync error",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeySyncStatus: {
+
+			DataSource:       model.Relation_local,
+			Description:      "Object sync status",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brsyncStatus",
+			Key:              "syncStatus",
+			MaxCount:         1,
+			Name:             "Sync status",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTag: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_tag,
+			Id:               "_brtag",
+			Key:              "tag",
+			Name:             "Tag",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTargetObjectType: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Type that is used for templating",
+			Format:           model.RelationFormat_object,
+			Hidden:           true,
+			Id:               "_brtargetObjectType",
+			Key:              "targetObjectType",
+			MaxCount:         1,
+			Name:             "Template's Type",
+			ObjectTypes:      []string{TypePrefix + "objectType"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTargetSpaceId: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Relation that indicates the real space id on the spaceView",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brtargetSpaceId",
+			Key:              "targetSpaceId",
+			MaxCount:         1,
+			Name:             "Target space id",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTasks: {
+
+			DataSource:       model.Relation_details,
+			Description:      "List of related tasks",
+			Format:           model.RelationFormat_object,
+			Id:               "_brtasks",
+			Key:              "tasks",
+			Name:             "Tasks",
+			ObjectTypes:      []string{TypePrefix + "task"},
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTemplateIsBundled: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Specifies whether template is provided by anytype",
+			Format:           model.RelationFormat_checkbox,
+			Hidden:           true,
+			Id:               "_brtemplateIsBundled",
+			Key:              "templateIsBundled",
+			MaxCount:         1,
+			Name:             "Bundled Template",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTemplateNamePrefillType: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Controls whether a template's name should be applied to newly created objects",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brtemplateNamePrefillType",
+			Key:              "templateNamePrefillType",
+			MaxCount:         1,
+			Name:             "Template name prefill type",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTemplatePlaceholders: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Dynamic placeholder mappings for template relation default values",
+			Format:           model.RelationFormat_map,
+			Hidden:           true,
+			Id:               "_brtemplatePlaceholders",
+			Key:              "templatePlaceholders",
+			MaxCount:         1,
+			Name:             "Template Placeholders",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTime: {
+
+			DataSource:       model.Relation_details,
+			Description:      "",
+			Format:           model.RelationFormat_number,
+			Id:               "_brtime",
+			Key:              "time",
+			MaxCount:         1,
+			Name:             "Time",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyTimestamp: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Unix time representation of date object",
+			Format:           model.RelationFormat_date,
+			Hidden:           true,
+			Id:               "_brtimestamp",
+			Key:              "timestamp",
+			MaxCount:         1,
+			Name:             "Timestamp",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyToBeDeletedDate: {
+
+			DataSource:       model.Relation_account,
+			Description:      "Date when the object will be deleted from your device",
+			Format:           model.RelationFormat_date,
+			Hidden:           true,
+			Id:               "_brtoBeDeletedDate",
+			Key:              "toBeDeletedDate",
+			MaxCount:         1,
+			Name:             "Date to delete",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyType: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Relation that stores the object's type",
+			Format:           model.RelationFormat_object,
+			Id:               "_brtype",
+			Key:              "type",
+			MaxCount:         1,
+			Name:             "Object type",
+			ObjectTypes:      []string{TypePrefix + "objectType"},
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyUniqueKey: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Unique key used to ensure object uniqueness within the space",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_bruniqueKey",
+			Key:              "uniqueKey",
+			MaxCount:         1,
+			Name:             "Unique object key",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyUnreadMentionCount: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Number of unread mentions in a discussion for the current user",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brunreadMentionCount",
+			Key:              "unreadMentionCount",
+			MaxCount:         1,
+			Name:             "Unread mentions",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyUnreadMessageCount: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Number of unread messages in a discussion for the current user",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brunreadMessageCount",
+			Key:              "unreadMessageCount",
+			MaxCount:         1,
+			Name:             "Unread messages",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyUrl: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Web address, a reference to a web resource that specifies its location on a computer network and a mechanism for retrieving it",
+			Format:           model.RelationFormat_url,
+			Id:               "_brurl",
+			Key:              "url",
+			MaxCount:         1,
+			Name:             "URL",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyWidgetLayout: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Widget layout",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brwidgetLayout",
+			Key:              "widgetLayout",
+			MaxCount:         1,
+			Name:             "Widget layout",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyWidgetLimit: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Widget limit",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brwidgetLimit",
+			Key:              "widgetLimit",
+			MaxCount:         1,
+			Name:             "Widget limit",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyWidgetViewId: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Widget view ID",
+			Format:           model.RelationFormat_longtext,
+			Hidden:           true,
+			Id:               "_brwidgetViewId",
+			Key:              "widgetViewId",
+			MaxCount:         1,
+			Name:             "Widget view ID",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyWidthInPixels: {
+
+			DataSource:       model.Relation_details,
+			Description:      "Width of image/video in pixels",
+			Format:           model.RelationFormat_number,
+			Id:               "_brwidthInPixels",
+			Key:              "widthInPixels",
+			MaxCount:         1,
+			Name:             "Width",
+			ReadOnly:         false,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKeyWritersLimit: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Writers limit",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_brwritersLimit",
+			Key:              "writersLimit",
+			MaxCount:         1,
+			Name:             "Writers limit",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKey_final_score: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Fulltext search final score (BM25 + recency + name boost)",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_br_final_score",
+			Key:              "_final_score",
+			MaxCount:         1,
+			Name:             "Final Score",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+		RelationKey_score: {
+
+			DataSource:       model.Relation_derived,
+			Description:      "Fulltext search score",
+			Format:           model.RelationFormat_number,
+			Hidden:           true,
+			Id:               "_br_score",
+			Key:              "_score",
+			MaxCount:         1,
+			Name:             "Score",
+			ReadOnly:         true,
+			ReadOnlyRelation: true,
+			Scope:            model.Relation_type,
+		},
+	}
+)
