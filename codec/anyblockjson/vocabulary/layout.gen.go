@@ -1,0 +1,109 @@
+// Code generated from Anytype's bundled vocabulary. DO NOT EDIT.
+// source: anytype-heart/pkg/lib/bundle/layouts.json
+
+package vocabulary
+
+import model "github.com/anyproto/any-block/format/v1/model"
+
+const LayoutChecksum = "c136128edc84e9bf9431617756987159c53f014a286607b15382d84e443d16c2"
+
+var (
+	Layouts = map[model.ObjectTypeLayout]model.Layout{
+		model.ObjectType_basic: {
+
+			Id:   model.ObjectType_basic,
+			Name: "Basic",
+		},
+		model.ObjectType_bookmark: {
+
+			Id:   model.ObjectType_bookmark,
+			Name: "Bookmark",
+		},
+		model.ObjectType_collection: {
+
+			Id:   model.ObjectType_collection,
+			Name: "Collection",
+		},
+		model.ObjectType_dashboard: {
+
+			Id:   model.ObjectType_dashboard,
+			Name: "Dashboard",
+		},
+		model.ObjectType_discussion: {
+
+			Id:   model.ObjectType_discussion,
+			Name: "Discussion",
+		},
+		model.ObjectType_file: {
+
+			Id:   model.ObjectType_file,
+			Name: "File",
+		},
+		model.ObjectType_image: {
+
+			Id:                model.ObjectType_image,
+			Name:              "Image",
+			RequiredRelations: []*model.Relation{relations[RelationKeyIconImage]},
+		},
+		model.ObjectType_note: {
+
+			Id:   model.ObjectType_note,
+			Name: "Note",
+		},
+		model.ObjectType_objectType: {
+
+			Id:                model.ObjectType_objectType,
+			Name:              "Object Type",
+			RequiredRelations: []*model.Relation{relations[RelationKeyRecommendedRelations]},
+		},
+		model.ObjectType_participant: {
+
+			Id:   model.ObjectType_participant,
+			Name: "Participant",
+		},
+		model.ObjectType_profile: {
+
+			Id:   model.ObjectType_profile,
+			Name: "Profile",
+		},
+		model.ObjectType_relation: {
+
+			Id:   model.ObjectType_relation,
+			Name: "Relation",
+		},
+		model.ObjectType_relationOption: {
+
+			Id:                model.ObjectType_relationOption,
+			Name:              "Relation Option",
+			RequiredRelations: []*model.Relation{relations[RelationKeyRelationOptionColor]},
+		},
+		model.ObjectType_set: {
+
+			Id:                model.ObjectType_set,
+			Name:              "Set",
+			RequiredRelations: []*model.Relation{relations[RelationKeySetOf]},
+		},
+		model.ObjectType_space: {
+
+			Id:   model.ObjectType_space,
+			Name: "Space",
+		},
+		model.ObjectType_spaceView: {
+
+			Id:   model.ObjectType_spaceView,
+			Name: "Space View",
+		},
+		model.ObjectType_tag: {
+
+			Id:                model.ObjectType_tag,
+			Name:              "Tag",
+			RequiredRelations: []*model.Relation{relations[RelationKeyRelationOptionColor]},
+		},
+		model.ObjectType_todo: {
+
+			Id:                model.ObjectType_todo,
+			Name:              "to-do",
+			RequiredRelations: []*model.Relation{relations[RelationKeyDone]},
+		},
+	}
+)

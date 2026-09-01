@@ -1,0 +1,238 @@
+syntax = "proto3";
+package anytype;
+option go_package = "github.com/anyproto/any-block/format/v1/pb";
+
+import "format/v1/proto/models.proto";
+import "format/v1/proto/events.proto";
+import "google/protobuf/struct.proto";
+
+// the element of change tree used to store and internal apply smartBlock history
+message Change {
+    // set of actions to apply
+    repeated Content content = 3;
+    // snapshot - when not null, the Content will be ignored
+    Snapshot snapshot = 4;
+    // file keys related to changes content
+    repeated FileKeys fileKeys = 6;
+    // creation timestamp
+    int64 timestamp = 7;
+
+    // version of business logic
+    uint32 version = 8;
+    // business-level type of change applied to object
+    uint32 changeType = 9;
+
+    message Snapshot {
+        // logId -> lastChangeId
+        map<string, string> logHeads = 1;
+        // snapshot data
+        anytype.model.SmartBlockSnapshotBase data = 2;
+        // all file keys related to doc
+        repeated FileKeys fileKeys = 3;
+    }
+
+    message FileKeys {
+        string hash = 1;
+        map<string, string> keys = 2;
+    }
+
+    message Content {
+        oneof value {
+            BlockCreate blockCreate = 1;
+            BlockUpdate blockUpdate = 2;
+            BlockRemove blockRemove = 3;
+            BlockMove blockMove = 4;
+            BlockDuplicate blockDuplicate = 5;
+            RelationAdd relationAdd = 50;
+            RelationRemove relationRemove = 51;
+            DetailsSet detailsSet = 100;
+            DetailsUnset detailsUnset = 101;
+
+            ObjectTypeAdd objectTypeAdd = 105;
+            ObjectTypeRemove objectTypeRemove = 106;
+            StoreKeySet storeKeySet = 107;
+            StoreKeyUnset storeKeyUnset = 108;
+
+            StoreSliceUpdate storeSliceUpdate = 109;
+            OriginalCreatedTimestampSet originalCreatedTimestampSet = 110;
+            SetFileInfo setFileInfo = 111;
+            NotificationCreate notificationCreate = 112;
+            NotificationUpdate notificationUpdate = 113;
+
+            DeviceAdd deviceAdd = 114;
+            DeviceUpdate deviceUpdate = 115;
+        }
+        reserved 102,103,104; // old unsupported relation changes
+    }
+
+    message BlockCreate {
+        string targetId = 1;
+        anytype.model.Block.Position position = 2;
+        repeated anytype.model.Block blocks = 3;
+    }
+
+    message BlockUpdate {
+        repeated Event.Message events = 2;
+    }
+
+    message BlockRemove {
+        repeated string ids = 1;
+    }
+
+    message BlockMove {
+        string targetId = 1;
+        anytype.model.Block.Position position = 2;
+        repeated string ids = 3;
+    }
+
+    message BlockDuplicate {
+        string targetId = 1;
+        anytype.model.Block.Position position = 2;
+        repeated string ids = 3;
+    }
+
+    message DetailsSet {
+        string key = 1;
+        google.protobuf.Value value = 2;
+    }
+
+    message DetailsUnset {
+        string key = 1;
+    }
+
+    message RelationAdd {
+        repeated anytype.model.RelationLink relationLinks = 1;
+    }
+
+    message RelationRemove {
+        repeated string relationKey = 1;
+    }
+
+    message ObjectTypeAdd {
+        string url = 1;
+        string key = 2;
+    }
+
+    message ObjectTypeRemove {
+        string url = 1;
+        string key = 2;
+    }
+
+    message StoreKeySet {
+        repeated string path = 1;
+        google.protobuf.Value value = 2;
+    }
+
+    message StoreKeyUnset {
+        repeated string path = 1;
+    }
+
+    message StoreSliceUpdate {
+        string key = 1;
+        oneof operation {
+            Add add = 2;
+            Remove remove = 3;
+            Move move = 4;
+        }
+
+        message Add {
+            string afterId = 1;
+            repeated string ids = 2;
+        }
+
+        message Remove {
+            repeated string ids = 1;
+        }
+
+        message Move {
+            string afterId = 1;
+            repeated string ids = 2;
+        }
+    }
+
+    message OriginalCreatedTimestampSet {
+        int64 ts = 1;
+    }
+
+    message SetFileInfo {
+        model.FileInfo fileInfo = 1;
+    }
+
+    message NotificationCreate {
+        anytype.model.Notification notification = 1;
+    }
+
+    message NotificationUpdate {
+        string id = 1;
+        anytype.model.Notification.Status status = 2;
+    }
+
+    message DeviceAdd {
+        anytype.model.DeviceInfo device = 1;
+    }
+
+    message DeviceUpdate {
+        string id = 1;
+        string name = 2;
+    }
+}
+
+message ChangeNoSnapshot {
+    // set of actions to apply
+    repeated Change.Content content = 3;
+    // file keys related to changes content
+    repeated Change.FileKeys fileKeys = 6;
+    // creation timestamp
+    int64 timestamp = 7;
+    // version of business logic
+    uint32 version = 8;
+    // business-level type of change applied to object
+    uint32 changeType = 9;
+}
+
+message StoreChange {
+    repeated StoreChangeContent changeSet = 1;
+}
+
+message StoreChangeContent {
+    oneof change {
+        DocumentCreate create = 1;
+        DocumentModify modify = 2;
+        DocumentDelete delete = 3;
+    }
+}
+
+message DocumentCreate {
+    string collection = 1;
+    string documentId = 2;
+    // json
+    string value = 3;
+}
+
+message DocumentModify {
+    string collection = 1;
+    string documentId = 2;
+    repeated KeyModify keys = 4;
+}
+
+message KeyModify {
+    // key path; example: [user, email]
+    repeated string keyPath = 1;
+    // modify op: set, unset, inc, etc.
+    ModifyOp modifyOp = 3;
+    // json value; example: '"new@example.com"'
+    string modifyValue = 4;
+}
+
+enum ModifyOp {
+    Set = 0;
+    Unset = 1;
+    Inc = 2;
+    AddToSet = 3;
+    Pull = 4;
+}
+
+message DocumentDelete {
+    string collection = 1;
+    string documentId = 2;
+}

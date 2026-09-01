@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.anytype.io/anyblock/2.0/authoring/properties.schema.json",
+  "title": "AnyBlock property dictionary — authoring subset",
+  "description": "One properties.json at the bundle root, beside index.json: the bundle's own properties, declared once, in one place. A strict subset of the full dictionary schema (../properties.schema.json) — every dictionary valid here is valid there. Declare a property here, reference it from a type's property_definitions by its key, and write its values in objects under the same key; the app mints the stored identity on import.",
+  "x-app": "Anytype",
+  "type": "object",
+  "required": [
+    "formatVersion",
+    "properties"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Write this file's URL: https://schemas.anytype.io/anyblock/2.0/authoring/properties.schema.json"
+    },
+    "formatVersion": {
+      "const": "2.0"
+    },
+    "installed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Built-in properties this bundle wants available, by name: [\"Due date\", \"Tag\"]. Presence only — never redefine a built-in here."
+    },
+    "properties": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/property"
+      },
+      "description": "The bundle's own properties, one entry each."
+    }
+  },
+  "$defs": {
+    "property": {
+      "type": "object",
+      "description": "One property. Identify it by `property` (the spelling your documents will write — the property's name: \"Streak\") or by `name` (\"Cooking Time\" declares a property spelled exactly that); `format` is required. Never invent stored ids — the app mints those on import.",
+      "required": [
+        "format"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "property"
+          ]
+        },
+        {
+          "required": [
+            "name"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "not": {
+              "required": [
+                "property"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "name": {
+                "minLength": 1,
+                "pattern": "^[^\u0000-\u001f\u007f]+$",
+                "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "options"
+            ]
+          },
+          "then": {
+            "properties": {
+              "format": {
+                "enum": [
+                  "select",
+                  "multi_select"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "object_types"
+            ]
+          },
+          "then": {
+            "properties": {
+              "format": {
+                "enum": [
+                  "objects",
+                  "files"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "include_time"
+            ]
+          },
+          "then": {
+            "properties": {
+              "format": {
+                "const": "date"
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "property": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\u0000-\u001f]+$",
+          "description": "The property's spelling — its display name, written exactly: \"Streak\", \"Last done\". A fresh name — a built-in property's name (\"Due date\") names the built-in property instead."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name: \"Last done\"."
+        },
+        "format": {
+          "enum": [
+            "text",
+            "number",
+            "select",
+            "multi_select",
+            "date",
+            "checkbox",
+            "url",
+            "email",
+            "phone",
+            "objects",
+            "files"
+          ],
+          "description": "What kind of value the property holds. \"select\" is one choice from a vocabulary, \"multi_select\" several; \"objects\" points at other objects."
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "color": {
+                    "enum": [
+                      "grey",
+                      "yellow",
+                      "orange",
+                      "red",
+                      "pink",
+                      "purple",
+                      "blue",
+                      "ice",
+                      "teal",
+                      "lime"
+                    ]
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "description": "select/multi_select only: the vocabulary, in display order. An entry is a bare name (\"Daily\") or {\"name\", \"color\"} when the colour is part of the design."
+        },
+        "object_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "objects/files only: the NFC display names of the types the property may point at, including the Name of a type this bundle declares. Never write internal_key here. Empty or absent = any object."
+        },
+        "description": {
+          "type": "string",
+          "description": "One line on what the property means."
+        },
+        "include_time": {
+          "type": "boolean",
+          "description": "date only: whether values carry a time of day."
+        }
+      }
+    }
+  }
+}

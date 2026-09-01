@@ -1,6 +1,6 @@
 syntax = "proto3";
 package anytype;
-option go_package = "pb";
+option go_package = "github.com/anyproto/any-block/format/v1/pb";
 
 import "models.proto";
 import "events.proto";
@@ -220,7 +220,7 @@ message KeyModify {
     repeated string keyPath = 1;
     // modify op: set, unset, inc, etc.
     ModifyOp modifyOp = 3;
-    // json value; example: '"new@email.com"'
+    // json value; example: '"new@example.com"'
     string modifyValue = 4;
 }
 
@@ -236,4 +236,3 @@ message DocumentDelete {
     string collection = 1;
     string documentId = 2;
 }
-

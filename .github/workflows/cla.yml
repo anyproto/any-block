@@ -5,13 +5,51 @@ on:
   pull_request_target:
     types: [opened,closed,synchronize]
 
+# Audited local copy of:
+# anyproto/open/.github/workflows/cla.yml@0aa34dbc653ff6c522675bb9bdab8743f34122dc
+#
+# That reusable workflow consumes ANY_CLA_TOKEN without declaring it in
+# on.workflow_call.secrets, so GitHub only permits callers to expose it through
+# unrestricted secret forwarding. Vendoring the reviewed body lets this privileged,
+# externally triggered workflow receive exactly the one repository secret it
+# needs. Update the provenance SHA, action SHAs, and checker digest together
+# after reviewing any change to this workflow.
 permissions:
   actions: write
-  contents: write
   pull-requests: write
-  statuses: write
-  
+
 jobs:
-  cla-check:
-    uses: anyproto/open/.github/workflows/cla.yml@main
-    secrets: inherit
+  cla-assistant:
+    if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Org Members
+        id: members
+        # octokit/request-action v2.x, audited with the source workflow above.
+        uses: octokit/request-action@02f5e7c637a73a3b12ed81015fa7fb5f11cc5d7d
+        with:
+          route: GET /orgs/anyproto/members?per_page=100
+        env:
+          GITHUB_TOKEN: ${{ secrets.ANY_CLA_TOKEN }}
+
+      - name: Extract Member Logins
+        run: |
+          echo '${{ steps.members.outputs.data }}' | jq -r '.[].login' | tr '\n' ',' > members.txt
+          echo "dependabot[bot],allcontributors[bot],any-bot[bot],anyprotoautomator,dragosrotaru,fat-fellow" >> members.txt
+          echo "members=$(cat members.txt)" >> "$GITHUB_ENV"
+
+      - name: CLA Assistant
+        # contributor-assistant/github-action v2.3.0, audited with the source
+        # workflow above.
+        uses: contributor-assistant/github-action@5bfe123a0731f017d9c29550976bf724fe0870f5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.ANY_CLA_TOKEN }}
+        with:
+          custom-notsigned-prcomment: '<br/>Thank you for your pull request, we really appreciate it!<br/><br/>Please sign our [Contributor License Agreement](https://github.com/anyproto/.github/blob/main/docs/CLA.md) before we can accept your contribution.<br/>You can sign the CLA by simply commenting on this pull request with the following text.<br/>'
+          path-to-document: "https://github.com/anyproto/.github/blob/main/docs/CLA.md"
+          remote-organization-name: "anyproto"
+          remote-repository-name: "cla"
+          branch: "main"
+          path-to-signatures: "signatures.json"
+          allowlist: ${{ env.members }}

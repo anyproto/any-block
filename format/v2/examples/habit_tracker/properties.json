@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/authoring/properties.schema.json",
+  "formatVersion": "2.0",
+  "properties": [
+    {
+      "name": "Frequency",
+      "format": "select",
+      "options": [
+        { "name": "Daily", "color": "lime" },
+        { "name": "Weekly", "color": "blue" }
+      ],
+      "description": "How often the habit repeats."
+    },
+    {
+      "name": "Streak",
+      "format": "number",
+      "description": "Days in a row, so far."
+    },
+    {
+      "name": "Last done",
+      "format": "date",
+      "description": "When you last did it."
+    }
+  ]
+}

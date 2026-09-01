@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify privileged workflow pins
+        run: sh .github/scripts/check-cla-workflow.sh
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: arduino/setup-protoc@v3
+        with:
+          version: "33.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify v1 proto compatibility paths
+        run: sh format/v1/check-proto-compat.sh
+      - name: Install pinned generators
+        run: |
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          sh codec/anyblockjson/install-generator.sh
+          go install github.com/chrusty/protoc-gen-jsonschema/cmd/protoc-gen-jsonschema@v0.0.0-20230806074516-0ca6ba213e83
+      - name: Verify generated files
+        run: |
+          go generate ./codec/anyblockjson ./format/v1
+          # Stage first: `git diff --exit-code` alone is blind to untracked and
+          # deleted files, so a PR that drops a generated artifact stays green.
+          git add -A
+          git diff --cached --exit-code
+      - name: Test
+        run: go test ./...
+      - name: Vet
+        run: go vet ./...

@@ -1,0 +1,69 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/Placeholder",
+    "definitions": {
+        "Placeholder": {
+            "properties": {
+                "relationKey": {
+                    "type": "string"
+                },
+                "values": {
+                    "items": {
+                        "$ref": "#/definitions/anytype.model.Placeholder.Value"
+                    },
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Placeholder"
+        },
+        "anytype.model.Placeholder.Value": {
+            "properties": {
+                "type": {
+                    "enum": [
+                        "PlaceholderValue",
+                        0,
+                        "PlaceholderToday",
+                        1,
+                        "PlaceholderCurrentUser",
+                        2
+                    ],
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "integer"
+                        }
+                    ],
+                    "title": "Type"
+                },
+                "value": {
+                    "oneOf": [
+                        {
+                            "type": "array"
+                        },
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "object"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ],
+                    "title": "Value",
+                    "description": "`Value` represents a dynamically typed value which can be either null, a number, a string, a boolean, a recursive struct value, or a list of values. A producer of value is expected to set one of these variants. Absence of any variant indicates an error. The JSON representation for `Value` is JSON value."
+                }
+            },
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Value"
+        }
+    }
+}

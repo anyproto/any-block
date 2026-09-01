@@ -1,0 +1,60 @@
+{
+  "sbType": "Page",
+  "snapshot": {
+    "data": {
+      "blocks": [
+        {
+          "id": "bafyreiconformanceobject",
+          "childrenIds": [
+            "b1",
+            "b2",
+            "b3"
+          ],
+          "smartblock": {
+
+          }
+        },
+        {
+          "id": "b1",
+          "text": {
+            "text": "Queued",
+            "style": "Header2"
+          }
+        },
+        {
+          "id": "b2",
+          "text": {
+            "text": "Deep Work by Cal Newport",
+            "style": "Marked",
+            "marks": {
+              "marks": [
+                {
+                  "range": {
+                    "to": 9
+                  },
+                  "type": "Bold"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "b3",
+          "text": {
+            "text": "Finish the spec",
+            "style": "Checkbox",
+            "checked": true
+          }
+        }
+      ],
+      "details": {
+          "description": "A short v1 fixture.",
+          "id": "bafyreiconformanceobject",
+          "name": "Reading list"
+        },
+      "objectTypes": [
+        "ot-page"
+      ]
+    }
+  }
+}
