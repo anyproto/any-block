@@ -972,7 +972,7 @@ var propertySettingsMemberHomes = map[string]string{
 	"property":      "a property document is addressed by its envelope `internal_key`; its spelling is its display name, which the `name` property already carries",
 	"name":          "the property's name is the `name` property",
 	"description":   "the property's description is the `description` property",
-	"options":       "a property's options are property_option documents of their own",
+	"options":       "a property's vocabulary is stated inline on its dictionary entry (§2f) or a type's property_definitions declaration (§2a) — a bundle carries no option documents",
 	"max_count":     "it still travels in `properties` as \"Max values\"",
 	"readonly":      "it still travels in `properties` as \"Property value is readonly\"",
 	"default_value": "it still travels in `properties` as \"Default value\"",
@@ -1649,7 +1649,15 @@ var neverWritableProperties = map[string]string{
 //
 // The list is expected to grow. Each entry needs the same two answers as
 // internalFlags: what it means in the app, and why nothing downstream of an
-// import can act on it.
+// import can act on it. One entry — `orderId` — is here by RULING rather
+// than by the §15 #12 admission test it once failed: it is real user intent
+// (the hand-ordering of types in the library, 343 corpus type documents),
+// but its value is a lexid, a coordinate in the source space's private
+// ordering whose meaning lives in the sibling lexids that stay home, and
+// this format does not export lexids (§3, §15 #21) — where order matters
+// it travels as array position, as the dictionary's option vocabulary does
+// (§2f). The overturned position (keep it on type documents as user
+// intent) is recorded on typesettings.go and in §2a.
 //
 //   - internalFlags — editor UI state (editorDeleteEmpty, editorSelectType,
 //     editorSelectTemplate: "this object was just created, offer the type
@@ -1659,6 +1667,8 @@ var neverWritableProperties = map[string]string{
 //     nothing to say.
 var transientProperties = map[string]string{
 	"internalFlags": "editor state for an object being created, which a restored object never is",
+	// the store's private ordering coordinate — see the ruling above
+	"orderId": "a lexid: a coordinate in the source space's private ordering, meaningless without the sibling lexids that stay home; order that matters travels as array position (§2f)",
 	// The client's ANALYTICS context, persisted onto the object instead of
 	// only being sent as an event. `route` is anytype-ts's analytics-route
 	// concept (`analytics.route.shortcut`, `.header`, `.menuSystem`), and

@@ -57,7 +57,7 @@ func TestAuthoringTypeDocumentNamesItself(t *testing.T) {
 	})
 }
 
-// The nine keys the FULL format does not refuse — it DROPS them at import —
+// The ten keys the FULL format does not refuse — it DROPS them at import —
 // are refused by the authoring subset under every spelling, not only the
 // pre-raw-name one the schema's literal list happens to name.
 func TestAuthoringDeniedKeysAreRefusedUnderEverySpelling(t *testing.T) {
