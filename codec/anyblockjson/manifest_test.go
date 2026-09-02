@@ -118,6 +118,9 @@ func TestIndex_ManifestRefusals(t *testing.T) {
 // ids, resolved against the IMPORTING space's live store so a value survives
 // a rename (§9a), never against the bundle. It never needed a path beside it.
 //
+// Since §15 #21 the member could not be written even if the rule were
+// reversed: a bundle carries no option document for a path to point at.
+//
 // How this can fail: keep writing the member and every index carries a map
 // no reader consults; refuse it instead of ignoring it and a bundle written
 // last week stops importing.
