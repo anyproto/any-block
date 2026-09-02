@@ -44,6 +44,8 @@ package anyblockjson
 // level down.
 
 import (
+	"encoding/json"
+
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
 )
 
@@ -243,9 +245,9 @@ func (imp *importer) optionIdFromLegend(key, slug, name string) (string, bool) {
 //   - `properties`            — member names (§3)
 //   - `property_internal_keys`         — member names, the spelling→stored-key legend (§3)
 //   - `type_settings.property_definitions[].property` — §2a
-//   - a `property` block's `key` (§5)
+//   - a `property` block's `property` (§5)
 //   - a `link` block's `properties[]`, the shown-property list (§5)
-//   - a `dataview` block's `properties[].key` (§6.2)
+//   - a `dataview` block's `properties[].property` (§6.2)
 //   - a view's `group_by`, `cover_property`, `end_property` (§6.2)
 //   - a view's `columns[].property` (§6.2)
 //   - a view's `sorts[].property` (§6.2)
@@ -266,20 +268,90 @@ func (imp *importer) optionIdFromLegend(key, slug, name string) (string, bool) {
 // importer passes it through without translating it (dataview.go) — and no
 // option value is ever resolved under it.
 //
-// ONE reader, not two. The census used to exist in a decoded twin as well,
-// because import took it too, and an agreement test stood between them. Import
-// no longer takes a census at all (optionIdFromLegend), so the twin lost its
+// ONE census, not two. It used to exist in a decoded twin as well, because
+// import took it too, and an agreement test stood between them. Import no
+// longer takes a census at all (optionIdFromLegend), so the twin lost its
 // only caller — and a function kept alive so a test can check it agrees with
 // the one that is actually used proves nothing about behaviour. What the
 // agreement test really guarded is that the census covers every position a
 // property can be spelled in, and that is pinned directly, position by
 // position, in TestOptionRefs_ThePropertyCensusCoversEveryPosition.
+//
+// The bundle's used-key scan is the second CALLER of the same walk, not a
+// second walk: the property dictionary is used-only (§2f), so the composer
+// and bundle.Validate must both know which properties a document
+// references, and that population is this census minus the legend
+// (PropertyTermsOf). It was once a separate reader of two slots, and the
+// dataview positions it did not know about were exactly the ones it lost
+// vocabularies through — a kanban that declares, groups by, filters and
+// sorts on `Status` counted as a document that never mentions it.
 
-// rawPropertySpellings is the same census over an undecoded document
-// (Validate's side). Every read is shape-tolerant: this runs after the schema
-// has passed, but a census is not the place to have an opinion about a shape
-// somebody else refuses.
+// rawPropertySpellings is the census over an undecoded document (Validate's
+// side): every slot spelling, plus the legend's own member names. Every read
+// is shape-tolerant: this runs after the schema has passed, but a census is
+// not the place to have an opinion about a shape somebody else refuses.
 func rawPropertySpellings(doc map[string]any) map[string]bool {
+	out := rawPropertySlotSpellings(doc)
+	if m, _ := doc[memberPropertyInternalKeys].(map[string]any); m != nil {
+		for term := range m {
+			if term != "" {
+				out[term] = true
+			}
+		}
+	}
+	return out
+}
+
+// PropertyTerms is what one document's bytes say about the properties it
+// uses, read raw: every spelling in a slot that names a property (the census
+// above, legend excluded — a legend BINDS spellings to stored keys, it does
+// not use one, so a stale legend member is not a reference), the legend
+// itself, and the stored keys a type's property definitions state directly
+// through `internal_key` (§2e) — not spellings, and never run through the
+// §3 chain, since a stored id is its own address.
+type PropertyTerms struct {
+	Spellings  map[string]bool
+	Legend     map[string]string
+	StoredKeys map[string]bool
+}
+
+// PropertyTermsOf runs the property census over one document's bytes, for
+// the bundle's used-key scan (bundle.UsedPropertyKeysFromBytes). Shape
+// tolerant like the census it wraps: the composer scans bytes this package
+// has just marshalled and bundle.Validate scans documents Validate has
+// already accepted, so a document that is not JSON at all is the only
+// error.
+func PropertyTermsOf(doc []byte) (PropertyTerms, error) {
+	var raw map[string]any
+	if err := json.Unmarshal(doc, &raw); err != nil {
+		return PropertyTerms{}, err
+	}
+	terms := PropertyTerms{
+		Spellings:  rawPropertySlotSpellings(raw),
+		Legend:     map[string]string{},
+		StoredKeys: map[string]bool{},
+	}
+	if m, _ := raw[memberPropertyInternalKeys].(map[string]any); m != nil {
+		for term, v := range m {
+			if key, _ := v.(string); key != "" && term != "" {
+				terms.Legend[term] = key
+			}
+		}
+	}
+	if list, _ := typePropertyDefinitionsOf(raw); list != nil {
+		for _, item := range list {
+			tp, _ := item.(map[string]any)
+			if key, _ := tp[memberInternalKey].(string); key != "" {
+				terms.StoredKeys[key] = true
+			}
+		}
+	}
+	return terms, nil
+}
+
+// rawPropertySlotSpellings is the census over every SLOT that names a
+// property — the list above without the legend.
+func rawPropertySlotSpellings(doc map[string]any) map[string]bool {
 	out := map[string]bool{}
 	add := func(spelling string) {
 		if spelling != "" {
@@ -297,7 +369,6 @@ func rawPropertySpellings(doc map[string]any) map[string]bool {
 		}
 	}
 	addMembers(doc["properties"])
-	addMembers(doc[memberPropertyInternalKeys])
 	if list, _ := typePropertyDefinitionsOf(doc); list != nil {
 		for _, raw := range list {
 			tp, _ := raw.(map[string]any)

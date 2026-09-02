@@ -115,8 +115,9 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 		"uniqueKey": strVal("opt-abcd1234"),
 	})}
 	// An option is omitted unconditionally and its vocabulary is learned
-	// HERE, on the omission path — the dictionary is the only place a select
-	// vocabulary is stated (§2f, §15 #21).
+	// HERE, on the omission path — the dictionary entry is where the composer
+	// states a select vocabulary; a bundle carries no option document (§2f,
+	// §15 #21).
 	omitted, _ = c.Observe(model.SmartBlockType_STRelationOption, optSnap)
 	require.True(t, omitted, "a bundle carries no option documents")
 

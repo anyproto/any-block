@@ -68,6 +68,21 @@ type Stats struct {
 	// anywhere — no relation object, not bundled — so the dictionary cannot
 	// state a format for them (§2f names every property it CAN).
 	OrphanUsedKeys []string
+	// OptionsLifted counts the option documents the emit omitted whose
+	// vocabulary the dictionary now states inline (§2f); OptionsDropped
+	// counts the ones it does not — their property has no dictionary entry
+	// to travel on, either because no document references it (the used-only
+	// rule; its keys are UnusedOptionKeys) or because nothing can define it
+	// (its key is in OrphanUsedKeys). Together they are the whole census of
+	// lifted options: nothing an option snapshot carried leaves the emit
+	// uncounted.
+	OptionsLifted  int
+	OptionsDropped int
+	// UnusedOptionKeys are property keys that own a lifted vocabulary but
+	// that no document references, so the used-only rule (§2f, §15 #21)
+	// dropped the vocabulary with the entry. Sorted. This is the second of
+	// the two losses §11 states rather than hides.
+	UnusedOptionKeys []string
 }
 
 // Composer accumulates, across one bundle's emit, everything the two
@@ -414,15 +429,24 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	}
 	sort.Strings(orphans)
 
-	// the select vocabulary travels with the property that owns it, and the
-	// dictionary is its ONLY home: a bundle carries no option documents at
-	// all (§2f, §15 #21), so an entry this loop does not write states the
-	// vocabulary nowhere.
+	// the select vocabulary travels with the property that owns it: a
+	// bundle carries no option documents at all (§2f, §15 #21), so once the
+	// option snapshots are omitted the dictionary entry is the only place
+	// left in THIS bundle for the vocabulary to travel — a type's §2a
+	// definition may state one too, but the composer does not write those —
+	// and an entry this loop does not write states it nowhere.
+	var unusedOptionKeys []string
 	for key, stored := range c.optionsByKey {
-		if !c.used[key] {
+		if _, have := entries[key]; !c.used[key] && !have {
 			// §2f is used-only, and §15 #21 settled that the rule governs
 			// here too: a bundle does not state a vocabulary for a property
-			// none of its documents reference
+			// none of its documents reference. An entry that exists for
+			// another reason — a divergent installed copy — keeps its
+			// vocabulary regardless: the entry IS the vehicle, and writing
+			// it without the options would drop the vocabulary while the
+			// property travels. Reported, not silent (§11).
+			unusedOptionKeys = append(unusedOptionKeys, key)
+			stats.OptionsDropped += len(stored)
 			continue
 		}
 		// in the order the SPACE shows them, which the stored `orderId`
@@ -468,12 +492,17 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 					ObjectTypes: bundledTargetKeys(rel.ObjectTypes),
 				}
 			} else {
-				continue // nothing can say what this property is; §2f reports it as an orphan
+				// nothing can say what this property is; §2f reports the
+				// key as an orphan, and the vocabulary goes with it
+				stats.OptionsDropped += len(stored)
+				continue
 			}
 		}
 		def.Options = opts
 		entries[key] = def
+		stats.OptionsLifted += len(opts)
 	}
+	sort.Strings(unusedOptionKeys)
 
 	dict := &anyblockjson.PropertyDictionary{}
 	for key := range c.installed {
@@ -523,6 +552,7 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	stats.DictionaryBytes = len(dictData)
 	stats.IndexBytes = len(idxData)
 	stats.OrphanUsedKeys = orphans
+	stats.UnusedOptionKeys = unusedOptionKeys
 	return idxData, dictData, stats, nil
 }
 

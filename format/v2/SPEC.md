@@ -483,7 +483,7 @@ style.
 | `internal_key` | string | no* | The property's STORED internal key, verbatim — never run through the §3 ladder, because a stored id is its own address and the bundled fold would rebind a slug-shaped one (`due_date` onto `dueDate`). Export writes it beside `property` for fidelity; an author never needs it, and cannot produce a correct one for a custom property (the app mints those — a bson id). *An entry must state an identity: `property`, or `internal_key`, or a `name` the spelling derives from; when both `property` and `internal_key` are present the spelling wins, and export writes an agreeing pair. A custom property whose entry states no `internal_key` gets a FRESH minted internal key from the import wiring's create path, the way the app mints one when a user creates a property — the spelling must not silently become the stored key. |
 | `name` | string | no | Display name. Import uses it only when the property must be **created**; an existing property keeps its own name. Every bundled key already exists, so a name given for one is inert — `{"property": "Description", "name": "Summary"}` renders as *Description*. Validation warns. If the label is the point, mint a custom key instead of reusing a bundled one. |
 | `format` | string | no | Property format (§3 names). Same import rule as `name`; a conflict with an existing property's format is an error at the wiring level (the package cannot see the space). |
-| `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** whenever the option declares no color, the object form otherwise — the same rule cells follow in §6.1. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`, which makes every select sort alphabetically (options order by `[orderId, name]`, `pkg/lib/database.BuildOrderMap`). Declaring them lets the wiring create each one up front with an order id. Every option needs one: the sort concatenates `orderId + name` before comparing, so an option missing an order id is compared by *name* against the others' order ids and lands arbitrarily — ahead of the whole vocabulary when its name sorts below the id alphabet, behind it otherwise. Names discovered from usage rather than declared are ordered after the declared ones. The object form takes a third member, `internal_key` — the option's STORED key, which the app mints and an author never writes; export states it where the store holds one, and it is what lets a bundle STATE a vocabulary rather than describe it (§2f, where a select vocabulary now exclusively lives). Only meaningful on `select`/`multi_select`; duplicate names are a validation error, across both forms. |
+| `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** whenever the option declares no color, the object form otherwise — the same rule cells follow in §6.1. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`, which makes every select sort alphabetically (options order by `[orderId, name]`, `pkg/lib/database.BuildOrderMap`). Declaring them lets the wiring create each one up front with an order id. Every option needs one: the sort concatenates `orderId + name` before comparing, so an option missing an order id is compared by *name* against the others' order ids and lands arbitrarily — ahead of the whole vocabulary when its name sorts below the id alphabet, behind it otherwise. Names discovered from usage rather than declared are ordered after the declared ones. The object form takes a third member, `internal_key` — the option's STORED key, which the app mints and an author never writes; export states it where the store holds one, and it is what lets a bundle STATE a vocabulary rather than describe it (§2f, where the dictionary entry states a vocabulary in this same member — the two entry shapes are the only places one is stated, since no option document carries it). Only meaningful on `select`/`multi_select`; duplicate names are a validation error, across both forms. |
 | `object_types` | string[] | no | The **type document spellings** an `objects`/`files` property may point at, in priority order — canonically display names, and a type-key slot like the envelope `type`. It speaks the one key vocabulary (§3), claims its spellings through the same type term ledger and owes the same `type_internal_keys` legend; import inverts each entry through the legend first, and a term the chain does not know passes through verbatim. Legacy derived slugs remain accepted input only. Empty means any object — an untargeted property will happily accept a random page as a task's assignee. Listing the built-in `participant` alongside a bundle's own people type is what makes the current-user filter value usable on that property (§6.2) while still allowing the seeded people as values; the client only offers it when the relation's targets include Participant. The wiring resolves each key to an id the way it resolves properties: a type the batch defines by the id its own document carries, a bundled type by its bundled url (`_ot<key>`). Only meaningful on `objects`/`files`. |
 | `description` | string | no | The property's own description (its relation object's `description` detail). Same import rule as `name`: read when the property is created, inert on an existing one. |
 | `include_time` | bool \| null | no | Whether a date property's values carry a time of day. Same import rule as `name`; meaningful on `date` only. |
@@ -1066,7 +1066,8 @@ another surface already owns are refused with the home named (`internal_key`
 is the envelope's — and `property`, the spelling, is refused with it: a
 property document is addressed by its stored key and its spelling is derived,
 never stated — `name` and `description` are `properties`', `options` are
-the dictionary entry's — §2f, the format's only home for a select
+a property-definition entry's — the dictionary's (§2f) or a type's (§2a);
+a bundle carries no option document, so no third surface states a select
 vocabulary), and `max_count`/`readonly`/`default_value` keep
 travelling in `properties` under their stored keys until the dictionary
 lifts them — admitting a second spelling of any of those here would
@@ -1301,13 +1302,15 @@ Two members:
   writing a relation document at all, in the same vocabulary as a type's
   `property_definitions` entry.
 
-**The dictionary is the ONLY place a select vocabulary is stated.** A
-bundle carries no option documents — none, on any path (§15 #21) — so a
-`select`/`multi_select` property's vocabulary travels INLINE on the entry
-of the property that owns it, in the `options` member that §2e's one shape
-already defines and a type's `property_definitions` entry already uses
-(§2a). The `Status` entry above is the whole of that property's vocabulary;
-there is nowhere else to look, and no second file to correlate.
+**A select vocabulary is stated on a property-definition entry, and
+nowhere else.** A bundle carries no option documents — none, on any path
+(§15 #21) — so a `select`/`multi_select` property's vocabulary travels
+INLINE in the `options` member that §2e's one shape defines: on the
+dictionary entry of the property that owns it, which is the one the
+composer writes, or on a type's `property_definitions` entry for that
+property (§2a), which travels as the type document's own. The `Status`
+entry above is the whole of that property's vocabulary as the dictionary
+states it; there is no option file to correlate.
 
 An option entry carries three things and one more by where it sits:
 
@@ -1344,11 +1347,39 @@ kanban.
 
 **Used-only governs the vocabulary too.** `properties` holds the properties
 the bundle's documents actually reference, an option belongs to the entry
-of the property that owns it, and there is no third place — so an option of
-a property NO document references has no entry to travel on and is not
-carried. That is the rule reading correctly rather than a gap in it: a
-bundle does not state a vocabulary for a property it does not carry. §15
-#21 records the decision, and what it costs.
+of the property that owns it, and the composer writes no other surface
+that could carry one (a type document's own `property_definitions` entry
+is that document's, not the composer's) — so an option of a property NO
+document references has no entry to travel on and is not carried. That is
+the rule reading correctly rather than a gap in it: a bundle does not state
+a vocabulary for a property it does not carry. An entry that is present for
+another reason — a divergent installed copy, above — keeps its vocabulary
+whether or not anything references it: the entry is the vehicle, and it is
+there. The drop is reported, not silent: the composer names the properties
+whose vocabulary it left behind (`Stats.UnusedOptionKeys`, §11). §15 #21
+records the decision, and what it costs.
+
+**What counts as a reference.** Any slot that names a property — the
+codec's own census of where a document can spell one (§3, §2a, §5, §6.1,
+§6.2), not a list of the composer's own. Concretely: a `properties` member;
+a `type_settings.property_definitions[]` entry (§2e), by its `property`
+spelling or its stated `internal_key`; a property block's `property` (§5);
+a link block's shown `properties[]` (§5); a dataview's `properties[]`
+declarations (§6.2) and, on each of its views, `group_by`,
+`cover_property`, `end_property`, `columns[].property`, `sorts[].property`
+and `filters[].property`, nested filter groups included; every block
+position again inside a table cell (§6.1); and the properties a lifted
+widget names (§2c). A kanban's groups ARE its select vocabulary, a filter
+on a select pins option ids that resolve only against a vocabulary the
+dictionary states (§9a), and a column can be a document's only mention of
+a property — the schema lets a view refer to one the block's `properties[]`
+does not carry — so none of them is a display cache. The legend's own
+member names are not references: a legend binds spellings, it does not use
+one. Every spelling resolves through the §3 chain before it is counted, and
+the census runs on each document's bytes as they are written
+(`bundle.UsedPropertyKeysFromBytes`, over `anyblockjson.PropertyTermsOf`),
+so the composer, the bundle validator and the codec's `option_ids` check
+all read one population.
 
 **Precedence, when a property is described more than once.** The composition
 puts a property's definition in up to three places at once — a dictionary
@@ -4354,9 +4385,12 @@ is not a page, the app gives the kind no editor, and its meaning is exactly
 the details the entry states, so there is no richer-than-expected case a
 kept document could rescue. Two losses remain, both stated rather than
 silent: an option whose snapshot names no owner property or no name has no
-entry to travel on and is REPORTED by the composer, and an option of a
-property the dictionary does not carry is dropped by the used-only rule
-(§2f).
+entry to travel on and is REPORTED by the composer as an issue, and an
+option of a property the dictionary does not carry is dropped by the
+used-only rule (§2f) and REPORTED in the composer's `Stats` —
+`UnusedOptionKeys` names the properties, and `OptionsLifted` and
+`OptionsDropped` count every option the emit lifted or left behind, so
+nothing an option snapshot carried leaves the emit uncounted.
 
 Export emits `blocks` in pre-order with exact depths, so export can never
 produce a monotonicity violation and the flat shape does not disturb
@@ -5349,10 +5383,11 @@ being true.
   dataview block's `properties[]` and refused in a definition, in the same
   document — the §2e one-shape rule violated invisibly until measured.
 
-- **#21 Option documents vs the dictionary** — settled: **the dictionary is
-  the only place a select vocabulary is stated, and a bundle writes no
-  option document at all** (§2f). Every option travels inline on the entry
-  of the property that owns it — `name`, `color`, `internal_key`, and its
+- **#21 Option documents vs the dictionary** — settled: **a bundle writes
+  no option document at all, and a select vocabulary is stated on a
+  property-definition entry — the dictionary's (§2f) or a type's (§2a) —
+  and nowhere else**. Every option the composer lifts travels inline on the
+  dictionary entry of the property that owns it — `name`, `color`, `internal_key`, and its
   order as ARRAY POSITION. The `options/` kind directory is gone with them
   (§2c).
 
@@ -5370,12 +5405,22 @@ being true.
 
   **The used-only rule governs here too**, which is the obstacle this item
   was held open for. The dictionary carries the properties the bundle's
-  documents reference (§2f), an option belongs to the entry of its owning
-  property, and there is no third place — so an option of a property no
-  document references is dropped: 175 of the 2,641 in the corpus. Settled
-  as correct rather than tolerated. It does not make sense to include an
-  option for a property we do not include; and the alternative reading —
-  the dictionary as the SPACE's schema rather than the bundle's — is
+  documents reference (§2f — and a reference is any slot that names a
+  property: a stored value, a type's declaration, a dataview's
+  declarations, `group_by`, columns, filters and sorts, not a stored value
+  alone), an option belongs to the entry of its owning property, and the
+  composer writes no other surface that could carry one — so an option of
+  a property no document references is dropped. The corpus figure, 175 of
+  2,641, was measured under the census as first written, which read stored
+  values and type declarations only; with the block slots counted it is an
+  upper bound and has not been re-measured. Settled as correct rather than
+  tolerated. It does not make sense to include an option for a property we
+  do not include, and once every referencing slot is counted that is
+  exactly what a dropped vocabulary belongs to — a property no document
+  declares, shows, groups by, filters or sorts on, or holds a value for;
+  the composer names each one (`Stats.UnusedOptionKeys`, §11). And the
+  alternative reading — the dictionary as the SPACE's schema rather than
+  the bundle's — is
   exactly the change of meaning this item feared, and is not made.
 
   **What is deliberately not carried**, beyond the entry: an option
@@ -5402,8 +5447,8 @@ being true.
   or to emit a document its own `Validate` rejects, which is I1 (§11), and
   would buy nothing: no bundle contains one either way. The authoring subset never admitted it and still does not — its
   `kind` enum is `page`, `object_type`, `template` (§2g) — because an
-  author states a vocabulary on the property, which is now the only way to
-  state one.
+  author states a vocabulary on the property — a type's entry or the
+  dictionary's — which are the only ways to state one.
 
 ### Deferred past 2.0
 
