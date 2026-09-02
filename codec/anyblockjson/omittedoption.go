@@ -22,11 +22,31 @@ package anyblockjson
 // kind (§3) — position is what carries order.
 //
 // UNCONDITIONAL, like the profile page beside it and unlike the fail-closed
-// space/widget omissions: an option is not a page — the app gives the kind
-// no editor and its meaning is entirely its details — so there is no
-// "richer than expected" case to keep. The composer lifts the vocabulary as
-// it observes the omission (bundle.Composer), and reports an Issue for an
-// option it cannot lift.
+// space/widget omissions — and, like the profile page, on a census rather
+// than on an assertion. The app's create path (objectcreator's
+// createRelationOption) sets exactly eight details, every one of them
+// accounted for:
+//
+//	name, relationOptionColor      the entry states both
+//	relationKey                    the entry IS the owning property's
+//	uniqueKey                      the entry's internal_key
+//	orderId                        array position (§2f); a lexid never
+//	                               travels on any kind (§3)
+//	createdDate                    re-minted by a restore, as for every
+//	                               omitted document
+//	layout, resolvedLayout         derived from the kind
+//	apiObjectKey                   regenerated from the name (measured:
+//	                               all 514 real option api keys reproduce)
+//
+// Nothing sets isArchived, isFavorite, a description, an icon or a cover on
+// an option — the kind has no editor to set them from. And a REMOVED option
+// never reaches this predicate: RelationListRemoveOption deletes the object,
+// which marks the tree deleted and drops it from the store index the export
+// collection queries, and the exporter skips a deleted object besides. So
+// there is no "richer than expected" case for a fail-closed rule to catch.
+//
+// The composer lifts the vocabulary as it observes the omission
+// (bundle.Composer), and reports an Issue for an option it cannot lift.
 //
 // The `kind: "property_option"` document stays valid in the full schema:
 // the kind enum mirrors the store's object kinds, and the one-document

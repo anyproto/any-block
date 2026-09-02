@@ -454,14 +454,21 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		// sorting by name turned that workflow into Done → In Progress →
 		// To Do on 42 of the 61 vocabularies that state an order.
 		//
-		// An option with no orderId sorts AFTER the ordered ones, by name,
-		// and that is not a compromise — it is the app's own model. Ordering
-		// is a newer feature than options: 229 of 312 vocabularies state no
-		// order at all and 21 state one for only some members, and the app's
-		// own placement query (objectcreator/relation_option.go) filters
-		// `orderId NotEmpty`, so an option without one is not in the app's
-		// ordering either. There is no order to lose; name is what makes the
-		// canonical form deterministic.
+		// An option with no orderId sorts AFTER the ordered ones, by name.
+		// The app places such an option by comparing its NAME against the
+		// others' order ids — §2a's "lands arbitrarily" — but that is a
+		// deterministic FALLBACK for vocabularies predating the order id,
+		// not a position anyone chose: an option without one was discovered
+		// from a typed-in value rather than declared. Ordering is the newer
+		// feature (229 of 312 vocabularies state no order at all, 21 state
+		// one for only some members), so reproducing the fallback would
+		// carry an artifact of the id alphabet into the bundle.
+		//
+		// Writing them last is the healing choice. The array IS the order
+		// (§2f), and import mints an order id for every entry from its
+		// position, so a vocabulary that relied on the fallback comes back
+		// with none of its members relying on it. Name is what makes that
+		// array deterministic.
 		sort.SliceStable(stored, func(i, j int) bool {
 			a, b := stored[i], stored[j]
 			if (a.order == "") != (b.order == "") {
