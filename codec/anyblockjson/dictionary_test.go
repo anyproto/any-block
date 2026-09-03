@@ -355,3 +355,77 @@ func TestPropertyDictionary_MaxCountStaysWithinWhatItCanRead(t *testing.T) {
 		assert.Equal(t, int64(1), back.Properties[0].MaxCount)
 	})
 }
+
+// An entry may state `uninstalled: true` — the user removed the property
+// from the space, and the bundle carries the removal for backup fidelity
+// rather than a document (§2f, §15 #22). The member is the dictionary's
+// own: the shape's other two homes refuse it, the way the dictionary
+// refuses `section`. And an uninstalled property is not installed, so its
+// key in `installed` is a contradiction refused on both sides.
+//
+// How this can fail: leave the member off the schema's dictionaryEntry (the
+// round trip is refused on read); write it from the shared member renderer
+// (the type document below stops being refused, and a type would carry a
+// flag that means nothing on it); or drop either conflict check (a
+// dictionary that both installs and uninstalls one key ships, and the
+// reader has no rule for which wins).
+func TestPropertyDictionary_UninstalledEntry(t *testing.T) {
+	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
+		in := &PropertyDictionary{
+			Installed: []string{"tag"},
+			Properties: []PropertyDefinition{
+				{Key: "dueDate", Name: "Due date", Format: model.RelationFormat_date, Uninstalled: true},
+				{Key: "6a32d4856761631534b22f85", Name: "Budget", Format: model.RelationFormat_number},
+			},
+		}
+		data, err := MarshalPropertyDictionary(in, Options{})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"uninstalled": true`)
+		assert.Equal(t, 1, strings.Count(string(data), "uninstalled"), "a false flag is not written")
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		data2, err := MarshalPropertyDictionary(got, Options{})
+		require.NoError(t, err)
+		assert.Equal(t, string(data), string(data2))
+		byKey := map[domain.RelationKey]PropertyDefinition{}
+		for _, def := range got.Properties {
+			byKey[def.Key] = def
+		}
+		assert.True(t, byKey["dueDate"].Uninstalled)
+		assert.False(t, byKey["6a32d4856761631534b22f85"].Uninstalled)
+		assert.Equal(t, []string{"tag"}, got.Installed)
+	})
+	t.Run("an uninstalled key in installed is refused on read", func(t *testing.T) {
+		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["Due date"],
+			"properties":[{"property":"Due date","format":"date","uninstalled":true}]}`), Options{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "/installed/0", "the contradiction names both slots")
+	})
+	t.Run("and on write", func(t *testing.T) {
+		_, err := MarshalPropertyDictionary(&PropertyDictionary{
+			Installed:  []string{"dueDate"},
+			Properties: []PropertyDefinition{{Key: "dueDate", Format: model.RelationFormat_date, Uninstalled: true}},
+		}, Options{})
+		require.Error(t, err)
+	})
+	t.Run("a non-boolean is refused", func(t *testing.T) {
+		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"property":"Due date","format":"date","uninstalled":"yes"}]}`), Options{})
+		require.Error(t, err)
+	})
+	t.Run("the other two homes refuse it", func(t *testing.T) {
+		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
+			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","uninstalled":true}]}}`)
+		require.Error(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
+		relDoc := []byte(`{"formatVersion":"2.0","id":"r1","kind":"property","type":"Property",
+			"internal_key":"dueDate","property_settings":{"format":"date","uninstalled":true}}`)
+		require.Error(t, Validate(relDoc, Options{}), "a property document's property_settings")
+	})
+	t.Run("the authoring subset does not admit it", func(t *testing.T) {
+		// an author has nothing to uninstall: the member is export fidelity,
+		// like internal_key
+		err := ValidateAuthoringPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"name":"Streak","format":"number","uninstalled":true}]}`))
+		require.Error(t, err)
+	})
+}

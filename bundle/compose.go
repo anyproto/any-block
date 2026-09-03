@@ -58,12 +58,17 @@ const IssueOmittedReconstruction IssueCategory = "omitted_reconstruction"
 // Stats is what Finish can say about the composed bundle, for summaries.
 type Stats struct {
 	DictionaryInstalled int
-	DictionaryEntries   int
-	ManifestTypes       int
-	ManifestFiles       int
-	DictionaryBytes     int
-	IndexBytes          int
-	OmittedDocs         int
+	// DictionaryUninstalled counts the entries carrying `uninstalled` —
+	// properties the user removed from the space, which the bundle states
+	// as entries and never as installed keys (§2f, §15 #22). Each is also
+	// counted in DictionaryEntries.
+	DictionaryUninstalled int
+	DictionaryEntries     int
+	ManifestTypes         int
+	ManifestFiles         int
+	DictionaryBytes       int
+	IndexBytes            int
+	OmittedDocs           int
 	// OrphanUsedKeys are referenced property keys with no definition
 	// anywhere — no relation object, not bundled — so the dictionary cannot
 	// state a format for them (§2f names every property it CAN).
@@ -128,10 +133,21 @@ type Composer struct {
 	spaceName string
 
 	installed map[string]bool
+	// uninstalled are the property keys the user REMOVED from the space
+	// (stored `isUninstalled` true, §2f, §15 #22). Each travels as a
+	// dictionary entry carrying `uninstalled` and is never listed in
+	// `installed`, whether its document is omitted (a bundled-identical
+	// copy), kept (a divergent copy) or never omittable (a space-minted
+	// property): listing the key would reinstall what the user removed,
+	// and the entry is the only bundle-level place the removal can live.
+	uninstalled map[string]bool
 	// entries the space's own documents define: a KEPT bundled-key relation
 	// document (divergent from the table, or carrying something only a
 	// document can) contributes its stored definition, so the dictionary
-	// states the divergence the `installed` list alone would paper over
+	// states the divergence the `installed` list alone would paper over;
+	// and every uninstalled property contributes one, the table's
+	// definition for an omitted copy and the stored one for a kept
+	// document, so the flag has an entry to travel on
 	entries map[string]anyblockjson.PropertyDefinition
 
 	typePaths map[string]string
@@ -205,6 +221,7 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 		opts:         opts,
 		spaceName:    spaceName,
 		installed:    map[string]bool{},
+		uninstalled:  map[string]bool{},
 		entries:      map[string]anyblockjson.PropertyDefinition{},
 		typePaths:    map[string]string{},
 		filePaths:    map[string]string{},
@@ -301,8 +318,23 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 		return true, issues
 	}
 	if key, ok := anyblockjson.OmittedBundledRelation(sbType, base, c.opts); ok {
-		c.installed[key] = true
-		det, ok := anyblockjson.InstalledRelationDetails(key, c.opts)
+		// a copy the user REMOVED omits too, but travels as an entry
+		// carrying `uninstalled` rather than as an installed key, and is
+		// verified against the reconstruction that restates the mark — a
+		// reader that recreates the entry writes exactly that (§2f, §15
+		// #22). The entry is the table's definition, as an installed key's
+		// reconstruction is: the predicate admitted the copy as identical.
+		var det *types.Struct
+		if anyblockjson.UninstalledRelation(base) {
+			c.uninstalled[key] = true
+			def, _ := bundledDefinition(key) // the predicate matched the table on this key
+			def.Uninstalled = true
+			c.entries[key] = def
+			det, ok = anyblockjson.UninstalledRelationDetails(key, c.opts)
+		} else {
+			c.installed[key] = true
+			det, ok = anyblockjson.InstalledRelationDetails(key, c.opts)
+		}
 		if !ok {
 			return true, []Issue{{Category: IssueOmittedReconstruction,
 				Detail: fmt.Sprintf("installed key %q has no bundled reconstruction", key)}}
@@ -317,12 +349,32 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 	if det := base.GetDetails().GetFields(); det != nil &&
 		(sbType == model.SmartBlockType_STRelation || sbType == model.SmartBlockType_BundledRelation) {
 		key := det["relationKey"].GetStringValue()
-		if key != "" && vocabulary.HasRelation(domain.RelationKey(key)) {
+		uninstalled := anyblockjson.UninstalledRelation(base)
+		switch {
+		case key == "":
+		case vocabulary.HasRelation(domain.RelationKey(key)):
 			// installed but not omittable: the document stays, and the
 			// dictionary carries its stored definition as the full entry
-			// the §2f divergence rule requires
-			c.installed[key] = true
-			c.entries[key] = storedRelationDefinition(base, c.opts)
+			// the §2f divergence rule requires — under `installed` unless
+			// the user removed it, in which case the entry says so and the
+			// list must not
+			if uninstalled {
+				c.uninstalled[key] = true
+			} else {
+				c.installed[key] = true
+			}
+			def := storedRelationDefinition(base, c.opts)
+			def.Uninstalled = uninstalled
+			c.entries[key] = def
+		case uninstalled:
+			// a space-minted property gets an entry only when something
+			// references it — or when the user removed it, which nothing
+			// references by construction and which the bundle still owes a
+			// bundle-level statement of (§2f)
+			c.uninstalled[key] = true
+			def := storedRelationDefinition(base, c.opts)
+			def.Uninstalled = true
+			c.entries[key] = def
 		}
 	}
 	return false, nil
@@ -529,12 +581,20 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// detail no relation object describes — is reported, not invented.
 	entries := map[string]anyblockjson.PropertyDefinition{}
 	for key, def := range c.entries {
-		if c.used[key] {
+		switch {
+		case c.used[key]:
 			entries[key] = def
-		} else if _, installedToo := c.installed[key]; installedToo {
+		case c.installed[key]:
 			// a divergent installed copy is an entry whether or not
 			// anything uses it: `installed` would otherwise restore the
 			// table's shape over the divergence
+			entries[key] = def
+		case c.uninstalled[key]:
+			// an uninstalled property is an entry whether or not anything
+			// uses it — and nothing does, by construction: the user removed
+			// it. The entry is the only bundle-level place the removal
+			// lives, so the used-only rule exempts it the way it exempts
+			// the divergent copy above (§2f, §15 #22).
 			entries[key] = def
 		}
 	}
@@ -547,11 +607,8 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 			entries[key] = def
 			continue
 		}
-		if rel, relErr := vocabulary.GetRelation(domain.RelationKey(key)); relErr == nil {
-			entries[key] = anyblockjson.PropertyDefinition{
-				Key: domain.RelationKey(key), Name: rel.Name, Format: rel.Format,
-				ObjectTypes: bundledTargetKeys(rel.ObjectTypes),
-			}
+		if def, ok := bundledDefinition(key); ok {
+			entries[key] = def
 			continue
 		}
 		orphans = append(orphans, key)
@@ -634,11 +691,8 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		if !haveEntry {
 			if resolved, ok := resolvedDefinition(key, c.opts); ok {
 				def = resolved
-			} else if rel, relErr := vocabulary.GetRelation(domain.RelationKey(key)); relErr == nil {
-				def = anyblockjson.PropertyDefinition{
-					Key: domain.RelationKey(key), Name: rel.Name, Format: rel.Format,
-					ObjectTypes: bundledTargetKeys(rel.ObjectTypes),
-				}
+			} else if bundled, ok := bundledDefinition(key); ok {
+				def = bundled
 			} else {
 				// nothing can say what this property is; §2f reports the
 				// key as an orphan, and the vocabulary goes with it
@@ -734,6 +788,11 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 
 	stats.DictionaryInstalled = len(dict.Installed)
 	stats.DictionaryEntries = len(dict.Properties)
+	for _, def := range dict.Properties {
+		if def.Uninstalled {
+			stats.DictionaryUninstalled++
+		}
+	}
 	stats.ManifestTypes = len(c.typePaths)
 	stats.ManifestFiles = len(c.filePaths)
 	stats.DictionaryBytes = len(dictData)
@@ -753,7 +812,7 @@ func (c *Composer) hasSemanticState() bool {
 	return c.written != 0 ||
 		(c.observedSpaceSettings && c.spaceName != "") ||
 		c.spaceSettings.hasValues() ||
-		len(c.installed) != 0 || len(c.entries) != 0 || len(c.used) != 0 ||
+		len(c.installed) != 0 || len(c.uninstalled) != 0 || len(c.entries) != 0 || len(c.used) != 0 ||
 		len(c.typePaths) != 0 || len(c.filePaths) != 0 || len(c.optionsByKey) != 0 ||
 		idx.Name != "" || idx.Description != "" || idx.Icon != nil || idx.Entrypoint != "" || idx.Homepage != "" ||
 		len(idx.Widgets) != 0 || len(idx.AutoWidgetTargets) != 0 || idx.AutoWidgetDisabled
@@ -936,6 +995,21 @@ func resolvedDefinition(key string, opts anyblockjson.Options) (anyblockjson.Pro
 		}
 	}
 	return anyblockjson.PropertyDefinition{}, false
+}
+
+// bundledDefinition is the dictionary entry the bundled table states for
+// one of its keys — what the composer writes for a used bundled key with no
+// document of its own, and the definition an uninstalled omitted copy
+// travels with (§2f). The same members InstalledRelationDetails restates.
+func bundledDefinition(key string) (anyblockjson.PropertyDefinition, bool) {
+	rel, err := vocabulary.GetRelation(domain.RelationKey(key))
+	if err != nil {
+		return anyblockjson.PropertyDefinition{}, false
+	}
+	return anyblockjson.PropertyDefinition{
+		Key: domain.RelationKey(key), Name: rel.Name, Format: rel.Format,
+		ObjectTypes: bundledTargetKeys(rel.ObjectTypes),
+	}, true
 }
 
 // bundledTargetKeys turns the bundled table's target urls into type keys.

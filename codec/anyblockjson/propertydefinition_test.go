@@ -135,12 +135,19 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 	// (§2f) — and references the shape across files by its published URL,
 	// the way the index schema references plainIcon. Same discipline: a
 	// layer of narrowings (`object_types` back to a real array) plus the
-	// home's own requirements, closed with unevaluatedProperties.
+	// home's own requirements, closed with unevaluatedProperties. One
+	// member is the dictionary's OWN rather than a narrowing:
+	// `uninstalled` (§15 #22), which means nothing on a type's declaration
+	// or a property document's settings, so it lives on the entry's layer
+	// and NOT on the shared shape — which is what makes the other two
+	// homes refuse it, as this one refuses their `section`.
 	//
 	// How this can fail: restate the ten members inside
 	// properties.schema.json instead of the $ref (drift starts), widen the
-	// entry's layer beyond the one narrowing, or reopen the entry by
-	// deleting its unevaluatedProperties gate.
+	// entry's layer beyond the narrowing and the owned member, move
+	// `uninstalled` onto propertyDefinition (a type declaration starts
+	// admitting a flag it cannot act on), or reopen the entry by deleting
+	// its unevaluatedProperties gate.
 	var propSchema struct {
 		Defs map[string]schemaNode `json:"$defs"`
 	}
@@ -161,8 +168,15 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 		if string(raw) == "false" {
 			continue
 		}
-		assert.Truef(t, m == "object_types", "dictionaryEntry restates %q — its layer holds the one narrowing only", m)
+		assert.Truef(t, m == "object_types" || m == "uninstalled",
+			"dictionaryEntry restates %q — its layer holds the one narrowing and the one dictionary-owned member only", m)
 	}
+	var objSchema struct {
+		Defs map[string]schemaNode `json:"$defs"`
+	}
+	require.NoError(t, json.Unmarshal(schemaJSON, &objSchema))
+	_, shared := objSchema.Defs["propertyDefinition"].Properties["uninstalled"]
+	assert.False(t, shared, "`uninstalled` is the dictionary's own member, not a shared one: on the shared shape the other two homes would admit it")
 	// `format` alone is required outright: self-sufficiency (§2f) means an
 	// entry states what the property holds. Identity is required through
 	// anyOf instead — a key, OR a `name` the spelling derives from — because

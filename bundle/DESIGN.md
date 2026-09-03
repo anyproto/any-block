@@ -104,7 +104,7 @@ Four phases, two of them new relative to today's exporter:
 |---|---|---|
 | **collect** | as today | dependency closure over the request: nested objects, dataview-referenced objects, types, relations, options, templates, linked files, recommended relations (`processProtobuf`, export.go:610). Extracted behind a format-agnostic interface; the bare `isProtobuf bool` (export.go:503-504) becomes an explicit closure mode. Output: `map[id]*Doc`, complete before anything is written. |
 | **plan** | single-threaded | classify every collected doc (kind → directory, §1.2), compute every filename (§1.3 — a pure per-document function of the id, no collision machinery), and pre-build the manifest type-path table (stored type keys come from the `uniqueKey` detail). **Plan reads details only — id, name, type/layout, uniqueKey — never content**; that invariant is what keeps it O(collected details) in memory and free of object loads (§1.6). Cheap: map passes over details already in memory, no store reads, no marshal. |
-| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:151, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time), plus `OmittedRelationOption` (omittedoption.go:95), which needs only the smartblock type and so COULD run at plan time but deliberately does not — the omission is unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedOptionDetails` (omittedoption.go:113) on the same snapshot, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (installed keys, dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
+| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:151, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy lands in `installed` or as an `uninstalled` entry, SPEC §15 #22), plus `OmittedRelationOption` (omittedoption.go:95), which needs only the smartblock type and so COULD run at plan time but deliberately does not — the omission is unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedOptionDetails` (omittedoption.go:113) on the same snapshot, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (installed keys, dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
 | **finish** | single-threaded, at the `postProcess` seam (export.go:1529) | compose and write `properties.json` and `index.json` (with manifest), re-reading both through the package's own `Unmarshal` before writing — the bundle-level I1 discipline the harness already practices (cmd/anyblockroundtrip/main.go:983-1012). |
 
 The composer is a production re-home of the harness's `spaceComposer`
@@ -153,10 +153,15 @@ Proposed layout, one bundle root per space:
                         human-readable mode, §1.3)
   types/              — kind: object_type
   templates/          — kind: template
-  properties/         — kind: property — only the KEPT documents (divergent
-                        installed copies and space-minted properties; the
-                        rest are omitted into the dictionary per §2f).
-                        There is NO options/: a bundle carries no option
+  properties/         — kind: property — only the KEPT documents: divergent
+                        installed copies (a rename, a changed is_hidden, a
+                        page carrying a dataview or free text) and
+                        space-minted properties. A bundled-identical copy
+                        is omitted into the dictionary's `installed` list,
+                        and one the user REMOVED into an entry carrying
+                        `uninstalled` — a removal is a flag on the entry,
+                        never a reason to keep the document (SPEC §2f,
+                        §15 #22). There is NO options/: a bundle carries no option
                         documents at all, and the property dictionary states
                         every select vocabulary inline on the entry of the
                         property that owns it, order as array position
@@ -444,7 +449,7 @@ and the manifest accumulates paths. Three options were on the table:
   function of its own id, and the plan fixes the manifest tables before
   the first task starts (`namer.Get`'s nondeterminism is retired with the
   naming scheme itself, §1.3). What remains shared during emit is commutative map/set insertion
-  (installed keys, dictionary entries, option vocabularies, used property
+  (installed keys, uninstalled entries, dictionary entries, option vocabularies, used property
   keys, the index lift) — guarded by one mutex, held for microseconds per
   document against marshal work measured in milliseconds (the §9a census
   alone is 4.2 ms → 6.7 ms on a 1,630-block document, SPEC §9a), so
@@ -580,7 +585,7 @@ documents; the worst single space 4,884 documents):
   each — ~3 MB at 28k documents.
 - **The composer aggregates** — and never the documents. What emit retains
   per document is: used property keys (a set; a space USES a median 57
-  keys, SPEC §2f), installed bundled keys, divergent dictionary entries,
+  keys, SPEC §2f), installed bundled keys, divergent and uninstalled dictionary entries,
   option vocabularies, type→path manifest entries (22 types/space median,
   SPEC §2c), and the index lift. The proof of size is the files these
   aggregates become: measured per space over the sweep, `properties.json`

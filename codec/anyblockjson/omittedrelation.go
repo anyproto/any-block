@@ -9,7 +9,10 @@ package anyblockjson
 // restatement of `{key, name, format}` every reader already ships. The
 // dictionary's `installed` list stands for them (§2f); the composition omits
 // the documents; and a reader reconstructs each one from its own table,
-// which is exactly what a restore does anyway.
+// which is exactly what a restore does anyway. A copy the user REMOVED
+// omits the same way and travels as an entry carrying `uninstalled`
+// instead of an `installed` key (§15 #22) — the one stored fact that is
+// neither definition nor install artifact and still has to arrive.
 //
 // The predicate is FAIL-CLOSED in every direction: a detail key it cannot
 // classify keeps the document, a stored value of an alien kind keeps the
@@ -57,16 +60,33 @@ var relationDefinitionKeys = map[string]bool{
 // next install, so omitting the document loses nothing a reader could act
 // on. Every entry passed the §15 #12 admission test individually, against
 // the 9,675 bundled-key relation documents in the corpus; the map value
-// records the verdict. Keys that were candidates and FAILED the test — they
-// keep the document, because they carry something a person did:
+// records the verdict. Keys that were candidates and did NOT pass — none
+// of them is an artifact, because each carries something a person did:
 //
-//   - `isUninstalled` (32 docs, all true): the user REMOVED this property
-//     from the space; listing its key as installed would undo that.
+//   - `isUninstalled`: the user REMOVED this property from the space, and
+//     listing its key as installed would undo that. Since §15 #22 it is not
+//     a reason to keep the document either: the dictionary entry carries
+//     the removal as `uninstalled`, so OmittedBundledRelation classifies
+//     the key on an arm of its own (a bool, either value — see
+//     UninstalledRelation and OmittedUninstallStamp) and the composer
+//     routes the omitted copy to an entry instead of the `installed` list.
+//     Measured over a census of 40 spaces' object stores (5,284 relation
+//     documents, 4,905 on bundled keys): not one bundled-key relation
+//     document carries the flag, and the 5 space-minted ones that do are
+//     all `isDeleted` besides, which the app's exporter skips. The arm
+//     omits nothing from that corpus; what it removes is a contradiction
+//     the composition could otherwise write, a removed property listed as
+//     installed by its own backup.
 //   - `isFavorite` / `isArchived`: user intent on the relation's own page,
-//     same verdict §2a reached for a type's isHidden.
-//   - `includeTime` — the BARE spelling, 7 docs: an orphan detail beside
+//     same verdict §2a reached for a type's isHidden. No relation document
+//     in the same census carries either (0 of 5,284; corpus-wide the keys
+//     occur 35 and 193 times, never on a relation or an option), so they
+//     get no verdict of their own: an unvetted key keeps the document by
+//     the fail-closed default, and that is all they need.
+//   - `includeTime` — the BARE spelling: an orphan detail beside
 //     relationFormatIncludeTime that no admission evidence explains; a key
-//     the test cannot explain keeps the document, by the fail-closed rule.
+//     the test cannot explain keeps the document, by the fail-closed rule
+//     (0 of 5,284 in the same census).
 var relationInstallArtifactKeys = map[string]string{
 	// 10,617 of 10,617 docs, ONE distinct value each ("relation"): derivable
 	// from the kind — the §2a layout verdict, on the other kind
@@ -140,7 +160,10 @@ func InstallStampedDefault(key string, v *types.Value) bool {
 // copy whose definition is field-identical to the bundled table — the §2f
 // omission rule: the bundle composition writes no document for it, lists its
 // key in the dictionary's `installed`, and a reader reconstructs it from the
-// table. The returned key is the bundled key the `installed` list carries.
+// table. The returned key is the bundled key the dictionary carries — under
+// `installed`, or as an entry flagged `uninstalled` when UninstalledRelation
+// reports the copy removed (§15 #22); the composer asks that second
+// question, this predicate answers only whether the document may go.
 //
 // opts matters for one member: relationFormatObjectTypes stores type OBJECT
 // ids (an install rewrites the table's bundled urls to the space's derived
@@ -191,6 +214,16 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 		case relationDefinitionKeys[k]:
 			// compared below, table-side, so an ABSENT stored member is
 			// judged too
+		case k == detailKeyIsUninstalled:
+			// the one detail that is neither definition nor artifact and
+			// still travels: the dictionary entry carries `uninstalled` for
+			// a true value (UninstalledRelation), and a false one is the
+			// reinstall stamp, absent-equivalent to every reader (see
+			// OmittedUninstallStamp). Only a bool is either of those; an
+			// alien kind is unclassified and keeps the document.
+			if _, isBool := det[k].GetKind().(*types.Value_BoolValue); !isBool {
+				return "", false
+			}
 		default:
 			// unclassified is real data — fail closed
 			return "", false
@@ -200,6 +233,42 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 		return "", false
 	}
 	return key, true
+}
+
+// detailKeyIsUninstalled is the stored flag the app sets when a user REMOVES
+// an installed bundled object from the space (heart's
+// deleteDerivedObject): the object is derived from the bundled table and
+// cannot be deleted, so it is marked instead, and every listing filters the
+// mark out. A reinstall stamps it back to false (objectcreator's installer).
+const detailKeyIsUninstalled = "isUninstalled"
+
+// UninstalledRelation reports a relation snapshot the user removed from the
+// space — stored `isUninstalled` true, as a bool. It is what the dictionary
+// entry's `uninstalled` member states (§2f): a property the bundle carries
+// for backup fidelity but that MUST NOT be listed as installed, because
+// listing it would undo the removal on restore. An alien-kinded value is not
+// a removal; OmittedBundledRelation keeps such a document on its own
+// fail-closed verdict.
+func UninstalledRelation(base *model.SmartBlockSnapshotBase) bool {
+	v := base.GetDetails().GetFields()[detailKeyIsUninstalled]
+	b, isBool := v.GetKind().(*types.Value_BoolValue)
+	return isBool && b.BoolValue
+}
+
+// OmittedUninstallStamp reports a stored `isUninstalled` that is bool FALSE
+// — the reinstall stamp — which the omission trip does not carry: the
+// reconstruction states no flag, and absent reads as false for every
+// consumer of this key (the app reaches it through GetBool, the corpse
+// filter asks `!= true`, and the `isDeleted` mirror it drives is itself
+// derived and re-injected on load). The comparator consults it on the
+// omittable scope only, the InstallStampedDefault discipline: a false stamp
+// that goes missing on an ordinary document round trip still reports.
+func OmittedUninstallStamp(key string, v *types.Value) bool {
+	if key != detailKeyIsUninstalled {
+		return false
+	}
+	b, isBool := v.GetKind().(*types.Value_BoolValue)
+	return isBool && !b.BoolValue
 }
 
 // bundledIdenticalDefinition compares the stored definition members against
@@ -357,6 +426,23 @@ func InstalledRelationDetails(key string, opts Options) (*types.Struct, bool) {
 		fields["relationDefaultValue"] = rel.DefaultValue
 	}
 	return &types.Struct{Fields: fields}, true
+}
+
+// UninstalledRelationDetails is the reconstruction of an omitted copy the
+// user had REMOVED: InstalledRelationDetails plus the stored `isUninstalled`
+// mark, which is what a reader that chooses to recreate an `uninstalled`
+// dictionary entry writes (§2f). Recreation is optional — a reader may skip
+// the entry instead, since a removed property is absent from every listing
+// either way — but a reader that does recreate must write the mark, or the
+// restore undoes the removal; this is the shape the composer verifies the
+// omission against, so the two cannot drift.
+func UninstalledRelationDetails(key string, opts Options) (*types.Struct, bool) {
+	det, ok := InstalledRelationDetails(key, opts)
+	if !ok {
+		return nil, false
+	}
+	det.Fields[detailKeyIsUninstalled] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
+	return det, true
 }
 
 // typed detail readers: value-or-zero with a kind verdict, so an alien kind

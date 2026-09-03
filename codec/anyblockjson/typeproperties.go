@@ -78,6 +78,15 @@ type PropertyDefinition struct {
 	// from an omitted member.
 	DefaultValue    any
 	DefaultValueSet bool
+	// Uninstalled records that the user REMOVED this property from the
+	// space (stored `isUninstalled` true): the bundle carries the property
+	// for backup fidelity, but a reader must not install it as a live one —
+	// recreating it, mark and all, is optional; listing it as installed
+	// would undo the removal. A member of the dictionary home only (§2f):
+	// on a type's declaration or a property document's settings it would
+	// say nothing, and both refuse it, the way the dictionary refuses
+	// `section`.
+	Uninstalled bool
 }
 
 // OptionDefinition is one entry of a declared select vocabulary (§2a). Color
@@ -327,6 +336,10 @@ type TypeProperty struct {
 	DefaultValue    any         `json:"default_value"`
 	DefaultValueSet bool        `json:"-"`
 	Section         string      `json:"section"`
+	// Uninstalled is the dictionary-owned member, as Section is the
+	// type-owned one; each home's schema refuses the other's before this
+	// decode runs (§2f).
+	Uninstalled bool `json:"uninstalled"`
 }
 
 // UnmarshalJSON preserves two facts encoding/json otherwise collapses:

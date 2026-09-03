@@ -169,3 +169,51 @@ func (r *targetsResolver) TypeIdByKey(key string) (string, bool) {
 	}
 	return "", false
 }
+
+// A copy the user REMOVED is omitted too (§2f, §15 #22), and the trip has
+// two shapes. The removal itself travels: the reconstruction a reader that
+// recreates the entry builds carries the mark, so the flag compares as
+// ordinary detail state and nothing is skipped. The reinstall STAMP — the
+// flag stored false — does not travel: absent reads as false for every
+// consumer of the key, and the comparator learns that in the same commit
+// as the predicate, scoped to the omittable snapshot.
+//
+// How this can fail: remove the OmittedUninstallStamp skip from Compare's
+// orig-key loop (the stamp case reports "changed: false -> absent" — the
+// drift class that once produced 1,344 false failures in one sweep); or
+// widen the skip past the omittable scope (the kept-document case goes
+// green, and a false stamp lost on an ordinary round trip stops reporting).
+func TestCompare_OmittedUninstalledRelation(t *testing.T) {
+	flag := func(b bool) *types.Value { return &types.Value{Kind: &types.Value_BoolValue{BoolValue: b}} }
+	t.Run("the removal travels as detail state", func(t *testing.T) {
+		orig := omittableCopy(t)
+		orig.Details.Fields["isUninstalled"] = flag(true)
+		det, ok := anyblockjson.UninstalledRelationDetails("dueDate", anyblockjson.Options{})
+		require.True(t, ok)
+		got := &model.SmartBlockSnapshotBase{Details: det}
+		assert.Empty(t, Compare(orig, got, model.SmartBlockType_STRelation, anyblockjson.Options{}))
+		// and a reconstruction that forgot the mark is caught
+		diffs := Compare(orig, reconstruction(t), model.SmartBlockType_STRelation, anyblockjson.Options{})
+		require.Len(t, diffs, 1)
+		assert.Contains(t, diffs[0], "isUninstalled")
+	})
+	t.Run("the reinstall stamp comes back absent", func(t *testing.T) {
+		orig := omittableCopy(t)
+		orig.Details.Fields["isUninstalled"] = flag(false)
+		assert.Empty(t, Compare(orig, reconstruction(t), model.SmartBlockType_STRelation, anyblockjson.Options{}))
+	})
+	t.Run("outside the omittable scope the stamp still reports", func(t *testing.T) {
+		// a renamed copy is KEPT, so its round trip is the ordinary one and
+		// a stamp that goes missing is loss like any other detail
+		orig := reconstruction(t)
+		orig.Details.Fields["isUninstalled"] = flag(false)
+		orig.Details.Fields["name"] = &types.Value{Kind: &types.Value_StringValue{StringValue: "Deadline"}}
+		got := reconstruction(t)
+		got.Details.Fields["name"] = &types.Value{Kind: &types.Value_StringValue{StringValue: "Deadline"}}
+		_, omittable := anyblockjson.OmittedBundledRelation(model.SmartBlockType_STRelation, orig, anyblockjson.Options{})
+		require.False(t, omittable)
+		diffs := Compare(orig, got, model.SmartBlockType_STRelation, anyblockjson.Options{})
+		require.Len(t, diffs, 1)
+		assert.Contains(t, diffs[0], "isUninstalled")
+	})
+}

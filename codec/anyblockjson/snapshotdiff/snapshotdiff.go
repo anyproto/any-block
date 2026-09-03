@@ -209,6 +209,16 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 			if gotFields[k] == nil && omittable && anyblockjson.RelationInstallArtifactKey(k) {
 				continue
 			}
+			// the reinstall stamp on an omitted relation document (§2f,
+			// §15 #22): `isUninstalled` stored FALSE comes back absent,
+			// which every consumer of the key reads the same way. A TRUE
+			// flag is not skipped — it travels as the entry's `uninstalled`
+			// and the reconstruction restates it, so it compares as
+			// ordinary state. Same scoping, same ownership of the
+			// predicate.
+			if gotFields[k] == nil && omittable && anyblockjson.OmittedUninstallStamp(k, orig.Details.Fields[k]) {
+				continue
+			}
 			// an omitted widget document's residual keys (§2c): the two
 			// object timestamps, and a name that was EMPTY — a non-empty
 			// name keeps the whole document, so within the omitted scope it

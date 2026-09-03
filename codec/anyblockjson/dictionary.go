@@ -53,11 +53,14 @@ type PropertyDictionary struct {
 	// 98% of installed copies
 	// are field-identical to the bundled table, so the key is the whole of
 	// what a restore needs. A key that also appears in Properties is
-	// installed AND divergent: the entry overrides the table.
+	// installed AND divergent: the entry overrides the table. A property
+	// the user REMOVED is never here (§15 #22): its entry carries
+	// Uninstalled, and a key in both places is refused on both sides.
 	Installed []string
 	// Properties carries one definition per property the bundle's objects
 	// actually reference — used-only (§2f) — plus a full entry for every
-	// installed copy that diverges from the bundled table. Keys are STORED
+	// installed copy that diverges from the bundled table and for every
+	// property the user removed, referenced or not. Keys are STORED
 	// keys, never document spellings: a document's property_internal_keys legend
 	// binds its labels to stored keys, and the stored key is what the
 	// dictionary answers for.
@@ -168,6 +171,9 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 	if issues := dictionaryDuplicateIssues(doc); len(issues) > 0 {
 		return nil, &ValidationError{Issues: issues}
 	}
+	if issues := dictionaryUninstalledIssues(doc); len(issues) > 0 {
+		return nil, &ValidationError{Issues: issues}
+	}
 
 	var jd jsonDictionary
 	if err := jsonUnmarshal(data, &jd); err != nil {
@@ -216,6 +222,10 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 			targets = append(targets, key)
 		}
 		def := tp.definition(storedKey, declaredFormatWith(Options{}, storedKey, tp.Format), targets)
+		// dictionary-owned, so set here rather than in the shared builder:
+		// the type-document door never sees the member (its schema refuses
+		// it), and the PATCH channel has no removal to state
+		def.Uninstalled = tp.Uninstalled
 		d.Properties = append(d.Properties, def)
 	}
 	return d, nil
@@ -491,6 +501,50 @@ func dictionaryDuplicateIssues(doc map[string]any) []Issue {
 	return issues
 }
 
+// dictionaryUninstalledIssues refuses an entry that states `uninstalled`
+// for a key `installed` lists (§2f): the list tells a reader to install the
+// property, the flag tells it the user removed it, and a dictionary saying
+// both has no rule for which wins. Resolution is the reader's own, as for
+// the duplicate check above, so "Due date" against `dueDate` still meets.
+func dictionaryUninstalledIssues(doc map[string]any) []Issue {
+	installedAt := map[string]int{}
+	installed, _ := doc["installed"].([]any)
+	for i, raw := range installed {
+		spelling, _ := raw.(string)
+		key, _ := dictionaryStoredKey(spelling)
+		if _, seen := installedAt[key]; !seen {
+			installedAt[key] = i
+		}
+	}
+	if len(installedAt) == 0 {
+		return nil
+	}
+	var issues []Issue
+	entries, _ := doc["properties"].([]any)
+	for i, raw := range entries {
+		entry, _ := raw.(map[string]any)
+		if flag, _ := entry[memberUninstalled].(bool); !flag {
+			continue
+		}
+		property, _ := entry[memberProperty].(string)
+		internalKey, _ := entry[memberInternalKey].(string)
+		name, _ := entry["name"].(string)
+		term, isInternal, _, _ := dictionaryEntryIdentity(TypeProperty{Property: property, InternalKey: internalKey, Name: name})
+		key := term
+		if !isInternal {
+			key, _ = dictionaryStoredKey(term)
+		}
+		if at, listed := installedAt[key]; listed {
+			issues = append(issues, Issue{
+				Path: fmt.Sprintf("/properties/%d/%s", i, memberUninstalled),
+				Message: fmt.Sprintf("property %q is uninstalled here and listed at /installed/%d — a removed property is not installed; state one or the other",
+					key, at),
+			})
+		}
+	}
+	return issues
+}
+
 // MarshalPropertyDictionary renders a dictionary in the canonical byte form
 // (§4): `installed` and `properties` each sorted by key, one slot per key.
 // It refuses what UnmarshalPropertyDictionary refuses — a duplicated key —
@@ -532,12 +586,21 @@ func MarshalPropertyDictionary(d *PropertyDictionary, opts Options) ([]byte, err
 	}
 	doc.setNonEmpty("installed", stringsToAny(installed))
 
+	installedKeys := make(map[string]bool, len(d.Installed))
+	for _, key := range d.Installed {
+		installedKeys[key] = true
+	}
 	defs := append([]PropertyDefinition(nil), d.Properties...)
 	sort.Slice(defs, func(i, j int) bool { return defs[i].Key < defs[j].Key })
 	var entries []any
 	for i, def := range defs {
 		if i > 0 && defs[i-1].Key == def.Key {
 			return nil, fmt.Errorf("property %q is defined twice: one property, one definition", def.Key)
+		}
+		if def.Uninstalled && installedKeys[string(def.Key)] {
+			// what dictionaryUninstalledIssues refuses on read, refused here
+			// before the bytes exist (§11 I1)
+			return nil, fmt.Errorf("property %q is uninstalled and listed as installed: a removed property is not installed — state one or the other", def.Key)
 		}
 		entry, err := dictionaryEntryOmapWithOptions(def, opts)
 		if err != nil {
@@ -587,5 +650,14 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	if err := renderPropertyDefinitionMembers(m, def, targets, false); err != nil {
 		return nil, err
 	}
+	// the dictionary's own member, written here rather than by the shared
+	// renderer so that the shape's other two homes cannot emit it: on a
+	// type's declaration it would describe nothing (§2f). True only — a
+	// false flag is the absent form, the omit-default canon for a flag
+	// that is not a property value.
+	m.setNonEmpty(memberUninstalled, def.Uninstalled)
 	return m, nil
 }
+
+// memberUninstalled is the dictionary entry's removal flag (§2f).
+const memberUninstalled = "uninstalled"

@@ -83,9 +83,6 @@ func TestOmittedBundledRelation_FailClosed(t *testing.T) {
 		"an unclassified key is real data": func(base *model.SmartBlockSnapshotBase) {
 			base.Details.Fields["somethingNobodyVetted"] = strVal("x")
 		},
-		"isUninstalled is user intent, not an artifact": func(base *model.SmartBlockSnapshotBase) {
-			base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
-		},
 		"an alien-kinded value never coerces to a match": func(base *model.SmartBlockSnapshotBase) {
 			// GetBoolValue would read this as false == the table's false
 			base.Details.Fields["isHidden"] = strVal("false")
@@ -177,4 +174,58 @@ func TestOmittedBundledRelation_TargetTypesTranslate(t *testing.T) {
 
 	_, omitted = OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
 	assert.False(t, omitted, "without the capability the id stays opaque and the document is kept")
+}
+
+// An installed copy the user REMOVED is omitted too, and the removal
+// travels as the dictionary entry's `uninstalled` flag rather than as the
+// document (§2f, §15 #22). A reinstall stamp — the flag stored false — is
+// absent-equivalent to every reader and omits as an identical copy.
+//
+// How this can fail: drop the isUninstalled arm from OmittedBundledRelation
+// (both cases go red — the pre-#22 fail-closed verdict, under which the
+// document was the only place the removal could live).
+func TestOmittedBundledRelation_UninstalledCopyOmits(t *testing.T) {
+	t.Run("the removed copy omits under its bundled key", func(t *testing.T) {
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
+		key, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		require.True(t, omitted, "the entry carries the removal; the document has nothing else to say")
+		assert.Equal(t, "dueDate", key)
+	})
+	t.Run("the reinstall stamp is absent-equivalent", func(t *testing.T) {
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: false}}
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		assert.True(t, omitted, "false is what every reader gets for absent")
+		assert.False(t, UninstalledRelation(base), "a stamp is not a removal")
+		assert.True(t, OmittedUninstallStamp("isUninstalled", base.Details.Fields["isUninstalled"]))
+	})
+	t.Run("an alien-kinded flag keeps the document", func(t *testing.T) {
+		// GetBoolValue would read this as false == absent
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_StringValue{StringValue: "true"}}
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		assert.False(t, omitted, "unclassified is real data — fail closed")
+		assert.False(t, UninstalledRelation(base))
+		assert.False(t, OmittedUninstallStamp("isUninstalled", base.Details.Fields["isUninstalled"]))
+	})
+	t.Run("the reconstruction restates the table plus the mark", func(t *testing.T) {
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
+		require.True(t, UninstalledRelation(base))
+		det, ok := UninstalledRelationDetails("dueDate", Options{})
+		require.True(t, ok)
+		assert.True(t, det.Fields["isUninstalled"].GetBoolValue(),
+			"a reader that recreates the entry must write the mark, or the restore undoes the removal")
+		installed, ok := InstalledRelationDetails("dueDate", Options{})
+		require.True(t, ok)
+		assert.Nil(t, installed.Fields["isUninstalled"], "an installed reconstruction states no flag")
+		delete(det.Fields, "isUninstalled")
+		assert.Equal(t, installed.Fields, det.Fields, "beyond the mark, the two reconstructions are one")
+	})
+	t.Run("the stamp predicate answers for this key only", func(t *testing.T) {
+		f := &types.Value{Kind: &types.Value_BoolValue{BoolValue: false}}
+		assert.False(t, OmittedUninstallStamp("isHidden", f), "a false anywhere else is not the reinstall stamp")
+		assert.False(t, OmittedUninstallStamp("isUninstalled", nil))
+	})
 }

@@ -1211,7 +1211,7 @@ homes**, and no fourth:
 
 | home | shape |
 |---|---|
-| a property-dictionary entry (§2f) | one `propertyDefinition` |
+| a property-dictionary entry (§2f) | one `propertyDefinition` + `uninstalled` |
 | a type document's property-definition entry (§2a) | one `propertyDefinition` + `section` |
 | a property document's definition fields (§2d) | one `propertyDefinition` |
 
@@ -1227,7 +1227,13 @@ with `unevaluatedProperties: false`. A home may **narrow** a shared member
 (an authored home pins `format` to `authorableFormat`; a type's
 `object_types` is a real array, since only a relation's stored value can
 hold a null) but never restate its shape: two statements of one member
-agree today and drift tomorrow (§15 #14).
+agree today and drift tomorrow (§15 #14). Two homes each carry **one
+member of their own** beside the shape, and each is meaningless on the
+other homes, which refuse it: `section` on a type's entry says what THIS
+type does with the property (§2a); `uninstalled` on a dictionary entry
+says the user removed the property from the space (§2f, §15 #22) — a fact
+about the property's presence, which a type's declaration cannot act on
+and a property document states as its own `Is uninstalled` value.
 
 The rule is test-pinned the way the format vocabulary is: the homes are
 asserted to REFERENCE `$defs/propertyDefinition`, the way
@@ -1252,7 +1258,7 @@ belongs in the index because a manifest is what an index is).
 {
   "$schema": "https://schemas.anytype.io/anyblock/2.0/properties.schema.json",
   "formatVersion": "2.0",
-  "installed": ["Creation date", "Due date", "Tag"],
+  "installed": ["Creation date", "Due date", "Done"],
   "properties": [
     { "property": "6a32d4856761631534b22f85",
       "internal_key": "6a32d4856761631534b22f85", "name": "Budget", "format": "number" },
@@ -1266,7 +1272,9 @@ belongs in the index because a manifest is what an index is).
         { "name": "In progress", "color": "blue", "internal_key": "69c1b7d0e2f34a5b6c7d8e9f_In progress" },
         { "name": "Done",        "color": "lime", "internal_key": "69c1b7d0e2f34a5b6c7d8e9f_Done" }
       ] },
-    { "property": "Due date", "internal_key": "dueDate", "name": "End Date", "format": "date" }
+    { "property": "Due date", "internal_key": "dueDate", "name": "End Date", "format": "date" },
+    { "property": "Tag", "internal_key": "tag", "name": "Tag", "format": "multi_select",
+      "uninstalled": true }
   ]
 }
 ```
@@ -1303,6 +1311,46 @@ Two members:
   full — the dictionary is where an author declares a property without
   writing a relation document at all, in the same vocabulary as a type's
   `property_definitions` entry.
+
+**A property the user REMOVED travels as a flag, not as a document.** The
+app cannot delete an installed copy of a bundled property — the copy is
+derived from the table — so removing one marks it `isUninstalled`, and
+every listing filters the mark out. A bundle carries the removal for backup
+fidelity, as an entry whose `uninstalled` member is `true` (§15 #22): the
+document is omitted exactly as an identical copy is, the entry states the
+table's definition beside the flag (the `Tag` entry above), and the key
+appears in `installed` NOWHERE — the list tells a reader to install, the
+flag tells it the user removed, and a dictionary that says both is refused
+on read and on write alike. A removed copy whose definition diverges keeps
+its document like any divergent copy and still gets the flagged entry in
+place of the `installed` key; a space-minted property the user removed
+keeps its document and gets a flagged entry too, referenced or not.
+
+What a reader does with the flag: it MAY recreate the property with its
+removal mark set — the reconstruction is `UninstalledRelationDetails`, the
+installed one plus the mark, and the composer verifies the omission against
+it (§11) — or it MAY skip the entry, since a removed property appears in no
+listing either way and both restores look the same to the user. What it
+MUST NOT do is install the property as a live one. The entry answers for
+the key whichever way the reader chose: a value stored under it means what
+the entry says. `uninstalled` is the dictionary's own member, as `section`
+is the type declaration's (§2e) — on the shape's other homes it would
+describe nothing, and both refuse it — and an author never writes it,
+because a bundle that has not been installed has nothing to uninstall
+(§2g). False is the absent form; export writes `true` only. The reinstall
+stamp — the flag stored `false` on a copy the user removed and installed
+again — is absent-equivalent to every consumer of the key and omits as an
+identical copy (§11).
+
+Measured over a census of 40 spaces' object stores (5,284 relation
+documents, 4,905 on bundled keys): no bundled-key relation document carries
+the flag, and the 5 space-minted ones that do are all `isDeleted` besides,
+which the app's exporter skips. The rule removes no document from that
+corpus. What it removes is a contradiction the composition could otherwise
+write: a kept bundled-key document is listed under `installed` as well as
+entered — every one in the 40 spaces a 77-space export overlaps, 85 of 85
+— so a removed copy that had diverged would have been reinstalled by its
+own backup.
 
 **A select vocabulary is stated on a property-definition entry, and
 nowhere else.** A bundle carries no option documents — none, on any path
@@ -1374,7 +1422,10 @@ bundle does not state a vocabulary for a property it does not carry.
 
 A property the bundle DOES carry keeps its vocabulary, whether or not any
 slot names it. That covers a divergent installed copy — the entry is the
-vehicle and it is there anyway — and it covers the commoner case by far: a
+vehicle and it is there anyway — and a removed property, whose entry is
+there for the flag's sake and which nothing references by construction
+(the app deletes a removed property's options with it, so the vocabulary
+is empty in practice); and it covers the commoner case by far: a
 space-minted property, whose definition travels as its own document in
 `properties/`. Such a property is not "used" by anything, because a
 document does not reference itself: a root `internal_key` is not a slot,
@@ -1487,8 +1538,9 @@ A dictionary entry is the **third home** of `$defs/propertyDefinition`
 references `plainIcon`, and closed with `unevaluatedProperties`. Its layer
 narrows `object_types` back to a real array — only a relation's STORED
 value can hold a null (§2d), and a dictionary describes a property rather
-than mirroring a store slot. `section` is refused: it is the one type-owned
-member, meaningless off a type document. One key, one slot: a key stated
+than mirroring a store slot. `section` is refused: it is the type-owned
+member, meaningless off a type document — and `uninstalled` is admitted
+for the mirror-image reason, as the entry's own (§2e). One key, one slot: a key stated
 twice — in `installed` or in `properties` — is refused on read and on
 write alike, with the first occurrence named.
 
@@ -4382,17 +4434,24 @@ The §2f dictionary adds two normalizations, and both are COMPOSITION rules
 rather than document ones — the per-document codec is untouched by either.
 The first: **a bundled-identical relation document is not written at
 all**. Its key travels
-in the dictionary's `installed` list, and a reader reconstructs the object
-from its own bundled table, across which trip (a) the install artifacts —
+in the dictionary's `installed` list — or, for a copy the user REMOVED, as
+an entry carrying `uninstalled` (§2f, §15 #22) — and a reader reconstructs
+the object from its own bundled table (`InstalledRelationDetails`, or
+`UninstalledRelationDetails`, the same plus the removal mark), across
+which trip (a) the install artifacts —
 `createdDate`, `origin`, `addedDate`, `sourceObject`, `revision`,
 `apiObjectKey`, `featuredRelations`, `scope`, `importType`,
 `lastModifiedDate`, `layout`/`resolvedLayout`, the three recommended-list
-stamps — come back ABSENT, re-stamped by the next install, and (b) a
+stamps — come back ABSENT, re-stamped by the next install; (b) a
 definition member the copy never stored comes back as its explicit empty
-default, because an install states the whole definition. Both movements are
-owned by exported predicates the comparator reads
-(`OmittedBundledRelation`, `RelationInstallArtifactKey`,
-`InstallStampedDefault`) and both are scoped to snapshots the omission
+default, because an install states the whole definition; and (c) **a
+reinstall stamp — `isUninstalled` stored `false` — comes back ABSENT**,
+which every consumer of the key reads the same way, while the mark itself,
+stored `true`, travels on the entry and compares as ordinary state. All
+three movements are owned by exported predicates the comparator reads
+(`OmittedBundledRelation`, `UninstalledRelation`,
+`RelationInstallArtifactKey`, `InstallStampedDefault`,
+`OmittedUninstallStamp`) and all are scoped to snapshots the omission
 predicate itself admits, so the ordinary document round trip keeps its full
 sensitivity. The predicate is fail-closed on every axis — a divergent
 definition member, an unclassified detail key, an alien-kinded value, a
@@ -4401,9 +4460,12 @@ or free text) each keep the document — because omitting a document that
 carried real data would delete it silently, which is disqualifying for a
 backup format. Each admitted artifact key passed the §15 #12 test
 individually against the 9,675 bundled-key relation documents; the verdicts
-live on `relationInstallArtifactKeys`, and the keys that FAILED
-(`isUninstalled`, `isFavorite`, `isArchived`, the bare `includeTime`) keep
-their documents.
+live on `relationInstallArtifactKeys`. The keys that stay unclassified —
+`isFavorite`, `isArchived`, the bare `includeTime` — keep their documents
+by the default arm, and owe no verdict of their own: a census of 40
+spaces' object stores finds none of the three on any of its 5,284 relation
+documents (§15 #22). `isUninstalled` left that list with #22, because the
+entry carries it.
 
 The second is unconditional, and has no reconstruction to verify: **an
 option document is not written at all** (§2f, §15 #21). Its name, color and
@@ -4426,8 +4488,9 @@ failing closed would have bought. Every loss is stated rather than silent:
   format does not drop on every kind anyway, is omitted with an issue naming
   the detail. The classification is the installed-relation omission's own
   (`UnaccountedOptionDetails`), so install and import provenance is
-  accounted for and a key that set holds back as user intent — `isArchived`,
-  `isFavorite`, `isUninstalled` — is named.
+  accounted for and a key that set holds back — `isArchived` and
+  `isFavorite` as user intent, and `isUninstalled`, which an option has no
+  entry member to travel on — is named.
 - An option of a property the dictionary does not carry is dropped by the
   used-only rule (§2f), its property named in `UnusedOptionKeys`; a property
   nothing can define is an orphan and its vocabulary goes with it, named in
@@ -5175,11 +5238,13 @@ and a fourth field list is how a fourth spelling starts.
 The §2f composition predicates are exported beside them, for the wiring
 that composes a bundle and the comparator that verifies one:
 `OmittedBundledRelation` (may this relation document be omitted, and under
-which `installed` key), `InstalledRelationDetails` (the reconstruction a
-reader builds from that key), `RelationInstallArtifactKey` and
-`InstallStampedDefault` (the two movements the omission trip makes, which
-`snapshotdiff.Compare` reads rather than restates), and
-`OmittedRelationOption` (this kind is never written as a document at all —
+which bundled key), `UninstalledRelation` (does the omitted copy travel as
+an `installed` key or as an entry carrying `uninstalled`, §15 #22),
+`InstalledRelationDetails` and `UninstalledRelationDetails` (the
+reconstruction a reader builds from each), `RelationInstallArtifactKey`,
+`InstallStampedDefault` and `OmittedUninstallStamp` (the three movements
+the omission trip makes, which `snapshotdiff.Compare` reads rather than
+restates), and `OmittedRelationOption` (this kind is never written as a document at all —
 the dictionary states its entry, §2f; it needs only the smartblock type,
 since the omission is unconditional).
 
@@ -5499,6 +5564,52 @@ being true.
   `kind` enum is `page`, `object_type`, `template` (§2g) — because an
   author states a vocabulary on the property — a type's entry or the
   dictionary's — which are the only ways to state one.
+
+- **#22 The removed property** — settled: **a property the user removed
+  from the space (`isUninstalled`) is exported for backup fidelity, as a
+  dictionary entry carrying `uninstalled: true` — never as a document kept
+  for the flag's sake, and never under `installed`** (§2f). Recreation is
+  the reader's choice — with the removal mark set, or not at all — and the
+  format says so; what a reader may not do is install the property live.
+
+  The overturned position was the §2f keep-rule's: `isUninstalled` was one
+  of three keys the omission predicate deliberately refused to classify, on
+  the reading that the document was the only place the removal could live.
+  It was the only place — and a kept document was still listed under
+  `installed`, because the composition lists every bundled key it meets
+  whether or not the copy was removed, so the backup of a removed,
+  divergent copy reinstalled it. That is a property of the composition
+  itself rather than a corpus finding: a bundled-key relation document
+  earns its `installed` entry the moment the composer observes it. The entry is where the fact belongs: a
+  removal is a statement about the property's presence in the space, which
+  is what the dictionary is for, and a flag a reader meets before it opens
+  a document. It is the dictionary's own member, as `section` is the type
+  declaration's (§2e), and the authoring subset does not admit it (§2g): a
+  bundle that has not been installed has nothing to uninstall.
+
+  The census that decided how much this changes is the part worth
+  recording. Over 40 spaces' object stores — 5,284 relation documents,
+  4,905 on bundled keys, 4,820 of them omitted under the production
+  resolver — not one bundled-key relation document carries the flag; the 5
+  that do are space-minted, in one space, and every one is also
+  `isDeleted`, which the app's exporter skips before the composer sees it.
+  The rule empties no directory. What a bundle still keeps in `properties/`
+  is a definition that diverges from the table — 85 documents: 68 by
+  `isHidden`, all of them one flag on the two chat-counter keys the shipped
+  table and the stored copies disagree about; 9 by a target type no object
+  in the space defines; 5 by description, 2 by name, 2 by format, 1 by max
+  count — or a space-minted property (379). No unclassified key and no
+  alien-kinded value on any of the 5,284; the block-based keep cause is not
+  measurable from a store of details and stays at §11's earlier count.
+
+  `isFavorite` and `isArchived` leave the named list with it, on the
+  opposite verdict: nothing carries them. No relation document in the same
+  census holds either (0 of 5,284; 35 and 193 occurrences corpus-wide,
+  never on a relation or an option), so they need no verdict of their own
+  — an unvetted key keeps the document by the fail-closed default, and
+  that is all they get. Had anything carried them they would have stayed
+  named and counted. The bare `includeTime` stays unexplained and
+  therefore kept (0 of 5,284 here).
 
 ### Deferred past 2.0
 

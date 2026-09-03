@@ -63,11 +63,14 @@ package anyblockjson
 //	                               own verdict in omittedrelation.go
 //
 // What that set deliberately does NOT admit is reported rather than
-// classified, on the verdict it already reached for the same keys on a
-// relation: `isUninstalled` (the user REMOVED it), `isFavorite` and
-// `isArchived` (user intent). An option has no editor to set them from, so
-// where they appear at all they arrive with an import — and the report says
-// so per option rather than this file guessing.
+// classified: `isFavorite` and `isArchived` (user intent, the verdict the
+// relation omission reached for the same keys), and `isUninstalled`, which
+// on a RELATION now travels as the dictionary entry's `uninstalled` flag
+// (§15 #22) but has no member to travel on for an option — the entry
+// states a vocabulary, and a removed option is deleted rather than marked
+// (below). An option has no editor to set any of the three from, so where
+// they appear at all they arrive with an import — and the report says so
+// per option rather than this file guessing.
 //
 // A REMOVED option never reaches this predicate at all:
 // RelationListRemoveOption deletes the object, which marks the tree deleted
