@@ -342,7 +342,9 @@ func PropertyTermsOf(doc []byte) (PropertyTerms, error) {
 		for _, item := range list {
 			tp, _ := item.(map[string]any)
 			// PROPERTY-FIRST, matching the importer's own precedence
-			// (buildTypeProperties): an entry stating both resolves
+			// (authoredIdentity / identityForResolution, reached through
+			// applyTypeProperties — buildTypeProperties is the EXPORTER's
+			// renderer): an entry stating both resolves
 			// through the spelling, so counting its internal_key too
 			// contributes a stored key nothing resolves to — a false
 			// orphan on an authored bundle. The slot census this

@@ -75,10 +75,23 @@ func TestComposerCanonicalizesCustomDictionaryTypeTargetsWithItsVocabulary(t *te
 // optionSnapshot is one relation-option object as the store holds it: the
 // property it belongs to, its name and colour, and its stored key.
 func optionSnapshot(id, key, name, color, storedKey string) *model.SmartBlockSnapshotBase {
-	return &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
+	// Key AND the detail, as the exporter hands them over: the stored
+	// identity is the tree-root Key (storedInternalKey), and a fixture that
+	// sets only the detail exercises the fallback instead of the path
+	// production takes.
+	return &model.SmartBlockSnapshotBase{Key: storedKey, Details: detFields(map[string]*types.Value{
 		"id": strVal(id), "relationKey": strVal(key), "name": strVal(name),
 		"relationOptionColor": strVal(color), "uniqueKey": strVal("opt-" + storedKey),
 	})}
+}
+
+// orderedOptionSnapshot is an option carrying the two members the app's
+// listing sorts on: its lexid and its creation date.
+func orderedOptionSnapshot(id, key, name, orderId string, created float64) *model.SmartBlockSnapshotBase {
+	base := optionSnapshot(id, key, name, "grey", "k_"+id)
+	base.Details.Fields["orderId"] = strVal(orderId)
+	base.Details.Fields["createdDate"] = numVal(created)
+	return base
 }
 
 // The board case that the two-slot census got wrong: a page whose ONLY
@@ -184,4 +197,230 @@ func TestComposerKeepsVocabularyOnDivergentInstalledEntryAndReportsTheDrop(t *te
 	assert.Equal(t, 2, stats.OptionsDropped)
 	assert.Equal(t, 1, stats.OptionsLifted)
 	assert.Empty(t, stats.OrphanUsedKeys)
+}
+
+// A property the bundle DEFINES keeps its vocabulary, whether or not any
+// document references its key. Every property a user creates is
+// space-minted: its definition travels as a document in `properties/`, and
+// until some object is tagged with it, its key appears in no slot at all —
+// a root `internal_key` is not a slot spelling, so the byte census never
+// sees it. The used-only rule therefore dropped exactly these vocabularies,
+// and since §15 #21 there is no option document left to carry them: "set up
+// a tag property, export before tagging anything" came back with an empty
+// dropdown.
+//
+// How this can fail: gate the options loop on the byte census and the
+// installed-divergence entries alone (the property travels, its vocabulary
+// does not, and only Stats.UnusedOptionKeys — which no consumer reads —
+// says so).
+func TestComposerKeepsVocabularyOfAPropertyTheBundleDefines(t *testing.T) {
+	minted := anyblockjson.PropertyDefinition{
+		Key: "67e31405450a5dcab2fa75aa", Name: "Chat category", Format: model.RelationFormat_status,
+	}
+	c := NewComposer(anyblockjson.Options{
+		ResolveProperties: composerPropertyResolver{def: minted},
+	}, "Chat")
+
+	for _, name := range []string{"news", "fav"} {
+		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
+			optionSnapshot("bafy"+name, string(minted.Key), name, "grey", "k_"+name))
+		require.True(t, omitted)
+		require.Empty(t, issues)
+	}
+
+	// the property's own relation document — and nothing else in the bundle
+	rel := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
+		"id": strVal("bafyrel"), "relationKey": strVal(string(minted.Key)), "name": strVal("Chat category"),
+	})}
+	doc := []byte(`{"formatVersion":"2.0","kind":"property","id":"bafyrel",
+		"internal_key":"67e31405450a5dcab2fa75aa","property_settings":{"format":"select"},
+		"properties":{"Name":"Chat category"}}`)
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STRelation, rel, doc,
+		"properties/bafyrel.anyblock.json"))
+
+	used, err := UsedPropertyKeysFromBytes(doc)
+	require.NoError(t, err)
+	require.NotContains(t, used, string(minted.Key),
+		"a relation document does not reference its own key: that is why the census cannot be the only gate")
+
+	_, dictData, stats, err := c.Finish()
+	require.NoError(t, err)
+	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
+	require.NoError(t, err)
+	byKey := map[string]anyblockjson.PropertyDefinition{}
+	for _, def := range dict.Properties {
+		byKey[string(def.Key)] = def
+	}
+	require.Contains(t, byKey, string(minted.Key))
+	assert.Len(t, byKey[string(minted.Key)].Options, 2,
+		"the vocabulary travels with the property that owns it")
+	assert.Equal(t, 2, stats.OptionsLifted)
+	assert.Zero(t, stats.OptionsDropped)
+	assert.Empty(t, stats.UnusedOptionKeys)
+}
+
+// The array is the order (§2f), and since no option document carries a lexid
+// any more it is the ONLY carrier — so it must be the order the app lists,
+// which is the option picker's subscription sort: `orderId` ascending, then
+// `createdDate` descending.
+//
+// Both halves are easy to get backwards. An option with no order id sorts
+// FIRST (the client sends no empty-placement, so heart compares raw values
+// and "" precedes every lexid), and newest-first is deliberate rather than an
+// artifact — a new option is minted with the SMALLEST order id of its
+// siblings.
+//
+// How this can fail: push the order-less options to the end (a partially
+// ordered vocabulary comes back with its two groups swapped); tie-break the
+// order-less ones by name (the majority of real vocabularies state no order
+// at all, and the bundle alphabetizes them).
+func TestComposerOrdersAVocabularyTheWayTheAppListsIt(t *testing.T) {
+	key := "status"
+	c := NewComposer(anyblockjson.Options{}, "Board")
+	// the user reordered a subset, which is how a partial order arises;
+	// observed in an order matching neither answer
+	for _, o := range []struct {
+		id, name, order string
+		created         float64
+	}{
+		{"o_done", "Done", "VVVZ", 300},
+		{"o_backlog", "Backlog", "", 100},
+		{"o_todo", "To Do", "VVVX", 500},
+		{"o_blocked", "Blocked", "", 200},
+		{"o_prog", "In Progress", "VVVY", 400},
+	} {
+		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
+			orderedOptionSnapshot(o.id, key, o.name, o.order, o.created))
+		require.True(t, omitted)
+		require.Empty(t, issues)
+	}
+	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
+		[]byte(`{"formatVersion":"2.0","properties":{"status":["Done"]}}`), "objects/p.anyblock.json"))
+
+	_, dictData, _, err := c.Finish()
+	require.NoError(t, err)
+	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 1)
+	var got []string
+	for _, o := range dict.Properties[0].Options {
+		got = append(got, o.Name)
+	}
+	assert.Equal(t, []string{"Blocked", "Backlog", "To Do", "In Progress", "Done"}, got,
+		"order-less first, newest of them first; then the lexids ascending")
+}
+
+// One unrepresentable vocabulary costs its own property, not the export.
+// MarshalPropertyDictionary refuses a vocabulary on a property whose format
+// does not admit one — a real shape, since changing a select property to
+// checkbox leaves its option objects behind — and Finish returns that error
+// instead of a bundle: no properties.json, no index.json, nothing. An
+// omission that loses data is a bug in this package, not a reason to fail a
+// user's export.
+//
+// How this can fail: hand Marshal the vocabulary and propagate its error
+// (one property empties the whole export); drop it without naming it
+// (Stats.RefusedOptions is the only report there is).
+func TestComposerDropsAnUnstatableVocabularyRatherThanTheBundle(t *testing.T) {
+	checkbox := anyblockjson.PropertyDefinition{
+		Key: "completion_status", Name: "Completion status", Format: model.RelationFormat_checkbox,
+	}
+	c := NewComposer(anyblockjson.Options{
+		ResolveProperties: composerPropertyResolver{def: checkbox},
+	}, "Berlin Basics")
+	for _, name := range []string{"Completed", "In Progress", "Not Started"} {
+		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
+			optionSnapshot("bafy"+name, string(checkbox.Key), name, "grey", "k_"+name))
+		require.True(t, omitted)
+		require.Empty(t, issues, "the composer lifts it; the writer is what cannot state it")
+	}
+	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
+		[]byte(`{"formatVersion":"2.0","properties":{"completion_status":true}}`), "objects/p.anyblock.json"))
+
+	idxData, dictData, stats, err := c.Finish()
+	require.NoError(t, err, "the bundle survives")
+	require.NotEmpty(t, idxData)
+	require.NotEmpty(t, dictData)
+	require.Len(t, stats.RefusedOptions, 1)
+	assert.Contains(t, stats.RefusedOptions[0], "completion_status")
+	assert.Contains(t, stats.RefusedOptions[0], "only meaningful on select/multi_select")
+	assert.Equal(t, 3, stats.OptionsDropped)
+	assert.Zero(t, stats.OptionsLifted)
+
+	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 1)
+	assert.Empty(t, dict.Properties[0].Options, "the property still travels; only its vocabulary is gone")
+}
+
+// A colour outside the palette costs its own option, not the vocabulary:
+// each option is probed alone before the array is given up.
+func TestComposerSalvagesTheOptionsAWriterCanStill(t *testing.T) {
+	c := NewComposer(anyblockjson.Options{}, "Board")
+	good := optionSnapshot("bafygood", "status", "To Do", "grey", "k_good")
+	bad := optionSnapshot("bafybad", "status", "Done", "crimson", "k_bad")
+	for _, o := range []*model.SmartBlockSnapshotBase{good, bad} {
+		_, issues := c.Observe(model.SmartBlockType_STRelationOption, o)
+		require.Empty(t, issues)
+	}
+	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
+		[]byte(`{"formatVersion":"2.0","properties":{"status":["To Do"]}}`), "objects/p.anyblock.json"))
+
+	_, dictData, stats, err := c.Finish()
+	require.NoError(t, err)
+	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 1)
+	require.Len(t, dict.Properties[0].Options, 1)
+	assert.Equal(t, "To Do", dict.Properties[0].Options[0].Name)
+	assert.Equal(t, 1, stats.OptionsLifted)
+	assert.Equal(t, 1, stats.OptionsDropped)
+	require.Len(t, stats.RefusedOptions, 1)
+	assert.Contains(t, stats.RefusedOptions[0], "1 of 2 options dropped")
+}
+
+// Omitting an option document is unconditional, so what the entry cannot
+// carry has to be reported instead — the difference between this omission
+// and a silent one.
+//
+// The classification is the installed-relation omission's own, so an option
+// minted by the IMPORTER — which arrives with `origin`, `importType` and
+// `addedDate`, none of which the app's create path sets — is an ordinary
+// option and reports nothing. A key that set carved out as user intent is
+// named.
+//
+// How this can fail: justify the omission from the create path's detail set
+// (an importer-minted option carries three more, its document carried all
+// three, and nothing says they went); classify the carved-out keys too (the
+// report goes quiet on the one case it exists for).
+func TestComposerReportsWhatAnOmittedOptionsEntryCannotCarry(t *testing.T) {
+	withDetails := func(extra map[string]*types.Value) *model.SmartBlockSnapshotBase {
+		base := optionSnapshot("bafyopt", "tag", "Urgent", "grey", "k_urgent")
+		for k, v := range extra {
+			base.Details.Fields[k] = v
+		}
+		return base
+	}
+	t.Run("an importer-minted option is an ordinary option", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "Imported")
+		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption, withDetails(map[string]*types.Value{
+			"origin": numVal(3), "importType": numVal(0), "addedDate": numVal(1690000000),
+			"createdDate": numVal(1700000000), "layout": numVal(11), "resolvedLayout": numVal(11),
+			"apiObjectKey": strVal("urgent"), "orderId": strVal("VVVX"),
+		}))
+		assert.True(t, omitted)
+		assert.Empty(t, issues, "install and import provenance is already classified, on the same verdicts")
+	})
+	t.Run("user intent is named", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "Imported")
+		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
+			withDetails(map[string]*types.Value{"isUninstalled": boolVal(true)}))
+		assert.True(t, omitted, "still omitted: a kept option would put options/ back in the layout")
+		require.Len(t, issues, 1)
+		assert.Contains(t, issues[0].Detail, "isUninstalled")
+		assert.Contains(t, issues[0].Detail, "does not state")
+	})
 }

@@ -252,7 +252,10 @@ re-measurement. Separately, the native bundle exporter is verified against
 the corpus by the same harness in `-native` mode — 28,542 documents
 checked for layout, kind classification, determinism (every space exported
 twice, trees byte-compared) and per-document fidelity against a
-same-process pb export; `../../bundle/DESIGN.md` records that run.
+same-process pb export; `../../bundle/DESIGN.md` records that run, and the
+caveat on it: the run predates the ruling that took option documents out of
+a bundle (SPEC §15 #21), so it exercised an `options/` this layout no longer
+has, and it has not been re-run since.
 
 Anomalies found along the way were fixed rather than smoothed over —
 including two genuine silent-data-loss bugs the sweeps caught that no unit

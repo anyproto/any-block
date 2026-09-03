@@ -313,8 +313,8 @@ func TestComposer_SameNamedOptionsHaveATotalOrder(t *testing.T) {
 
 // The snapshot's own Key is the stored identity, and it is what the document
 // path writes as internal_key. Deriving it from the `uniqueKey` DETAIL lost
-// the value whenever the detail was absent: 5 of 2,544 options in a 78-space
-// sweep reached the dictionary with no internal_key at all.
+// the value whenever the detail was absent: 5 of the 2,466 options in the
+// 77-space corpus reached the dictionary with no internal_key at all.
 func TestComposerTakesOptionIdentityFromTheSnapshotKey(t *testing.T) {
 	for name, tc := range map[string]struct {
 		key, uniqueKey, want string
@@ -354,6 +354,7 @@ func TestComposerAccountsForEveryObservedOption(t *testing.T) {
 		})}
 	}
 	// one liftable on a used property, one on an unused one, two unliftable
+	const observations = 4
 	_, _ = c.Observe(model.SmartBlockType_STRelationOption, opt("o1", "tag", "Urgent"))
 	_, _ = c.Observe(model.SmartBlockType_STRelationOption, opt("o2", "ghost", "Ghost"))
 	_, iss1 := c.Observe(model.SmartBlockType_STRelationOption, opt("o3", "", "NoKey"))
@@ -368,8 +369,65 @@ func TestComposerAccountsForEveryObservedOption(t *testing.T) {
 	_, _, stats, err := c.Finish()
 	require.NoError(t, err)
 	assert.Equal(t, 2, stats.OptionsUnliftable, "both refused snapshots are counted")
-	observed := stats.OptionsLifted + stats.OptionsDropped + stats.OptionsUnliftable
-	assert.Equal(t, 4, observed, "every observed option lands in exactly one counter")
+	assert.Equal(t, observations,
+		stats.OptionsLifted+stats.OptionsDropped+stats.OptionsUnliftable+stats.OptionsRepeated,
+		"every observed option lands in exactly one counter")
+}
+
+// The invariant has to hold on the paths that reach no entry, which are
+// exactly the ones it was added for. Two of them return before the counters
+// the happy path fills in.
+//
+// How this can fail: assign OptionsUnliftable after Finish's empty-composition
+// early return (a composition of nothing but refused options reports having
+// observed none — the accounting vanishing behind the promise that the loss
+// is reported); count neither arm of the repeat collapse (a repeat is
+// neither lifted nor dropped nor refused, and the sum silently comes up
+// short).
+func TestComposerAccountingHoldsOnThePathsThatReachNoEntry(t *testing.T) {
+	sum := func(s Stats) int {
+		return s.OptionsLifted + s.OptionsDropped + s.OptionsUnliftable + s.OptionsRepeated
+	}
+	t.Run("a composition of nothing but refused options", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		for _, o := range []*model.SmartBlockSnapshotBase{
+			{Key: "k1", Details: detFields(map[string]*types.Value{"id": strVal("o1"), "name": strVal("NoKey")})},
+			{Key: "k2", Details: detFields(map[string]*types.Value{"id": strVal("o2"), "relationKey": strVal("tag")})},
+		} {
+			_, issues := c.Observe(model.SmartBlockType_STRelationOption, o)
+			require.NotEmpty(t, issues)
+		}
+		idx, dict, stats, err := c.Finish()
+		require.NoError(t, err)
+		assert.Nil(t, idx, "still an empty composition: nothing semantic was observed")
+		assert.Nil(t, dict)
+		assert.Equal(t, 2, sum(stats), "but the two refusals are still accounted for")
+		assert.Equal(t, 2, stats.OptionsUnliftable)
+	})
+	t.Run("repeats", func(t *testing.T) {
+		for _, tc := range []struct{ name, color string }{
+			{"identical repeat", "red"}, {"conflicting repeat", "lime"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				c := NewComposer(anyblockjson.Options{}, "probe")
+				mk := func(color string) *model.SmartBlockSnapshotBase {
+					return &model.SmartBlockSnapshotBase{Key: "tag_Urgent", Details: detFields(map[string]*types.Value{
+						"id": strVal("o1"), "relationKey": strVal("tag"),
+						"name": strVal("Urgent"), "relationOptionColor": strVal(color),
+					})}
+				}
+				_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
+				_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk(tc.color))
+				require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page,
+					&model.SmartBlockSnapshotBase{}, []byte(`{"formatVersion":"2.0","properties":{"tag":["Urgent"]}}`),
+					"objects/p.anyblock.json"))
+				_, _, stats, err := c.Finish()
+				require.NoError(t, err)
+				assert.Equal(t, 1, stats.OptionsRepeated)
+				assert.Equal(t, 2, sum(stats), "two observations, two counted")
+			})
+		}
+	})
 }
 
 // The emit observes unique collected ids in production, but nothing in this
@@ -395,6 +453,72 @@ func TestComposerDedupesRepeatedOptionObservations(t *testing.T) {
 		_, issues := c.Observe(model.SmartBlockType_STRelationOption, mk("lime"))
 		require.NotEmpty(t, issues)
 		assert.Contains(t, issues[0].Detail, "observed twice with different content")
-		assert.Len(t, c.optionsByKey["tag"], 1, "the first wins, deterministically")
+		assert.Len(t, c.optionsByKey["tag"], 1, "the first wins")
 	})
+	// The compared value holds name, colour and stored key — never the
+	// owner. Keying the dedupe on the id alone therefore found one id under
+	// two properties "identical", collapsed the pair, and dropped the second
+	// property's whole vocabulary with no Issue and no counter: the one loss
+	// this omission is supposed to report rather than hide.
+	t.Run("one id under two owning properties is two vocabularies", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		under := func(key string) *model.SmartBlockSnapshotBase {
+			return &model.SmartBlockSnapshotBase{Key: "k1", Details: detFields(map[string]*types.Value{
+				"id": strVal("o1"), "relationKey": strVal(key),
+				"name": strVal("Urgent"), "relationOptionColor": strVal("red"),
+			})}
+		}
+		_, first := c.Observe(model.SmartBlockType_STRelationOption, under("tag"))
+		_, second := c.Observe(model.SmartBlockType_STRelationOption, under("status"))
+		assert.Empty(t, first)
+		assert.Empty(t, second)
+		assert.Len(t, c.optionsByKey["tag"], 1)
+		assert.Len(t, c.optionsByKey["status"], 1, "the second vocabulary is kept, not collapsed into the first")
+	})
+	// The contract that does not promise ids are unique does not promise
+	// they are present. An id-less option is identified by its content, so a
+	// repeat collapses while two distinct id-less options stay distinct.
+	t.Run("an option with no id is identified by its content", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		idless := func(name string) *model.SmartBlockSnapshotBase {
+			return &model.SmartBlockSnapshotBase{Key: "k_" + name, Details: detFields(map[string]*types.Value{
+				"relationKey": strVal("tag"), "name": strVal(name), "relationOptionColor": strVal("red"),
+			})}
+		}
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, idless("Urgent"))
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, idless("Urgent"))
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, idless("Later"))
+		assert.Len(t, c.optionsByKey["tag"], 2,
+			"the repeat collapses; the distinct one survives")
+	})
+}
+
+// The manifest's stored type key and the document's own internal_key are one
+// value, and Marshal writes the document's from the snapshot Key. Deriving
+// the manifest's from the `uniqueKey` DETAIL gave that value two sources: a
+// snapshot carrying only the Key dropped out of the manifest entirely, and a
+// snapshot whose detail disagreed produced an index bundle.Validate refuses —
+// the composer emitting a bundle its own package rejects.
+func TestComposerTakesTheManifestTypeKeyFromTheSnapshotKey(t *testing.T) {
+	for _, tc := range []struct {
+		name, key, detail, want string
+	}{
+		{"Key alone", "habit", "", "habit"},
+		{"Key and detail agree", "habit", "ot-habit", "habit"},
+		{"Key wins over a stale detail", "habit", "ot-stale", "habit"},
+		{"the detail is the fallback", "", "ot-habit", "habit"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewComposer(anyblockjson.Options{}, "probe")
+			det := map[string]*types.Value{"id": strVal("bafytype")}
+			if tc.detail != "" {
+				det["uniqueKey"] = strVal(tc.detail)
+			}
+			base := &model.SmartBlockSnapshotBase{Key: tc.key, Details: detFields(det)}
+			require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, base,
+				[]byte(`{"formatVersion":"2.0","kind":"type","internal_key":"`+tc.want+`"}`),
+				"types/habit.anyblock.json"))
+			assert.Equal(t, map[string]string{tc.want: "types/habit.anyblock.json"}, c.typePaths)
+		})
+	}
 }

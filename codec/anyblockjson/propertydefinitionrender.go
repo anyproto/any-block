@@ -72,6 +72,28 @@ func renderPropertyDefinitionMembers(m *omap, def PropertyDefinition, objectType
 	return nil
 }
 
+// CarryablePropertyOptions reports whether def's entry can state opts as its
+// select vocabulary, and why not when it cannot.
+//
+// It is the dictionary writer's own gate (checkedPropertyOptions), exported
+// rather than restated so a composer cannot drift from it. A composer needs
+// the question because the writer answers it by refusing the whole
+// dictionary: MarshalPropertyDictionary returns an error, the composition
+// returns no properties.json and no index.json, and a single property whose
+// format was changed to something that admits no vocabulary — leaving its
+// option objects behind — costs a user the entire space export. Asking first
+// lets the composer drop that one vocabulary and report it.
+//
+// Authoring rules are not applied. A dictionary states STORED options, each
+// with its own internal key, so same-named twins are legal there and real
+// spaces contain them (§2a).
+func CarryablePropertyOptions(def PropertyDefinition, opts []OptionDefinition) error {
+	probe := def
+	probe.Options = opts
+	_, err := checkedPropertyOptions(probe, formatName(def.Format), false)
+	return err
+}
+
 func checkedPropertyOptions(def PropertyDefinition, format string, authorable bool) ([]any, error) {
 	if len(def.Options) == 0 {
 		return nil, nil

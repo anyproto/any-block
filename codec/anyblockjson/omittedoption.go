@@ -21,29 +21,58 @@ package anyblockjson
 // §2f); and its stored `orderId` is a lexid, which never travels on any
 // kind (§3) — position is what carries order.
 //
-// UNCONDITIONAL, like the profile page beside it and unlike the fail-closed
-// space/widget omissions — and, like the profile page, on a census rather
-// than on an assertion. The app's create path (objectcreator's
-// createRelationOption) sets exactly eight details, every one of them
-// accounted for:
+// UNCONDITIONAL, like the profile page beside it — but REPORTED, which is
+// what the space and widget omissions get from failing closed. An option
+// carrying a detail this file cannot account for is still omitted, and
+// UnaccountedOptionDetails names what went with it so the composer can raise
+// an Issue (§1.7: an omission that loses something is a bug here, not a
+// reason to fail a user's export, and not a thing to hide either).
+//
+// Fail-closed is the wrong instrument for this one kind. A kept option needs
+// a home, and giving it one puts `options/` back in the layout for the sake
+// of a detail no reader of the format acts on — the directory this ruling
+// removed (§15 #21).
+//
+// An earlier revision made the omission unconditional on the strength of a
+// census of the app's own create path (objectcreator's
+// createRelationOption), which sets `name`, `relationOptionColor`,
+// `relationKey`, `uniqueKey`, `orderId`, `createdDate`, `layout` and
+// `apiObjectKey`. That census is true and does not support the rule: the
+// predicate governs EVERY option snapshot in every space, and the writer
+// admits any bundled property the snapshot carries — an option minted by
+// the IMPORTER arrives with `origin`, `importType` and `addedDate` on it,
+// and its document carried all three. "Nothing richer can appear" was a
+// statement about one constructor, applied to every producer.
+//
+// What replaces it is not a longer list but the same classification the
+// installed-relation omission runs (RelationInstallArtifactKey), which
+// already weighed each of those keys against real corpus documents and
+// which fails closed by construction. Accounted for here:
 //
 //	name, relationOptionColor      the entry states both
 //	relationKey                    the entry IS the owning property's
 //	uniqueKey                      the entry's internal_key
 //	orderId                        array position (§2f); a lexid never
 //	                               travels on any kind (§3)
-//	createdDate                    re-minted by a restore, as for every
-//	                               omitted document
-//	layout, resolvedLayout         derived from the kind
-//	apiObjectKey                   regenerated from the name (measured:
-//	                               all 514 real option api keys reproduce)
+//	id, type and the stripped set  never travel in any document
+//	creator, lastModifiedBy        attribution on an option records who ran
+//	                               the import, not who authored the option
+//	the install-artifact set       createdDate, layout, resolvedLayout,
+//	                               apiObjectKey, origin, addedDate,
+//	                               importType and the rest, each with its
+//	                               own verdict in omittedrelation.go
 //
-// Nothing sets isArchived, isFavorite, a description, an icon or a cover on
-// an option — the kind has no editor to set them from. And a REMOVED option
-// never reaches this predicate: RelationListRemoveOption deletes the object,
-// which marks the tree deleted and drops it from the store index the export
-// collection queries, and the exporter skips a deleted object besides. So
-// there is no "richer than expected" case for a fail-closed rule to catch.
+// What that set deliberately does NOT admit is reported rather than
+// classified, on the verdict it already reached for the same keys on a
+// relation: `isUninstalled` (the user REMOVED it), `isFavorite` and
+// `isArchived` (user intent). An option has no editor to set them from, so
+// where they appear at all they arrive with an import — and the report says
+// so per option rather than this file guessing.
+//
+// A REMOVED option never reaches this predicate at all:
+// RelationListRemoveOption deletes the object, which marks the tree deleted
+// and drops it from the store index the export collection queries, and the
+// exporter skips a deleted object besides.
 //
 // The composer lifts the vocabulary as it observes the omission
 // (bundle.Composer), and reports an Issue for an option it cannot lift.
@@ -55,6 +84,8 @@ package anyblockjson
 // COMPOSITION (§13): no bundle this module writes contains one.
 
 import (
+	"sort"
+
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
@@ -63,4 +94,53 @@ import (
 // vocabulary entry instead (§2f, §15 #21).
 func OmittedRelationOption(sbType model.SmartBlockType) bool {
 	return sbType == model.SmartBlockType_STRelationOption
+}
+
+// UnaccountedOptionDetails names the stored details of one option snapshot
+// that neither its dictionary entry carries nor this format drops anyway —
+// what omitting the document actually costs, per option. Sorted, and empty
+// for an ordinary option, which is the case the corpus is made of.
+//
+// The classification is the installed-relation omission's own
+// (RelationInstallArtifactKey), which weighed each install and import key
+// against real corpus documents; reusing it rather than restating it is what
+// keeps this file from drifting into a second opinion about the same keys.
+//
+// The caller raises an Issue naming these. That is the whole difference
+// between this omission and a silent one: an option arriving from a producer
+// this format has not met carries its surprise into the report instead of
+// into the void.
+func UnaccountedOptionDetails(base *model.SmartBlockSnapshotBase) []string {
+	if base == nil {
+		return nil
+	}
+	var out []string
+	stripped := strippedDetailKeys()
+	for key := range base.GetDetails().GetFields() {
+		switch {
+		case optionEntryDetailKeys[key]:
+			// the entry states it, or the array position does
+		case isAttributionProperty(key), stripped[key]:
+			// never travels as a stored value; see the same arms in
+			// OmittedBundledRelation
+		case RelationInstallArtifactKey(key):
+			// install or import machinery, re-stamped; each key's verdict
+			// is recorded beside that predicate
+		default:
+			out = append(out, key)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// optionEntryDetailKeys are the details a dictionary entry carries, so that
+// omitting the document loses nothing: the option's meaning and its place.
+var optionEntryDetailKeys = map[string]bool{
+	"name":                true,
+	"relationOptionColor": true,
+	"relationKey":         true,
+	"uniqueKey":           true,
+	// the lexid the array position replaces (§2f, §3)
+	"orderId": true,
 }
