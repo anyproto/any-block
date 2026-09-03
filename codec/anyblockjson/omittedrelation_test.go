@@ -229,3 +229,149 @@ func TestOmittedBundledRelation_UninstalledCopyOmits(t *testing.T) {
 		assert.False(t, OmittedUninstallStamp("isUninstalled", nil))
 	})
 }
+
+// A relation document is never written, on any path (§2f, §15 #23): the
+// dictionary entry states the definition, and the kind alone decides — the
+// same unconditional shape as OmittedRelationOption. OmittedBundledRelation
+// keeps its job beside it, which is a different question: whether the
+// omitted copy travels as an `installed` key or as a full entry.
+func TestOmittedRelation(t *testing.T) {
+	assert.True(t, OmittedRelation(model.SmartBlockType_STRelation))
+	assert.True(t, OmittedRelation(model.SmartBlockType_BundledRelation))
+	assert.False(t, OmittedRelation(model.SmartBlockType_STRelationOption), "an option has its own predicate")
+	assert.False(t, OmittedRelation(model.SmartBlockType_Page))
+}
+
+// mintedRelationSnapshot is a space-minted property as the app's create path
+// stores it, plus the details every stored object carries: the definition
+// members, the install-time stamps, attribution and the internal set.
+func mintedRelationSnapshot(extra map[string]*types.Value, blocks ...*model.Block) *model.SmartBlockSnapshotBase {
+	str := func(s string) *types.Value { return &types.Value{Kind: &types.Value_StringValue{StringValue: s}} }
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	boolean := func(b bool) *types.Value { return &types.Value{Kind: &types.Value_BoolValue{BoolValue: b}} }
+	det := map[string]*types.Value{
+		"id": str("bafyrel"), "spaceId": str("space1"), "type": str("bafyreltype"),
+		"relationKey": str("67e31405450a5dcab2fa75aa"), "uniqueKey": str("rel-67e31405450a5dcab2fa75aa"),
+		"name": str("Budget"), "description": str("Planned spend"),
+		"relationFormat":   num(float64(model.RelationFormat_number)),
+		"relationMaxCount": num(0), "relationReadonlyValue": boolean(false), "isHidden": boolean(false),
+		"relationFormatObjectTypes": {Kind: &types.Value_ListValue{ListValue: &types.ListValue{}}},
+		"layout":                    num(float64(model.ObjectType_relation)), "resolvedLayout": num(float64(model.ObjectType_relation)),
+		"createdDate": num(1700000000), "lastModifiedDate": num(1700000001),
+		"creator": str("AAjEidentity"), "lastModifiedBy": str("AAjEidentity"),
+		"apiObjectKey": str("budget"), "origin": num(0),
+	}
+	for k, v := range extra {
+		det[k] = v
+	}
+	return &model.SmartBlockSnapshotBase{Details: &types.Struct{Fields: det}, Blocks: blocks}
+}
+
+// What omitting a relation document costs, per snapshot — the report the
+// composer raises instead of failing closed, since the omission is
+// unconditional (§2f, §15 #23). The classification is the installed-copy
+// omission's own: the definition members the entry states, the install
+// artifacts the next install re-stamps, attribution and the internal set
+// that never travel, `isUninstalled` and `isHidden` which the entry now
+// carries. Everything else is named — and the BLOCKS are named, because a
+// property page's blocks are the one thing a document could carry that
+// nothing else can.
+//
+// How this can fail: justify the omission from the create path's detail set
+// (an importer-minted property carries `origin`, `importType`, `addedDate`,
+// and nothing says they went); classify `isFavorite`/`isArchived` too (the
+// report goes quiet on the one case it exists for); read an alien-kinded
+// definition member through a coercing getter (the entry states an empty
+// name and nobody is told); or stop looking at blocks (a dataview on a
+// property page vanishes without a word).
+func TestUnaccountedRelationDetails(t *testing.T) {
+	str := func(s string) *types.Value { return &types.Value{Kind: &types.Value_StringValue{StringValue: s}} }
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	boolean := func(b bool) *types.Value { return &types.Value{Kind: &types.Value_BoolValue{BoolValue: b}} }
+	scaffolding := []*model.Block{
+		{Id: "r", Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
+		{Id: "l", Content: &model.BlockContentOfLayout{Layout: &model.BlockContentLayout{}}},
+		{Id: "f", Content: &model.BlockContentOfFeaturedRelations{FeaturedRelations: &model.BlockContentFeaturedRelations{}}},
+		{Id: "t", Content: &model.BlockContentOfText{Text: &model.BlockContentText{Text: "Budget", Style: model.BlockContentText_Title}}},
+		{Id: "d", Content: &model.BlockContentOfText{Text: &model.BlockContentText{Text: "Planned spend", Style: model.BlockContentText_Description}}},
+	}
+	for name, tc := range map[string]struct {
+		base *model.SmartBlockSnapshotBase
+		want []string
+	}{
+		"an ordinary space-minted property reports nothing": {
+			base: mintedRelationSnapshot(nil, scaffolding...),
+		},
+		"an importer-minted property is an ordinary property": {
+			base: mintedRelationSnapshot(map[string]*types.Value{
+				"origin": num(3), "importType": num(0), "addedDate": num(1690000000),
+			}),
+		},
+		"an installed copy's provenance reports nothing": {
+			base: installedCopySnapshot(t, "dueDate", Options{}),
+		},
+		"hidden is stated by the entry": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isHidden": boolean(true)}),
+		},
+		"the removal is stated by the entry, and the reinstall stamp is absent-equivalent": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isUninstalled": boolean(true)}),
+		},
+		"a false removal stamp too": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isUninstalled": boolean(false)}),
+		},
+		"a stored null definition member is absent-equivalent": {
+			base: mintedRelationSnapshot(map[string]*types.Value{
+				"relationFormatIncludeTime": {Kind: &types.Value_NullValue{}},
+				"relationDefaultValue":      {Kind: &types.Value_NullValue{}},
+			}),
+		},
+		"a default value of any kind is the entry's": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"relationDefaultValue": num(42)}),
+		},
+		"user intent on the page is named": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isFavorite": boolean(true), "isArchived": boolean(true)}),
+			want: []string{"isArchived", "isFavorite"},
+		},
+		"an unvetted key is named": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"somethingNobodyVetted": str("x")}),
+			want: []string{"somethingNobodyVetted"},
+		},
+		"an alien-kinded definition member is named, not coerced": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"name": num(7), "isHidden": str("true")}),
+			want: []string{"isHidden (stored as string)", "name (stored as number)"},
+		},
+		"an alien-kinded removal flag is named": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isUninstalled": str("true")}),
+			want: []string{"isUninstalled (stored as string)"},
+		},
+		"a dataview block is named": {
+			base: mintedRelationSnapshot(nil, append(scaffolding,
+				&model.Block{Id: "dv", Content: &model.BlockContentOfDataview{Dataview: &model.BlockContentDataview{}}})...),
+			want: []string{`block "dv" (dataview)`},
+		},
+		"free text is named": {
+			base: mintedRelationSnapshot(nil, &model.Block{Id: "p", Content: &model.BlockContentOfText{
+				Text: &model.BlockContentText{Text: "notes", Style: model.BlockContentText_Paragraph}}}),
+			want: []string{`block "p" (text)`},
+		},
+		"a nil block is named": {
+			base: mintedRelationSnapshot(nil, nil),
+			want: []string{"block #0 (nil)"},
+		},
+		"details and blocks together, sorted": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isFavorite": boolean(true), "zzz": str("x")},
+				&model.Block{Id: "b", Content: &model.BlockContentOfBookmark{Bookmark: &model.BlockContentBookmark{}}}),
+			want: []string{`block "b" (bookmark)`, "isFavorite", "zzz"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := UnaccountedRelationDetails(tc.base)
+			if tc.want == nil {
+				assert.Empty(t, got)
+				return
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
+	assert.Nil(t, UnaccountedRelationDetails(nil))
+}

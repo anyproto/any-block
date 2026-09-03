@@ -168,15 +168,19 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 		if string(raw) == "false" {
 			continue
 		}
-		assert.Truef(t, m == "object_types" || m == "uninstalled",
-			"dictionaryEntry restates %q — its layer holds the one narrowing and the one dictionary-owned member only", m)
+		assert.Truef(t, m == "object_types" || m == "uninstalled" || m == "hidden",
+			"dictionaryEntry restates %q — its layer holds the one narrowing and the two dictionary-owned members only", m)
 	}
 	var objSchema struct {
 		Defs map[string]schemaNode `json:"$defs"`
 	}
 	require.NoError(t, json.Unmarshal(schemaJSON, &objSchema))
-	_, shared := objSchema.Defs["propertyDefinition"].Properties["uninstalled"]
-	assert.False(t, shared, "`uninstalled` is the dictionary's own member, not a shared one: on the shared shape the other two homes would admit it")
+	for _, owned := range []string{"uninstalled", "hidden"} {
+		_, onEntry := entry.Properties[owned]
+		assert.Truef(t, onEntry, "`%s` is a member of the dictionary entry's own layer (§2f)", owned)
+		_, shared := objSchema.Defs["propertyDefinition"].Properties[owned]
+		assert.Falsef(t, shared, "`%s` is the dictionary's own member, not a shared one: on the shared shape the other two homes would admit it", owned)
+	}
 	// `format` alone is required outright: self-sufficiency (§2f) means an
 	// entry states what the property holds. Identity is required through
 	// anyOf instead — a key, OR a `name` the spelling derives from — because

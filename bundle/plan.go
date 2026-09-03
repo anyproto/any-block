@@ -23,17 +23,17 @@ import (
 // blobs that are themselves .json files, so bare .json cannot be one.
 const DocExtension = ".anyblock.json"
 
-// The kind directories of the bundle layout (design §1.2, settled Q1):
+// The five kind directories of the bundle layout (design §1.2, settled Q1):
 // format vocabulary, snake_case, one word each — never the store's
 // `relations`/`relationsOptions` spellings, since the format promised the
 // word "relation" appears nowhere a reader looks first. There is no
-// `options/`: a bundle carries no option documents — the property
-// dictionary states every select vocabulary inline (§2f, §15 #21).
+// `properties/` and no `options/`: a bundle carries no property document
+// and no option document — the property dictionary states every property
+// something references, its select vocabulary inline (§2f, §15 #21, #23).
 const (
 	DirObjects      = "objects"
 	DirTypes        = "types"
 	DirTemplates    = "templates"
-	DirProperties   = "properties"
 	DirParticipants = "participants"
 	DirFiles        = "files"
 )
@@ -125,18 +125,16 @@ func (p *Plan) BlobPath(id string) (string, bool) {
 // KindDirectory maps a document's smartblock type onto its kind directory
 // (design §1.2). Everything without a dedicated home — pages, the rare
 // fail-closed widget or workspace document an omission predicate refuses —
-// lands flat in objects/. A relation option falls into that default too,
-// and the planned name simply goes unused: the omission is unconditional
-// (§2f, §15 #21), and a plan stays a pure per-document function of the id
-// rather than growing an emit-time exception.
+// lands flat in objects/. A relation and a relation option fall into that
+// default too, and the planned name simply goes unused: both omissions are
+// unconditional (§2f, §15 #21, #23), and a plan stays a pure per-document
+// function of the id rather than growing an emit-time exception.
 func KindDirectory(sbType model.SmartBlockType) string {
 	switch sbType {
 	case model.SmartBlockType_STType, model.SmartBlockType_BundledObjectType:
 		return DirTypes
 	case model.SmartBlockType_Template, model.SmartBlockType_BundledTemplate:
 		return DirTemplates
-	case model.SmartBlockType_STRelation, model.SmartBlockType_BundledRelation:
-		return DirProperties
 	case model.SmartBlockType_Participant:
 		return DirParticipants
 	case model.SmartBlockType_File, model.SmartBlockType_FileObject:

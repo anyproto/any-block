@@ -32,9 +32,10 @@ func TestBuildPlan_PathsAreAPureFunctionOfTheId(t *testing.T) {
 		{Id: "bafypage", SbType: model.SmartBlockType_Page},
 		{Id: "bafytype", SbType: model.SmartBlockType_STType},
 		{Id: "bafytmpl", SbType: model.SmartBlockType_Template},
+		// a relation and an option have no dedicated home and their planned
+		// names go unused: the bundle carries no property document and no
+		// option document (§2f, §15 #21, #23)
 		{Id: "bafyrel", SbType: model.SmartBlockType_STRelation},
-		// an option has no dedicated home and its planned name goes unused:
-		// the bundle carries no option documents (§2f, §15 #21)
 		{Id: "bafyopt", SbType: model.SmartBlockType_STRelationOption},
 		{Id: "AAjEparticipant", SbType: model.SmartBlockType_Participant},
 		{Id: "bafyfile", SbType: model.SmartBlockType_FileObject, FileExt: "png", FileMime: "image/png"},
@@ -48,7 +49,7 @@ func TestBuildPlan_PathsAreAPureFunctionOfTheId(t *testing.T) {
 		"bafypage":        "objects/bafypage.anyblock.json",
 		"bafytype":        "types/bafytype.anyblock.json",
 		"bafytmpl":        "templates/bafytmpl.anyblock.json",
-		"bafyrel":         "properties/bafyrel.anyblock.json",
+		"bafyrel":         "objects/bafyrel.anyblock.json",
 		"bafyopt":         "objects/bafyopt.anyblock.json",
 		"AAjEparticipant": "participants/AAjEparticipant.anyblock.json",
 		"bafyfile":        "files/bafyfile.anyblock.json",

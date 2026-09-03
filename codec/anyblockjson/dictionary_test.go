@@ -429,3 +429,73 @@ func TestPropertyDictionary_UninstalledEntry(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// An entry may state `hidden: true` — the store hid the property from every
+// listing (stored `isHidden`), and with no property document left in a
+// bundle (§15 #23) the entry is the only place the fact can travel. Mirrors
+// `uninstalled` exactly: dictionary-owned, refused by the shape's other two
+// homes and by the authoring subset, written `true` only. It is distinct
+// from a type declaration's `section`, which says where a property sits on
+// ONE type; `hidden` says whether the property is shown at all.
+//
+// How this can fail: leave the member off the schema's dictionaryEntry (the
+// round trip is refused on read); write it from the shared member renderer
+// (a type declaration starts carrying a flag it cannot act on); or read it
+// through the shared builder (the PATCH-type channel starts hiding
+// properties).
+func TestPropertyDictionary_HiddenEntry(t *testing.T) {
+	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
+		in := &PropertyDictionary{
+			Properties: []PropertyDefinition{
+				{Key: "6a32d4856761631534b22f85", Name: "Chat counter", Format: model.RelationFormat_number, Hidden: true},
+				{Key: "693c14f2aa11631534b22f01", Name: "Budget", Format: model.RelationFormat_number},
+			},
+		}
+		data, err := MarshalPropertyDictionary(in, Options{})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"hidden": true`)
+		assert.Equal(t, 1, strings.Count(string(data), "hidden"), "a false flag is not written")
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		data2, err := MarshalPropertyDictionary(got, Options{})
+		require.NoError(t, err)
+		assert.Equal(t, string(data), string(data2))
+		byKey := map[domain.RelationKey]PropertyDefinition{}
+		for _, def := range got.Properties {
+			byKey[def.Key] = def
+		}
+		assert.True(t, byKey["6a32d4856761631534b22f85"].Hidden)
+		assert.False(t, byKey["693c14f2aa11631534b22f01"].Hidden)
+	})
+	t.Run("beside uninstalled on one entry", func(t *testing.T) {
+		data, err := MarshalPropertyDictionary(&PropertyDictionary{
+			Properties: []PropertyDefinition{{Key: "6a32d4856761631534b22f85", Name: "Gone", Format: model.RelationFormat_number, Hidden: true, Uninstalled: true}},
+		}, Options{})
+		require.NoError(t, err)
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		require.Len(t, got.Properties, 1)
+		assert.True(t, got.Properties[0].Hidden)
+		assert.True(t, got.Properties[0].Uninstalled)
+	})
+	t.Run("a non-boolean is refused", func(t *testing.T) {
+		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"property":"Due date","format":"date","hidden":"yes"}]}`), Options{})
+		require.Error(t, err)
+	})
+	t.Run("the other two homes refuse it", func(t *testing.T) {
+		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
+			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","hidden":true}]}}`)
+		require.Error(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
+		relDoc := []byte(`{"formatVersion":"2.0","id":"r1","kind":"property","type":"Property",
+			"internal_key":"dueDate","property_settings":{"format":"date","hidden":true}}`)
+		require.Error(t, Validate(relDoc, Options{}), "a property document's property_settings")
+	})
+	t.Run("the authoring subset does not admit it", func(t *testing.T) {
+		// an author declares a property to use it; hiding it is a store
+		// fact the export records, like internal_key
+		err := ValidateAuthoringPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"name":"Streak","format":"number","hidden":true}]}`))
+		require.Error(t, err)
+	})
+}

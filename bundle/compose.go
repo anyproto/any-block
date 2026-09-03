@@ -60,8 +60,9 @@ type Stats struct {
 	DictionaryInstalled int
 	// DictionaryUninstalled counts the entries carrying `uninstalled` —
 	// properties the user removed from the space, which the bundle states
-	// as entries and never as installed keys (§2f, §15 #22). Each is also
-	// counted in DictionaryEntries.
+	// as entries and never as installed keys (§2f, §15 #22), when
+	// something references them (§15 #23). Each is also counted in
+	// DictionaryEntries.
 	DictionaryUninstalled int
 	DictionaryEntries     int
 	ManifestTypes         int
@@ -132,22 +133,21 @@ type Composer struct {
 	opts      anyblockjson.Options
 	spaceName string
 
+	// installed are the bundled keys whose copies this space holds and did
+	// not remove — the dictionary's `installed` list. A copy the user
+	// REMOVED (stored `isUninstalled` true, §2f, §15 #22) is never here:
+	// listing the key would reinstall what the user removed, and its entry
+	// carries the removal instead.
 	installed map[string]bool
-	// uninstalled are the property keys the user REMOVED from the space
-	// (stored `isUninstalled` true, §2f, §15 #22). Each travels as a
-	// dictionary entry carrying `uninstalled` and is never listed in
-	// `installed`, whether its document is omitted (a bundled-identical
-	// copy), kept (a divergent copy) or never omittable (a space-minted
-	// property): listing the key would reinstall what the user removed,
-	// and the entry is the only bundle-level place the removal can live.
-	uninstalled map[string]bool
-	// entries the space's own documents define: a KEPT bundled-key relation
-	// document (divergent from the table, or carrying something only a
-	// document can) contributes its stored definition, so the dictionary
-	// states the divergence the `installed` list alone would paper over;
-	// and every uninstalled property contributes one, the table's
-	// definition for an omitted copy and the stored one for a kept
-	// document, so the flag has an entry to travel on
+	// entries are the definitions the space's own relation snapshots state,
+	// keyed by stored key — one per relation the emit observed, since no
+	// relation document is written (§15 #23) and the snapshot is the only
+	// source the dictionary has for a space-minted property, a divergent
+	// installed copy, or a removed one. The table's definition stands in
+	// for a bundled-identical copy the user removed. Finish writes the
+	// entries something references, plus a divergent installed copy's
+	// whether or not anything does: `installed` makes a claim, and the
+	// entry is what corrects it.
 	entries map[string]anyblockjson.PropertyDefinition
 
 	typePaths map[string]string
@@ -172,16 +172,6 @@ type Composer struct {
 	// commutativity. An identical repeat is now collapsed and a conflicting
 	// one an Issue.
 	seenOptions map[optionIdentity]anyblockjson.OptionDefinition
-	// definedByDocument are the property keys whose OWN relation document
-	// this bundle writes. Such a property travels, so its vocabulary has to
-	// travel with it — but the document does not make its own key `used`:
-	// a root `internal_key` is not a slot spelling, so the byte census
-	// never sees it (§2f, "what counts as a reference"). Without this set
-	// the used-only rule dropped the vocabulary of every space-minted
-	// select property that no object had been tagged with yet, and with no
-	// option documents left to carry it, the property came back with an
-	// empty dropdown.
-	definedByDocument map[string]bool
 
 	// used is the referenced-key census the dictionary's used-only rule
 	// needs (§2f), gathered from each document's marshalled bytes as it is
@@ -221,15 +211,12 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 		opts:         opts,
 		spaceName:    spaceName,
 		installed:    map[string]bool{},
-		uninstalled:  map[string]bool{},
 		entries:      map[string]anyblockjson.PropertyDefinition{},
 		typePaths:    map[string]string{},
 		filePaths:    map[string]string{},
 		optionsByKey: map[string][]storedOption{},
 		seenOptions:  map[optionIdentity]anyblockjson.OptionDefinition{},
 		used:         map[string]bool{},
-
-		definedByDocument: map[string]bool{},
 		spaceSettings: spaceSettingsCandidates{
 			names:        map[string]struct{}{},
 			descriptions: map[string]struct{}{},
@@ -317,16 +304,19 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 		}
 		return true, issues
 	}
+	// a relation document is never written (§2f, §15 #23). An installed
+	// copy field-identical to the bundled table travels as one key in
+	// `installed`, and the trip a reader takes INSTEAD — key → the bundled
+	// table — is verified here through the same comparator as every
+	// ordinary round trip. A copy the user REMOVED omits the same way but
+	// travels as an entry carrying `uninstalled`, verified against the
+	// reconstruction that restates the mark — a reader that recreates the
+	// entry writes exactly that (§15 #22). That entry is the table's
+	// definition, as an installed key's reconstruction is: the predicate
+	// admitted the copy as identical.
 	if key, ok := anyblockjson.OmittedBundledRelation(sbType, base, c.opts); ok {
-		// a copy the user REMOVED omits too, but travels as an entry
-		// carrying `uninstalled` rather than as an installed key, and is
-		// verified against the reconstruction that restates the mark — a
-		// reader that recreates the entry writes exactly that (§2f, §15
-		// #22). The entry is the table's definition, as an installed key's
-		// reconstruction is: the predicate admitted the copy as identical.
 		var det *types.Struct
 		if anyblockjson.UninstalledRelation(base) {
-			c.uninstalled[key] = true
 			def, _ := bundledDefinition(key) // the predicate matched the table on this key
 			def.Uninstalled = true
 			c.entries[key] = def
@@ -346,38 +336,55 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 		}
 		return true, issues
 	}
-	if det := base.GetDetails().GetFields(); det != nil &&
-		(sbType == model.SmartBlockType_STRelation || sbType == model.SmartBlockType_BundledRelation) {
-		key := det["relationKey"].GetStringValue()
-		uninstalled := anyblockjson.UninstalledRelation(base)
-		switch {
-		case key == "":
-		case vocabulary.HasRelation(domain.RelationKey(key)):
-			// installed but not omittable: the document stays, and the
-			// dictionary carries its stored definition as the full entry
-			// the §2f divergence rule requires — under `installed` unless
-			// the user removed it, in which case the entry says so and the
-			// list must not
-			if uninstalled {
-				c.uninstalled[key] = true
-			} else {
-				c.installed[key] = true
-			}
-			def := storedRelationDefinition(base, c.opts)
-			def.Uninstalled = uninstalled
-			c.entries[key] = def
-		case uninstalled:
-			// a space-minted property gets an entry only when something
-			// references it — or when the user removed it, which nothing
-			// references by construction and which the bundle still owes a
-			// bundle-level statement of (§2f)
-			c.uninstalled[key] = true
-			def := storedRelationDefinition(base, c.opts)
-			def.Uninstalled = true
-			c.entries[key] = def
-		}
+	// every other relation — a divergent installed copy, a space-minted
+	// property — is omitted too, and its stored definition is what the
+	// dictionary entry states, when Finish writes one. There is no
+	// reconstruction to verify: the omission is unconditional, so what the
+	// entry cannot state is reported instead, the option omission's rule.
+	if anyblockjson.OmittedRelation(sbType) {
+		return true, c.observeRelation(base)
 	}
 	return false, nil
+}
+
+// observeRelation records one omitted relation snapshot's contribution to
+// the dictionary (§2f, §15 #23): its stored definition, `hidden` and
+// `uninstalled` included, under its stored key; and the key's place in
+// `installed` — a bundled key the user did not remove — since a divergent
+// copy is installed even though its entry, not the table, says what it is.
+// Whether the entry is WRITTEN is Finish's question: something must
+// reference the key, or `installed` must be claiming it. Called with the
+// composer's mutex held.
+//
+// A snapshot that states no key contributes nothing the dictionary can
+// carry, and with no document travelling either it would vanish without a
+// trace — that is one loss this omission can produce, and it is reported.
+// The other is a detail or a block the entry cannot state
+// (UnaccountedRelationDetails): named per snapshot, the difference between
+// this omission and a silent one.
+func (c *Composer) observeRelation(base *model.SmartBlockSnapshotBase) []Issue {
+	det := base.GetDetails().GetFields()
+	key := det["relationKey"].GetStringValue()
+	if key == "" {
+		return []Issue{{Category: IssueOmittedReconstruction,
+			Detail: fmt.Sprintf("relation %q states no key; the dictionary cannot carry it",
+				det["id"].GetStringValue())}}
+	}
+	def := storedRelationDefinition(base, c.opts)
+	def.Uninstalled = anyblockjson.UninstalledRelation(base)
+	if vocabulary.HasRelation(domain.RelationKey(key)) && !def.Uninstalled {
+		// installed but divergent from the table: the list claims the key
+		// and the entry corrects the claim, referenced or not (Finish); a
+		// removed copy is never listed, and its entry says why (§15 #22)
+		c.installed[key] = true
+	}
+	c.entries[key] = def
+	if extra := anyblockjson.UnaccountedRelationDetails(base); len(extra) > 0 {
+		return []Issue{{Category: IssueOmittedReconstruction,
+			Detail: fmt.Sprintf("relation %q (property %q) carries %s, which its dictionary entry does not state",
+				det["id"].GetStringValue(), key, strings.Join(extra, ", "))}}
+	}
+	return nil
 }
 
 // ObserveWritten records one emitted document: its place for the manifest —
@@ -405,12 +412,6 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 	case model.SmartBlockType_STType, model.SmartBlockType_BundledObjectType:
 		if key := storedInternalKey(base, "ot-"); key != "" {
 			c.typePaths[key] = path
-		}
-	case model.SmartBlockType_STRelation, model.SmartBlockType_BundledRelation:
-		// this bundle DEFINES the property, so its vocabulary travels with
-		// it even if nothing references the key (see definedByDocument)
-		if key := det["relationKey"].GetStringValue(); key != "" {
-			c.definedByDocument[key] = true
 		}
 	}
 	return nil
@@ -574,27 +575,19 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	}
 
 	// the dictionary names every property the documents actually reference
-	// (§2f, used-only): the space's own definitions first (divergent
-	// installed copies, space-minted relation documents keep their files but
-	// the dictionary still answers for every USED key), then the resolver,
-	// then the bundled table. A key none of them can define — an orphan
-	// detail no relation object describes — is reported, not invented.
+	// (§2f, used-only): the space's own definitions first — the relation
+	// snapshots the emit observed, none of which is a document any more
+	// (§15 #23) — then the resolver, then the bundled table. A key none of
+	// them can define — an orphan detail no relation object describes — is
+	// reported, not invented. A property nothing references is not exported
+	// at all, removed or hidden or not: nothing names the key, so there is
+	// no value to explain and no format to look up, and that is not a loss
+	// to report. The one exemption is the divergent installed copy, and it
+	// is an exemption for the claim `installed` makes rather than for the
+	// property: the entry is what corrects the claim.
 	entries := map[string]anyblockjson.PropertyDefinition{}
 	for key, def := range c.entries {
-		switch {
-		case c.used[key]:
-			entries[key] = def
-		case c.installed[key]:
-			// a divergent installed copy is an entry whether or not
-			// anything uses it: `installed` would otherwise restore the
-			// table's shape over the divergence
-			entries[key] = def
-		case c.uninstalled[key]:
-			// an uninstalled property is an entry whether or not anything
-			// uses it — and nothing does, by construction: the user removed
-			// it. The entry is the only bundle-level place the removal
-			// lives, so the used-only rule exempts it the way it exempts
-			// the divergent copy above (§2f, §15 #22).
+		if c.used[key] || c.installed[key] {
 			entries[key] = def
 		}
 	}
@@ -623,33 +616,37 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// and an entry this loop does not write states it nowhere.
 	var unusedOptionKeys, refusedOptions []string
 	for key, stored := range c.optionsByKey {
-		_, haveEntry := entries[key]
-		if !c.used[key] && !haveEntry && !c.definedByDocument[key] {
+		def, haveEntry := entries[key]
+		if !haveEntry {
+			// no entry, no vehicle. Either nothing references the key —
 			// §2f is used-only, and §15 #21 settled that the rule governs
-			// here too: a bundle does not state a vocabulary for a property
-			// none of its documents reference and none of them defines.
-			// Reported, not silent (§11).
-			unusedOptionKeys = append(unusedOptionKeys, key)
+			// here too: a bundle does not state a vocabulary for a
+			// property it does not carry; reported, not silent (§11) — or
+			// the key is an orphan, already named above, and the
+			// vocabulary goes with it.
+			if !c.used[key] {
+				unusedOptionKeys = append(unusedOptionKeys, key)
+			}
 			stats.OptionsDropped += len(stored)
 			continue
 		}
-		// An entry that exists for another reason keeps its vocabulary
-		// whether or not the key is referenced, because the entry IS the
-		// vehicle and writing it without the options would drop the
-		// vocabulary while the property travels. That holds for a property
-		// whose own relation document this bundle writes too, and it is the
-		// commoner case by far: every property a user creates is
-		// space-minted, its definition travels in `properties/`, and its
-		// key appears in no slot until some object is tagged with it. The
-		// used-only rule dropped exactly those vocabularies — a tag
-		// property configured but not yet used came back empty — and since
-		// §15 #21 there is no option document left to carry it.
-		// in the order the app shows them, which is the option picker's own
-		// subscription sort: `orderId` ascending, then `createdDate`
-		// descending (the client's optionSelect listing). The array IS the
-		// order (§2f) and no option document carries a lexid any more
-		// (§15 #21), so this comparator is the whole of what a restore can
-		// reproduce — it is worth matching the listing exactly.
+		// An entry that exists keeps its vocabulary whether or not the key
+		// is referenced — the divergent installed copy's is there for the
+		// `installed` claim's sake — because the entry IS the vehicle and
+		// writing it without the options would drop the vocabulary while
+		// the property travels. The commonest vocabulary to reach this loop
+		// is a space-minted property's, and since §15 #23 its entry comes
+		// from the observed snapshot: a tag property added to a type and
+		// not yet applied to anything is referenced by the type's own
+		// declaration (§2f), which is how a configured-but-unused
+		// vocabulary reaches a bundle.
+		//
+		// Written in the order the app shows them, which is the option
+		// picker's own subscription sort: `orderId` ascending, then
+		// `createdDate` descending (the client's optionSelect listing). The
+		// array IS the order (§2f) and no option document carries a lexid
+		// any more (§15 #21), so this comparator is the whole of what a
+		// restore can reproduce — it is worth matching the listing exactly.
 		//
 		// Two consequences are easy to get backwards, and an earlier
 		// revision got both:
@@ -687,19 +684,6 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		for _, so := range stored {
 			opts = append(opts, so.def)
 		}
-		def := entries[key]
-		if !haveEntry {
-			if resolved, ok := resolvedDefinition(key, c.opts); ok {
-				def = resolved
-			} else if bundled, ok := bundledDefinition(key); ok {
-				def = bundled
-			} else {
-				// nothing can say what this property is; §2f reports the
-				// key as an orphan, and the vocabulary goes with it
-				stats.OptionsDropped += len(stored)
-				continue
-			}
-		}
 		// A vocabulary the dictionary writer refuses would fail
 		// MarshalPropertyDictionary below, and that error returns no
 		// index.json and no properties.json at all: one property whose
@@ -727,15 +711,8 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 			opts = kept
 		}
 		if len(opts) == 0 {
-			// Nothing left to state. An entry that already existed keeps
-			// its place — the property is referenced and the dictionary
-			// owes a definition for it either way — but a key that reached
-			// this loop only because the bundle DEFINES it gets no entry:
-			// the vocabulary was the whole reason to write one, and the
-			// relation document states the rest.
-			if haveEntry {
-				entries[key] = def
-			}
+			// nothing left to state; the entry keeps its place, since the
+			// dictionary owes a definition for the property either way
 			continue
 		}
 		def.Options = opts
@@ -812,7 +789,7 @@ func (c *Composer) hasSemanticState() bool {
 	return c.written != 0 ||
 		(c.observedSpaceSettings && c.spaceName != "") ||
 		c.spaceSettings.hasValues() ||
-		len(c.installed) != 0 || len(c.uninstalled) != 0 || len(c.entries) != 0 || len(c.used) != 0 ||
+		len(c.installed) != 0 || len(c.entries) != 0 || len(c.used) != 0 ||
 		len(c.typePaths) != 0 || len(c.filePaths) != 0 || len(c.optionsByKey) != 0 ||
 		idx.Name != "" || idx.Description != "" || idx.Icon != nil || idx.Entrypoint != "" || idx.Homepage != "" ||
 		len(idx.Widgets) != 0 || len(idx.AutoWidgetTargets) != 0 || idx.AutoWidgetDisabled
@@ -939,9 +916,13 @@ type storedOption struct {
 	def anyblockjson.OptionDefinition
 }
 
-// storedRelationDefinition reads the definition a kept relation document
-// states, off its stored details — the §2f full entry for a divergent
-// installed copy. Members mirror what the document itself would carry.
+// storedRelationDefinition reads the definition a relation snapshot states,
+// off its stored details — the §2f full entry for a space-minted property
+// or a divergent installed copy, now that no relation document is written
+// (§15 #23). Members mirror what a property document would have carried,
+// plus `hidden`, which only the entry can carry. Read through coercing
+// getters: a member stored under an alien kind is named by
+// UnaccountedRelationDetails rather than guessed at here.
 func storedRelationDefinition(base *model.SmartBlockSnapshotBase, opts anyblockjson.Options) anyblockjson.PropertyDefinition {
 	det := base.GetDetails().GetFields()
 	def := anyblockjson.PropertyDefinition{
@@ -951,11 +932,17 @@ func storedRelationDefinition(base *model.SmartBlockSnapshotBase, opts anyblockj
 		Description: det["description"].GetStringValue(),
 		MaxCount:    int64(det["relationMaxCount"].GetNumberValue()),
 		Readonly:    det["relationReadonlyValue"].GetBoolValue(),
+		Hidden:      det["isHidden"].GetBoolValue(),
 	}
 	if v := det["relationFormatIncludeTime"]; v != nil {
-		if _, isBool := v.GetKind().(*types.Value_BoolValue); isBool {
+		switch v.GetKind().(type) {
+		case *types.Value_BoolValue:
 			b := v.GetBoolValue()
 			def.IncludeTime = &b
+		case *types.Value_NullValue:
+			// presence mirrors presence for this member (§2d): a stored
+			// null travels as an explicit null
+			def.IncludeTimeSet = true
 		}
 	}
 	if v := det["relationDefaultValue"]; v != nil {

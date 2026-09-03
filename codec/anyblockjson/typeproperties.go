@@ -87,6 +87,15 @@ type PropertyDefinition struct {
 	// say nothing, and both refuse it, the way the dictionary refuses
 	// `section`.
 	Uninstalled bool
+	// Hidden records that the store hides this property from every listing
+	// (stored `isHidden` true). With no property document in a bundle
+	// (§15 #23) the dictionary entry is the only place the fact can travel,
+	// so it is the entry's own member exactly as Uninstalled is — refused
+	// on the shape's other two homes and by the authoring subset, written
+	// `true` only. It is distinct from a type declaration's Section, which
+	// says where a property sits on ONE type; Hidden says whether the
+	// property is shown at all.
+	Hidden bool
 }
 
 // OptionDefinition is one entry of a declared select vocabulary (§2a). Color
@@ -340,6 +349,9 @@ type TypeProperty struct {
 	// type-owned one; each home's schema refuses the other's before this
 	// decode runs (§2f).
 	Uninstalled bool `json:"uninstalled"`
+	// Hidden is the dictionary's second owned member (§2f, §15 #23), on the
+	// same footing as Uninstalled.
+	Hidden bool `json:"hidden"`
 }
 
 // UnmarshalJSON preserves two facts encoding/json otherwise collapses:

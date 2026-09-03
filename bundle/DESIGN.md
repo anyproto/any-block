@@ -104,7 +104,7 @@ Four phases, two of them new relative to today's exporter:
 |---|---|---|
 | **collect** | as today | dependency closure over the request: nested objects, dataview-referenced objects, types, relations, options, templates, linked files, recommended relations (`processProtobuf`, export.go:610). Extracted behind a format-agnostic interface; the bare `isProtobuf bool` (export.go:503-504) becomes an explicit closure mode. Output: `map[id]*Doc`, complete before anything is written. |
 | **plan** | single-threaded | classify every collected doc (kind → directory, §1.2), compute every filename (§1.3 — a pure per-document function of the id, no collision machinery), and pre-build the manifest type-path table (stored type keys come from the `uniqueKey` detail). **Plan reads details only — id, name, type/layout, uniqueKey — never content**; that invariant is what keeps it O(collected details) in memory and free of object loads (§1.6). Cheap: map passes over details already in memory, no store reads, no marshal. |
-| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:151, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy lands in `installed` or as an `uninstalled` entry, SPEC §15 #22), plus `OmittedRelationOption` (omittedoption.go:95), which needs only the smartblock type and so COULD run at plan time but deliberately does not — the omission is unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedOptionDetails` (omittedoption.go:113) on the same snapshot, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (installed keys, dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
+| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:197, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy lands in `installed` or as an `uninstalled` entry, SPEC §15 #22), plus `OmittedRelation` (omittedrelation.go:270) and `OmittedRelationOption` (omittedoption.go:98), which need only the smartblock type and so COULD run at plan time but deliberately do not — both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (omittedrelation.go:293) and `UnaccountedOptionDetails` (omittedoption.go:116) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (installed keys, dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
 | **finish** | single-threaded, at the `postProcess` seam (export.go:1529) | compose and write `properties.json` and `index.json` (with manifest), re-reading both through the package's own `Unmarshal` before writing — the bundle-level I1 discipline the harness already practices (cmd/anyblockroundtrip/main.go:983-1012). |
 
 The composer is a production re-home of the harness's `spaceComposer`
@@ -153,17 +153,15 @@ Proposed layout, one bundle root per space:
                         human-readable mode, §1.3)
   types/              — kind: object_type
   templates/          — kind: template
-  properties/         — kind: property — only the KEPT documents: divergent
-                        installed copies (a rename, a changed is_hidden, a
-                        page carrying a dataview or free text) and
-                        space-minted properties. A bundled-identical copy
-                        is omitted into the dictionary's `installed` list,
-                        and one the user REMOVED into an entry carrying
-                        `uninstalled` — a removal is a flag on the entry,
-                        never a reason to keep the document (SPEC §2f,
-                        §15 #22). There is NO options/: a bundle carries no option
-                        documents at all, and the property dictionary states
-                        every select vocabulary inline on the entry of the
+                        There is NO properties/ and NO options/: a bundle
+                        carries no property document and no option document
+                        at all. A bundled-identical copy is omitted into the
+                        dictionary's `installed` list; every other property
+                        something references is a full dictionary entry —
+                        `uninstalled` and `hidden` on the entry — and a
+                        property nothing references is not exported (SPEC
+                        §2f, §15 #22, #23). The dictionary states every
+                        select vocabulary inline on the entry of the
                         property that owns it, order as array position
                         (SPEC §2f, §15 #21)
   participants/       — kind: participant
@@ -173,13 +171,13 @@ Proposed layout, one bundle root per space:
 
 Rationale, against the legacy names (export.go:96-103):
 
-- **Format vocabulary, not store vocabulary.** `relations` →
-  `properties/`, matching the kind the documents themselves declare
-  (`kind: "property"`). The format's own vocabulary never says "relation"
-  (PRINCIPLES rule 3); the directory a reader sees first should keep that
-  rule too. Legacy `relationsOptions` has no successor at all: it was to
-  have become `options/`, and then the option documents went (SPEC §15
-  #21), so the rename question answered itself.
+- **Format vocabulary, not store vocabulary.** The format's own
+  vocabulary never says "relation" (PRINCIPLES rule 3); the directory a
+  reader sees first should keep that rule too. Legacy `relations` and
+  `relationsOptions` have no successors at all: they were to have become
+  `properties/` and `options/`, and then the option documents went (SPEC
+  §15 #21) and the property documents after them (§15 #23), so the rename
+  question answered itself twice.
 - **snake_case / single words.** `filesObjects` and `relationsOptions` are
   camelCase compounds in an archive whose every document member is
   snake_case. All proposed names are single lowercase words, sidestepping
@@ -192,13 +190,14 @@ Rationale, against the legacy names (export.go:96-103):
   legacy `filesObjects`/`files` split, which forced a human to correlate
   two directories by id.
 - **Kind counts justify the split**: file_object 10,254 · page 9,688 ·
-  participant 2,492 · object_type 1,760 · property 1,215 · template 491
-  across the corpus — 25,900 documents across six directories, plus the one
-  fail-closed widget in `objects/`. Every proposed directory earns its
-  place in a real account; none is speculative. The same corpus held 2,641
-  `property_option` objects, which is why an `options/` was proposed and
-  why its removal is worth stating: not one of them is a document any more
-  (SPEC §15 #21).
+  participant 2,492 · object_type 1,760 · template 491 across the corpus
+  — 24,685 documents across five directories, plus the one fail-closed
+  widget in `objects/`. Every proposed directory earns its place in a real
+  account; none is speculative. The same corpus held 1,215 `property`
+  documents and 2,641 `property_option` objects, which is why `properties/`
+  and `options/` were proposed and why their removal is worth stating: not
+  one of either is a document any more (SPEC §15 #21, #23) — the
+  dictionary states what a bundle carries of both.
 - **No `profile` file.** The raw-protobuf `profile` is an install artifact
   of the `ObjectImportExperience` path and is written by `cmd/anyblockconvert`
   when preparing an installable experience (SPEC §2c "How it reaches the
@@ -224,15 +223,15 @@ collisions; the per-space root is load-bearing, not cosmetic.
 **The kind-split tension, resolved.** With id filenames (§1.3), id→path is
 a pure function only WITHIN a directory; a reference does not say which
 kind its target is, so resolving an arbitrary id against this layout is a
-probe over the six kind directories. Position taken: **the bounded probe
+probe over the five kind directories. Position taken: **the bounded probe
 is acceptable, and the rule is stated plainly** — "a document is
-`<dir>/<id>.anyblock.json` for exactly one of the six directories; to
-resolve an id, check them in order". The probe constant is 6, fixed by this
+`<dir>/<id>.anyblock.json` for exactly one of the five directories; to
+resolve an id, check them in order". The probe constant is 5, fixed by this
 design, independent of space size. In practice it is not even a probe: a
 zip reader holds the archive's entire central directory in memory, so
 resolving any path is one map hit regardless of folders; on a filesystem it
-is at most 6 stats, and any reader resolving many references builds a full
-id→path map in one walk (6 readdirs) — which it must be able to do ANYWAY,
+is at most 5 stats, and any reader resolving many references builds a full
+id→path map in one walk (5 readdirs) — which it must be able to do ANYWAY,
 because the layout is one exporter's convention (SPEC §2c) and an
 authored bundle may put its documents anywhere, so a general reader walks
 and indexes regardless (`DiscoverJSONFiles`,
@@ -652,10 +651,13 @@ close-after-write is design, not optimization.
   exporter writes that the package refuses is this exporter's bug, found
   at export time.
 - **Omissions are lifts, never drops**: the space-settings document, the
-  widget object, and matching bundled-relation documents are omitted only
-  through the package predicates, whose lift-before-omit ordering and
-  reconstruction checks (`WidgetsSnapshot` verified via `snapshotdiff`,
-  main.go:786-800) come along unchanged.
+  widget object, every relation document and every option document are
+  omitted only through the package predicates, whose lift-before-omit
+  ordering and reconstruction checks (`WidgetsSnapshot` verified via
+  `snapshotdiff`, main.go:786-800; the `installed` key's trip verified the
+  same way) come along unchanged — and where an omission is unconditional
+  and has no reconstruction, its report (`UnaccountedRelationDetails`,
+  `UnaccountedOptionDetails`) is what stands in for failing closed.
 - **Deterministic bytes end to end**: same space state ⇒ same file set,
   same names, same bytes per file. This is a testable property and should
   be a test: export twice, compare trees.
@@ -677,7 +679,7 @@ makes id→path a total pure function with no kind probe at all, and with
 id filenames the kind directories' human value is thin anyway (opaque
 names in legible folders). Declined, not killed: the kind split was
 approved (Q1), it still separates blobs from documents and keeps kind
-tallies visible when debugging, the 6-directory probe it costs is bounded
+tallies visible when debugging, the 5-directory probe it costs is bounded
 and free in practice (§1.2, the zip central directory), and — because no
 reader dispatches on paths — collapsing to flat later is a convention
 change, not a format change. Per-object folders (one directory per
@@ -759,10 +761,11 @@ alternative, and the reasoning that decided it. Q4-Q6 and Q8-Q11 were
 settled during implementation; Q7 intentionally remains a product decision.
 
 **Q1. Directory names — SETTLED: approved as proposed, `objects/` flat.**
-The set `objects/ types/ templates/ properties/ participants/ files/`
-stands (§1.2), `properties/` beside `properties.json` included. It was
-approved with an `options/` seventh; that one went when option documents
-did (SPEC §15 #21), which changes the set and nothing about this answer.
+The set `objects/ types/ templates/ participants/ files/` stands (§1.2).
+It was approved with a `properties/` beside `properties.json` and an
+`options/` seventh; those went when option documents did (SPEC §15 #21)
+and property documents after them (§15 #23), which changes the set and
+nothing about this answer.
 The human added one ruling the proposal had left implicit: **`objects/`
 stays FLAT by default** — no type subdirectories. Type grouping belongs
 exclusively to the later human-readable mode (§1.3, Q3), and when that

@@ -226,6 +226,7 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 		// the type-document door never sees the member (its schema refuses
 		// it), and the PATCH channel has no removal to state
 		def.Uninstalled = tp.Uninstalled
+		def.Hidden = tp.Hidden
 		d.Properties = append(d.Properties, def)
 	}
 	return d, nil
@@ -650,14 +651,20 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	if err := renderPropertyDefinitionMembers(m, def, targets, false); err != nil {
 		return nil, err
 	}
-	// the dictionary's own member, written here rather than by the shared
-	// renderer so that the shape's other two homes cannot emit it: on a
-	// type's declaration it would describe nothing (§2f). True only — a
+	// the dictionary's own members, written here rather than by the shared
+	// renderer so that the shape's other two homes cannot emit them: on a
+	// type's declaration each would describe nothing (§2f). True only — a
 	// false flag is the absent form, the omit-default canon for a flag
 	// that is not a property value.
 	m.setNonEmpty(memberUninstalled, def.Uninstalled)
+	m.setNonEmpty(memberHidden, def.Hidden)
 	return m, nil
 }
 
 // memberUninstalled is the dictionary entry's removal flag (§2f).
 const memberUninstalled = "uninstalled"
+
+// memberHidden is the dictionary entry's hidden flag (§2f, §15 #23): the
+// store's `isHidden`, which since a bundle carries no property document
+// has no other place to travel.
+const memberHidden = "hidden"

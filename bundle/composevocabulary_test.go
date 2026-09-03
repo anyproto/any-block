@@ -159,7 +159,7 @@ func TestComposerKeepsVocabularyOnDivergentInstalledEntryAndReportsTheDrop(t *te
 	divergent := testInstalledCopy(t, "tag")
 	divergent.Details.Fields["name"] = strVal("Labels")
 	omitted, _ := c.Observe(model.SmartBlockType_STRelation, divergent)
-	require.False(t, omitted, "a renamed installed copy keeps its document and earns a full entry")
+	require.True(t, omitted, "a renamed installed copy is omitted like every relation document, and earns a full entry (§15 #23)")
 
 	for _, opt := range []*model.SmartBlockSnapshotBase{
 		optionSnapshot("bafyurgent", "tag", "urgent", "red", "bbbb2222"),
@@ -199,64 +199,84 @@ func TestComposerKeepsVocabularyOnDivergentInstalledEntryAndReportsTheDrop(t *te
 	assert.Empty(t, stats.OrphanUsedKeys)
 }
 
-// A property the bundle DEFINES keeps its vocabulary, whether or not any
-// document references its key. Every property a user creates is
-// space-minted: its definition travels as a document in `properties/`, and
-// until some object is tagged with it, its key appears in no slot at all —
-// a root `internal_key` is not a slot spelling, so the byte census never
-// sees it. The used-only rule therefore dropped exactly these vocabularies,
-// and since §15 #21 there is no option document left to carry them: "set up
-// a tag property, export before tagging anything" came back with an empty
-// dropdown.
+// A property referenced only by a TYPE keeps its entry and its vocabulary:
+// that is how a configured-but-unused tag property actually reaches a
+// bundle. Every property a user creates is space-minted, and until some
+// object is tagged with it the only slot that names its key is the type it
+// was added to — a `type_settings.property_definitions[]` entry, which the
+// census counts (§2f). No relation document is written for it (§15 #23), so
+// the composer's observation of the relation snapshot is the entry's
+// source, and the omitted option snapshots are the vocabulary's.
 //
-// How this can fail: gate the options loop on the byte census and the
-// installed-divergence entries alone (the property travels, its vocabulary
-// does not, and only Stats.UnusedOptionKeys — which no consumer reads —
-// says so).
-func TestComposerKeepsVocabularyOfAPropertyTheBundleDefines(t *testing.T) {
-	minted := anyblockjson.PropertyDefinition{
-		Key: "67e31405450a5dcab2fa75aa", Name: "Chat category", Format: model.RelationFormat_status,
-	}
-	c := NewComposer(anyblockjson.Options{
-		ResolveProperties: composerPropertyResolver{def: minted},
-	}, "Chat")
-
-	for _, name := range []string{"news", "fav"} {
-		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
-			optionSnapshot("bafy"+name, string(minted.Key), name, "grey", "k_"+name))
-		require.True(t, omitted)
+// The counterpart matters as much: with no type naming it, the same
+// property is not exported at all — no entry, no `installed` mention, no
+// Issue — because nothing in the bundle needs its format. Its options go
+// with it, named in Stats.UnusedOptionKeys as every dropped vocabulary is.
+//
+// How this can fail: gate the options loop on the root `properties` maps
+// alone (a type's declaration is not counted and the vocabulary is dropped
+// as unused); source the entry from the resolver instead of the observed
+// snapshot (the store's `isHidden` never reaches the entry, and this
+// resolver-less composition writes no entry at all); or keep a
+// defined-by-document exemption (the unreferenced property comes back with
+// an entry nothing needs).
+func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
+	const key = "67e31405450a5dcab2fa75aa"
+	build := func(t *testing.T) *Composer {
+		c := NewComposer(anyblockjson.Options{}, "Chat")
+		for _, name := range []string{"news", "fav"} {
+			omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
+				optionSnapshot("bafy"+name, key, name, "grey", "k_"+name))
+			require.True(t, omitted)
+			require.Empty(t, issues)
+		}
+		rel := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
+			"id": strVal("bafyrel"), "relationKey": strVal(key), "name": strVal("Chat category"),
+			"relationFormat": numVal(float64(model.RelationFormat_status)), "isHidden": boolVal(true),
+		})}
+		omitted, issues := c.Observe(model.SmartBlockType_STRelation, rel)
+		require.True(t, omitted, "no relation document is written (§15 #23)")
 		require.Empty(t, issues)
+		return c
 	}
+	t.Run("referenced by a type's property_definitions", func(t *testing.T) {
+		c := build(t)
+		typeSnap := &model.SmartBlockSnapshotBase{Key: "ritual", Details: detFields(map[string]*types.Value{"id": strVal("bafyritual")})}
+		doc := []byte(`{"formatVersion":"2.0","kind":"object_type","id":"bafyritual","internal_key":"ritual",
+			"type_settings":{"property_definitions":[{"internal_key":"` + key + `","name":"Chat category","format":"select"}]}}`)
+		used, err := UsedPropertyKeysFromBytes(doc)
+		require.NoError(t, err)
+		require.Contains(t, used, key, "a type's declaration is a reference (§2f)")
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnap, doc, "types/bafyritual.anyblock.json"))
 
-	// the property's own relation document — and nothing else in the bundle
-	rel := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
-		"id": strVal("bafyrel"), "relationKey": strVal(string(minted.Key)), "name": strVal("Chat category"),
-	})}
-	doc := []byte(`{"formatVersion":"2.0","kind":"property","id":"bafyrel",
-		"internal_key":"67e31405450a5dcab2fa75aa","property_settings":{"format":"select"},
-		"properties":{"Name":"Chat category"}}`)
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STRelation, rel, doc,
-		"properties/bafyrel.anyblock.json"))
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		dict, byKey := dictionaryByKey(t, dictData)
+		assert.Empty(t, dict.Installed)
+		require.Contains(t, byKey, key)
+		assert.Equal(t, "Chat category", byKey[key].Name, "the entry is the observed snapshot's definition")
+		assert.Equal(t, model.RelationFormat_status, byKey[key].Format)
+		assert.True(t, byKey[key].Hidden, "and the store's isHidden travels on it")
+		assert.Len(t, byKey[key].Options, 2, "the vocabulary travels with the property that owns it")
+		assert.Equal(t, 2, stats.OptionsLifted)
+		assert.Zero(t, stats.OptionsDropped)
+		assert.Empty(t, stats.UnusedOptionKeys)
+	})
+	t.Run("referenced by nothing", func(t *testing.T) {
+		c := build(t)
+		page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
+			[]byte(`{"formatVersion":"2.0","id":"bafyp","properties":{"Name":"Untagged"}}`), "objects/bafyp.anyblock.json"))
 
-	used, err := UsedPropertyKeysFromBytes(doc)
-	require.NoError(t, err)
-	require.NotContains(t, used, string(minted.Key),
-		"a relation document does not reference its own key: that is why the census cannot be the only gate")
-
-	_, dictData, stats, err := c.Finish()
-	require.NoError(t, err)
-	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
-	require.NoError(t, err)
-	byKey := map[string]anyblockjson.PropertyDefinition{}
-	for _, def := range dict.Properties {
-		byKey[string(def.Key)] = def
-	}
-	require.Contains(t, byKey, string(minted.Key))
-	assert.Len(t, byKey[string(minted.Key)].Options, 2,
-		"the vocabulary travels with the property that owns it")
-	assert.Equal(t, 2, stats.OptionsLifted)
-	assert.Zero(t, stats.OptionsDropped)
-	assert.Empty(t, stats.UnusedOptionKeys)
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		dict, byKey := dictionaryByKey(t, dictData)
+		assert.NotContains(t, byKey, key, "nothing names the key: there is no value to explain and no format to look up")
+		assert.Empty(t, dict.Installed)
+		assert.Equal(t, []string{key}, stats.UnusedOptionKeys)
+		assert.Equal(t, 2, stats.OptionsDropped)
+		assert.Zero(t, stats.OptionsLifted)
+	})
 }
 
 // The array is the order (§2f), and since no option document carries a lexid
