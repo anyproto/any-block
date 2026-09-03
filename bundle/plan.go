@@ -26,13 +26,14 @@ const DocExtension = ".anyblock.json"
 // The kind directories of the bundle layout (design §1.2, settled Q1):
 // format vocabulary, snake_case, one word each — never the store's
 // `relations`/`relationsOptions` spellings, since the format promised the
-// word "relation" appears nowhere a reader looks first.
+// word "relation" appears nowhere a reader looks first. There is no
+// `options/`: a bundle carries no option documents — the property
+// dictionary states every select vocabulary inline (§2f, §15 #21).
 const (
 	DirObjects      = "objects"
 	DirTypes        = "types"
 	DirTemplates    = "templates"
 	DirProperties   = "properties"
-	DirOptions      = "options"
 	DirParticipants = "participants"
 	DirFiles        = "files"
 )
@@ -124,7 +125,10 @@ func (p *Plan) BlobPath(id string) (string, bool) {
 // KindDirectory maps a document's smartblock type onto its kind directory
 // (design §1.2). Everything without a dedicated home — pages, the rare
 // fail-closed widget or workspace document an omission predicate refuses —
-// lands flat in objects/.
+// lands flat in objects/. A relation option falls into that default too,
+// and the planned name simply goes unused: the omission is unconditional
+// (§2f, §15 #21), and a plan stays a pure per-document function of the id
+// rather than growing an emit-time exception.
 func KindDirectory(sbType model.SmartBlockType) string {
 	switch sbType {
 	case model.SmartBlockType_STType, model.SmartBlockType_BundledObjectType:
@@ -133,8 +137,6 @@ func KindDirectory(sbType model.SmartBlockType) string {
 		return DirTemplates
 	case model.SmartBlockType_STRelation, model.SmartBlockType_BundledRelation:
 		return DirProperties
-	case model.SmartBlockType_STRelationOption:
-		return DirOptions
 	case model.SmartBlockType_Participant:
 		return DirParticipants
 	case model.SmartBlockType_File, model.SmartBlockType_FileObject:

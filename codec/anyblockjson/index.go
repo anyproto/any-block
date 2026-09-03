@@ -286,14 +286,15 @@ type Widget struct {
 // dictionary (§2f), which answers for stored property keys the same way.
 // Paths are relative to the index file.
 //
-// It does NOT locate options, and that is deliberate. A manifest
-// exists to answer a lookup a reader would otherwise have to scan for, and
-// no reader has that lookup for an option: the dictionary states a
-// property's whole vocabulary inline — each option's name, colour, position
-// and, since the vocabulary learned `internal_key`, its stored key — so
-// everything an option MEANS is already in hand before any document is
-// opened. The map was 2,641 entries pointing at documents nothing needed to
-// read.
+// It does NOT locate options, and since §15 #21 there is nothing to locate:
+// a bundle carries no option documents at all. The map went first, on its
+// own reasoning — a manifest exists to answer a lookup a reader would
+// otherwise have to scan for, and no reader has that lookup for an option,
+// because the dictionary states a property's whole vocabulary inline: each
+// option's name, colour, position and, since the vocabulary learned
+// `internal_key`, its stored key. That everything an option MEANS is
+// already in hand before any document is opened is what let the documents
+// themselves go too.
 //
 // The `option_ids` legend keeps carrying option OBJECT ids, which is a
 // different job and unaffected: those are resolved against the importing

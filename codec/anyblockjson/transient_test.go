@@ -102,6 +102,10 @@ func TestTransientProperties_BundledVerdictPerKey(t *testing.T) {
 		"data":          false, // not a relation at all — the whole justification
 		"isNew":         false,
 		"layoutFormat":  false,
+		// bundled, and stripped by RULING rather than admission (§15 #21):
+		// a lexid is a source-space ordering coordinate, and this format
+		// carries order as array position where it matters
+		"orderId": true,
 		// the source space's live session: bundled every one, and stripped
 		// for a third reason again — they belong to the space a bundle came
 		// FROM, and three of them are secrets

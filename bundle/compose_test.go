@@ -114,10 +114,12 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 		"name": strVal("urgent"), "relationOptionColor": strVal("red"),
 		"uniqueKey": strVal("opt-abcd1234"),
 	})}
+	// An option is omitted unconditionally and its vocabulary is learned
+	// HERE, on the omission path — the dictionary entry is where the composer
+	// states a select vocabulary; a bundle carries no option document (§2f,
+	// §15 #21).
 	omitted, _ = c.Observe(model.SmartBlockType_STRelationOption, optSnap)
-	require.False(t, omitted)
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STRelationOption, optSnap,
-		[]byte(`{"formatVersion":"2.0"}`), "options/bafyurgent.anyblock.json"))
+	require.True(t, omitted, "a bundle carries no option documents")
 
 	pageSnap := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafypage"),
@@ -162,8 +164,8 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	assert.Equal(t, 1, stats.DictionaryInstalled)
 	assert.Equal(t, 1, stats.ManifestTypes)
 	assert.Equal(t, 1, stats.ManifestFiles)
-	assert.Equal(t, 1, stats.OptionDocs)
-	assert.Equal(t, 2, stats.OmittedDocs)
+	// three: the space document, the widget document, and the option
+	assert.Equal(t, 3, stats.OmittedDocs)
 	assert.Empty(t, stats.OrphanUsedKeys)
 }
 
@@ -290,9 +292,7 @@ func TestComposer_SameNamedOptionsHaveATotalOrder(t *testing.T) {
 		}
 		for _, snap := range twins {
 			omitted, _ := c.Observe(model.SmartBlockType_STRelationOption, snap)
-			require.False(t, omitted)
-			require.NoError(t, c.ObserveWritten(model.SmartBlockType_STRelationOption, snap,
-				[]byte(`{"formatVersion":"2.0"}`), "options/"+snap.Details.Fields["id"].GetStringValue()+".anyblock.json"))
+			require.True(t, omitted, "options are omitted; the vocabulary is learned on this path")
 		}
 		pageSnap := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafypage")})}
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, pageSnap,

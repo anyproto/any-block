@@ -411,8 +411,9 @@ could act on — unlike §2d's members, which are a property's definition and
 mirror presence exactly; the comparator reads the same rule through
 `DroppedEmptyTypeSetting` (§11).
 
-The type's REMAINING details (`name`, `description`, `is_hidden`,
-`order_id`, …) stay in `properties` under their stored keys (§3); its icon
+The type's REMAINING details (`name`, `description`, `is_hidden`, …) stay
+in `properties` under their stored keys (§3), `order_id` no longer among
+them for the reason below. Its icon
 is the envelope field every object has (§2b) — a type's icon is where the
 `icon` variant is overwhelmingly used, since all 1,530 objects in the corpus
 carrying an `iconName` are types. The four recommended-property id lists
@@ -440,9 +441,9 @@ type document's **own id** on 1,756 of 1,757, re-stamped by
 `WithForcedDetail` from the object's id on every init, so it is a function
 of the id rather than a fact about the type.
 
-Six candidates FAILED the admission test and stay in `properties`:
-`is_hidden` (cannot be proven install-only), `order_id` (the user's own
-ordering of types), `layout_width`/`layout_align` (the type object's own
+Six candidates FAILED the admission test, and five of them stay in
+`properties`: `is_hidden` (cannot be proven install-only),
+`layout_width`/`layout_align` (the type object's own
 page display, set by a person where non-zero), `featured_properties` —
 which means what this type OBJECT features, while `section: "featured"`
 means what objects OF this type feature: the two differ in 361 of 400
@@ -456,6 +457,24 @@ documents, **40 carry a local name the reviser would overwrite** (key
 `relation` is locally "Relation", bundled "Property") and 36 a local plural
 name. Dropping it reverts a user's rename on restore, silently.
 
+**`order_id` is the sixth, and it does not stay.** It failed the admission
+test for the reason the other five did — it carries something real: the
+user's own hand-ordering of types in the library, on 343 corpus type
+documents — and it was kept in `properties` for exactly that reason, until
+the ruling that took option documents out of a bundle settled the wider
+question the two share (§15 #21). The value is a **lexid**: a coordinate in
+the SOURCE space's private ordering, whose meaning lives entirely in the
+sibling lexids that stay home, which an author cannot compute and a reader
+cannot sort on without the whole set. This format exports no lexid on any
+kind. Where order matters it travels as ARRAY POSITION — which is how a
+select vocabulary states its own (§2f) — and a type library has no array to
+sit in, so the library ordering is the accepted loss of that ruling: a
+restored space keeps every type and re-orders them itself. The key joins
+`internalFlags` on the transient strip list (§3); export omits it on every
+kind and import drops it in silence. The overturned position — keep it on
+type documents as user intent — is recorded rather than deleted, §15 house
+style.
+
 `property_definitions` entry fields (canonical order):
 
 | Field | Type | Req | Notes |
@@ -464,7 +483,7 @@ name. Dropping it reverts a user's rename on restore, silently.
 | `internal_key` | string | no* | The property's STORED internal key, verbatim — never run through the §3 ladder, because a stored id is its own address and the bundled fold would rebind a slug-shaped one (`due_date` onto `dueDate`). Export writes it beside `property` for fidelity; an author never needs it, and cannot produce a correct one for a custom property (the app mints those — a bson id). *An entry must state an identity: `property`, or `internal_key`, or a `name` the spelling derives from; when both `property` and `internal_key` are present the spelling wins, and export writes an agreeing pair. A custom property whose entry states no `internal_key` gets a FRESH minted internal key from the import wiring's create path, the way the app mints one when a user creates a property — the spelling must not silently become the stored key. |
 | `name` | string | no | Display name. Import uses it only when the property must be **created**; an existing property keeps its own name. Every bundled key already exists, so a name given for one is inert — `{"property": "Description", "name": "Summary"}` renders as *Description*. Validation warns. If the label is the point, mint a custom key instead of reusing a bundled one. |
 | `format` | string | no | Property format (§3 names). Same import rule as `name`; a conflict with an existing property's format is an error at the wiring level (the package cannot see the space). |
-| `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** whenever the option declares no color, the object form otherwise — the same rule cells follow in §6.1. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`, which makes every select sort alphabetically (options order by `[orderId, name]`, `pkg/lib/database.BuildOrderMap`). Declaring them lets the wiring create each one up front with an order id. Every option needs one: the sort concatenates `orderId + name` before comparing, so an option missing an order id is compared by *name* against the others' order ids and lands arbitrarily — ahead of the whole vocabulary when its name sorts below the id alphabet, behind it otherwise. Names discovered from usage rather than declared are ordered after the declared ones. Only meaningful on `select`/`multi_select`; duplicate names are a validation error, across both forms. |
+| `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** whenever the option declares no color, the object form otherwise — the same rule cells follow in §6.1. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`, which makes every select sort alphabetically (options order by `[orderId, name]`, `pkg/lib/database.BuildOrderMap`). Declaring them lets the wiring create each one up front with an order id. The sort concatenates `orderId + name` before comparing, which is a deterministic fallback for vocabularies predating the order id rather than an ordering anyone chose: an option missing one is compared by *name* against the others' order ids and lands arbitrarily — ahead of the whole vocabulary when its name sorts below the id alphabet, behind it otherwise. A bundle does not reproduce that placement (§2f). Names discovered from usage rather than declared are ordered after the declared ones. The object form takes a third member, `internal_key` — the option's STORED key, which the app mints and an author never writes; export states it where the store holds one, and it is what lets a bundle STATE a vocabulary rather than describe it (§2f, where the dictionary entry states a vocabulary in this same member — the two entry shapes are the only places one is stated, since no option document carries it). Only meaningful on `select`/`multi_select`; duplicate names are a validation error, across both forms. |
 | `object_types` | string[] | no | The **type document spellings** an `objects`/`files` property may point at, in priority order — canonically display names, and a type-key slot like the envelope `type`. It speaks the one key vocabulary (§3), claims its spellings through the same type term ledger and owes the same `type_internal_keys` legend; import inverts each entry through the legend first, and a term the chain does not know passes through verbatim. Legacy derived slugs remain accepted input only. Empty means any object — an untargeted property will happily accept a random page as a task's assignee. Listing the built-in `participant` alongside a bundle's own people type is what makes the current-user filter value usable on that property (§6.2) while still allowing the seeded people as values; the client only offers it when the relation's targets include Participant. The wiring resolves each key to an id the way it resolves properties: a type the batch defines by the id its own document carries, a bundled type by its bundled url (`_ot<key>`). Only meaningful on `objects`/`files`. |
 | `description` | string | no | The property's own description (its relation object's `description` detail). Same import rule as `name`: read when the property is created, inert on an existing one. |
 | `include_time` | bool \| null | no | Whether a date property's values carry a time of day. Same import rule as `name`; meaningful on `date` only. |
@@ -832,14 +851,15 @@ document's bytes by guessing at a layout.
   exact stored key names itself, then the name table, then the fold). A
   reader inverting a document's own spelling still goes through that
   document's `type_internal_keys` legend first, as everywhere.
-  The manifest does NOT locate options. A manifest exists
-  to answer a lookup a reader would otherwise have to scan for, and no reader
-  has that lookup for an option: the dictionary states a property's whole
-  vocabulary inline — each option's name, color, position and, since the
-  vocabulary learned `internal_key`, its stored key (§2f) — so everything an
-  option MEANS is in hand before a single document is opened. The map was
-  2,641 entries across a 77-space export, pointing at documents nothing
-  needed to read.
+  The manifest does NOT locate options, and since §15 #21 there is nothing
+  to locate: a bundle carries no option documents at all. The map went
+  first, on its own reasoning — a manifest exists to answer a lookup a
+  reader would otherwise have to scan for, and no reader has that lookup
+  for an option, because the dictionary states a property's whole
+  vocabulary inline: each option's name, color, position and, since the
+  vocabulary learned `internal_key`, its stored key (§2f). That everything
+  an option MEANS is in hand before a single document is opened is also
+  what let the documents themselves go.
 
   `option_ids` is unaffected and does a different job: it carries option
   OBJECT ids, resolved against the IMPORTING space's live store so a value
@@ -900,8 +920,10 @@ because an authored bundle may put documents anywhere):
   any name-bearing filename would force a scan. The kind directories are
   `objects/` (kind `page`, flat — plus any kind without a dedicated home),
   `types/`, `templates/`, `properties/` (kept `property` documents only;
-  the rest are omitted into the dictionary, §2f), `options/`,
-  `participants/`, and `files/`.
+  the rest are omitted into the dictionary, §2f), `participants/`, and
+  `files/`. There is no `options/`: a select vocabulary is stated inline on
+  its property's dictionary entry, and no option document is written at all
+  (§2f, §15 #21).
 - `files/` holds both halves of a file, adjacent: the document at
   `files/<id>.anyblock.json`, the blob at `files/<id>.<ext>` with `<ext>`
   the stored `file_ext` lowercased and restricted to `[a-z0-9]{1,10}`,
@@ -1044,7 +1066,9 @@ another surface already owns are refused with the home named (`internal_key`
 is the envelope's — and `property`, the spelling, is refused with it: a
 property document is addressed by its stored key and its spelling is derived,
 never stated — `name` and `description` are `properties`', `options` are
-property_option documents), and `max_count`/`readonly`/`default_value` keep
+a property-definition entry's — the dictionary's (§2f) or a type's (§2a);
+a bundle carries no option document, so no third surface states a select
+vocabulary), and `max_count`/`readonly`/`default_value` keep
 travelling in `properties` under their stored keys until the dictionary
 lifts them — admitting a second spelling of any of those here would
 reintroduce exactly the duality this section removed.
@@ -1061,7 +1085,10 @@ rejects (§11), and a half that reads back fewer drops the definition.
 
 Two neighbouring kinds are deliberately outside the set. `property_option`,
 because an option document is a value rather than a property definition, so
-`format` there is an ordinary custom property key. And **`sub_object`,
+`format` there is an ordinary custom property key — outside for that reason
+alone, not because the kind went away: `property_option` is still a valid
+document kind that the per-object codec reads and writes, even though no
+bundle contains one (§2f, §15 #21). And **`sub_object`,
 because it is deprecated** — a kind being retired must not acquire a new
 obligation in a format about to freeze. Nothing observable turns on it (0
 corpus documents either way); what turns on it is not extending support to
@@ -1230,6 +1257,13 @@ belongs in the index because a manifest is what an index is).
     { "property": "693c14f2aa11631534b22f01",
       "internal_key": "693c14f2aa11631534b22f01", "name": "Owner", "format": "objects",
       "object_types": ["Space member"] },
+    { "property": "69c1b7d0e2f34a5b6c7d8e9f",
+      "internal_key": "69c1b7d0e2f34a5b6c7d8e9f", "name": "Status", "format": "select",
+      "options": [
+        { "name": "To do",       "color": "grey", "internal_key": "69c1b7d0e2f34a5b6c7d8e9f_To do" },
+        { "name": "In progress", "color": "blue", "internal_key": "69c1b7d0e2f34a5b6c7d8e9f_In progress" },
+        { "name": "Done",        "color": "lime", "internal_key": "69c1b7d0e2f34a5b6c7d8e9f_Done" }
+      ] },
     { "property": "Due date", "internal_key": "dueDate", "name": "End Date", "format": "date" }
   ]
 }
@@ -1267,6 +1301,95 @@ Two members:
   full — the dictionary is where an author declares a property without
   writing a relation document at all, in the same vocabulary as a type's
   `property_definitions` entry.
+
+**A select vocabulary is stated on a property-definition entry, and
+nowhere else.** A bundle carries no option documents — none, on any path
+(§15 #21) — so a `select`/`multi_select` property's vocabulary travels
+INLINE in the `options` member that §2e's one shape defines: on the
+dictionary entry of the property that owns it, which is the one the
+composer writes, or on a type's `property_definitions` entry for that
+property (§2a), which travels as the type document's own. The `Status`
+entry above is the whole of that property's vocabulary as the dictionary
+states it; there is no option file to correlate.
+
+An option entry carries three things and one more by where it sits:
+
+- **`name`** — what the option is called, and the only address a select
+  value ever spells (§3).
+- **`color`**, where the option has one, from the ten-name palette §2a
+  lists. Written on the option rather than in a parallel array, so
+  inserting or reordering one cannot shift it.
+- **`internal_key`** — the option's STORED key, verbatim, an id the app
+  MINTS and an author never writes; export states it only where the store
+  holds one. Its charset is whatever the store already holds, which for
+  options is wide: the app builds the key from the owning property's key
+  and the option's own NAME, so `…_C/C++` and `…_тогглы` are real keys, and
+  the rule on this slot is the same DENY rule the envelope's `internal_key`
+  carries — non-empty, no allowlist — for the same measured reason (§2).
+  Carrying it is what makes the entry a complete statement of the option
+  rather than a description of one.
+- **its ORDER, as array position** — see below.
+
+The bare string form stands for an option with neither a color nor a
+stored key, exactly as in a type's declaration (§2a): `"options": ["To do",
+"Done"]` is a vocabulary an author wrote, and the object form is what a
+space's own vocabulary exports to.
+
+**Order is ARRAY POSITION, and nothing else.** The array is written in the
+order the space shows — `Status` really reads To do → In progress → Done —
+and a reader restores that order by reading the array in order. The store
+sorts options by a lexid (`orderId`), and no lexid travels on any kind: it
+is a coordinate in the SOURCE space's private ordering, meaningless once
+its siblings stay home and uncomputable by an author (§3, §15 #21).
+Position is this format's spelling of order wherever order matters, and a
+vocabulary is where order matters most — it is the column order of a
+kanban.
+
+An option the store holds without an `orderId` — one discovered from a
+typed-in value rather than declared — is written last, by name. The app
+places such an option by comparing its NAME against the others' order ids
+(§2a), but that is a deterministic FALLBACK for vocabularies that predate
+the order id, not a position anyone chose, so reproducing it would carry an
+artifact of the id alphabet into the bundle. Writing them last is the
+healing choice: the array is the order, and an importer mints an order id
+for every entry from its position, so a vocabulary that relied on the
+fallback comes back with none of its members relying on it.
+
+**Used-only governs the vocabulary too.** `properties` holds the properties
+the bundle's documents actually reference, an option belongs to the entry
+of the property that owns it, and the composer writes no other surface
+that could carry one (a type document's own `property_definitions` entry
+is that document's, not the composer's) — so an option of a property NO
+document references has no entry to travel on and is not carried. That is
+the rule reading correctly rather than a gap in it: a bundle does not state
+a vocabulary for a property it does not carry. An entry that is present for
+another reason — a divergent installed copy, above — keeps its vocabulary
+whether or not anything references it: the entry is the vehicle, and it is
+there. The drop is reported, not silent: the composer names the properties
+whose vocabulary it left behind (`Stats.UnusedOptionKeys`, §11). §15 #21
+records the decision, and what it costs.
+
+**What counts as a reference.** Any slot that names a property — the
+codec's own census of where a document can spell one (§3, §2a, §5, §6.1,
+§6.2), not a list of the composer's own. Concretely: a `properties` member;
+a `type_settings.property_definitions[]` entry (§2e), by its `property`
+spelling or its stated `internal_key`; a property block's `property` (§5);
+a link block's shown `properties[]` (§5); a dataview's `properties[]`
+declarations (§6.2) and, on each of its views, `group_by`,
+`cover_property`, `end_property`, `columns[].property`, `sorts[].property`
+and `filters[].property`, nested filter groups included; every block
+position again inside a table cell (§6.1); and the properties a lifted
+widget names (§2c). A kanban's groups ARE its select vocabulary, a filter
+on a select pins option ids that resolve only against a vocabulary the
+dictionary states (§9a), and a column can be a document's only mention of
+a property — the schema lets a view refer to one the block's `properties[]`
+does not carry — so none of them is a display cache. The legend's own
+member names are not references: a legend binds spellings, it does not use
+one. Every spelling resolves through the §3 chain before it is counted, and
+the census runs on each document's bytes as they are written
+(`bundle.UsedPropertyKeysFromBytes`, over `anyblockjson.PropertyTermsOf`),
+so the composer, the bundle validator and the codec's `option_ids` check
+all read one population.
 
 **Precedence, when a property is described more than once.** The composition
 puts a property's definition in up to three places at once — a dictionary
@@ -1448,13 +1571,14 @@ rule — it is a rule with holes in it. Both had one.
   lowercase spelling. Any spelling that resolves to the name property
   satisfies it now; a type document with no name at all still fails.
 - **The subset refuses the app's own derived keys in `properties`.** The
-  schema's literal list still names the pre-raw-name spellings, and nine
+  schema's literal list still names the pre-raw-name spellings, and ten
   keys — `creator`, `createdDate`, `lastModifiedBy`, `lastModifiedDate`,
   `addedDate`, `revision`, `internalFlags`, `featuredRelations`,
-  `isArchived` — are exactly the ones the FULL format DROPS rather than
-  refuses, so nothing downstream caught them under a display-name spelling:
-  an author's value disappeared without a word where it used to be refused
-  at authoring time. Those nine are enforced on the resolved key. The
+  `isArchived`, `orderId` — are exactly the ones the FULL format DROPS
+  rather than refuses, so nothing downstream caught them under a
+  display-name spelling: an author's value disappeared without a word where
+  it used to be refused at authoring time. Those ten are enforced on the
+  resolved key. The
   `layout_align` narrowing (an alignment NAME, not the stored number) had
   the same defect and takes the same treatment.
 
@@ -2421,6 +2545,17 @@ app, and why nothing downstream of an import can act on it.
   destination's machinery determines its own — `fileIndexingStatus` carried
   ONE distinct value across all occurrences and, imported, told the
   destination's indexer the restored file needed no indexing.
+  **`orderId` is on this list for a different reason, stated because the
+  family name does not cover it**: it describes the object's PLACE rather
+  than the moment it was written, and it is stripped because the place is
+  spelled as a lexid — a coordinate in the source space's private ordering,
+  meaningless without the sibling lexids that stay home, and uncomputable
+  by an author. This format exports no lexid on any kind; where order
+  matters it travels as array position, as a select vocabulary's does
+  (§2f). It is the one entry here admitted by RULING (§15 #21) rather than
+  by the §15 #12 admission test, which it failed as real user intent —
+  and the type library's hand-ordering is what that ruling accepts losing
+  (§2a).
 - **Attribution keys** — `creator`, `lastModifiedBy` — name the member who
   wrote the object. Their stored VALUE is stripped like every other derived
   key; what export writes is the `<id>#<name>` spelling above, which no
@@ -4220,9 +4355,10 @@ defaults rather than a property's definition; and **a `defaultTemplateId`
 with a second entry keeps only its first**, with a warning — the member is
 the one default template, and 0 of 1,760 corpus documents carry more.
 
-The §2f dictionary adds one normalization, and it is a COMPOSITION rule
-rather than a document one — the per-document codec is untouched: **a
-bundled-identical relation document is not written at all**. Its key travels
+The §2f dictionary adds two normalizations, and both are COMPOSITION rules
+rather than document ones — the per-document codec is untouched by either.
+The first: **a bundled-identical relation document is not written at
+all**. Its key travels
 in the dictionary's `installed` list, and a reader reconstructs the object
 from its own bundled table, across which trip (a) the install artifacts —
 `createdDate`, `origin`, `addedDate`, `sourceObject`, `revision`,
@@ -4245,6 +4381,26 @@ individually against the 9,675 bundled-key relation documents; the verdicts
 live on `relationInstallArtifactKeys`, and the keys that FAILED
 (`isUninstalled`, `isFavorite`, `isArchived`, the bare `includeTime`) keep
 their documents.
+
+The second is unconditional, and has no reconstruction to verify: **an
+option document is not written at all** (§2f, §15 #21). Its name, color and
+stored key travel on the owning property's dictionary entry and its
+position in that entry's `options` array is its order; everything else the
+object held is deliberately not carried — its timestamps and attribution,
+re-minted by a restore exactly as every omitted document's are; its api
+key, which the app regenerates from the name; and its `orderId`, the lexid
+no kind exports. The predicate is `OmittedRelationOption` (§13), and unlike
+the bundled-relation and widget omissions it is not fail-closed: an option
+is not a page, the app gives the kind no editor, and its meaning is exactly
+the details the entry states, so there is no richer-than-expected case a
+kept document could rescue. Two losses remain, both stated rather than
+silent: an option whose snapshot names no owner property or no name has no
+entry to travel on and is REPORTED by the composer as an issue, and an
+option of a property the dictionary does not carry is dropped by the
+used-only rule (§2f) and REPORTED in the composer's `Stats` —
+`UnusedOptionKeys` names the properties, and `OptionsLifted` and
+`OptionsDropped` count every option the emit lifted or left behind, so
+nothing an option snapshot carried leaves the emit uncounted.
 
 Export emits `blocks` in pre-order with exact depths, so export can never
 produce a monotonicity violation and the flat shape does not disturb
@@ -4982,7 +5138,10 @@ that composes a bundle and the comparator that verifies one:
 which `installed` key), `InstalledRelationDetails` (the reconstruction a
 reader builds from that key), `RelationInstallArtifactKey` and
 `InstallStampedDefault` (the two movements the omission trip makes, which
-`snapshotdiff.Compare` reads rather than restates).
+`snapshotdiff.Compare` reads rather than restates), and
+`OmittedRelationOption` (this kind is never written as a document at all —
+the dictionary states its entry, §2f; it needs only the smartblock type,
+since the omission is unconditional).
 
 The DROP predicates of §9 and §11 are exported for the same reason — the
 comparator has to read the rule export applied, or a deliberate drop reads
@@ -5234,6 +5393,73 @@ being true.
   dataview block's `properties[]` and refused in a definition, in the same
   document — the §2e one-shape rule violated invisibly until measured.
 
+- **#21 Option documents vs the dictionary** — settled: **a bundle writes
+  no option document at all, and a select vocabulary is stated on a
+  property-definition entry — the dictionary's (§2f) or a type's (§2a) —
+  and nowhere else**. Every option the composer lifts travels inline on the
+  dictionary entry of the property that owns it — `name`, `color`, `internal_key`, and its
+  order as ARRAY POSITION. The `options/` kind directory is gone with them
+  (§2c).
+
+  What decided it is that nothing ever read those documents. The dictionary
+  already restated what an option MEANS, and had since it learned
+  `internal_key`: name, color, stored key and place, all in hand before a
+  single document is opened. The manifest never located them (§2c) — a
+  manifest answers a lookup a reader would otherwise scan for, and no
+  reader has that lookup for an option. And `option_ids`, the one member
+  that carries an option's OBJECT id, resolves against the IMPORTING
+  space's live store so a value survives a rename (§9a); it never resolved
+  against the bundle, so there was no reference into a bundled option
+  document to break. A 77-space export wrote 2,641 of them — that count is
+  the size of what the omission removes, never an argument for keeping it.
+
+  **The used-only rule governs here too**, which is the obstacle this item
+  was held open for. The dictionary carries the properties the bundle's
+  documents reference (§2f — and a reference is any slot that names a
+  property: a stored value, a type's declaration, a dataview's
+  declarations, `group_by`, columns, filters and sorts, not a stored value
+  alone), an option belongs to the entry of its owning property, and the
+  composer writes no other surface that could carry one — so an option of
+  a property no document references is dropped. The corpus figure, 175 of
+  2,641, was measured under the census as first written, which read stored
+  values and type declarations only; with the block slots counted it is an
+  upper bound and has not been re-measured. Settled as correct rather than
+  tolerated. It does not make sense to include an option for a property we
+  do not include, and once every referencing slot is counted that is
+  exactly what a dropped vocabulary belongs to — a property no document
+  declares, shows, groups by, filters or sorts on, or holds a value for;
+  the composer names each one (`Stats.UnusedOptionKeys`, §11). And the
+  alternative reading — the dictionary as the SPACE's schema rather than
+  the bundle's — is
+  exactly the change of meaning this item feared, and is not made.
+
+  **What is deliberately not carried**, beyond the entry: an option
+  object's timestamps and attribution, re-minted by a restore exactly as
+  for every other omitted document (§11); its **api key**, which the app
+  regenerates from the name — measured over a 77-space export, all 514 real
+  option api keys are reproduced by that rule (470 by the api slug, 44 by
+  the transliterate fallback), so not one of them would have survived a
+  rename anyway; and its `orderId`, a **lexid**, which no kind exports (§3)
+  because a coordinate in the source space's private ordering means nothing
+  outside that space. That last one is a ruling wider than options: it took
+  `order_id` off type documents too, and the library ordering it carried is
+  the accepted loss (§2a, and #17 under *Deferred* below).
+
+  **`kind: "property_option"` stays a valid document kind**, in the full
+  schema and nowhere else. What changed is bundle COMPOSITION, not the
+  document grammar: `Marshal` takes ONE snapshot of any smartblock type
+  (§13), `cmd/anyblock` converts an option snapshot in both directions, and
+  the enum mirrors the store's object kinds rather than the contents of a
+  bundle — it already names `widget`, `space_settings` and `profile_page`,
+  every one a kind a bundle omits into `index.json` or drops outright, and
+  `space_view` and `chat`, of which a 77-space export produced zero.
+  Striking it would force `Marshal` either to refuse a kind the store holds
+  or to emit a document its own `Validate` rejects, which is I1 (§11), and
+  would buy nothing: no bundle contains one either way. The authoring subset never admitted it and still does not — its
+  `kind` enum is `page`, `object_type`, `template` (§2g) — because an
+  author states a vocabulary on the property — a type's entry or the
+  dictionary's — which are the only ways to state one.
+
 ### Deferred past 2.0
 
 - **#14, the emptiness half** — deliberately not taken with the spelling:
@@ -5261,17 +5487,22 @@ being true.
   be a **suggestion, never a bind**.
 
 - **#17 `order_id` → `sort_position`** — deferred to 2.1, recorded here so
-  the deferral does not freeze in by omission. `order_id` survived the
-  §2a admission test because it carries the user's own ordering, but what
-  it carries is a lexid coupled to store internals — 946 documents carry
-  one (603 `relation_option`, 343 `object_type`), every value exactly four
-  characters, commonest `VVVV` — which an author cannot compute and a
-  reader cannot sort on without the whole set. `sort_position: 2` is the
-  right document spelling, the same move as `relation_format: 100` →
-  `format: "number"` (§2d), but its own attack pass is unresolved — what
-  import does when two entries claim one position, and whether export
-  renumbers densely or preserves gaps — so it does not go in under freeze
-  pressure. The store keeps its lexid either way.
+  the deferral does not freeze in by omission. `order_id` no longer travels
+  at all: it survived the §2a admission test as the user's own ordering,
+  and was then struck from every kind by §15 #21, because what it carries
+  is a lexid coupled to store internals — measured before the strike, 946
+  documents carried one (603 `relation_option`, 343 `object_type`), every
+  value exactly four characters, commonest `VVVV` — which an author cannot
+  compute and a reader cannot sort on without the whole set. So this item
+  is now an ADDITION into an empty slot rather than a rename.
+  `sort_position: 2` is still the right document spelling, the same move as
+  `relation_format: 100` → `format: "number"` (§2d), but its own attack
+  pass is unresolved — what import does when two entries claim one
+  position, and whether export renumbers densely or preserves gaps — so it
+  does not go in under freeze pressure. A select vocabulary needs it least:
+  its order is array position already (§2f). What waits on it is the type
+  library's hand-ordering, the loss §15 #21 accepted. The store keeps its
+  lexid either way.
 
 - **#19 `layout` and `resolved_layout` follow the featured list into
   deprecation** — follow-up. The type owns an instance's layout: the UI no
@@ -5302,20 +5533,6 @@ being true.
   in that mode and only that mode. The keys are absent because today's
   bundle is the FAT kind, not because a key can never appear in this
   format.
-
-- **#21 Option documents vs the dictionary** — follow-up, after the
-  freeze. A bundle writes 2,641 `kind: "relation_option"` documents the
-  dictionary nearly restates: since the dictionary learned `internal_key`,
-  option identity is settled, and the api key need not travel at all —
-  measured over a 77-space export, all 514 real option api keys are
-  reproduced by the app's own mint-from-name rule (470 by the api slug, 44
-  by the transliterate fallback), so not one survived a rename. The
-  obstacle is the used-only rule: 175 of the 2,641 options belong to
-  properties no document references, so dropping the documents today
-  silently loses those 175. The real question — should a dictionary state
-  a vocabulary nobody in this bundle uses — changes what the dictionary
-  MEANS (the properties the bundle exercises vs the space's schema), and
-  is not being decided under freeze pressure.
 
 ### Open
 

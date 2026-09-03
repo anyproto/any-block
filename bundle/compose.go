@@ -61,7 +61,6 @@ type Stats struct {
 	DictionaryEntries   int
 	ManifestTypes       int
 	ManifestFiles       int
-	OptionDocs          int
 	DictionaryBytes     int
 	IndexBytes          int
 	OmittedDocs         int
@@ -69,6 +68,21 @@ type Stats struct {
 	// anywhere — no relation object, not bundled — so the dictionary cannot
 	// state a format for them (§2f names every property it CAN).
 	OrphanUsedKeys []string
+	// OptionsLifted counts the option documents the emit omitted whose
+	// vocabulary the dictionary now states inline (§2f); OptionsDropped
+	// counts the ones it does not — their property has no dictionary entry
+	// to travel on, either because no document references it (the used-only
+	// rule; its keys are UnusedOptionKeys) or because nothing can define it
+	// (its key is in OrphanUsedKeys). Together they are the whole census of
+	// lifted options: nothing an option snapshot carried leaves the emit
+	// uncounted.
+	OptionsLifted  int
+	OptionsDropped int
+	// UnusedOptionKeys are property keys that own a lifted vocabulary but
+	// that no document references, so the used-only rule (§2f, §15 #21)
+	// dropped the vocabulary with the entry. Sorted. This is the second of
+	// the two losses §11 states rather than hides.
+	UnusedOptionKeys []string
 }
 
 // Composer accumulates, across one bundle's emit, everything the two
@@ -96,12 +110,12 @@ type Composer struct {
 	// states the divergence the `installed` list alone would paper over
 	entries map[string]anyblockjson.PropertyDefinition
 
-	typePaths   map[string]string
-	filePaths   map[string]string
-	optionPaths map[string]string
+	typePaths map[string]string
+	filePaths map[string]string
 	// optionsByKey is the select vocabulary each property actually has in
-	// this space, gathered from the option documents so the dictionary can
-	// state it inline (§2f). Keyed by STORED property key, and held with the
+	// this space, gathered from the omitted option snapshots — a bundle
+	// carries no option documents (§2f, §15 #21) — so the dictionary can
+	// state it inline. Keyed by STORED property key, and held with the
 	// stored `orderId` so the inline array can be written in the order the
 	// space actually shows.
 	optionsByKey map[string][]storedOption
@@ -147,7 +161,6 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 		entries:      map[string]anyblockjson.PropertyDefinition{},
 		typePaths:    map[string]string{},
 		filePaths:    map[string]string{},
-		optionPaths:  map[string]string{},
 		optionsByKey: map[string][]storedOption{},
 		used:         map[string]bool{},
 		spaceSettings: spaceSettingsCandidates{
@@ -198,6 +211,19 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 	// someone else's name, dragged in by an import (§2c)
 	if anyblockjson.OmittedProfilePage(sbType, base) {
 		return true, nil
+	}
+	// a relation option: the dictionary states the whole select vocabulary
+	// inline on the property that owns it — name, colour, stored key, and
+	// order as array position — so the vocabulary is lifted here and the
+	// document never written (§2f, §15 #21). The lift runs BEFORE the
+	// omission is recorded, the space-settings rule again. What the object
+	// holds beyond its entry — timestamps, attribution, the api key the app
+	// regenerates from the name, the `orderId` lexid no kind exports (§3) —
+	// is deliberately not carried, so unlike the widget omission there is
+	// no reconstruction to verify; the one loss worth reporting is an
+	// option the dictionary cannot carry at all.
+	if anyblockjson.OmittedRelationOption(sbType) {
+		return true, c.observeRelationOption(base)
 	}
 	// the sidebar's object: index.json states everything it holds (§2c) —
 	// the wrapper-and-link pairs flat in `widgets`, the auto-widget ledger
@@ -253,9 +279,9 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 }
 
 // ObserveWritten records one emitted document: its place for the manifest —
-// a type by its STORED key, a file blob binding is ObserveFileBlob's — the
-// option vocabulary an option document contributes, and the property keys
-// the document's bytes reference (the dictionary's used-only census, §2f).
+// a type by its STORED key, a file blob binding is ObserveFileBlob's — and
+// the property keys the document's bytes reference (the dictionary's
+// used-only census, §2f).
 // path is the document's bundle-relative path, slash-separated, exactly as
 // it should appear in the manifest.
 func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase, doc []byte, path string) error {
@@ -278,34 +304,53 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 		if key := strings.TrimPrefix(det["uniqueKey"].GetStringValue(), "ot-"); key != "" {
 			c.typePaths[key] = path
 		}
-	case model.SmartBlockType_STRelationOption:
-		// an option's whole meaning is three details — which property it
-		// belongs to, its name, and its colour — wrapped in a document whose
-		// remaining forty lines are derived scaffolding. The dictionary
-		// states those three inline, so a bundle declares a select vocabulary
-		// in the same place it declares the property (§2f).
-		if key := det["relationKey"].GetStringValue(); key != "" {
-			if name := det["name"].GetStringValue(); name != "" {
-				c.optionsByKey[key] = append(c.optionsByKey[key], storedOption{
-					order: det["orderId"].GetStringValue(),
-					id:    det["id"].GetStringValue(),
-					def: anyblockjson.OptionDefinition{
-						Name:  name,
-						Color: det["relationOptionColor"].GetStringValue(),
-						// the option's stored key: minted, so derivable from
-						// nothing, unlike its name, colour, position and api
-						// key (§2f). Carried by uniqueKey `opt-<key>`.
-						InternalKey: strings.TrimPrefix(
-							det["uniqueKey"].GetStringValue(), "opt-"),
-					},
-				})
-			}
-		}
-		if id := det["id"].GetStringValue(); id != "" {
-			c.optionPaths[id] = path
-		}
 	}
 	return nil
+}
+
+// observeRelationOption lifts one omitted option object's contribution to
+// the inline vocabulary (§2f): an option's whole meaning is three details —
+// which property it belongs to, its name, and its colour — plus its place,
+// and the dictionary states all of it on the entry of the property that
+// owns it, so a bundle declares a select vocabulary in the same place it
+// declares the property. Called with the composer's mutex held.
+//
+// An option that states no name or no owning property key contributes
+// nothing the dictionary can carry, and with no document travelling either
+// it would vanish without a trace — that is the one loss this omission can
+// still produce, so it is reported rather than silent.
+func (c *Composer) observeRelationOption(base *model.SmartBlockSnapshotBase) []Issue {
+	det := base.GetDetails().GetFields()
+	key := det["relationKey"].GetStringValue()
+	name := det["name"].GetStringValue()
+	if key == "" || name == "" {
+		return []Issue{{Category: IssueOmittedReconstruction,
+			Detail: fmt.Sprintf("relation option %q states no %s; the dictionary cannot carry it",
+				det["id"].GetStringValue(), missingOptionDetail(key))}}
+	}
+	c.optionsByKey[key] = append(c.optionsByKey[key], storedOption{
+		order: det["orderId"].GetStringValue(),
+		id:    det["id"].GetStringValue(),
+		def: anyblockjson.OptionDefinition{
+			Name:  name,
+			Color: det["relationOptionColor"].GetStringValue(),
+			// the option's stored key: minted, so derivable from
+			// nothing, unlike its name, colour, position and api
+			// key (§2f). Carried by uniqueKey `opt-<key>`.
+			InternalKey: strings.TrimPrefix(
+				det["uniqueKey"].GetStringValue(), "opt-"),
+		},
+	})
+	return nil
+}
+
+// missingOptionDetail names what an unliftable option snapshot lacked, for
+// the Issue text.
+func missingOptionDetail(key string) string {
+	if key == "" {
+		return "owning property key"
+	}
+	return "name"
 }
 
 // ObserveFileBlob records one written blob for the manifest `files` map
@@ -384,28 +429,46 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	}
 	sort.Strings(orphans)
 
-	// the select vocabulary travels with the property that owns it. A
-	// property whose options a space minted has no entry otherwise — it is an
-	// ordinary installed bundled key — and its vocabulary would exist only in
-	// the option documents, where an author generating a bundle has to know
-	// to look for it.
+	// the select vocabulary travels with the property that owns it: a
+	// bundle carries no option documents at all (§2f, §15 #21), so once the
+	// option snapshots are omitted the dictionary entry is the only place
+	// left in THIS bundle for the vocabulary to travel — a type's §2a
+	// definition may state one too, but the composer does not write those —
+	// and an entry this loop does not write states it nowhere.
+	var unusedOptionKeys []string
 	for key, stored := range c.optionsByKey {
-		if !c.used[key] {
-			continue // §2f is used-only: an unused property's vocabulary buys a reader nothing
+		if _, have := entries[key]; !c.used[key] && !have {
+			// §2f is used-only, and §15 #21 settled that the rule governs
+			// here too: a bundle does not state a vocabulary for a property
+			// none of its documents reference. An entry that exists for
+			// another reason — a divergent installed copy — keeps its
+			// vocabulary regardless: the entry IS the vehicle, and writing
+			// it without the options would drop the vocabulary while the
+			// property travels. Reported, not silent (§11).
+			unusedOptionKeys = append(unusedOptionKeys, key)
+			stats.OptionsDropped += len(stored)
+			continue
 		}
 		// in the order the SPACE shows them, which the stored `orderId`
 		// carries: `status` really reads To Do → In Progress → Done, and
 		// sorting by name turned that workflow into Done → In Progress →
 		// To Do on 42 of the 61 vocabularies that state an order.
 		//
-		// An option with no orderId sorts AFTER the ordered ones, by name,
-		// and that is not a compromise — it is the app's own model. Ordering
-		// is a newer feature than options: 229 of 312 vocabularies state no
-		// order at all and 21 state one for only some members, and the app's
-		// own placement query (objectcreator/relation_option.go) filters
-		// `orderId NotEmpty`, so an option without one is not in the app's
-		// ordering either. There is no order to lose; name is what makes the
-		// canonical form deterministic.
+		// An option with no orderId sorts AFTER the ordered ones, by name.
+		// The app places such an option by comparing its NAME against the
+		// others' order ids — §2a's "lands arbitrarily" — but that is a
+		// deterministic FALLBACK for vocabularies predating the order id,
+		// not a position anyone chose: an option without one was discovered
+		// from a typed-in value rather than declared. Ordering is the newer
+		// feature (229 of 312 vocabularies state no order at all, 21 state
+		// one for only some members), so reproducing the fallback would
+		// carry an artifact of the id alphabet into the bundle.
+		//
+		// Writing them last is the healing choice. The array IS the order
+		// (§2f), and import mints an order id for every entry from its
+		// position, so a vocabulary that relied on the fallback comes back
+		// with none of its members relying on it. Name is what makes that
+		// array deterministic.
 		sort.SliceStable(stored, func(i, j int) bool {
 			a, b := stored[i], stored[j]
 			if (a.order == "") != (b.order == "") {
@@ -436,12 +499,17 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 					ObjectTypes: bundledTargetKeys(rel.ObjectTypes),
 				}
 			} else {
-				continue // nothing can say what this property is; §2f reports it as an orphan
+				// nothing can say what this property is; §2f reports the
+				// key as an orphan, and the vocabulary goes with it
+				stats.OptionsDropped += len(stored)
+				continue
 			}
 		}
 		def.Options = opts
 		entries[key] = def
+		stats.OptionsLifted += len(opts)
 	}
+	sort.Strings(unusedOptionKeys)
 
 	dict := &anyblockjson.PropertyDictionary{}
 	for key := range c.installed {
@@ -488,10 +556,10 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	stats.DictionaryEntries = len(dict.Properties)
 	stats.ManifestTypes = len(c.typePaths)
 	stats.ManifestFiles = len(c.filePaths)
-	stats.OptionDocs = len(c.optionPaths)
 	stats.DictionaryBytes = len(dictData)
 	stats.IndexBytes = len(idxData)
 	stats.OrphanUsedKeys = orphans
+	stats.UnusedOptionKeys = unusedOptionKeys
 	return idxData, dictData, stats, nil
 }
 
@@ -505,7 +573,7 @@ func (c *Composer) hasSemanticState() bool {
 		(c.observedSpaceSettings && c.spaceName != "") ||
 		c.spaceSettings.hasValues() ||
 		len(c.installed) != 0 || len(c.entries) != 0 || len(c.used) != 0 ||
-		len(c.typePaths) != 0 || len(c.filePaths) != 0 || len(c.optionPaths) != 0 || len(c.optionsByKey) != 0 ||
+		len(c.typePaths) != 0 || len(c.filePaths) != 0 || len(c.optionsByKey) != 0 ||
 		idx.Name != "" || idx.Description != "" || idx.Icon != nil || idx.Entrypoint != "" || idx.Homepage != "" ||
 		len(idx.Widgets) != 0 || len(idx.AutoWidgetTargets) != 0 || idx.AutoWidgetDisabled
 }
@@ -610,14 +678,14 @@ func sortedIconCandidates(candidates map[string]*anyblockjson.Icon) []string {
 	return values
 }
 
-// storedOption is one option document's contribution to the inline
+// storedOption is one omitted option object's contribution to the inline
 // vocabulary: the definition the dictionary states, plus the stored `orderId`
 // that decides where it sits. The orderId itself never reaches a document —
-// it is a lexid, which is exactly the spelling this format keeps out of an
-// author's way; the ARRAY POSITION is what carries the order.
+// it is a lexid, which no kind exports (§3); the ARRAY POSITION is what
+// carries the order.
 type storedOption struct {
 	order string
-	// id is the option document's own id — the total-order tie-break. Two
+	// id is the option object's own id — the total-order tie-break. Two
 	// options of one property may legitimately share a name (and even a
 	// colour), and (order, name) alone is then not a total order: the tie
 	// fell back to insertion order, which under the concurrent emit is

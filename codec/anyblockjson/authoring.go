@@ -169,10 +169,11 @@ func validateAuthoringSubset(data []byte, compile func() (*jsonschema.Schema, er
 //     Swapping the literal would have moved the hole, not closed it.
 //   - the subset refuses the app's own derived keys in `properties`. The
 //     schema's literal list still bans the pre-raw-name spellings, so the
-//     nine keys the FULL format does not also refuse — attribution,
-//     timestamps, revision, internal flags, featured properties, archived —
-//     lost their authoring refusal the moment their canonical spelling
-//     became a display name. They are dropped at import instead, silently.
+//     ten keys the FULL format does not also refuse — attribution,
+//     timestamps, revision, internal flags, featured properties, archived,
+//     the order lexid — lost their authoring refusal the moment their
+//     canonical spelling became a display name. They are dropped at import
+//     instead, silently.
 //
 // Both are enforced here on the RESOLVED key, through the same chain
 // Validate's own admission loop uses, so every spelling of a key gets one
@@ -256,7 +257,7 @@ func authoringSemantics(data []byte) error {
 // this pass runs — the deny rule (import refuses exactly what export
 // strips) covers ids, icons, covers, spaceId, uniqueKey, snippet,
 // backlinks, links, mentions, origin, importType, restrictions and the
-// rest. These nine are the remainder: import DROPS them rather than
+// rest. These ten are the remainder: import DROPS them rather than
 // refusing them, so without a rule here an author's value disappears
 // without a word.
 var authoringDeniedPropertyKeys = map[string]string{
@@ -270,4 +271,5 @@ var authoringDeniedPropertyKeys = map[string]string{
 	"featuredRelations": "a per-object featured list no UI sets: the layout syncer owns it, " +
 		"and a type's featured properties belong in that type's recommended lists",
 	"isArchived": "the app's bin membership, moved by archiving an object rather than by writing a property",
+	"orderId":    "the store's private ordering coordinate, minted by the app; order that matters is array position (§2f)",
 }

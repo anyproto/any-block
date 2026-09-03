@@ -33,6 +33,8 @@ func TestBuildPlan_PathsAreAPureFunctionOfTheId(t *testing.T) {
 		{Id: "bafytype", SbType: model.SmartBlockType_STType},
 		{Id: "bafytmpl", SbType: model.SmartBlockType_Template},
 		{Id: "bafyrel", SbType: model.SmartBlockType_STRelation},
+		// an option has no dedicated home and its planned name goes unused:
+		// the bundle carries no option documents (§2f, §15 #21)
 		{Id: "bafyopt", SbType: model.SmartBlockType_STRelationOption},
 		{Id: "AAjEparticipant", SbType: model.SmartBlockType_Participant},
 		{Id: "bafyfile", SbType: model.SmartBlockType_FileObject, FileExt: "png", FileMime: "image/png"},
@@ -47,7 +49,7 @@ func TestBuildPlan_PathsAreAPureFunctionOfTheId(t *testing.T) {
 		"bafytype":        "types/bafytype.anyblock.json",
 		"bafytmpl":        "templates/bafytmpl.anyblock.json",
 		"bafyrel":         "properties/bafyrel.anyblock.json",
-		"bafyopt":         "options/bafyopt.anyblock.json",
+		"bafyopt":         "objects/bafyopt.anyblock.json",
 		"AAjEparticipant": "participants/AAjEparticipant.anyblock.json",
 		"bafyfile":        "files/bafyfile.anyblock.json",
 		"bafywidget":      "objects/bafywidget.anyblock.json",

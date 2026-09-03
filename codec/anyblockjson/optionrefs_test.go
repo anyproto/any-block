@@ -900,3 +900,36 @@ func TestOptionRefs_ThePropertyCensusCoversEveryPosition(t *testing.T) {
 		})
 	}
 }
+
+// PropertyTermsOf is the bundle's view of the census: the slot spellings
+// without the legend's own members, the legend beside them, and the stored
+// keys a type states directly.
+//
+// How this can fail: hand the legend members back as spellings (a stale
+// legend entry becomes a dictionary reference); drop `internal_key` (a type
+// that declares a minted property by stored key stops counting); or refuse
+// a shape the schema refuses (the composer scans bytes this package wrote,
+// and a census is not where a shape opinion lives).
+func TestPropertyTermsOf(t *testing.T) {
+	terms, err := PropertyTermsOf([]byte(`{"formatVersion": "2.0", "id": "obj1",
+		"property_internal_keys": {"Aroma": "6a32d4856761631534b22f85", "stale": "deadbeef"},
+		"properties": {"Aroma": "smoky"},
+		"type_settings": {"property_definitions": [
+			{"property": "Due date"},
+			{"internal_key": "64f2d485676163153aaaaaaa", "name": "Team"}]},
+		"blocks": [{"type": "dataview", "views": [{"id": "v1", "group_by": "Aroma",
+			"columns": [{"property": "Column only"}]}]}]}`))
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]bool{"Aroma": true, "Due date": true, "Column only": true}, terms.Spellings,
+		"every slot spelling, and no legend member")
+	assert.Equal(t, map[string]string{"Aroma": "6a32d4856761631534b22f85", "stale": "deadbeef"}, terms.Legend)
+	assert.Equal(t, map[string]bool{"64f2d485676163153aaaaaaa": true}, terms.StoredKeys)
+
+	tolerant, err := PropertyTermsOf([]byte(`{"blocks": [{"type": "dataview", "properties": {"not": "a list"}}]}`))
+	require.NoError(t, err, "a shape the schema refuses is not the census's to refuse")
+	assert.Empty(t, tolerant.Spellings)
+
+	_, err = PropertyTermsOf([]byte("not json"))
+	assert.Error(t, err)
+}

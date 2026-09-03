@@ -80,14 +80,20 @@ func typeSettingsLiftedKeyRepair(key string) string {
 //
 // Every entry passed the §15 #12 admission test individually, against 1,760
 // corpus type documents; the map value records the verdict. Keys that were
-// candidates and FAILED the test — they stay in `properties` because they
-// carry something real:
+// candidates and FAILED the test — they carry something real, and all but
+// one stay in `properties` (`orderId` was later stripped by a ruling this
+// test does not govern; see its bullet):
 //
 //   - `isHidden` (626 docs, all true): cannot be proven install-only — an
 //     integration can hide a type it minted, and §15 #12 requires proof,
 //     not plausibility. Its EMPTY value is already trimmed (systemtrim.go).
 //   - `orderId` (343 docs, 130 distinct lexids): the user's own ordering of
-//     types in the library. User intent, kept.
+//     types in the library. It FAILED this admission test — user intent —
+//     and was kept here for a while, then stripped anyway by RULING when
+//     option documents left the bundle (§15 #21): the value is a lexid,
+//     a source-space ordering coordinate this format does not export on
+//     any kind (§3, transientProperties). The library ordering is the
+//     accepted loss of that ruling, recorded in §2a.
 //   - `layoutWidth` / `layoutAlign` (40/38 docs, 3/1 non-zero): the display
 //     of the type object's OWN page, set by a person where non-zero. Kept.
 //   - `featuredRelations` (400 docs): what this type OBJECT features —
