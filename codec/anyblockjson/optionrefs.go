@@ -341,6 +341,16 @@ func PropertyTermsOf(doc []byte) (PropertyTerms, error) {
 	if list, _ := typePropertyDefinitionsOf(raw); list != nil {
 		for _, item := range list {
 			tp, _ := item.(map[string]any)
+			// PROPERTY-FIRST, matching the importer's own precedence
+			// (buildTypeProperties): an entry stating both resolves
+			// through the spelling, so counting its internal_key too
+			// contributes a stored key nothing resolves to — a false
+			// orphan on an authored bundle. The slot census this
+			// replaced drew the same line with a switch.
+			if spelling, _ := tp[memberProperty].(string); spelling != "" {
+				// already counted as a slot spelling above
+				continue
+			}
 			if key, _ := tp[memberInternalKey].(string); key != "" {
 				terms.StoredKeys[key] = true
 			}

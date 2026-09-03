@@ -78,6 +78,14 @@ type Stats struct {
 	// uncounted.
 	OptionsLifted  int
 	OptionsDropped int
+	// OptionsUnliftable counts option snapshots the composer could not lift
+	// at all — no owning property key, or no name — each of which also
+	// raised an Issue. They belong to neither counter above (there is no
+	// vocabulary to lift and no entry to drop them from), and leaving them
+	// out of both made them vanish from the accounting: two of 784 live
+	// options in a sweep have blank names and take this path. Observed =
+	// Lifted + Dropped + Unliftable.
+	OptionsUnliftable int
 	// UnusedOptionKeys are property keys that own a lifted vocabulary but
 	// that no document references, so the used-only rule (§2f, §15 #21)
 	// dropped the vocabulary with the entry. Sorted. This is the second of
@@ -119,6 +127,16 @@ type Composer struct {
 	// stored `orderId` so the inline array can be written in the order the
 	// space actually shows.
 	optionsByKey map[string][]storedOption
+	// optionsUnliftable counts snapshots observeRelationOption refused, so
+	// Observed = Lifted + Dropped + Unliftable holds (Stats).
+	optionsUnliftable int
+	// seenOptions dedupes by the option's own object id. The emit observes
+	// unique collected ids in production and a sweep found no repeat, but
+	// nothing in this package's contract guarantees it, and an accidental
+	// repeat used to append a second entry — so a conflicting repeat became
+	// schedule-dependent in a package that advertises commutativity. An
+	// identical repeat is now a no-op and a conflicting one an Issue.
+	seenOptions map[string]anyblockjson.OptionDefinition
 
 	// used is the referenced-key census the dictionary's used-only rule
 	// needs (§2f), gathered from each document's marshalled bytes as it is
@@ -162,6 +180,7 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 		typePaths:    map[string]string{},
 		filePaths:    map[string]string{},
 		optionsByKey: map[string][]storedOption{},
+		seenOptions:  map[string]anyblockjson.OptionDefinition{},
 		used:         map[string]bool{},
 		spaceSettings: spaceSettingsCandidates{
 			names:        map[string]struct{}{},
@@ -321,25 +340,45 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 // still produce, so it is reported rather than silent.
 func (c *Composer) observeRelationOption(base *model.SmartBlockSnapshotBase) []Issue {
 	det := base.GetDetails().GetFields()
+	// The snapshot's own Key is the stored identity, and it is what the
+	// document path writes as internal_key (export.go). The `uniqueKey`
+	// detail spells the same value as `opt-<key>`, but it is a DETAIL and can
+	// be absent: 5 of 2,544 options in a 78-space sweep carried no usable one
+	// and reached the dictionary without an internal_key. Deriving identity
+	// from the detail gave one value two sources; Key is the source, and the
+	// detail is only worth a consistency check.
+	internalKey := base.GetKey()
+	if internalKey == "" {
+		internalKey = strings.TrimPrefix(det["uniqueKey"].GetStringValue(), "opt-")
+	}
 	key := det["relationKey"].GetStringValue()
 	name := det["name"].GetStringValue()
 	if key == "" || name == "" {
+		c.optionsUnliftable++
 		return []Issue{{Category: IssueOmittedReconstruction,
 			Detail: fmt.Sprintf("relation option %q states no %s; the dictionary cannot carry it",
 				det["id"].GetStringValue(), missingOptionDetail(key))}}
 	}
+	def := anyblockjson.OptionDefinition{
+		Name:        name,
+		Color:       det["relationOptionColor"].GetStringValue(),
+		InternalKey: internalKey,
+	}
+	if id := det["id"].GetStringValue(); id != "" {
+		if prev, seen := c.seenOptions[id]; seen {
+			if prev == def {
+				return nil // identical repeat: a no-op, not a second entry
+			}
+			return []Issue{{Category: IssueOmittedReconstruction,
+				Detail: fmt.Sprintf("relation option %q observed twice with different content (%q/%q then %q/%q); the dictionary states the first",
+					id, prev.Name, prev.Color, def.Name, def.Color)}}
+		}
+		c.seenOptions[id] = def
+	}
 	c.optionsByKey[key] = append(c.optionsByKey[key], storedOption{
 		order: det["orderId"].GetStringValue(),
 		id:    det["id"].GetStringValue(),
-		def: anyblockjson.OptionDefinition{
-			Name:  name,
-			Color: det["relationOptionColor"].GetStringValue(),
-			// the option's stored key: minted, so derivable from
-			// nothing, unlike its name, colour, position and api
-			// key (§2f). Carried by uniqueKey `opt-<key>`.
-			InternalKey: strings.TrimPrefix(
-				det["uniqueKey"].GetStringValue(), "opt-"),
-		},
+		def:   def,
 	})
 	return nil
 }
@@ -560,6 +599,7 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	stats.IndexBytes = len(idxData)
 	stats.OrphanUsedKeys = orphans
 	stats.UnusedOptionKeys = unusedOptionKeys
+	stats.OptionsUnliftable = c.optionsUnliftable
 	return idxData, dictData, stats, nil
 }
 

@@ -933,3 +933,27 @@ func TestPropertyTermsOf(t *testing.T) {
 	_, err = PropertyTermsOf([]byte("not json"))
 	assert.Error(t, err)
 }
+
+// The census must draw the importer's line: an entry stating BOTH a spelling
+// and a stored key resolves through the spelling (buildTypeProperties), so
+// counting its internal_key too contributes a stored key nothing resolves to
+// — a false orphan on an authored bundle. The slot census this replaced used
+// a switch for exactly this.
+func TestPropertyTermsOf_TypeDefinitionPrecedenceIsPropertyFirst(t *testing.T) {
+	doc := func(entry string) []byte {
+		return []byte(`{"formatVersion":"2.0","kind":"object_type","id":"t","type":"Type",
+		 "internal_key":"typeX","type_settings":{"property_definitions":[` + entry + `]}}`)
+	}
+	t.Run("both stated: the spelling counts, the stored key does not", func(t *testing.T) {
+		terms, err := PropertyTermsOf(doc(`{"property":"Stage","internal_key":"stage","format":"select"}`))
+		require.NoError(t, err)
+		assert.True(t, terms.Spellings["Stage"], "the spelling is a slot")
+		assert.False(t, terms.StoredKeys["stage"],
+			"a stated spelling wins; counting the stored key too invents a reference")
+	})
+	t.Run("internal_key alone still counts", func(t *testing.T) {
+		terms, err := PropertyTermsOf(doc(`{"internal_key":"stage","format":"select"}`))
+		require.NoError(t, err)
+		assert.True(t, terms.StoredKeys["stage"], "with no spelling the stored key is the identity")
+	})
+}

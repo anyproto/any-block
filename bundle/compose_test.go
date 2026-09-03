@@ -310,3 +310,91 @@ func TestComposer_SameNamedOptionsHaveATotalOrder(t *testing.T) {
 	assert.Less(t, strings.Index(fwd, "teal"), strings.Index(fwd, "purple"),
 		"the id tie-break is ascending: bafyaaa's colour sits first")
 }
+
+// The snapshot's own Key is the stored identity, and it is what the document
+// path writes as internal_key. Deriving it from the `uniqueKey` DETAIL lost
+// the value whenever the detail was absent: 5 of 2,544 options in a 78-space
+// sweep reached the dictionary with no internal_key at all.
+func TestComposerTakesOptionIdentityFromTheSnapshotKey(t *testing.T) {
+	for name, tc := range map[string]struct {
+		key, uniqueKey, want string
+	}{
+		"key present, no uniqueKey detail": {"status_Done", "", "status_Done"},
+		"both present and agreeing":        {"status_Done", "opt-status_Done", "status_Done"},
+		"key wins over a stale detail":     {"status_Done", "opt-status_Stale", "status_Done"},
+		"detail is the fallback":           {"", "opt-status_Done", "status_Done"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := NewComposer(anyblockjson.Options{}, "probe")
+			snap := &model.SmartBlockSnapshotBase{
+				Key: tc.key,
+				Details: detFields(map[string]*types.Value{
+					"id": strVal("bafyopt"), "relationKey": strVal("status"),
+					"name": strVal("Done"), "relationOptionColor": strVal("lime"),
+					"uniqueKey": strVal(tc.uniqueKey),
+				}),
+			}
+			omitted, issues := c.Observe(model.SmartBlockType_STRelationOption, snap)
+			require.True(t, omitted)
+			require.Empty(t, issues)
+			require.Len(t, c.optionsByKey["status"], 1)
+			assert.Equal(t, tc.want, c.optionsByKey["status"][0].def.InternalKey)
+		})
+	}
+}
+
+// Observed = Lifted + Dropped + Unliftable. An option the composer cannot
+// lift used to be in neither counter, so it vanished from the accounting the
+// "reported, not silent" promise rests on.
+func TestComposerAccountsForEveryObservedOption(t *testing.T) {
+	c := NewComposer(anyblockjson.Options{}, "probe")
+	opt := func(id, relKey, name string) *model.SmartBlockSnapshotBase {
+		return &model.SmartBlockSnapshotBase{Key: name, Details: detFields(map[string]*types.Value{
+			"id": strVal(id), "relationKey": strVal(relKey), "name": strVal(name),
+		})}
+	}
+	// one liftable on a used property, one on an unused one, two unliftable
+	_, _ = c.Observe(model.SmartBlockType_STRelationOption, opt("o1", "tag", "Urgent"))
+	_, _ = c.Observe(model.SmartBlockType_STRelationOption, opt("o2", "ghost", "Ghost"))
+	_, iss1 := c.Observe(model.SmartBlockType_STRelationOption, opt("o3", "", "NoKey"))
+	_, iss2 := c.Observe(model.SmartBlockType_STRelationOption, opt("o4", "tag", ""))
+	require.NotEmpty(t, iss1)
+	require.NotEmpty(t, iss2)
+
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page,
+		&model.SmartBlockSnapshotBase{}, []byte(`{"formatVersion":"2.0","properties":{"tag":["Urgent"]}}`),
+		"objects/p.anyblock.json"))
+
+	_, _, stats, err := c.Finish()
+	require.NoError(t, err)
+	assert.Equal(t, 2, stats.OptionsUnliftable, "both refused snapshots are counted")
+	observed := stats.OptionsLifted + stats.OptionsDropped + stats.OptionsUnliftable
+	assert.Equal(t, 4, observed, "every observed option lands in exactly one counter")
+}
+
+// The emit observes unique collected ids in production, but nothing in this
+// package's contract guarantees it, and an accidental repeat used to append a
+// second entry — making a conflicting repeat schedule-dependent.
+func TestComposerDedupesRepeatedOptionObservations(t *testing.T) {
+	mk := func(color string) *model.SmartBlockSnapshotBase {
+		return &model.SmartBlockSnapshotBase{Key: "tag_Urgent", Details: detFields(map[string]*types.Value{
+			"id": strVal("o1"), "relationKey": strVal("tag"),
+			"name": strVal("Urgent"), "relationOptionColor": strVal(color),
+		})}
+	}
+	t.Run("identical repeat is a no-op", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
+		_, issues := c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
+		assert.Empty(t, issues)
+		assert.Len(t, c.optionsByKey["tag"], 1, "one option, not two")
+	})
+	t.Run("conflicting repeat is reported, not silent", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
+		_, issues := c.Observe(model.SmartBlockType_STRelationOption, mk("lime"))
+		require.NotEmpty(t, issues)
+		assert.Contains(t, issues[0].Detail, "observed twice with different content")
+		assert.Len(t, c.optionsByKey["tag"], 1, "the first wins, deterministically")
+	})
+}
