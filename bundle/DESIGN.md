@@ -117,13 +117,13 @@ Four phases, two of them new relative to today's exporter:
 
 | phase | threading | does |
 |---|---|---|
-| **collect** | as today | dependency closure over the request: nested objects, dataview-referenced objects, types, relations, options, templates, linked files, recommended relations (`processProtobuf`, export.go:610). Extracted behind a format-agnostic interface; the bare `isProtobuf bool` (export.go:503-504) becomes an explicit closure mode. Output: `map[id]*Doc`, complete before anything is written. |
+| **collect** | as today | dependency closure over the request: nested objects, dataview-referenced objects, types, relations, options, templates, linked files, recommended relations (`processProtobuf`, core/block/export/export.go, `exportContext.processProtobuf`). Extracted behind a format-agnostic interface; the bare `isProtobuf bool` (core/block/export/export.go, `exportContext.docsForExport`) becomes an explicit closure mode. Output: `map[id]*Doc`, complete before anything is written. |
 | **plan** | single-threaded | classify every collected doc (kind → directory, §1.2), compute every filename (§1.3 — a pure per-document function of the id, no collision machinery). There is no manifest type table to pre-build (SPEC §15 #26): a type document is found by its id, `type-<internal_key>`. **Plan reads details only — id, name, type/layout, uniqueKey — never content**; that invariant is what keeps it O(collected details) in memory and free of object loads (§1.6). Cheap: map passes over details already in memory, no store reads, no marshal. |
-| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:253, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy's entry carries `uninstalled`, SPEC §15 #22, and the first's own refusal on a bundled key is what flags the entry `bundled_diverged`, SPEC §15 #25), plus `OmittedRelation` (omittedrelation.go:328) and `OmittedRelationOption` (omittedoption.go:114), which also take the snapshot base and so cannot run at plan time either — the smartblock type is only the first of the two places that say what a snapshot IS, and the stored layout is the second (`PropertySnapshotBase`); both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (omittedrelation.go:422) and `UnaccountedOptionDetails` (omittedoption.go:132) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
-| **finish** | single-threaded, at the `postProcess` seam (export.go:1529) | compose and write `properties.json` and `index.json` (with manifest), re-reading both through the package's own `Unmarshal` before writing — the bundle-level I1 discipline the harness already practices (cmd/anyblockroundtrip/main.go:983-1012). |
+| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, core/block/export/export.go, `export.Export`) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — `codec/anyblockjson/{omittedrelation,spacesettings,widgetobject,profilepage}.go` — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy's entry carries `uninstalled`, SPEC §15 #22, and the first's own refusal on a bundled key is what flags the entry `bundled_diverged`, SPEC §15 #25), plus `OmittedRelation` (codec/anyblockjson/omittedrelation.go, `OmittedRelation`) and `OmittedRelationOption` (codec/anyblockjson/omittedoption.go, `OmittedRelationOption`), which also take the snapshot base and so cannot run at plan time either — the smartblock type is only the first of the two places that say what a snapshot IS, and the stored layout is the second (`PropertySnapshotBase`); both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (codec/anyblockjson/omittedrelation.go, `UnaccountedRelationDetails`) and `UnaccountedOptionDetails` (codec/anyblockjson/omittedoption.go, `UnaccountedOptionDetails`) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
+| **finish** | single-threaded, at the `postProcess` seam (core/block/export/export.go, `exportContext.postProcess`) | compose and write `properties.json` and `index.json` (with manifest), re-reading both through the package's own `Unmarshal` before writing — the bundle-level I1 discipline the harness already practices (cmd/anyblockroundtrip/main.go, `spaceComposer.finish`). |
 
 The composer is a production re-home of the harness's `spaceComposer`
-(cmd/anyblockroundtrip/main.go:711-1030), which already implements the §2f
+(cmd/anyblockroundtrip/main.go, `spaceComposer`), which already implements the §2f
 composition end to end: the used-key census, the dictionary entries (every
 observed relation's from its snapshot, complete, flagged `bundled_diverged`
 when a bundled key's copy diverged from the table; a referenced bundled key
@@ -138,8 +138,8 @@ moves is the code's home and its input source (in-memory states instead of
 `.pb` files on disk), not its logic.
 
 One piece cannot move as-is: `anyblockbatch.UsedPropertyKeys` reads written
-files back from disk (cmd/internal/anyblockbatch/scan.go:908). A zip export
-cannot re-read its own entries (zipWriter has no read path, writer.go:130),
+files back from disk (cmd/internal/anyblockbatch/scan.go). A zip export
+cannot re-read its own entries (zipWriter has no read path, core/block/export/writer.go, `zipWriter.WriteFile`),
 so the used-key scan must run on the marshalled bytes **before** they are
 written. The scan logic should be promoted from `cmd/internal/anyblockbatch`
 into a place production code may import (a byte-level
@@ -149,8 +149,8 @@ subpackage), keeping the cmd tools on the same single implementation.
 ### 1.2 Directory layout (question a) — SETTLED: kind directories, `objects/` flat
 
 The importer never dispatches on directory names — its only path rule is
-skipping `files/` (import/pb/converter.go:38, 338-341); classification is by
-the document's own declared kind/type (import/pb/converter.go:337 onward),
+skipping `files/` (core/block/import/pb/converter.go, the `fileDir = "files"` constant, `Pb.getSnapshotsFromProvidedFiles`); classification is by
+the document's own declared kind/type (core/block/import/pb/converter.go, `Pb.normalizeSnapshot` onward),
 and SPEC §2c states outright that "the format defines no folder layout —
 `objects/`, `types/`, `relations/` are one exporter's convention". So the
 layout is chosen for the human opening the bundle, and for consistency with
@@ -163,8 +163,8 @@ Proposed layout, one bundle root per space:
 
 ```
 <root>/
-  index.json          — the bundle index + manifest (SPEC §2c; index.go:334)
-  properties.json     — the property dictionary (SPEC §2f; dictionary.go:48)
+  index.json          — the bundle index + manifest (SPEC §2c; codec/anyblockjson/index.go, the Index type)
+  properties.json     — the property dictionary (SPEC §2f; codec/anyblockjson/dictionary.go, the PropertyDictionary type)
   objects/            — kind: page (and any kind without a dedicated home,
                         e.g. the rare fail-closed widget document — 1 in the
                         24,686 documents this layout emits for the corpus).
@@ -190,7 +190,7 @@ Proposed layout, one bundle root per space:
                         position (SPEC §2f, §15 #21)
 ```
 
-Rationale, against the legacy names (export.go:96-103):
+Rationale, against the legacy names (core/block/export/export.go, the `TypesDirectory`…`Files` directory constants):
 
 - **Format vocabulary, not store vocabulary.** The format's own
   vocabulary never says "relation" (PRINCIPLES rule 3); the directory a
@@ -224,15 +224,15 @@ Rationale, against the legacy names (export.go:96-103):
   of the `ObjectImportExperience` path and is written by `cmd/anyblockconvert`
   when preparing an installable experience (SPEC §2c "How it reaches the
   space"); a native backup bundle carries the same facts in `index.json`.
-  The legacy exporter's `createProfileFile` (export.go:1316) does not carry
+  The legacy exporter's `createProfileFile` (core/block/export/export.go, `exportContext.createProfileFile`) does not carry
   over.
 - **No `index.pb`-style home special case.** Legacy writes the home object
-  as `index<ext>` at the root (export.go:1267-1268) — which for a JSON
+  as `index<ext>` at the root (core/block/export/export.go, `exportContext.writeDoc`) — which for a JSON
   format collides head-on with `index.json`. The native bundle records the
   homepage in `index.json` (`homepage`, SPEC §2c) and the home object is an
   ordinary document under `objects/`.
 
-Multi-space export keeps the `spaces/<spaceId>/` wrapper (export.go:96,
+Multi-space export keeps the `spaces/<spaceId>/` wrapper (core/block/export/export.go, the `spaceDirectory` constant,
 1381-1385), each space directory being a complete self-contained bundle root
 with its own `index.json` and `properties.json`. The wrapper is also what
 keeps id filenames collision-free across spaces: the same id legitimately
@@ -257,7 +257,7 @@ id→path map in one walk (5 readdirs) — which it must be able to do ANYWAY,
 because the layout is one exporter's convention (SPEC §2c) and an
 authored bundle may put its documents anywhere, so a general reader walks
 and indexes regardless (`DiscoverJSONFiles`,
-cmd/internal/anyblockbatch/scan.go:266). What the kind split still buys
+cmd/internal/anyblockbatch/scan.go). What the kind split still buys
 once filenames are opaque: `files/` blobs separated from documents, kind
 tallies visible at a glance when debugging an export, and the enumeration
 of each kind without opening anything. The genuinely-flat alternative
@@ -290,7 +290,7 @@ participant's stem is its derived id (SPEC §9): the `participant-` prefix
 plus the identity; a type's is `type-<internal_key>` — `type-task` for the
 bundled Task type, `type-6a32d4856761631534b22f85` for a minted one.
 
-This is what the harness already writes (cmd/anyblockroundtrip/main.go:377).
+This is what the harness already writes (cmd/anyblockroundtrip/main.go, `processSpace`).
 
 **The argument that settled it** (human decision, 2026-08-26; a hybrid
 `<slug>--<id8>` scheme was the standing proposal and was overturned): a
@@ -334,7 +334,7 @@ identities would have to differ only in the case of their letters), and
 **zero occur across the 2,492 measured** (true case-fold collisions within
 a bundle across all 28,542 ids: 0). Determinism is free: the
 name is the id, no collision machinery, no global set needed — which also
-retires `namer.Get`'s `rand.Int63n` nondeterminism (export.go:1435, 1462)
+retires `namer.Get`'s `rand.Int63n` nondeterminism (core/block/export/export.go, `namer.Get`)
 without replacing it with anything.
 
 **Two bonuses, both secondary to the argument above:** archives are
@@ -350,7 +350,7 @@ output is an export MODE to be added later, and it bundles **both**
 readable filenames **and** type-subdirectory grouping under `objects/` into
 one switch — one rule per mode, nothing half-legible. The default mode must
 not foreclose it, and does not: nothing dispatches on paths
-(import/pb/converter.go:338-341; SPEC §2c), and the manifest carries
+(core/block/import/pb/converter.go, `Pb.getSnapshotsFromProvidedFiles`; SPEC §2c), and the manifest carries
 whatever paths the writing mode chose, so the two modes differ only in the
 exporter's path function. Facts already in hand for whoever designs it
 (measured; do not re-derive):
@@ -375,12 +375,12 @@ exporter's path function. Facts already in hand for whoever designs it
 Two problems must be solved together: how the bundle binds a `file_object`
 document to its bytes, and how a human finds both. The thing being replaced
 is the `source`-clobber: legacy export stuffs the archive-relative blob path
-into `bundle.RelationKeySource` (export.go:1236, second site export.go:1196),
+into `bundle.RelationKeySource` (core/block/export/export.go, `exportContext.writeDoc`, second site core/block/export/export.go, `exportContext.writeMultiDoc`),
 overwriting a real, user-facing, editable `url` relation named "Source"
-(pkg/lib/bundle/relations.json:930-935) that bookmarks legitimately hold —
+(pkg/lib/bundle/relations.json, the `source` relation entry) that bookmarks legitimately hold —
 the corpus's very first sampled bookmark carries a real URL there — and the
 pb importer reads the path back out of the same key
-(import/pb/converter.go:404-414). A document member may not be a slot for
+(core/block/import/pb/converter.go, `Pb.normalizeFilePath`). A document member may not be a slot for
 archive bookkeeping; that is the lesson, and neither alternative below puts
 a path into the document.
 
@@ -462,7 +462,7 @@ final suffix is impossible by construction (`[a-z0-9]{1,10}` admits no dot).
 ### 1.5 Concurrency and determinism
 
 The constraint: `writeDoc` runs as concurrent queue tasks
-(export.go:426-428), while the dictionary accumulates across every document
+(core/block/export/export.go, `exportContext.exportByFormat`), while the dictionary accumulates across every document
 and the manifest accumulates paths. Three options were on the table:
 
 - **Single-threaded compose** (what the harness does). Simplest, but the
@@ -472,7 +472,7 @@ and the manifest accumulates paths. Three options were on the table:
   against today's exporter for zero correctness gain.
 - **Two-phase (emit concurrently, compose from re-read files)**. Dies on
   the zip writer: entries cannot be re-read before `Close`
-  (writer.go:130-148), so composition facts must be captured in-process
+  (core/block/export/writer.go, `zipWriter.WriteFile`), so composition facts must be captured in-process
   anyway — the re-read variant only works for directory exports and would
   fork the code path.
 - **Plan/emit/finish with a mutex-guarded accumulator** — chosen. The plan
@@ -491,30 +491,30 @@ and the manifest accumulates paths. Three options were on the table:
   I1, SPEC §11).
 
 Writer-level concurrency is already safe: `zipWriter.WriteFile` serializes
-on its own mutex (writer.go:130-131), and `dirWriter.WriteFile`
-(writer.go:66) needs no lock because the plan guarantees distinct paths.
+on its own mutex (core/block/export/writer.go, `zipWriter.WriteFile`), and `dirWriter.WriteFile`
+(core/block/export/writer.go, `dirWriter.WriteFile`) needs no lock because the plan guarantees distinct paths.
 The zip's per-entry `Modified` timestamps come from document state
-(`lastModifiedDate`, export.go:1272), not from the clock, so archive bytes
+(`lastModifiedDate`, core/block/export/export.go, `exportContext.writeDoc`), not from the clock, so archive bytes
 stay stable; the one clock leak is the archive's own root/temp name
-(`Anytype.20060102.150405.99`, writer.go:30), which names the artifact, not
+(`Anytype.20060102.150405.99`, core/block/export/writer.go, `uniqName`), which names the artifact, not
 its contents.
 
 **Bounded width.** The export queue is ALREADY width-bounded — `NewQueue(…,
-4, …)` (export.go:152-156; process/queue.go:42-44, 94) runs at most 4 tasks
+4, …)` (core/block/export/export.go, `export.Export`; core/block/process/queue.go, `service.NewQueue`, queue.Start) runs at most 4 tasks
 at once, and the N queued tasks are thin closures, not loaded objects. So
 in-flight marshal work is capped today; the unbounded term is cache
 retention, not task count (§1.6). The width itself should follow the repo's
 existing prior art for exactly this problem: the reindex limiter caps
 cross-space passes at **2 on mobile, 4 on desktop**
-(`maxConcurrentSpaceReindexFor`, core/indexer/reindexlimiter.go:15-20,
-wired at indexer.go:123), with a rationale comment describing precisely our
+(`maxConcurrentSpaceReindexFor`, core/indexer/reindexlimiter.go, `maxConcurrentSpaceReindexFor`,
+wired at core/indexer/indexer.go, `indexer.Init`), with a rationale comment describing precisely our
 situation — "each pass cold-builds every … object into the space's object
 cache and relies on the cache TTL to release it, so … the resident set
-peaks at hundreds of MB" (reindexlimiter.go:8-14). Recommendation: keep 4
+peaks at hundreds of MB" (core/indexer/reindexlimiter.go, the maxConcurrentSpaceReindexFor doc comment). Recommendation: keep 4
 on desktop (matches today's export behaviour), drop to 2 on
 mobile, same platform switch. A width cap trades wall-clock for peak RAM;
 the trade is cheap here because emit is storage-read-bound (the same
-argument reindexlimiter.go:12-13 makes), so halving width on mobile costs
+argument core/indexer/reindexlimiter.go, the maxConcurrentSpaceReindexFor doc comment makes), so halving width on mobile costs
 much less than 2× wall-clock while halving the in-flight term.
 
 *Implemented as two runners.* Which pool runs emit is injectable
@@ -536,25 +536,25 @@ file.
 **Close after write — active, immediate, TTL-independent.** The cache has
 no refcount, and its PASSIVE path is TTL-only — `GC()` closes entries where
 `isActive() && lastUsage.Before(now-ttl)` (any-sync
-app/ocache/ocache.go:343-355, entry.go:42-46; `WithTTL(60s)` +
-`WithGCPeriod(time.Minute)`, objectcache/cache.go:80-85) — so an exporter
+app/ocache/{ocache,entry}.go; `WithTTL(60s)` +
+`WithGCPeriod(time.Minute)`, core/block/object/objectcache/cache.go, `New`) — so an exporter
 that does NOTHING retains **throughput × 60-120 s** of loaded CRDT trees:
 4 workers at a few ms per document sustain hundreds of documents per
 second, thousands of resident trees for a big space, each far larger than
 its exported JSON. But the exporter need not do nothing, and the active
 path does not wait for the TTL at all (verified): `ocache.TryRemove`
-delegates to `e.value.TryClose(c.ttl)` (ocache.go:250-271), and
+delegates to `e.value.TryClose(c.ttl)` (app/ocache/ocache.go, `oCache.TryRemove`), and
 `smartBlock.TryClose` **ignores the TTL argument entirely** — its whole
 body is `TryLock()`-or-fail, `IsLocked()`-or-fail, else `closeLocked()`
-(core/block/editor/smartblock/smartblock.go:1153-1162), where `IsLocked`
+(core/block/editor/smartblock/smartblock.go, `smartBlock.TryClose`), where `IsLocked`
 counts sessions with an ACTIVE event sender, i.e. clients that currently
-have the object open in the UI (smartblock.go:633-641). **An object closes
+have the object open in the UI (core/block/editor/smartblock/smartblock.go, `smartBlock.IsLocked`). **An object closes
 iff nobody else has it open, immediately, regardless of TTL or last-usage
 time.** The repo's bulk-walk precedent already works this way: the
 fulltext indexer opens the object, extracts, then calls
 `TryRemoveFromCache(ctx, objectId)` and logs rather than fails on error
-(core/indexer/fulltext.go:330-352, the call at :348;
-core/block/service.go:222-234 → objectcache/cache.go:161). The emit task
+(core/indexer/fulltext.go, `indexer.prepareSearchDocs`, its `i.picker.TryRemoveFromCache` call;
+core/block/service.go, `Service.TryRemoveFromCache` → core/block/object/objectcache/cache.go, `New`). The emit task
 ends the same way: write, observe, `TryRemoveFromCache`, log-only on
 failure. No TTL or GC-period tuning appears anywhere in this design — both
 are irrelevant once the exporter closes actively; TTL remains only as the
@@ -568,14 +568,14 @@ The failure modes, all benign and all bounded:
   evicting it is the CORRECT behaviour, not a limitation; the term it
   contributes to peak RAM is user-bounded (§1.6), never space-bounded.
 - **Two editors refuse to close unconditionally** — `SpaceView.TryClose`
-  (core/block/editor/spaceview.go:141) and `accountObject.TryClose`
-  (core/block/editor/accountobject/accountobject.go:340) both
+  (core/block/editor/spaceview.go, `SpaceView.TryClose`) and `accountObject.TryClose`
+  (core/block/editor/accountobject/accountobject.go, `accountObject.TryClose`) both
   `return false, nil`. Both are singletons, and measured across all 28,542
   exported corpus documents there are **zero** `space_view` and zero
   `chat` documents in an export — noted for completeness, irrelevant to
   export memory.
 - **`chatobject.storeObject.TryClose`** refuses while a subscription is
-  active (core/block/editor/chatobject/chatobject.go:635-649) — again
+  active (core/block/editor/chatobject/chatobject.go, `storeObject.TryClose`) — again
   user-bounded, and again a kind exports do not carry.
 
 **Closing an entry mid-load, and why the exporter never asks for it.**
@@ -602,14 +602,14 @@ documents; the worst single space 4,884 documents):
 **O(all objects) — retained for the whole export, and accepted:**
 
 - **Collected details.** `Doc` holds only `*domain.Details`
-  (export.go:200-204); content is never resident in the collection —
+  (core/block/export/export.go, type Doc); content is never resident in the collection —
   blocks/state load per-document inside the emit task via `cache.Do`
-  (export.go:1222) and go out of scope after the write. Measured: **16.9 MB
+  (core/block/export/export.go, `exportContext.writeDoc`) and go out of scope after the write. Measured: **16.9 MB
   of `properties` JSON across all 28,542 documents, 593 B average**; as
   in-memory proto Structs with Go map overhead, budget several times that —
   call it a few tens of MB for a 38k-object account. This term is inherent
   to computing the dependency closure and the plan, and it is the price
-  this design knowingly pays. (`transformToDetailsMap`, export.go:227-235,
+  this design knowingly pays. (`transformToDetailsMap`, core/block/export/export.go, `Docs.transformToDetailsMap`,
   re-wraps the same `Details` pointers, not copies — and the native emit
   path does not need `SetKnownDocs` at all, since references print as full
   ids with resolvers wired from the store.)
@@ -630,7 +630,7 @@ documents; the worst single space 4,884 documents):
 - **Loaded CRDT trees in the object cache.** A loaded smartblock holds the
   full change history — far larger than its exported JSON. Because §1.5's
   close-after-write is immediate and TTL-independent (an object closes iff
-  nobody else has it open, smartblock.go:1153-1162), the resident content
+  nobody else has it open, core/block/editor/smartblock/smartblock.go, `smartBlock.TryClose`), the resident content
   set is **≈ the emit width, exactly** — at most N export-loaded objects at
   any instant, where N is the concurrency cap. Peak content RAM is
   therefore **not** O(throughput × TTL) and **not** proportional to space
@@ -643,7 +643,7 @@ documents; the worst single space 4,884 documents):
 **O(UI-open objects) — user-bounded, not space-bounded:**
 
 - Objects the close call correctly refuses: locked-right-now (transient),
-  UI-open (`IsLocked`, smartblock.go:633-641), the always-refusing
+  UI-open (`IsLocked`, core/block/editor/smartblock/smartblock.go, `smartBlock.IsLocked`), the always-refusing
   singletons and subscribed chat stores (§1.5 failure modes — and the
   corpus shows zero of those kinds in any export). This term scales with
   what the user is looking at, never with what is being exported.
@@ -658,8 +658,8 @@ documents; the worst single space 4,884 documents):
   a spike, not a leak, and nothing in the pipeline ever holds more than one
   document's content per worker.
 - **Blobs are streamed, never buffered**: `saveFile` pipes
-  `file.Reader → wr.WriteFile → io.Copy` (export.go:1306-1311,
-  writer.go:66-90), and the native emit keeps that shape.
+  `file.Reader → wr.WriteFile → io.Copy` (core/block/export/export.go, `exportContext.saveFile`,
+  core/block/export/writer.go, `dirWriter.WriteFile`), and the native emit keeps that shape.
 
 Summary — the peak-RAM model this pipeline is designed to:
 
@@ -680,14 +680,14 @@ close-after-write is design, not optimization.
 
 - **I1 at bundle scope**: `finish` re-reads `index.json` and
   `properties.json` through `UnmarshalIndex`/`UnmarshalPropertyDictionary`
-  before writing, as the harness does (main.go:983-1012) — a bundle this
+  before writing, as the harness does (cmd/anyblockroundtrip/main.go, `spaceComposer.finish`) — a bundle this
   exporter writes that the package refuses is this exporter's bug, found
   at export time.
 - **Omissions are lifts, never drops**: the space-settings document, the
   widget object, every relation document and every option document are
   omitted only through the package predicates, whose lift-before-omit
   ordering and reconstruction checks (`WidgetsSnapshot` verified via
-  `snapshotdiff`, main.go:786-800; the identical copy's trip to the table
+  `snapshotdiff`, cmd/anyblockroundtrip/main.go, `spaceComposer.observeSnapshot`; the identical copy's trip to the table
   verified the same way) come along unchanged — and where an omission is unconditional
   and has no reconstruction, its report (`UnaccountedRelationDetails`,
   `UnaccountedOptionDetails`) is what stands in for failing closed.
@@ -703,7 +703,7 @@ close-after-write is design, not optimization.
 `relationsOptions` reintroduce the word the format's vocabulary banned
 (PRINCIPLES rule 3), the camelCase compounds contradict the format's own
 naming rule (SPEC §1 Naming), and since the importer provably never reads directory
-names (import/pb/converter.go:338-341 is the only path rule), compatibility
+names (core/block/import/pb/converter.go, `Pb.getSnapshotsFromProvidedFiles` is the only path rule), compatibility
 buys nothing.
 
 **Layout: genuinely flat — every document in one directory.** The purer
@@ -737,7 +737,7 @@ of 9,688 (16.2%) in 42 of 77 spaces; file objects are worst at 25.6% (one
 space holds 373 files that all slug to `github-com-cover`). The "rare"
 collision suffix would be the fourth-commonest thing in the archive, and
 any first-writer-wins counter is nondeterministic under the concurrent
-queue — `namer.Get` (export.go:1435) is this alternative's existing
+queue — `namer.Get` (core/block/export/export.go, `namer.Get`) is this alternative's existing
 implementation, and its `rand.Int63n` suffix is the exhibit. Raw names
 with escaping instead of slugging fail the same table with extra steps
 (`ApiSlug`'s `/`, `#`, `@` leakage, SPEC §15, is the same lesson
@@ -759,8 +759,8 @@ appear — now in that mode's design instead of the default's.
 
 **Blobs: keep the `source` detail hack.** Rejected — it is the thing being
 replaced: it destroys a real user value in a real editable relation
-(relations.json:930), the destruction round-trips through import
-(import/pb/converter.go:404-414), and it makes a document's content a
+(pkg/lib/bundle/relations.json, the `source` entry), the destruction round-trips through import
+(core/block/import/pb/converter.go, `Pb.normalizeFilePath`), and it makes a document's content a
 function of the archive that contains it.
 
 **Blobs: a path member on the file_object envelope** (e.g. `"file":
@@ -845,7 +845,7 @@ and makes convention load-bearing; (c) is drift by construction.**
 **Q5. May a native bundle's file_object documents live beside blobs in
 `files/`, given the pb importer skips that directory wholesale?**
 Why it matters: a native bundle fed to the LEGACY pb importer
-(import/pb/converter.go:338-341) would have its file documents silently
+(core/block/import/pb/converter.go, `Pb.getSnapshotsFromProvidedFiles`) would have its file documents silently
 skipped — but a native bundle is not pb-importable anyway (different codec,
 different extension), so the question is really whether we guarantee
 anything about legacy importers seeing native bundles. Options: (a) no
@@ -855,7 +855,7 @@ independent; (b) keep file documents out of `files/` (a `file_docs/` split)
 purely for defensive overlap. **Recommendation: (a) — the defensive split
 re-creates the legacy two-directory correlation cost to protect a path that
 cannot parse the files anyway.** Verified at implementation: the pb
-importer parses every `.json` file as jsonpb (converter.go:285), so a
+importer parses every `.json` file as jsonpb (core/block/import/pb/converter.go, `Pb.getSnapshotFromFile`), so a
 native bundle fed to it fails on every document in every directory — the
 `files/` skip changes no outcome, and no partial import can silently drop
 just the file documents (SPEC §2c records this under the exporter's
@@ -863,7 +863,7 @@ convention).
 
 **Q6. Which RPC surface does the native exporter answer to?**
 Why it matters: `model.ExportFormat` today has `Protobuf`/`JSON` (pbjson)
-routed by `isAnyblockExport` (export.go:499); the native format needs an
+routed by `isAnyblockExport` (core/block/export/export.go, `isAnyblockExport`); the native format needs an
 addressable enum value, which is a protocol change in anytype-proto, and a
 deprecation story for `Export_JSON` (pbjson). Options: (a) new enum value
 (e.g. `Export_AnyBlockV2`), pbjson untouched until clients migrate;
@@ -889,7 +889,7 @@ extended.
 timeline does pb export retire? — STILL OPEN.**
 Why it matters: decides how much compatibility weight the writer carries
 (e.g. whether anyone still needs `profile` emitted) and what
-`ExportSingleInMemory` (export.go:112) serves. Not answerable by
+`ExportSingleInMemory` (core/block/export/export.go, `Export.ExportSingleInMemory`) serves. Not answerable by
 measurement — product call, and the one question in this section still
 waiting on one. **The position this design argues for: native becomes
 default only after the native import path ships and a full-account
@@ -905,7 +905,7 @@ Why it mattered: §15 #1 then leaned toward bare
 `DiscoverJSONFiles` plus the importer need one cheap, collision-free
 document test.
 Options: (a) `.anyblock.json` (what the harness already writes,
-main.go:377); (b) bare `.json` with content sniffing via `DetectFormat`.
+cmd/anyblockroundtrip/main.go, `processSpace`); (b) bare `.json` with content sniffing via `DetectFormat`.
 **Settled as (a) — the double extension is the entire skip-rule for
 non-document files, and it costs nothing; SPEC §15 #1 records it.**
 
@@ -965,7 +965,7 @@ relying on (b)'s ordering alone.
 
 **Existing exports.** Nothing changes for them: legacy pb/pbjson archives
 keep importing through the pb importer, whose only path rule
-(import/pb/converter.go:338-341) native bundles never relied on. The legacy
+(core/block/import/pb/converter.go, `Pb.getSnapshotsFromProvidedFiles`) native bundles never relied on. The legacy
 writer, `namer`, and md/pb/dot/graphjson converters are untouched — the
 extraction moves collection OUT of `export.go`; the legacy writing path
 keeps calling it through the same interface.
@@ -976,7 +976,7 @@ production native importer is separate future work). A native bundle is not
 a valid pb import and does not pretend to be.
 
 **Markdown later.** The md exporter keeps its own naming (`makeMarkdownName`,
-export.go:1362) and writer for now; the collect interface below is
+core/block/export/export.go, `makeMarkdownName`) and writer for now; the collect interface below is
 format-agnostic (`Closure` replaces `isProtobuf`), so md can migrate onto
 the same seam later without this design changing — that migration is
 explicitly not designed here.
@@ -992,18 +992,18 @@ type Closure int
 
 const (
     // ClosureContent — the md-style closure: nested objects and linked
-    // files only (export.go processNotProtobuf, :593).
+    // files only (export.go processNotProtobuf).
     ClosureContent Closure = iota
     // ClosureDerived — the collect-everything-derived closure the native
     // format wants: types, relations, options, templates, dataview
-    // dependencies, recommended relations (export.go processProtobuf, :610).
+    // dependencies, recommended relations (export.go processProtobuf).
     ClosureDerived
 )
 
 type Request struct {
     SpaceId          string
-    Ids              []string // empty = whole space (export.go getExistedObjects, :1138)
-    Closure          Closure  // replaces the bare isProtobuf bool (export.go:503-504)
+    Ids              []string // empty = whole space (export.go getExistedObjects)
+    Closure          Closure  // replaces the bare isProtobuf bool (core/block/export/export.go, `exportContext.docsForExport`)
     IncludeNested    bool
     IncludeFiles     bool
     IncludeArchived  bool
@@ -1043,7 +1043,7 @@ func (c *Composer) ObserveOmitted(sw SnapshotMeta) error
 func (c *Composer) Finish() (index, properties []byte, err error) // re-read-verified (I1)
 
 // UsedPropertyKeysFromBytes — the byte-level promotion of
-// cmd/internal/anyblockbatch.UsedPropertyKeys (scan.go:908), shared with
+// cmd/internal/anyblockbatch.UsedPropertyKeys (cmd/internal/anyblockbatch/scan.go, `UsedPropertyKeys`), shared with
 // the cmd tools (design §1.1).
 func UsedPropertyKeysFromBytes(doc []byte) (map[string]bool, error)
 ```
@@ -1057,7 +1057,7 @@ type Exporter struct { /* picker, objectStore, fileService, resolvers */ }
 func (e *Exporter) Export(ctx context.Context, req collect.Request, wr writer.Writer) (succeed int, err error)
 // internally: collect → compose.BuildPlan → queue tasks
 //   {Marshal + wr.WriteFile + blob stream + composer.Observe*} → composer.Finish
-//   → wr.WriteFile(index.json, properties.json)   (the postProcess seam, export.go:1529)
+//   → wr.WriteFile(index.json, properties.json)   (the postProcess seam, core/block/export/export.go, `exportContext.postProcess`)
 ```
 
 **SPEC follow-ups this design creates** (to be filed with the SPEC when
