@@ -260,6 +260,55 @@
           "type_settings": false
         }
       }
+    },
+    {
+      "$comment": "The derived-id reservation, kind half (SPEC §9): `type-<internal_key>` is a TYPE document's id, so no other kind may wear the prefix. Stated as a constraint on `id` under a non-type `kind` so the verdict lands on the member at fault. The other half — that the remainder is this document's own internal_key — is semantic: JSON Schema cannot compare one member against a substring of another.",
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "object_type",
+              "bundled_object_type"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "id": {
+            "not": {
+              "pattern": "^type-"
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "The same reservation for participants: `participant-<identity>` is a participant document's id. That the remainder is a real account identity — a base58 strkey with its version byte and CRC16 checksum — is semantic, as no schema can express a checksum.",
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "participant"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "id": {
+            "not": {
+              "pattern": "^participant-"
+            }
+          }
+        }
+      }
     }
   ],
   "$defs": {

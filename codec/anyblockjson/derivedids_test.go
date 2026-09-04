@@ -690,3 +690,50 @@ func TestDerivedIds_TypeUnfoldDoesNotDependOnSpaceId(t *testing.T) {
 	assert.Equal(t, "typeid-wine", dv.Views[0].DefaultObjectTypeId)
 	assert.Equal(t, "typeid-page", back.Blocks[3].GetText().GetMarks().GetMarks()[0].Param)
 }
+
+// The reservation lives in the published GRAMMAR, not only in this package's
+// semantic pass. §9 says a reader may trust the prefix because nothing else
+// may wear it; a third-party reader validating against
+// object.schema.json could not enforce that at all — the canonical schema
+// declared `"id": {"type": "string"}` while the authoring schema beside it
+// carried both halves of the rule.
+//
+// The schema carries the KIND half; the key agreement (`type-habit` on a
+// type whose internal_key is `ritual`) stays semantic, because JSON Schema
+// cannot compare one member against a substring of another —
+// TestDerivedIds_PrefixesAreReserved covers that half.
+//
+// How this can fail: drop the conditionals and this test's documents pass
+// the schema while Validate refuses them, which is the two surfaces
+// disagreeing about one document (§12 I2).
+func TestDerivedIds_ReservationIsInTheCanonicalSchema(t *testing.T) {
+	identity := foldIdentity
+	for name, tc := range map[string]struct {
+		doc   string
+		valid bool
+	}{
+		"a type document owns its derived id": {
+			`{"formatVersion":"2.0","kind":"object_type","id":"type-habit","internal_key":"habit",` +
+				`"properties":{"Name":"Habit"}}`, true},
+		"a page may not wear type-": {
+			`{"formatVersion":"2.0","id":"type-habit"}`, false},
+		"a bundled type document owns it too": {
+			`{"formatVersion":"2.0","kind":"bundled_object_type","id":"type-page","internal_key":"page",` +
+				`"properties":{"Name":"Page"}}`, true},
+		"a participant document owns its derived id": {
+			`{"formatVersion":"2.0","kind":"participant","id":"participant-` + identity + `"}`, true},
+		"a page may not wear participant-": {
+			`{"formatVersion":"2.0","id":"participant-` + identity + `"}`, false},
+		"a hyphen elsewhere is an ordinary bundle-local id": {
+			`{"formatVersion":"2.0","id":"page-welcome"}`, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := validateAgainstSchema([]byte(tc.doc), compileSchema)
+			if tc.valid {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err, "the published grammar must carry the reservation, not only Validate")
+		})
+	}
+}

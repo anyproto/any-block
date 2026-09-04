@@ -4043,7 +4043,14 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   (§2g, whose `documentId` refuses `participant-` outright, a kind an
   author never writes, and gates `type-` on `kind: "object_type"`). The
   prefix is a statement a reader may trust only because nothing else may
-  make it. A `-` anywhere else in an id — `page-welcome` — is an ordinary
+  make it — so the KIND half is in the published grammar, not only in this
+  package: `object.schema.json` refuses `type-` on any kind but a type
+  document and `participant-` on any kind but a participant, which is what
+  lets a third-party reader enforce the prefix it is being told to trust.
+  The other half — that the remainder is this document's own
+  `internal_key`, and that a participant's is a real account identity — is
+  semantic, because no schema can compare a member against a substring of
+  another or verify a checksum. A `-` anywhere else in an id — `page-welcome` — is an ordinary
   bundle-local slug.
 - **Import rebuilds through the same capability.** `type-<key>` in an
   id-valued slot becomes the type object the target space serves for that

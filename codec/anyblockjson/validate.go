@@ -246,6 +246,13 @@ func validateToDocInScope(data []byte, lenient bool, warn func(Issue), scope val
 	// likely to be missing it — one holding a legacy document that spelled
 	// `relation_format` in properties — needs the vocabulary, not the bound
 	propertyFormatSlotIssue(doc, &spoken)
+	// the derived-id reservation (§9), for the third trade of the same kind:
+	// the schema states the KIND half and addresses it correctly, at `/id`,
+	// but can only say the id matched a forbidden pattern — not which
+	// document owns the prefix, nor what to do about it. And the other half,
+	// that the remainder is this document's own internal_key, no schema can
+	// state at all. One fault, one issue, worded by the pass that knows both.
+	derivedIdSlotIssue(doc, &spoken)
 	if err := sch.Validate(doc); err != nil {
 		return nil, &ValidationError{Issues: append(spoken.issues, schemaIssues(err, spoken)...)}
 	}
@@ -998,22 +1005,30 @@ func unknownPropertyMessage(prop string) string {
 	return fmt.Sprintf("property %q is not allowed", prop)
 }
 
-// derivedIdIssue enforces the derived-id reservation on the envelope id
+// derivedIdSlotIssue enforces the derived-id reservation on the envelope id
 // (§9) through the predicate Marshal refuses by (reservedIdViolation), so
 // the two cannot disagree: an ordinary object wearing `type-` or
 // `participant-` is refused at `/id`, and the prefix stays a statement a
 // reader can trust. A `-` anywhere else in an id (`page-welcome`) is an
 // ordinary bundle-local slug and is not this rule's business.
-func derivedIdIssue(doc map[string]any) (Issue, bool) {
+//
+// It runs BEFORE the schema and silences the schema's own verdict at `/id`
+// (rejectValueAt), the trade propertyNameIssues and iconFormatIssues already
+// make: the published schema carries the kind half — an external validator
+// runs that and nothing else (§12) — but a `not`/`pattern` verdict can only
+// report that the id matched something forbidden, and the reader needs to be
+// told which document owns the prefix. The key half is here alone, because
+// no schema can compare a member against a substring of another.
+func derivedIdSlotIssue(doc map[string]any, r *keySlotReport) {
 	id, _ := doc["id"].(string)
 	kind, _ := doc["kind"].(string)
 	internal, _ := doc[memberInternalKey].(string)
 	msg := reservedIdViolation(id, isTypeKind(doc),
 		kind == kindNames.name(model.SmartBlockType_Participant), internal, kind)
 	if msg == "" {
-		return Issue{}, false
+		return
 	}
-	return Issue{Path: "/id", Message: msg}, true
+	r.rejectValueAt("/id", msg)
 }
 
 // textBearing reports whether the block type's text is parsed for inline
@@ -1181,13 +1196,6 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// stored keys, each its own verbatim address, so a hard refusal here
 	// would make Marshal emit what Validate rejects (§11, I1).
 	warnNFCTwinSpellings(doc, warnIssue)
-
-	// The derived-id prefixes are reserved (§9): an id that says "type" or
-	// "participant" has to be one, or a reader that trusts the prefix — the
-	// whole point of writing it — is lied to by an ordinary object.
-	if issue, reserved := derivedIdIssue(doc); reserved {
-		issues = append(issues, issue)
-	}
 
 	// The template gate reads `kind`, and nothing else (§2). It used to
 	// resolve the `type` spelling through the document's own chain — legend,
