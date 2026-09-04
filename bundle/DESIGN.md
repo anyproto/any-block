@@ -35,9 +35,11 @@ determinism (every space exported twice, trees byte-compared) and
 per-document fidelity against a same-process pb export. First run over
 28,542 real documents: layout/classification/naming clean, data loss
 byte-for-byte equal to the pb baseline (34 objects / 67 findings, all
-codec-level). That run predates the ruling that took option documents out
-of a bundle (SPEC §15 #21) — it exercised an `options/` this layout no
-longer has, and has not been re-run since; nothing else about the layout
+codec-level). That run predates the two rulings that emptied a directory
+each — SPEC §15 #21 for option documents and §15 #23 for property
+documents — so it exercised an `options/` and a `properties/` this layout
+no longer has, and it has not been re-run. A later 159-space sweep does
+exercise the current layout (preamble below); nothing else about the layout
 moved. Real defects caught by real data and review, all fixed:
 the participant filename fold (§1.3 demanded the ENVELOPE id); a
 non-total option-vocabulary sort (same-name options tied into scheduling
@@ -86,11 +88,24 @@ concurrency.
 Evidence base: the code cited by `file:line` throughout, and a 77-space
 production corpus sweep (38,105 source objects, 28,542 emitted documents)
 measured with Python for this document. Corpus numbers below are from that
-sweep unless said otherwise. The sweep PREDATES the ruling that took option
-documents out of a bundle (SPEC §15 #21): 2,641 of those 28,542 emitted
-documents were `property_option`, so today's exporter writes **25,901** for
-the same corpus. Every figure below whose denominator is "emitted
-documents" is the sweep as measured, not a claim about current output.
+sweep unless said otherwise. The sweep PREDATES two rulings that each
+deleted a whole kind of document from a bundle: SPEC §15 #21 took the
+option documents (2,641 of those 28,542 were `property_option`) and §15 #23
+the property documents (1,215 more), so today's exporter writes **24,686**
+for the same corpus — §1.2's kind table of 24,685 plus the one fail-closed
+widget. Every figure below whose denominator is "emitted documents" is the
+sweep as measured, not a claim about current output.
+
+A second sweep exists and is a DIFFERENT population — the two are never
+merged below, and every count in this document is the 77-space one unless
+it says otherwise. That later run (`out-77c2cfd`, taken at commit 77c2cfd:
+after §15 #21, #23 and #26, before a type document's own id was derived
+from its key) covers 159 spaces, 79 of which hold any document, and emits
+24,889 documents — files 10,303 · objects 9,754 · participants 2,519 ·
+types 1,808 · templates 505. It exercises the layout this document
+describes rather than the one the 77-space sweep exercised: five
+directories, no `properties/`, no `options/`, and a `manifest` whose only
+member is `properties`.
 
 ---
 
@@ -104,7 +119,7 @@ Four phases, two of them new relative to today's exporter:
 |---|---|---|
 | **collect** | as today | dependency closure over the request: nested objects, dataview-referenced objects, types, relations, options, templates, linked files, recommended relations (`processProtobuf`, export.go:610). Extracted behind a format-agnostic interface; the bare `isProtobuf bool` (export.go:503-504) becomes an explicit closure mode. Output: `map[id]*Doc`, complete before anything is written. |
 | **plan** | single-threaded | classify every collected doc (kind → directory, §1.2), compute every filename (§1.3 — a pure per-document function of the id, no collision machinery). There is no manifest type table to pre-build (SPEC §15 #26): a type document is found by its id, `type-<internal_key>`. **Plan reads details only — id, name, type/layout, uniqueKey — never content**; that invariant is what keeps it O(collected details) in memory and free of object loads (§1.6). Cheap: map passes over details already in memory, no store reads, no marshal. |
-| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:197, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy's entry carries `uninstalled`, SPEC §15 #22, and the first's own refusal on a bundled key is what flags the entry `bundled_diverged`, SPEC §15 #25), plus `OmittedRelation` (omittedrelation.go) and `OmittedRelationOption` (omittedoption.go), which also take the snapshot base and so cannot run at plan time either — the smartblock type is only the first of the two places that say what a snapshot IS, and the stored layout is the second (`PropertySnapshotBase`); both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (omittedrelation.go:293) and `UnaccountedOptionDetails` (omittedoption.go:116) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
+| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:253, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy's entry carries `uninstalled`, SPEC §15 #22, and the first's own refusal on a bundled key is what flags the entry `bundled_diverged`, SPEC §15 #25), plus `OmittedRelation` (omittedrelation.go:328) and `OmittedRelationOption` (omittedoption.go:114), which also take the snapshot base and so cannot run at plan time either — the smartblock type is only the first of the two places that say what a snapshot IS, and the stored layout is the second (`PropertySnapshotBase`); both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (omittedrelation.go:422) and `UnaccountedOptionDetails` (omittedoption.go:132) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
 | **finish** | single-threaded, at the `postProcess` seam (export.go:1529) | compose and write `properties.json` and `index.json` (with manifest), re-reading both through the package's own `Unmarshal` before writing — the bundle-level I1 discipline the harness already practices (cmd/anyblockroundtrip/main.go:983-1012). |
 
 The composer is a production re-home of the harness's `spaceComposer`
@@ -148,31 +163,31 @@ Proposed layout, one bundle root per space:
 
 ```
 <root>/
-  index.json          — the bundle index + manifest (SPEC §2c; index.go:30)
-  properties.json     — the property dictionary (SPEC §2f; dictionary.go:47)
+  index.json          — the bundle index + manifest (SPEC §2c; index.go:334)
+  properties.json     — the property dictionary (SPEC §2f; dictionary.go:48)
   objects/            — kind: page (and any kind without a dedicated home,
                         e.g. the rare fail-closed widget document — 1 in the
-                        25,901 documents this layout emits for the corpus).
+                        24,686 documents this layout emits for the corpus).
                         FLAT — no type subdirectories
                         (settled; type grouping belongs to the later
                         human-readable mode, §1.3)
   types/              — kind: object_type
   templates/          — kind: template
-                        There is NO properties/ and NO options/: a bundle
-                        carries no property document and no option document
-                        at all. Every property something references is a
-                        dictionary entry stating its complete definition
-                        — `uninstalled`, `hidden` and `bundled_diverged`
-                        on the entry, one shape whether the key is bundled
-                        or not — and a property nothing references is not
-                        exported (SPEC §2f, §15 #22, #23, #24, #25). The
-                        dictionary states every
-                        select vocabulary inline on the entry of the
-                        property that owns it, order as array position
-                        (SPEC §2f, §15 #21)
   participants/       — kind: participant
   files/              — kind: file_object documents AND their blobs,
                         adjacent (§1.4)
+
+  NO properties/      — a bundle carries no property document and no option
+  NO options/           document at all. Every property something references
+                        is a dictionary entry stating its complete
+                        definition — `uninstalled`, `hidden`,
+                        `bundled_diverged` and `api_key` on the entry, one
+                        shape whether the key is bundled or not — and a
+                        property nothing references is not exported
+                        (SPEC §2f, §15 #22, #23, #24, #25). The dictionary
+                        states every select vocabulary inline on the entry
+                        of the property that owns it, order as array
+                        position (SPEC §2f, §15 #21)
 ```
 
 Rationale, against the legacy names (export.go:96-103):
@@ -198,7 +213,8 @@ Rationale, against the legacy names (export.go:96-103):
 - **Kind counts justify the split**: file_object 10,254 · page 9,688 ·
   participant 2,492 · object_type 1,760 · template 491 across the corpus
   — 24,685 documents across five directories, plus the one fail-closed
-  widget in `objects/`. Every proposed directory earns its place in a real
+  widget in `objects/`, which is the 24,686 the preamble's arithmetic
+  reaches. Every proposed directory earns its place in a real
   account; none is speculative. The same corpus held 1,215 `property`
   documents and 2,641 `property_option` objects, which is why `properties/`
   and `options/` were proposed and why their removal is worth stating: not
@@ -302,7 +318,11 @@ prefixes ≈ 150 chars, under Windows' 260 default). The derived ids add
 `-` and a fixed word in front (`participant-`, `type-`; SPEC §9) and, for a
 type, the stored key — a bundled camelCase key, a 24-hex bson, or a legacy
 key the fold gate admits only within `[A-Za-z0-9_]` — so the population's
-path safety is unchanged and a stem is at most 12 + 48 = 60 characters. Uniqueness is by
+path safety is unchanged. A participant stem is exactly 12 + 48 = 60
+characters; a type stem is 5 plus a stored key `typeKeyFoldable` admits up
+to 120, so at most 125 — 139 bytes with the extension, far under the
+255-byte component limit and inside the 128-character bound an authored id
+has. Uniqueness is by
 construction (ids are unique per space; measured: zero duplicates within
 any of the 77 bundles). Case-insensitive filesystems are covered by two
 different arguments, one per population, and the distinction matters: the
@@ -789,7 +809,7 @@ bson key, which would otherwise mint 52 opaque hex directories. The
 measured case against default type-subdirs: median space has 20 ordinary
 objects across 3 types, and 115 of 359 type directories (32%) would hold
 ≤ 2 objects. The kind-split-vs-flat tension this creates with Q2's id rule
-is resolved in §1.2 (bounded 6-directory probe, stated plainly; the
+is resolved in §1.2 (bounded 5-directory probe, stated plainly; the
 genuinely-flat alternative recorded in §2).
 
 **Q2. Document filenames — SETTLED: `<id>.anyblock.json`, hybrid

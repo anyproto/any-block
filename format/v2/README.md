@@ -257,9 +257,18 @@ the corpus by the same harness in `-native` mode — 28,542 documents
 checked for layout, kind classification, determinism (every space exported
 twice, trees byte-compared) and per-document fidelity against a
 same-process pb export; `../../bundle/DESIGN.md` records that run, and the
-caveat on it: the run predates the ruling that took option documents out of
-a bundle (SPEC §15 #21), so it exercised an `options/` this layout no longer
-has, and it has not been re-run since.
+caveat on it. That run predates four rulings, not one. §15 #21 took the
+option documents out of a bundle and §15 #23 the property documents, so it
+exercised an `options/` and a `properties/` this layout no longer has; §15
+#26 deleted `manifest.types`, the table it wrote a type path into; and §15
+#27 re-spelled every type and participant reference as a derived id,
+`type-<internal_key>` and `participant-<identity>`. So every id and every
+directory count that run reports is stale, not only its option documents,
+and it has not been re-run. A later 159-space sweep does exercise the
+current layout — 24,889 documents over five directories, no `properties/`,
+no `options/`, a `manifest` whose only member is `properties` — and
+`../../bundle/DESIGN.md` records it beside the older one, with the commit
+it was taken at and what that commit still predates.
 
 Anomalies found along the way were fixed rather than smoothed over —
 including two genuine silent-data-loss bugs the sweeps caught that no unit
