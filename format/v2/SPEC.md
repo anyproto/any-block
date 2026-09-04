@@ -917,6 +917,19 @@ is the question every reference already poses: the reader indexes the
 bundle's documents by id once, and this exporter's convention (below) makes
 it `types/type-task.anyblock.json` without the walk.
 
+Because that step is the only road to a type document, it is checked like
+every other cross-document reference: `bundle.Validate` requires that a
+`template_for`, a `type_internal_key` and every `object_types` entry
+spelling a derived id find a document carrying it, exactly as it requires
+one for `entrypoint`, `homepage`, a widget target and a `manifest.files`
+entry. **A bundled key is exempt** — `type-page` names a type every reader
+already has in the shipped table, so no bundle owes a document for it,
+while a minted key like `type-68c2a23c96ab900e02935111` means nothing to
+anyone but the bundle that carries the document. Nothing performed this
+check between the retirement of `manifest.types` (§15 #26) and its
+reinstatement here, which is how a bundle could carry a template pointing
+at a type document sitting beside it under a different id.
+
 **This exporter's convention** (the "one exporter's convention" slot,
 recorded so a reader of OUR bundles knows the layout without reverse-
 engineering it; none of it is format — a reader must still walk and index,

@@ -14,7 +14,10 @@ The conversion commands operate on one snapshot/document. When `validate`
 receives a directory containing `index.json`, it also checks bundle-level
 manifest paths, duplicate ids, entrypoint/widgets, the derived-id
 reservations (`type-<key>` and `participant-<identity>` ids belong to the
-matching documents, SPEC §9), and file bindings. A directory without `index.json` is treated as a collection of
+matching documents, SPEC §9), the derived type references (a
+`template_for`, a `type_internal_key` or an `object_types` entry naming a
+type by its derived id must find that document — a bundled key is exempt,
+since every reader carries the shipped table), and file bindings. A directory without `index.json` is treated as a collection of
 independent documents.
 
 ## What a round trip does not carry

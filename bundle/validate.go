@@ -24,6 +24,67 @@ type bundleDocumentEnvelope struct {
 	ID          string `json:"id"`
 	Kind        string `json:"kind"`
 	InternalKey string `json:"internal_key"`
+	// The slots that name a TYPE by key (SPEC §9). Each is checked against
+	// the bundle's document ids the way the index's own references are:
+	// deleting manifest.types (§15 #26) made `type-<internal_key>` the only
+	// road from an object to its type document (§2c), and took the type
+	// namespace's one cross-document check with it.
+	TypeInternalKey  string `json:"type_internal_key"`
+	TemplateFor      string `json:"template_for"`
+	PropertySettings struct {
+		ObjectTypes []string `json:"object_types"`
+	} `json:"property_settings"`
+	TypeSettings struct {
+		PropertyDefinitions []struct {
+			ObjectTypes []string `json:"object_types"`
+		} `json:"property_definitions"`
+	} `json:"type_settings"`
+}
+
+// bundleDictionaryEnvelope reads the dictionary's type-key slots off the raw
+// bytes. The decoded PropertyDefinition cannot answer here: it inverts every
+// admitted spelling to a stored key, so a display name and a derived id
+// arrive identical, and only the derived id is an address.
+type bundleDictionaryEnvelope struct {
+	Properties []struct {
+		ObjectTypes []string `json:"object_types"`
+	} `json:"properties"`
+}
+
+// derivedTypeUse is one slot naming a type by its derived id, kept with
+// where it was written so the refusal can name the file.
+type derivedTypeUse struct {
+	ref    string
+	slot   string
+	source string
+}
+
+// derivedTypeUses collects the derived type ids one document names. A
+// spelling that is not a derived id is skipped: a display name or a bare
+// stored key is authoring input the wiring resolves (§2g, §3), never an
+// address this bundle must carry.
+func derivedTypeUses(source string, envelope bundleDocumentEnvelope) []derivedTypeUse {
+	var uses []derivedTypeUse
+	add := func(slot, ref string) {
+		if anyblockjson.IsDerivedTypeId(ref) {
+			uses = append(uses, derivedTypeUse{ref: ref, slot: slot, source: source})
+		}
+	}
+	// `type_internal_key` states a KEY, and the document it points at is the
+	// one whose id is that key's derived id — the §2c reader flow exactly
+	if envelope.TypeInternalKey != "" {
+		add("type_internal_key", anyblockjson.TypeRefPrefix+envelope.TypeInternalKey)
+	}
+	add("template_for", envelope.TemplateFor)
+	for _, target := range envelope.PropertySettings.ObjectTypes {
+		add("object_types", target)
+	}
+	for _, definition := range envelope.TypeSettings.PropertyDefinitions {
+		for _, target := range definition.ObjectTypes {
+			add("object_types", target)
+		}
+	}
+	return uses
 }
 
 type authoritativeBundlePaths struct {
@@ -172,6 +233,7 @@ func Validate(fsys fs.FS) error {
 
 	documentPaths := map[string]string{}
 	documentKinds := map[string]string{}
+	var typeUses []derivedTypeUse
 	// Keep every admitted object document for the deterministic authoring
 	// namespace pass below. Type declarations must be planned as one set before
 	// any dependent /type, /template_for or object_types slot is imported.
@@ -185,6 +247,17 @@ func Validate(fsys fs.FS) error {
 			issues = append(issues, fmt.Sprintf("%s: read property dictionary: %v", propertyPath, readErr))
 		} else {
 			propertyDictionaryData = data
+			var dictEnvelope bundleDictionaryEnvelope
+			if json.Unmarshal(data, &dictEnvelope) == nil {
+				for _, entry := range dictEnvelope.Properties {
+					for _, target := range entry.ObjectTypes {
+						if anyblockjson.IsDerivedTypeId(target) {
+							typeUses = append(typeUses,
+								derivedTypeUse{ref: target, slot: "object_types", source: propertyPath})
+						}
+					}
+				}
+			}
 			dict, decodeErr := anyblockjson.UnmarshalPropertyDictionary(data, anyblockjson.Options{})
 			if decodeErr != nil {
 				issues = append(issues, fmt.Sprintf("%s: %v", propertyPath, decodeErr))
@@ -279,6 +352,7 @@ func Validate(fsys fs.FS) error {
 			return nil
 		}
 		recordDocument(name, envelope)
+		typeUses = append(typeUses, derivedTypeUses(name, envelope)...)
 		return nil
 	})
 	if err != nil {
@@ -324,6 +398,26 @@ func Validate(fsys fs.FS) error {
 			issues = append(issues, fmt.Sprintf("%s references object %q, but the bundle contains no document with that id", field, id))
 		}
 	}
+	// The type namespace's cross-document check. A derived type id is an
+	// address and the bundle is the only place one can be checked: a single
+	// document cannot know whether `type-habit` is here. Reported once per
+	// distinct (slot, id, file) so a type named from forty objects does not
+	// produce forty lines.
+	reportedTypeUse := map[derivedTypeUse]struct{}{}
+	for _, use := range typeUses {
+		if _, exists := documentPaths[use.ref]; exists {
+			continue
+		}
+		if _, seen := reportedTypeUse[use]; seen {
+			continue
+		}
+		reportedTypeUse[use] = struct{}{}
+		issues = append(issues, fmt.Sprintf(
+			"%s: %s references type %q, but the bundle contains no document with that id — "+
+				"a type document's id IS its derived id (SPEC §9), and since the manifest lost its "+
+				"type table it is the only way to reach one (§2c)", use.source, use.slot, use.ref))
+	}
+
 	requireObject("entrypoint", idx.Entrypoint)
 	requireObject("homepage", idx.Homepage)
 	for i, widget := range idx.Widgets {

@@ -53,6 +53,7 @@ import (
 
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
 	"github.com/anyproto/any-block/codec/anyblockjson/filterstring"
+	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
@@ -743,6 +744,35 @@ const ParticipantRefPrefix = "participant-"
 // TypeRefPrefix is the derived-id prefix of a type (§9): a type document's
 // id, and every reference to it, is `type-<internal_key>`.
 const TypeRefPrefix = "type-"
+
+// IsDerivedTypeId reports whether s is a type's derived id — the reserved
+// `type-<internal_key>` spelling, with a tail the §9 fold gate admits. It is
+// exported for bundle.Validate, which must ask of a `template_for`, a
+// `type_internal_key` or an `object_types` entry the one question a single
+// document cannot: does a document with that id exist here. The predicate
+// has to be the format's own, not a copy, or the check and the writer would
+// disagree about which spellings are addresses.
+//
+// A display name, a bare stored key and the legacy `ot-<key>` all answer
+// false: they are authoring input a reader resolves through the §3 chain,
+// not addresses, and holding them to a document's presence would refuse
+// every hand-written bundle.
+//
+// So does a BUNDLED key. `type-page` names a type every reader already
+// carries in the shipped table, so a bundle owes no document for it — an
+// authored bundle typing its pages `Page` ships no `types/` entry, and a
+// full export that omits an uninstalled bundled type has lost nothing. A
+// minted key has no such fallback: `type-68c2a23c96ab900e02935111` means
+// nothing to anyone but the bundle that carries the document, so that one
+// IS an address the bundle must honour.
+func IsDerivedTypeId(s string) bool {
+	key, ok := derivedTypeIdKey(s)
+	if !ok {
+		return false
+	}
+	_, bundled := vocabulary.GetType(domain.TypeKey(key))
+	return bundled != nil
+}
 
 // FoldDocumentId is the derived-id fold on a document's OWN envelope id, for
 // callers that must agree with what Marshal writes WITHOUT marshalling —
