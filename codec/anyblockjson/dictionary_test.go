@@ -580,3 +580,59 @@ func TestPropertyDictionary_OptionApiKeyRoundTrips(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(data), string(again), "the second write is byte-identical (§4)")
 }
+
+// An entry that STATES its stored key has stated it, whatever else it spells.
+// `KeyIsInternal` is what tells an importer to reuse the key exactly rather
+// than mint a fresh one, and `internal_key` is the document saying so — the
+// purpose the member exists for (§2f): "a bundle re-imported elsewhere yields
+// the same stored key".
+//
+// The reader used to re-derive the verdict from TypeProperty.authoredKey,
+// whose precedence is SPELLING-first and correct for authoring: a hand-written
+// entry says `"property": "Due date"` and that spelling is what the document's
+// values resolve through. Applied to a dictionary entry it answers a different
+// question than the one asked. This writer emits both members for a
+// space-minted property and they hold the same bson id, so spelling-first
+// reported "identity came from the spelling" and the flag came out false with
+// the stored key sitting in the entry — and the importer then minted a fresh
+// key, making the property a DIFFERENT property on the far side.
+//
+// A bundled entry came out true only by accident: its spelling is a display
+// name, so it differs from the resolved key and the `key != term` arm caught
+// it. Right answer, wrong derivation.
+//
+// How this can fail: recompute the verdict in the shared builder from the
+// authoring precedence (space-minted entries read false); take the spelling
+// arm for a writer-canonical pair (the same).
+func TestPropertyDictionary_StatedInternalKeyIsAuthoritative(t *testing.T) {
+	const minted = "68ba835996ab900b9b0231ac"
+	data := []byte(`{"formatVersion":"2.0","properties":[
+		{"property":"` + minted + `","internal_key":"` + minted + `","name":"Budget","format":"number"},
+		{"property":"Due date","internal_key":"dueDate","name":"Due date","format":"date"},
+		{"property":"Cooking time","name":"Cooking time","format":"number"}
+	]}`)
+	dict, err := UnmarshalPropertyDictionary(data, Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 3)
+
+	byKey := map[string]PropertyDefinition{}
+	for _, def := range dict.Properties {
+		byKey[string(def.Key)] = def
+	}
+
+	require.Contains(t, byKey, minted)
+	assert.True(t, byKey[minted].KeyIsInternal,
+		"a space-minted entry states its stored key in internal_key; the importer must reuse it, not mint a fresh one")
+	require.Contains(t, byKey, "dueDate")
+	assert.True(t, byKey["dueDate"].KeyIsInternal,
+		"a bundled entry states it too — and must be true for that reason, not because its spelling differs")
+
+	// the contrast that keeps the flag meaningful: an entry stating no
+	// internal_key has no stored key to reuse, and a reader mints one
+	for key, def := range byKey {
+		if key != minted && key != "dueDate" {
+			assert.False(t, def.KeyIsInternal,
+				"a name-only entry states no stored key, so %q is a spelling awaiting one", key)
+		}
+	}
+}

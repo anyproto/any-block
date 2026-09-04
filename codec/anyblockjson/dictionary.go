@@ -204,6 +204,20 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 			targets = append(targets, key)
 		}
 		def := tp.definition(storedKey, declaredFormatWith(Options{}, storedKey, tp.Format), targets)
+		// The identity verdict is this door's, not the shared builder's.
+		// TypeProperty.authoredKey answers the AUTHORING question —
+		// spelling-first, because a hand-written entry's `property` is what
+		// its values resolve through — and a dictionary entry asks a
+		// different one: did the document state its stored key? This writer
+		// emits `property` and `internal_key` together for a space-minted
+		// property, both holding the same bson id, so spelling-first reports
+		// "identity came from the spelling" and the flag would read false
+		// with the stored key sitting in the entry. An importer that trusts
+		// it then MINTS A FRESH KEY, and the property arrives on the far
+		// side as a different property — the one outcome `internal_key`
+		// exists to prevent (§2f). dictionaryEntryIdentity already weighed
+		// exactly this above; use its answer rather than a second opinion.
+		def.KeyIsInternal = isInternal
 		// dictionary-owned, so set here rather than in the shared builder:
 		// the type-document door never sees the member (its schema refuses
 		// it), and the PATCH channel has no removal to state
