@@ -23,10 +23,15 @@ package anyblockjson
 //   - **The participant fold.** `_participant_<spaceId>_<identity>` is a
 //     derived id: the space id is the document's own space restated, and the
 //     identity is the whole of the content. When Options.SpaceId names the
-//     space, export folds the composite down to the bare identity and import
-//     rebuilds the composite (domain.NewParticipantId) — 135 characters down
-//     to 48, and the same member re-addresses correctly when a document
-//     crosses spaces, because the reader rebuilds against ITS space.
+//     space, export folds the composite down to `participant-<identity>`
+//     and import rebuilds the composite (domain.NewParticipantId) — 135
+//     characters down to 60, and the same member re-addresses correctly
+//     when a document crosses spaces, because the reader rebuilds against
+//     ITS space. The prefix is a statement where the bare identity was
+//     shape inference, and `-` is outside every ordinary id alphabet, so no
+//     ordinary id is or begins one. A bare identity is still read (input
+//     compatibility with documents written before the prefix), never
+//     written.
 //
 // The split at `#` is unconditional and safe from both ends, verified rather
 // than assumed: no id form this format writes can contain `#` (CIDs are
@@ -313,7 +318,7 @@ func refNameNormalize(s string) string {
 // base58 strkey form with its account-address version byte and CRC16-XMODEM
 // checksum intact. The checksum is what makes this a CLASSIFIER
 // rather than a heuristic: no CID, bson id, or `_`-prefixed derived id can
-// decode as one, so a bare identity in a reference slot is unambiguous.
+// decode as one, so an identity in a reference slot is unambiguous.
 func isAccountIdentity(s string) bool {
 	if len(s) < 40 || len(s) > 64 {
 		return false // cheap gate: real identities are 48 characters
@@ -342,14 +347,14 @@ func crc16XMODEM(data []byte) uint16 {
 }
 
 // foldParticipantRef is the export half of the participant fold (§9):
-// `_participant_<SpaceId>_<identity>` becomes the bare identity. It folds
-// ONLY what unfoldParticipantRef provably rebuilds — the space embedded in
-// the id must be this run's own SpaceId (a cross-space participant ref would
-// otherwise silently re-home on import), the identity must classify as one,
-// and the composite must round-trip through domain.NewParticipantId
-// byte-identically. With no SpaceId the fold is off in both directions:
-// folding on export without the paired import being able to rebuild would
-// land a bare identity where a composite belongs.
+// `_participant_<SpaceId>_<identity>` becomes `participant-<identity>`. It
+// folds ONLY what unfoldParticipantRef provably rebuilds — the space
+// embedded in the id must be this run's own SpaceId (a cross-space
+// participant ref would otherwise silently re-home on import), the identity
+// must classify as one, and the composite must round-trip through
+// domain.NewParticipantId byte-identically. With no SpaceId the fold is off
+// in both directions: folding on export without the paired import being
+// able to rebuild would land a derived id where a composite belongs.
 func (o Options) foldParticipantRef(id string) string {
 	if o.SpaceId == "" || !strings.HasPrefix(id, domain.ParticipantPrefix) {
 		return id
@@ -361,42 +366,75 @@ func (o Options) foldParticipantRef(id string) string {
 	if domain.NewParticipantId(o.SpaceId, identity) != id {
 		return id
 	}
-	return identity
+	return ParticipantRefPrefix + identity
 }
 
 // FoldParticipantId is the exported form of the participant fold, for
 // callers that must agree with the envelope id Marshal writes WITHOUT
 // marshalling: the exporter's path plan names a document file by its
 // envelope id (bundle/DESIGN.md §1.3), and a participant document's
-// envelope id is its folded bare identity. Same gates as the internal fold
-// — no spaceId, a foreign space, a non-identity tail, or a composite that
-// does not round-trip all decline and return id unchanged — which is
-// exactly when Marshal keeps the composite as the envelope id, so the plan
-// and the envelope cannot disagree.
+// envelope id is its folded `participant-<identity>`. Same gates as the
+// internal fold — no spaceId, a foreign space, a non-identity tail, or a
+// composite that does not round-trip all decline and return id unchanged —
+// which is exactly when Marshal keeps the composite as the envelope id, so
+// the plan and the envelope cannot disagree.
 func FoldParticipantId(spaceId, id string) string {
 	return Options{SpaceId: spaceId}.foldParticipantRef(id)
 }
 
-// unfoldParticipantRef is the import half: a bare identity in an object
-// reference slot rebuilds this space's participant id. Gated on the exact
-// classifier the fold used, so unfold(fold(x)) == x and fold(unfold(y)) == y
-// for every id either side touches.
+// participantRefIdentity classifies a folded participant reference: the
+// canonical `participant-<identity>`, or — input compatibility with
+// documents written before the prefix — a bare identity. The identity's
+// own strkey checksum is the classifier either way (isAccountIdentity), so
+// no CID, bson id or `_`-prefixed derived id can pass as one.
+func participantRefIdentity(ref string) (identity string, ok bool) {
+	identity = strings.TrimPrefix(ref, ParticipantRefPrefix)
+	if !isAccountIdentity(identity) {
+		return "", false
+	}
+	return identity, true
+}
+
+// unfoldParticipantRef is the import half: a folded participant reference
+// in an object reference slot rebuilds this space's participant id. Gated
+// on the exact classifier the fold used, so unfold(fold(x)) == x and
+// fold(unfold(y)) == y for every id either side touches.
 func (o Options) unfoldParticipantRef(id string) string {
-	if o.SpaceId == "" || !isAccountIdentity(id) {
+	if o.SpaceId == "" {
 		return id
 	}
-	return domain.NewParticipantId(o.SpaceId, id)
+	identity, ok := participantRefIdentity(id)
+	if !ok {
+		return id
+	}
+	return domain.NewParticipantId(o.SpaceId, identity)
+}
+
+// foldRef is the derived-id fold on one reference slot, with no caption
+// (§9): the participant fold. It is what every reference slot that takes
+// no `#name` suffix writes through — the icon and cover `file`, a callout's
+// icon, a view's `default_template_id`/`default_type_id`, mention and
+// object-link targets inside text, the index's own references — so that no
+// slot can keep an id the document's own envelope would fold.
+func (o Options) foldRef(id string) string {
+	return o.foldParticipantRef(id)
+}
+
+// unfoldRef inverts foldRef: the import half for the same suffix-free
+// slots. No `#` is trimmed — those slots never carry a caption.
+func (o Options) unfoldRef(id string) string {
+	return o.unfoldParticipantRef(id)
 }
 
 // objectRef renders one object reference for a document slot (§9): the
-// participant fold first, then the informative `#name` suffix when the
+// derived-id fold first, then the informative `#name` suffix when the
 // shape asks for it (Options.RefNames) and a resolver names the target. The
 // resolver is asked about the STORED id — the composite participant id, not
-// the folded identity — because that is the id the space indexes. With no
+// the folded form — because that is the id the space indexes. With no
 // resolver, or no name, the reference is written bare — never with a
 // partial or invented suffix.
 func (e *exporter) objectRef(id string) string {
-	out := e.opts.foldParticipantRef(id)
+	out := e.opts.foldRef(id)
 	if !e.opts.RefNames || e.opts.ResolveObjectNames == nil || id == "" {
 		return out
 	}
@@ -478,33 +516,86 @@ func (e *exporter) droppedMissingListEntry(path, id string) bool {
 	return true
 }
 
-// exportMarks applies the missing-reference rule to inline markup (§8, §9):
-// a `<mention object_id="…">` whose target the space does not hold is
+// exportMarks applies the reference rules to inline markup (§8, §9). A
+// `<mention object_id="…">` whose target the space does not hold is
 // rewritten to the `_missing_object` sentinel — a mention is a singular
 // slot; dropping the mark would lose the fact that a mention existed while
-// its text stayed. Copy-on-write: the snapshot's own marks are caller-owned
-// state and are never mutated, and the common case — nothing missing —
-// returns the input slice untouched. Object-link marks (`[label](anytype://…)`)
-// keep their ids verbatim, as §9 states for them.
+// its text stayed. Then the derived-id fold (foldRef) runs on every mention,
+// object-mark and object-link target, exactly as it runs on every other
+// reference slot: a text mention of a member spells `participant-<identity>`
+// like the `Assignee` value beside it, so a reader joins both to the same
+// document. Copy-on-write: the snapshot's own marks are caller-owned state
+// and are never mutated, and the common case — nothing to rewrite — returns
+// the input slice untouched.
 func (e *exporter) exportMarks(path string, marks []*model.BlockContentTextMark) []*model.BlockContentTextMark {
 	out := marks
 	copied := false
-	for i, m := range marks {
-		if m == nil || m.Type != model.BlockContentTextMark_Mention || !missingFromSpace(e.opts, m.Param) {
-			continue
-		}
-		e.warn(path, "mention target %q names no object in this space and is written as %q — "+
-			"the mention's own text stays; only its address is gone", m.Param, missingObjectId)
+	replace := func(i int, m *model.BlockContentTextMark, param string) {
 		if !copied {
 			out = append([]*model.BlockContentTextMark(nil), marks...)
 			copied = true
 		}
 		clone := *m
-		clone.Param = missingObjectId
+		clone.Param = param
 		out[i] = &clone
+	}
+	for i, m := range marks {
+		if m == nil {
+			continue
+		}
+		switch m.Type {
+		case model.BlockContentTextMark_Mention:
+			if missingFromSpace(e.opts, m.Param) {
+				e.warn(path, "mention target %q names no object in this space and is written as %q — "+
+					"the mention's own text stays; only its address is gone", m.Param, missingObjectId)
+				replace(i, m, missingObjectId)
+				continue
+			}
+			if folded := e.opts.foldRef(m.Param); folded != m.Param {
+				replace(i, m, folded)
+			}
+		case model.BlockContentTextMark_Object:
+			if folded := e.opts.foldRef(m.Param); folded != m.Param {
+				replace(i, m, folded)
+			}
+		case model.BlockContentTextMark_Link:
+			// a Link whose destination is the object deep link renders as an
+			// object mark (§8.3), so its id is a reference slot too
+			if id, ok := parseObjectLink(m.Param); ok {
+				if folded := e.opts.foldRef(id); folded != id {
+					replace(i, m, objectLinkDest(folded))
+				}
+			}
+		}
 	}
 	return out
 }
+
+// unfoldMarks is the import half of exportMarks: every mention, object-mark
+// and object-link target rebuilds through unfoldRef. In place — the marks
+// were just parsed and are the importer's own.
+func (imp *importer) unfoldMarks(marks []*model.BlockContentTextMark) {
+	for _, m := range marks {
+		if m == nil {
+			continue
+		}
+		switch m.Type {
+		case model.BlockContentTextMark_Mention, model.BlockContentTextMark_Object:
+			m.Param = imp.opts.unfoldRef(m.Param)
+		case model.BlockContentTextMark_Link:
+			if id, ok := parseObjectLink(m.Param); ok {
+				if unfolded := imp.opts.unfoldRef(id); unfolded != id {
+					m.Param = objectLinkDest(unfolded)
+				}
+			}
+		}
+	}
+}
+
+// ParticipantRefPrefix is the derived-id prefix of a participant (§9): a
+// participant document's id, and every reference to it, is
+// `participant-<identity>`.
+const ParticipantRefPrefix = "participant-"
 
 // dateIdPrefix marks a virtual date object id (pkg/lib/localstore/addr).
 const dateIdPrefix = "_date_"
@@ -519,23 +610,25 @@ const missingObjectId = "_missing_object"
 const MissingObjectId = missingObjectId
 
 // objectRef reads one object reference back (§9): the informative suffix is
-// trimmed at the first `#`, unread, and a bare identity unfolds into this
+// trimmed at the first `#`, unread, and a folded participant id unfolds into this
 // space's participant id. Everything else passes verbatim, exactly as
 // before the suffix existed — which is what keeps a bare id and a suffixed
 // id importing identically.
 func (imp *importer) objectRef(ref string) string {
 	id := trimRefName(ref)
-	// A bare account identity in a reference slot is the folded half of a
-	// participant id (§9), and only a space can rebuild it. A reader that
-	// names none would store the identity where the composite belongs — a
-	// reference to an object that does not exist, in silence. The classifier
-	// is exact (a strkey checksum), so the reader KNOWS this has happened
-	// and says so, once, in build. It may not refuse: Validate never sees
-	// Options, so refusing here would put the two surfaces into
-	// disagreement over one document (§12 I2).
-	if imp.opts.SpaceId == "" && isAccountIdentity(id) {
-		imp.foldedUnrebuilt = true
+	// A folded participant reference in a reference slot is the folded
+	// half of a participant id (§9), and only a space can rebuild it. A
+	// reader that names none would store the folded form where the
+	// composite belongs — a reference to an object that does not exist, in
+	// silence. The classifier is exact (a strkey checksum), so the reader
+	// KNOWS this has happened and says so, once, in build. It may not
+	// refuse: Validate never sees Options, so refusing here would put the
+	// two surfaces into disagreement over one document (§12 I2).
+	if imp.opts.SpaceId == "" {
+		if _, folded := participantRefIdentity(id); folded {
+			imp.foldedUnrebuilt = true
+		}
 		return id
 	}
-	return imp.opts.unfoldParticipantRef(id)
+	return imp.opts.unfoldRef(id)
 }

@@ -95,8 +95,10 @@ func (e *exporter) viewToJSON(v *model.BlockContentDataviewView, dv *model.Block
 	vm.setNonEmpty("cover_fit", v.CoverFit)
 	vm.setNonEmpty("colored_groups", v.GroupBackgroundColors)
 	vm.setNonEmpty("page_size", v.PageLimit)
-	vm.setNonEmpty("default_template_id", v.DefaultTemplateId)
-	vm.setNonEmpty("default_type_id", v.DefaultObjectTypeId)
+	// two singular reference slots that take no caption (§9): the derived-id
+	// fold applies, the `#name` suffix does not
+	vm.setNonEmpty("default_template_id", e.opts.foldRef(v.DefaultTemplateId))
+	vm.setNonEmpty("default_type_id", e.opts.foldRef(v.DefaultObjectTypeId))
 	vm.setNonEmpty("wrap_content", v.WrapContent)
 	if v.ListSize != model.BlockContentDataviewView_Compact {
 		vm.setNonEmpty("list_size", listSizeNames.name(v.ListSize))
@@ -512,8 +514,8 @@ func (imp *importer) dataviewFromJSON(jb *jsonBlock) (*model.BlockContentDatavie
 			CoverFit:              jv.CoverFit,
 			GroupBackgroundColors: jv.ColoredGroups,
 			PageLimit:             jsonInt32(jv.PageSize),
-			DefaultTemplateId:     jv.DefaultTemplateId,
-			DefaultObjectTypeId:   jv.DefaultTypeId,
+			DefaultTemplateId:     imp.opts.unfoldRef(jv.DefaultTemplateId),
+			DefaultObjectTypeId:   imp.opts.unfoldRef(jv.DefaultTypeId),
 			WrapContent:           jv.WrapContent,
 			ListSize:              listSizeNames.value(jv.ListSize),
 			AlternateRows:         jv.AlternateRows,

@@ -33,11 +33,11 @@ func TestIndex_ManifestRoundTrip(t *testing.T) {
 	}
 
 	// when
-	data, err := MarshalIndex(in)
+	data, err := MarshalIndex(in, Options{})
 	require.NoError(t, err)
 	got, err := UnmarshalIndex(data, Options{})
 	require.NoError(t, err)
-	data2, err := MarshalIndex(got)
+	data2, err := MarshalIndex(got, Options{})
 	require.NoError(t, err)
 
 	// then
@@ -47,7 +47,7 @@ func TestIndex_ManifestRoundTrip(t *testing.T) {
 	assert.Equal(t, PropertiesFileName, got.Manifest.Properties)
 
 	// an empty manifest is not written at all
-	bare, err := MarshalIndex(&Index{Name: "Corpus", Manifest: &Manifest{}})
+	bare, err := MarshalIndex(&Index{Name: "Corpus", Manifest: &Manifest{}}, Options{})
 	require.NoError(t, err)
 	assert.NotContains(t, string(bare), "manifest")
 }
@@ -111,7 +111,7 @@ func TestIndex_ManifestDoesNotLocateOptions(t *testing.T) {
 		data, err := MarshalIndex(&Index{
 			Name:     "Corpus",
 			Manifest: &Manifest{Files: map[string]string{"bafyx": "files/bafyx.png"}, Properties: PropertiesFileName},
-		})
+		}, Options{})
 		require.NoError(t, err)
 		assert.NotContains(t, string(data), `"options"`)
 		assert.Contains(t, string(data), `"files"`, "the lookup a reader DOES have stays")
@@ -160,11 +160,11 @@ func TestIndex_ManifestBindsFileBlobs(t *testing.T) {
 	}
 
 	// when
-	data, err := MarshalIndex(in)
+	data, err := MarshalIndex(in, Options{})
 	require.NoError(t, err)
 	got, err := UnmarshalIndex(data, Options{})
 	require.NoError(t, err)
-	data2, err := MarshalIndex(got)
+	data2, err := MarshalIndex(got, Options{})
 	require.NoError(t, err)
 
 	// then — byte-stable, keys verbatim, sorted; and a files-only manifest
@@ -193,7 +193,7 @@ func TestIndex_ManifestOmitsEmptyPaths(t *testing.T) {
 		Manifest: &Manifest{
 			Files: map[string]string{"bafyreal": "files/bafyreal.png", "bafyx": ""},
 		},
-	})
+	}, Options{})
 	require.NoError(t, err)
 	_, err = UnmarshalIndex(data, Options{})
 	require.NoError(t, err, "what Marshal writes, Unmarshal accepts (I1)")
@@ -201,7 +201,7 @@ func TestIndex_ManifestOmitsEmptyPaths(t *testing.T) {
 	assert.Contains(t, string(data), "bafyreal")
 
 	// a manifest whose every entry is empty collapses to no manifest at all
-	bare, err := MarshalIndex(&Index{Name: "Corpus", Manifest: &Manifest{Files: map[string]string{"bafyx": ""}}})
+	bare, err := MarshalIndex(&Index{Name: "Corpus", Manifest: &Manifest{Files: map[string]string{"bafyx": ""}}}, Options{})
 	require.NoError(t, err)
 	assert.NotContains(t, string(bare), "manifest")
 }

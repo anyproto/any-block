@@ -15,7 +15,7 @@ import (
 func TestIndexWriterRequiresWidgetPropertyFixedPoints(t *testing.T) {
 	const target = testfixtures.ObjectID
 	marshal := func(properties []string, widgetTarget string) ([]byte, error) {
-		return MarshalIndex(&Index{Widgets: []Widget{{Target: widgetTarget, Properties: properties}}})
+		return MarshalIndex(&Index{Widgets: []Widget{{Target: widgetTarget, Properties: properties}}}, Options{})
 	}
 
 	data, err := marshal([]string{"dueDate"}, target)

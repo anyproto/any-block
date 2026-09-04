@@ -35,7 +35,7 @@ func TestIndex_ManifestTypesIsRetired(t *testing.T) {
 		data, err := MarshalIndex(&Index{Name: "Corpus", Manifest: &Manifest{
 			Properties: PropertiesFileName,
 			Files:      map[string]string{"bafyfile": "files/bafyfile.png"},
-		}})
+		}}, Options{})
 		require.NoError(t, err)
 		assert.NotContains(t, string(data), `"types"`)
 		got, err := UnmarshalIndex(data, Options{})

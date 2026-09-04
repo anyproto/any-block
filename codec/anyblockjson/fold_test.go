@@ -1,8 +1,8 @@
 package anyblockjson
 
 // fold_test.go — the participant fold (§9): `_participant_<space>_<identity>`
-// exports as the bare identity when Options.SpaceId names the space, and a
-// bare identity imports back as this space's participant id.
+// exports as `participant-<identity>` when Options.SpaceId names the space,
+// and the folded form imports back as this space's participant id.
 
 import (
 	"encoding/binary"
@@ -123,7 +123,7 @@ func TestFold_ParticipantRefsFoldOnEverySlot(t *testing.T) {
 
 	// then
 	assert.NotContains(t, doc, foldComposite, "no slot keeps this space's composite id")
-	assert.Contains(t, doc, `"`+foldIdentity+`"`, "the bare identity stands in")
+	assert.Contains(t, doc, `"`+ParticipantRefPrefix+foldIdentity+`"`, "the derived id stands in")
 	assert.Contains(t, doc, foreignComposite, "a foreign space's composite passes through whole")
 }
 
@@ -153,7 +153,7 @@ func TestFold_ParticipantOwnEnvelopeId(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	assert.Contains(t, string(data), `"id": "`+foldIdentity+`"`)
+	assert.Contains(t, string(data), `"id": "`+ParticipantRefPrefix+foldIdentity+`"`)
 	assert.NotContains(t, string(data), foldComposite)
 
 	// and back
@@ -271,7 +271,7 @@ func TestFold_ComposesWithTheNameSuffix(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	assert.Contains(t, string(data), `"`+foldIdentity+`#alice_ko"`,
+	assert.Contains(t, string(data), `"`+ParticipantRefPrefix+foldIdentity+`#alice_ko"`,
 		"resolvable AND readable: the folded identity plus the informative name")
 	assert.True(t, strings.Contains(string(data), foldIdentity))
 }
@@ -413,7 +413,7 @@ func TestFold_AReaderWithNoSpaceSaysSoInsteadOfCorrupting(t *testing.T) {
 	// then
 	require.Len(t, warned, 1, "one line for the document, not one per reference")
 	assert.Contains(t, warned[0].Message, "Options.SpaceId names no space")
-	assert.Equal(t, []string{foldIdentity, foreignComposite},
+	assert.Equal(t, []string{ParticipantRefPrefix + foldIdentity, foreignComposite},
 		valueStringList(back.GetDetails().GetFields()["owner"]),
-		"the identity is stored as it stands — the warning is what makes that visible")
+		"the folded id is stored as it stands — the warning is what makes that visible")
 }

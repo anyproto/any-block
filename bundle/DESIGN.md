@@ -263,13 +263,15 @@ convention" slot.
 objects/bafyreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.anyblock.json
 types/bafyreibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.anyblock.json
 files/bafyreicccccccccccccccccccccccccccccccccccccccccccccccccccc.anyblock.json
-participants/A11111111111111111111111111111111111111111111111.anyblock.json
+participants/participant-A11111111111111111111111111111111111111111111111.anyblock.json
 ```
 
 These are deterministic synthetic sentinels: each CID-shaped value has a
 single repeated payload character, and the participant identity is one `A`
-plus 47 `1`s. They preserve the exact 59-/48-character filename shapes while
-remaining conspicuously unlike captured content or account addresses.
+plus 47 `1`s. They preserve the exact 59-/60-character filename shapes while
+remaining conspicuously unlike captured content or account addresses. A
+participant's stem is its derived id (SPEC §9): the `participant-` prefix
+plus the identity; a type's is `type-<internal_key>`.
 
 This is what the harness already writes (cmd/anyblockroundtrip/main.go:377).
 
@@ -295,7 +297,11 @@ whole in a later mode (below).
 characters, no Unicode, no normalization surface, no Windows reserved
 stems, no length hazard (59 + 14 = 73 bytes per component maximum, under
 the 255-byte limit; worst full path with `spaces/<59-char id>/objects/`
-prefixes ≈ 150 chars, under Windows' 260 default). Uniqueness is by
+prefixes ≈ 150 chars, under Windows' 260 default). The derived ids add
+`-` and a fixed word in front (`participant-`, `type-`; SPEC §9) and, for a
+type, the stored key — a bundled camelCase key, a 24-hex bson, or a legacy
+key the fold gate admits only within `[A-Za-z0-9_]` — so the population's
+path safety is unchanged and a stem is at most 12 + 48 = 60 characters. Uniqueness is by
 construction (ids are unique per space; measured: zero duplicates within
 any of the 77 bundles). Case-insensitive filesystems are covered by two
 different arguments, one per population, and the distinction matters: the

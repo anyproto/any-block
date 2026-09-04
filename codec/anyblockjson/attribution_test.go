@@ -209,7 +209,7 @@ func TestAttribution_ExportWritesIdentityAndName(t *testing.T) {
 		props, raw := exportedProperties(t, snap, opts)
 
 		// then
-		assert.Equal(t, testAttribIdentity+"#alice_ko", props["Created by"])
+		assert.Equal(t, ParticipantRefPrefix+testAttribIdentity+"#alice_ko", props["Created by"])
 		assert.NotContains(t, raw, testParticipantId,
 			"the 135-character composite folds; the identity stands in (§9)")
 	})
@@ -222,7 +222,7 @@ func TestAttribution_ExportWritesIdentityAndName(t *testing.T) {
 		props, _ := exportedProperties(t, snap, opts)
 
 		// then
-		assert.Equal(t, testAttribIdentity+"#alice_ko", props["Created by"])
+		assert.Equal(t, ParticipantRefPrefix+testAttribIdentity+"#alice_ko", props["Created by"])
 	})
 
 	t.Run("lastModifiedBy is spelled last_modified_by and shaped the same", func(t *testing.T) {
@@ -236,7 +236,7 @@ func TestAttribution_ExportWritesIdentityAndName(t *testing.T) {
 		props, raw := exportedProperties(t, snap, opts)
 
 		// then
-		assert.Equal(t, testAttribIdentity+"#alice_ko", props["Last modified by"])
+		assert.Equal(t, ParticipantRefPrefix+testAttribIdentity+"#alice_ko", props["Last modified by"])
 		assert.NotContains(t, props, "lastModifiedBy", "the document spells display names (§3)")
 		assert.NotContains(t, raw, testParticipantId)
 	})
@@ -295,8 +295,8 @@ func TestAttribution_BareIdWhenThereIsNoName(t *testing.T) {
 			props, _ := exportedProperties(t, snap, opts)
 
 			// then
-			assert.Equal(t, testAttribIdentity, props["Created by"], "the bare folded id, nothing else")
-			assert.Equal(t, testAttribIdentity, props["Last modified by"])
+			assert.Equal(t, ParticipantRefPrefix+testAttribIdentity, props["Created by"], "the folded id, nothing else")
+			assert.Equal(t, ParticipantRefPrefix+testAttribIdentity, props["Last modified by"])
 		})
 	}
 
@@ -317,7 +317,7 @@ func TestAttribution_BareIdWhenThereIsNoName(t *testing.T) {
 		props, raw := exportedProperties(t, snap, opts)
 
 		// then
-		assert.Equal(t, testAttribIdentity, props["Created by"], "the control: a real id still lands")
+		assert.Equal(t, ParticipantRefPrefix+testAttribIdentity, props["Created by"], "the control: a real id still lands")
 		assert.NotContains(t, props, "Last modified by")
 		assert.NotContains(t, raw, degenerate)
 	})
@@ -357,8 +357,8 @@ func TestAttribution_ExportLeavesUserChosenParticipantsAlone(t *testing.T) {
 	props, _ := exportedProperties(t, snap, opts)
 
 	// then
-	assert.Equal(t, testAttribIdentity+"#alice_ko", props["Created by"], "a plain string")
-	assert.Equal(t, []any{testAttribIdentity}, props["Assignee"],
+	assert.Equal(t, ParticipantRefPrefix+testAttribIdentity+"#alice_ko", props["Created by"], "a plain string")
+	assert.Equal(t, []any{ParticipantRefPrefix + testAttribIdentity}, props["Assignee"],
 		"a user-chosen participant reference keeps its list shape and takes no suffix here")
 }
 
@@ -390,7 +390,7 @@ func TestAttribution_CensusReservesTheSpellingItWrites(t *testing.T) {
 	props, _ := exportedProperties(t, snap, opts)
 
 	// then
-	assert.Equal(t, testAttribIdentity+"#alice_ko", props["Created by"],
+	assert.Equal(t, ParticipantRefPrefix+testAttribIdentity+"#alice_ko", props["Created by"],
 		"the attribution key keeps its own spelling")
 	assert.Equal(t, "mine", props["aCustomKey"],
 		"the custom key falls back to its stored key, which is always its own address (§3)")
@@ -450,7 +450,7 @@ func TestAttribution_DoesNotSurviveARoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	assert.Contains(t, string(first), `"Created by": "`+testAttribIdentity+`#alice_ko"`)
+	assert.Contains(t, string(first), `"Created by": "`+ParticipantRefPrefix+testAttribIdentity+`#alice_ko"`)
 	assert.NotContains(t, string(second), `"Created by"`, "import drops it, so the next export has nothing to write")
 	assert.Equal(t, string(second), string(third), "and everything after the first export is byte-stable")
 }

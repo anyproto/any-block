@@ -2697,12 +2697,13 @@ id, named by the informative suffix — `<identity>#<name>`, as a plain
 string.**
 
 ```json
-"Created by": "A11111111111111111111111111111111111111111111111#SYNTHETIC_member",
-"Last modified by": "A11111111111111111111111111111111111111111111111#SYNTHETIC_member"
+"Created by": "participant-A11111111111111111111111111111111111111111111111#SYNTHETIC_member",
+"Last modified by": "participant-A11111111111111111111111111111111111111111111111#SYNTHETIC_member"
 ```
 
 The repeated identity is a deterministic 48-character synthetic sentinel; it
-preserves the participant-reference shape and the equality of both references
+preserves the participant-reference shape — the `participant-` derived-id
+prefix (§9), the identity, the caption — and the equality of both references
 without reproducing an account identity.
 
 Not an array. Both relations are `maxCount: 1` and 0 of 36,966 production
@@ -2710,7 +2711,7 @@ values were multi-valued, so the list wrapper the other object-format
 properties take is definitionally wrong here.
 
 The spelling is the general §9 reference shape: the stored participant id
-through the participant fold (48 characters instead of 135), the member's
+through the participant fold (60 characters instead of 135), the member's
 display name riding after the `#` as a caption. An earlier design wrote the NAME alone: it broke API v2, whose consumers need an id to resolve a
 member (avatar, profile), and **two members of one space can carry the same
 display name** — 76 of 2,478 production participants do — so the name
@@ -3881,9 +3882,9 @@ a `#`:
 
 ```json
 "Related":    ["bafyrei…#local_first_ux"],
-"Assignee":   ["A1111111…#SYNTHETIC_member"],
-"Created by": "A1111111…#SYNTHETIC_member",
-"id":       "A1111111…"
+"Assignee":   ["participant-A1111111…#SYNTHETIC_member"],
+"Created by": "participant-A1111111…#SYNTHETIC_member",
+"id":       "participant-A1111111…"
 ```
 
 - **The suffix is informative only.** Import trims it at the FIRST `#`,
@@ -3956,8 +3957,23 @@ a `#`:
 `_participant_<spaceId>_<identity>` is a derived id
 (`core/domain.NewParticipantId`): the space half restates the document's own
 space, and the 48-character identity is the whole of the content. Every
-reference slot above folds it to the bare identity on export, and import
-rebuilds the composite against `Options.SpaceId` (§13):
+reference slot folds it to **`participant-<identity>`** on export, and
+import rebuilds the composite against `Options.SpaceId` (§13). The prefix
+is a statement where a bare identity was shape inference — "a 48-character
+base58 string means a member" is a rule a reader has to know; `participant-`
+says it — and it is the same rule a type document's id follows
+(`type-<internal_key>`, *Derived ids* below). A bare identity is still
+READ, as input compatibility with documents written before the prefix (the
+checksum classifier is exact either way), and never written.
+
+Every slot folds, not only the ones a property census found participants
+in: object/file-format property values, `items`, block `object_id`s,
+filter values and sort orders, `object_orders`, the two attribution
+properties, the icon and cover `file` (§2b), a callout's icon, a view's
+`default_template_id`/`default_type_id`, mention and object-link targets
+inside `text` (§8), and the index's own references (§2c). A slot left out
+would spell an id no document in the bundle carries, which is worse than
+no fold at all.
 
 - **The trigger is the VALUE's shape, never the property name.** The
   heaviest participant slots in production are space-minted custom
@@ -3977,7 +3993,7 @@ rebuilds the composite against `Options.SpaceId` (§13):
   With no SpaceId nothing folds and nothing unfolds. **Any reader of a
   folded document MUST set it** — it is the space the document is being
   read INTO, which every importer necessarily knows, since an import lands
-  in a space. A reader that names none stores the bare identity where a
+  in a space. A reader that names none stores the folded id where a
   composite belongs, addressing no object; because the classifier is exact,
   the reader knows this has happened and reports it through the warning
   sink, once for the document (§13). The one caller with genuinely no
@@ -4163,10 +4179,11 @@ values, `items`,
 view `default_template_id`/`default_type_id`, `object_orders[].object_ids`,
 and filter `value`/sort `custom_order` entries of `objects`/`files`
 properties — is written in full, on every shape, with no legend. The §9
-`#name` suffix and the participant fold are not exceptions: the suffix adds
+`#name` suffix and the derived ids (§9) are not exceptions: the suffix adds
 a caption to a full id and inverts by deletion (no table to carry, nothing
-to keep in sync), and the folded identity IS the participant id's content,
-rebuilt from the reader's own space rather than looked up anywhere.
+to keep in sync), and a derived id IS its object's content — the identity
+behind `participant-`, the stored key behind `type-` — rebuilt from the
+reader's own space rather than looked up in any table the document carries.
 
 This is a deletion. The format used to carry a `refs` map of short labels to
 full ids behind a `CompactObjectRefs` flag, and two independent measurements
@@ -4499,7 +4516,7 @@ section that owns it:
   comes back as this space's participant id**, because unfold cannot know the
   fold never fired (every bare identity in the corpus sits in a text-format
   property, where the object arm never runs); and **a reader wired without a
-  SpaceId leaves folded identities bare**, which addresses no object — it is
+  SpaceId leaves folded participant ids as written**, which address no object — it is
   told so through the warning sink under
   `IssueCodeFoldedParticipantsWithoutSpace` (§13), once for the document,
   since the fault is the wiring and every such reference in the object shares

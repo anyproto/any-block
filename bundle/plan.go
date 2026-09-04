@@ -72,7 +72,7 @@ type Plan struct {
 //
 // The filename stem is the ENVELOPE id, which for a participant document
 // is not the store id: Marshal folds `_participant_<spaceId>_<identity>`
-// to the bare identity (§9), and a file named by the composite would break
+// to `participant-<identity>` (§9), and a file named by the composite would break
 // the pure reference→path function §1.3 exists for — a reference carries
 // the FOLDED id — besides claiming a `_`-prefixed name in the platform's
 // reserved namespace (§1). The fold declines (foreign space, non-identity

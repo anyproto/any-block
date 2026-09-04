@@ -114,7 +114,7 @@ func TestBuildPlan_RefusesAPathHostileId(t *testing.T) {
 }
 
 // A participant document's filename is its ENVELOPE id — the §9 fold of the
-// store composite to the bare identity — never the store id: a reference
+// store composite to `participant-<identity>` — never the store id: a reference
 // carries the folded id, so only the folded stem keeps id→path a pure
 // function of the reference, and the composite would claim a `_`-prefixed
 // name in the platform's reserved namespace (§1). The foreign-space
@@ -140,7 +140,7 @@ func TestBuildPlan_ParticipantStemIsTheFoldedIdentity(t *testing.T) {
 
 	got, ok := plan.DocPath(own)
 	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds")
-	assert.Equal(t, "participants/"+identity+".anyblock.json", got)
+	assert.Equal(t, "participants/participant-"+identity+".anyblock.json", got)
 
 	got, ok = plan.DocPath(foreign)
 	require.True(t, ok)

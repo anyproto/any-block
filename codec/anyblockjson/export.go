@@ -96,11 +96,11 @@ type Options struct {
 	// SpaceId is the space this codec run reads from or writes into — the
 	// wiring supplies it exactly as it supplies the resolvers. It enables
 	// the participant fold (§9): export folds
-	// `_participant_<SpaceId>_<identity>` to the bare identity, and import
-	// rebuilds the composite against this space. Empty disables the fold in
-	// BOTH directions: a composite id passes through verbatim and a bare
-	// identity is left alone, because folding on export without the paired
-	// import being able to rebuild would land a bare identity in a snapshot
+	// `_participant_<SpaceId>_<identity>` to `participant-<identity>`, and
+	// import rebuilds the composite against this space. Empty disables the
+	// fold in BOTH directions: a composite id passes through verbatim and a
+	// folded id is left alone, because folding on export without the paired
+	// import being able to rebuild would land a derived id in a snapshot
 	// slot where a composite belongs — silent corruption of exactly the slot
 	// the fold exists to fix.
 	SpaceId string
@@ -1728,13 +1728,13 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 		doc.set("kind", name)
 	}
 
-	// the envelope id: the participant fold applies — a participant
-	// document's OWN id folds to the bare identity, or a reader could not
-	// textually join a folded reference to the document it points at (§9) —
+	// the envelope id: the derived-id fold applies — a participant
+	// document's OWN id folds to `participant-<identity>`, or a reader could
+	// not textually join a folded reference to the document it points at (§9) —
 	// but never the name suffix: the document's name is right below in
 	// `properties`, and the envelope id is the one slot a reader must be
 	// able to use verbatim as an address.
-	doc.setNonEmpty("id", e.opts.foldParticipantRef(e.objectId()))
+	doc.setNonEmpty("id", e.opts.foldRef(e.objectId()))
 	doc.setNonEmpty("type", typeTerm)
 	if sbType == model.SmartBlockType_Template && len(typeTerms) > 1 {
 		doc.setNonEmpty("template_for", typeTerms[1])
@@ -2822,11 +2822,10 @@ func (e *exporter) buildLabelPlan() {
 	addObject := func(id string) {
 		if id != "" {
 			objects[id] = true
-			// the document spells the FOLDED form of a participant ref
-			// (§9), so the avoid-set carries that spelling too — the raw
-			// composite stays as well, since a suffix-trimming reader
-			// recovers it
-			if folded := e.opts.foldParticipantRef(id); folded != id {
+			// the document spells the FOLDED form of a derived id (§9), so
+			// the avoid-set carries that spelling too — the raw id stays as
+			// well, since a suffix-trimming reader recovers it
+			if folded := e.opts.foldRef(id); folded != id {
 				objects[folded] = true
 			}
 		}

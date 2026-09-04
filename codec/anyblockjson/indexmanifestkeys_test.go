@@ -38,7 +38,7 @@ func TestWidgetLiftRequiresExactIndexPropertyIdentity(t *testing.T) {
 			}
 			require.Len(t, idx.Widgets, 1)
 			assert.Equal(t, []string{tc.stored}, idx.Widgets[0].Properties)
-			data, err := MarshalIndex(&idx)
+			data, err := MarshalIndex(&idx, Options{})
 			require.NoError(t, err)
 			back, err := UnmarshalIndex(data, Options{})
 			require.NoError(t, err)

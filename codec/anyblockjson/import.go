@@ -628,9 +628,9 @@ func (imp *importer) finalize(fragmentPath string) error {
 	if imp.foldedUnrebuilt {
 		imp.warnWithCode(IssueCodeFoldedParticipantsWithoutSpace, fragmentPath,
 			"this document was written with participants folded and "+
-				"Options.SpaceId names no space: their references import as bare "+
-				"identities, which address no object. Set SpaceId to the space this "+
-				"document is being read into.")
+				"Options.SpaceId names no space: their references import as the folded "+
+				"participant-<identity> ids, which address no object. Set SpaceId to the "+
+				"space this document is being read into.")
 	}
 	return nil
 }
@@ -1308,6 +1308,7 @@ func (imp *importer) parseText(md string) (string, *model.BlockContentTextMarks,
 	if len(marks) == 0 {
 		return text, nil, nil
 	}
+	imp.unfoldMarks(marks)
 	return text, &model.BlockContentTextMarks{Marks: marks}, nil
 }
 
@@ -1328,6 +1329,7 @@ func (imp *importer) textFromJSON(jb *jsonBlock) (*model.BlockContentText, error
 	}
 	if style == model.BlockContentText_Callout {
 		calloutIconFrom(jb.Icon, t)
+		t.IconImage = imp.opts.unfoldRef(t.IconImage)
 	}
 	return t, nil
 }

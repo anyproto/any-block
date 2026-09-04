@@ -528,8 +528,28 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 			stored, _ := dictionaryStoredKey(s)
 			return stored
 		})
+		idx.Widgets[i].Target = opts.unfoldRef(idx.Widgets[i].Target)
+	}
+	// the index's reference slots rebuild through the same derived-id
+	// unfold a document's do (§9), against the space opts names
+	idx.Entrypoint = opts.unfoldRef(idx.Entrypoint)
+	idx.Homepage = opts.unfoldRef(idx.Homepage)
+	idx.AutoWidgetTargets = mapStrings(idx.AutoWidgetTargets, opts.unfoldRef)
+	if idx.Icon != nil && idx.Icon.File != "" {
+		idx.Icon.File = opts.unfoldRef(idx.Icon.File)
 	}
 	return &idx, nil
+}
+
+// foldedIcon is the index icon with its file reference folded (§9), on a
+// copy — the caller's Index is not this function's to rewrite.
+func foldedIcon(ic *Icon, opts Options) *Icon {
+	if ic == nil || ic.File == "" {
+		return ic
+	}
+	folded := *ic
+	folded.File = opts.foldRef(ic.File)
+	return &folded
 }
 
 // manifestTypesRetiredIssues refuses the manifest's retired `types` table
@@ -685,8 +705,14 @@ func indexWidgetPropertyBinding(stored string) (wire, effective string, fixed bo
 	return wire, effective, isWritablePropertyKey(stored) && effective == stored
 }
 
-// MarshalIndex renders an index in the canonical byte form (§4).
-func MarshalIndex(idx *Index) ([]byte, error) {
+// MarshalIndex renders an index in the canonical byte form (§4). opts arms
+// the derived-id fold on the index's own reference slots — `entrypoint`,
+// `homepage`, every widget target, the auto-widget ledger and the icon's
+// file — exactly as Marshal arms it on a document's (§9): the index is
+// written by the same run, so its references must spell what the documents
+// spell, or a widget targeting a type would name an id no document in the
+// bundle carries.
+func MarshalIndex(idx *Index, opts Options) ([]byte, error) {
 	if idx == nil {
 		return nil, fmt.Errorf("nil index")
 	}
@@ -695,9 +721,9 @@ func MarshalIndex(idx *Index) ([]byte, error) {
 	doc.set("formatVersion", FormatVersion)
 	doc.setNonEmpty("name", idx.Name)
 	doc.setNonEmpty("description", idx.Description)
-	doc.setNonEmpty("icon", indexIconOmap(idx.Icon))
-	doc.setNonEmpty("entrypoint", idx.Entrypoint)
-	doc.setNonEmpty("homepage", idx.Homepage)
+	doc.setNonEmpty("icon", indexIconOmap(foldedIcon(idx.Icon, opts)))
+	doc.setNonEmpty("entrypoint", opts.foldRef(idx.Entrypoint))
+	doc.setNonEmpty("homepage", opts.foldRef(idx.Homepage))
 
 	var widgets []any
 	for _, w := range idx.Widgets {
@@ -718,7 +744,7 @@ func MarshalIndex(idx *Index) ([]byte, error) {
 			propertySpellings[propertyIndex] = wire
 		}
 		wm := &omap{}
-		wm.set("target", w.Target)
+		wm.set("target", opts.foldRef(w.Target))
 		// the §4 omit-empty canon, member by member: `link` is the wrapper's
 		// default layout, and the three link display defaults are the same
 		// ones the link BLOCK omits (§5) — `text`, `none`, `none`
@@ -743,7 +769,7 @@ func MarshalIndex(idx *Index) ([]byte, error) {
 		widgets = append(widgets, wm)
 	}
 	doc.setNonEmpty("widgets", widgets)
-	doc.setNonEmpty("auto_widget_targets", stringsToAny(idx.AutoWidgetTargets))
+	doc.setNonEmpty("auto_widget_targets", stringsToAny(mapStrings(idx.AutoWidgetTargets, opts.foldRef)))
 	doc.setNonEmpty("auto_widget_disabled", idx.AutoWidgetDisabled)
 	if !idx.Manifest.empty() {
 		m := &omap{}

@@ -734,7 +734,7 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		Properties: anyblockjson.PropertiesFileName,
 		Files:      copyNonEmpty(c.filePaths),
 	}
-	idxData, err := anyblockjson.MarshalIndex(&idx)
+	idxData, err := anyblockjson.MarshalIndex(&idx, c.opts)
 	if err != nil {
 		return nil, nil, stats, fmt.Errorf("marshal index: %w", err)
 	}

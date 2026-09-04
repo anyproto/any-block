@@ -512,6 +512,7 @@ func (imp *importer) cellFromJSON(cell jsonCell, cellId string) ([]*model.Block,
 		if err != nil {
 			return nil, fmt.Errorf("cell %s: %w", cellId, err)
 		}
+		imp.unfoldMarks(marks)
 		return []*model.Block{{
 			Id: cellId,
 			Content: &model.BlockContentOfText{Text: &model.BlockContentText{
