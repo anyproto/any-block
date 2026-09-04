@@ -337,8 +337,10 @@ type exporter struct {
 	iconBuilt, coverBuilt bool
 
 	// relTargets is a relation document's translated target-type key list
-	// (§2d), built once for the same reason: the type-key census
-	// (seedTypeTermLedger) and buildPropertySettings both read it.
+	// (§2d), memoized because building it WARNS about the entries it drops.
+	// The type-key census read it beside buildPropertySettings until the type
+	// term ledger was retired (§15 #28); the property_settings emit is the
+	// only reader left.
 	relTargets      []string
 	relTargetsBuilt bool
 
@@ -380,14 +382,12 @@ type exporter struct {
 	// cannot depend on which slot happened to claim first.
 	termPlan map[string]string
 
-	// typeKeys is the §3 legend for the TYPE namespace, and typeTermOwner /
-	// typeTermByKey / typeNamedKeys its term ledger. One ledger and one
-	// legend PER NAMESPACE, deliberately: a property spelling and a type
-	// spelling may coincide without conflict (§3 — `object_type` the type key
-	// coexists with `objectType` the layout value, and a space can name a
-	// relation and a type one word), so a shared claim domain would back a
-	// key off a spelling the other namespace owns — a spurious conflict, and
-	// one legend map could not carry both meanings of the shared term at all.
+	// There is no second legend and no second ledger beside these: the TYPE
+	// namespace keeps neither (§15 #28). `type` is the one slot that spells a
+	// type, its stored key stands beside it in `type_internal_key`, and every
+	// other type reference is the derived id `type-<key>` (§9) — so a type
+	// spelling is a caption no reader resolves, and one shared with a
+	// property term or with another type's key costs nothing.
 }
 
 // propertySlug renders a stored property key for output and records what the
@@ -449,9 +449,11 @@ func (e *exporter) propertySlug(key string) string {
 // asks droppedPropertyKey, so the four kind- and value-scoped drops
 // buildProperties applies are not censused (the gap that spelled a custom
 // "Hidden" once suffixed and once plain, beside an `isHidden: false` nobody
-// writes). modelledTypeKeys closes the same gap in the type namespace. What
-// remains is a key named ONLY by a block the emit later drops: which blocks
-// survive is decided during buildBlocks, so this walk cannot know.
+// writes). The type namespace had the same gap and the same fix
+// (modelledTypeKeys), until its census went with the type term ledger (§15
+// #28). What remains is a key named ONLY by a block the emit later drops:
+// which blocks survive is decided during buildBlocks, so this walk cannot
+// know.
 func (e *exporter) seedTermLedger() {
 	e.termOwner = map[string]string{}
 	e.termByKey = map[string]string{}
@@ -671,7 +673,7 @@ func (e *exporter) vetSlug(key string, warn func(path, format string, args ...an
 		// (recordPropertyKey's rule), so the deny rule never sees it, and
 		// the reference slots that legitimately NAME a lifted key keep their
 		// §3 spelling. This is not hypothetical: the Property TYPE document
-		// lists `relationFormat` in its type_properties and shows it as a
+		// lists `relationFormat` in its property_definitions and shows it as a
 		// dataview column in 64 production spaces, and the blanket refusal
 		// spelled all of them camelCase-verbatim with two warnings each.
 		if bundledBinds(slug, key, (BundledKeyVocabulary{}).PropertyKey) &&
@@ -686,13 +688,13 @@ func (e *exporter) vetSlug(key string, warn func(path, format string, args ...an
 	return slug
 }
 
-// quietWarn is the silent sink vetSlug/vetTypeSlug take during census
-// planning.
+// quietWarn is the silent sink vetSlug takes during census planning.
 func quietWarn(string, string, ...any) {}
 
-// planKeyTerms is the census's collision pass, run once per namespace per
-// document: which term each censused key will take, decided from the whole
-// census rather than from claim order. Raw names are not unique — two live
+// planKeyTerms is the census's collision pass, run once per document over the
+// property namespace — the only one with a census since the type term ledger
+// was retired (§15 #28): which term each censused key will take, decided from
+// the whole census rather than from claim order. Raw names are not unique — two live
 // properties may bear one name — and a document is a map, so a spelling two
 // keys share cannot be written twice. The rule is per DOCUMENT, not per
 // space: a name ambiguous space-wide but appearing once here spells its
@@ -1027,8 +1029,10 @@ func (e *exporter) writableTypeSlug(key string) string {
 	return e.vetTypeSlug(key, e.warn)
 }
 
-// vetTypeSlug is vetSlug for the type namespace — the warning sink explicit
-// for the same census-planning reason.
+// vetTypeSlug is vetSlug for the type namespace. The sink stays a parameter,
+// but there is nothing to ask silently any more: the type namespace lost its
+// census with its term ledger (§15 #28), and writableTypeSlug — the only
+// caller — always passes e.warn.
 func (e *exporter) vetTypeSlug(key string, warn func(path, format string, args ...any)) string {
 	slug := e.opts.typeSlug(key)
 	if slug == key {
@@ -1461,11 +1465,12 @@ var typeKeyIdPrefix = domain.TypeKey("").URL()
 // modelledTypeKeys reduces the snapshot's object types to the stored keys the
 // envelope will actually spell: keyless entries dropped, survivors closing
 // ranks, then the positions §2 models — one type, plus the target type on a
-// template. `warn` reports each keyless drop, and only the emitting call
-// passes it, because the CENSUS runs this reduction too and must not report
-// the same drop twice.
+// template. `warn` reports each keyless drop. It is a parameter because the
+// type-key census ran this reduction too and had to stay silent; the census
+// went with the type term ledger (§15 #28), and buildDoc is the only caller
+// left.
 //
-// The census has to see exactly this list rather than every object type,
+// The census had to see exactly this list rather than every object type,
 // which is where it started. Reserving a key no slot spells makes export stop
 // being a fixpoint: a snapshot whose truncated-away second type is the first
 // one's spelling backed that spelling off, while the same object exported after one
@@ -2787,10 +2792,10 @@ func (e *exporter) buildLabelPlan() {
 				// exception in the other direction: its entries leave this
 				// walk and are NOT fed back, because the envelope writes
 				// them as TYPE-KEY terms, not object references — the same
-				// slot type_properties[].object_types is, which has never
-				// had census duty. A term is never textually joined with a
-				// block id, so a compact label equal to one collides with
-				// nothing.
+				// slot type_settings.property_definitions[].object_types is,
+				// which has never had census duty. A term is never textually
+				// joined with a block id, so a compact label equal to one
+				// collides with nothing.
 				continue
 			}
 			format, ok := e.resolveFormat(key)

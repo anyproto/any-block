@@ -49,10 +49,11 @@ type PropertyDefinition struct {
 	Options []OptionDefinition
 	// ObjectTypes restricts which types an objects/files property may point
 	// at, in priority order, given as **type keys** — the STORED spelling on
-	// this struct; the document spells the display name, and the codec
-	// translates at the boundary like every other key slot (§3). Empty means any
-	// object, which is also what an untargeted property accepts — a task
-	// could be assigned to a random page. Listing the built-in `participant`
+	// this struct; the document spells the type's derived id `type-<key>`
+	// (§9), and the codec translates at the boundary. A display name or the
+	// legacy `ot-<key>` is accepted on INPUT only; canonical export writes
+	// the derived id. Empty means any object, which is also what an
+	// untargeted property accepts — a task could be assigned to a random page. Listing the built-in `participant`
 	// alongside a bundle's own people type is what makes the current-user
 	// filter value available on the property (§6.2) while still allowing the
 	// seeded people as values.
@@ -140,10 +141,10 @@ type PropertyDefinition struct {
 	// cannot tell the user's rename from the table's — which is why it is a
 	// member and not a derivation. Absent says "not a bundled property, or
 	// bundled and not diverged"; the table lookup a reader already runs (§15
-	// #24) tells those apart, so this is NOT a `bundled` flag. The third
-	// dictionary-owned member (§2f, §15 #25), on Uninstalled's footing:
-	// refused on the shape's other two homes and by the authoring subset,
-	// written `true` only.
+	// #24) tells those apart, so this is NOT a `bundled` flag. The last of
+	// the four dictionary-owned members (§2f, §15 #25), on Uninstalled's
+	// footing: refused on the shape's other two homes and by the authoring
+	// subset, written `true` only.
 	BundledDiverged bool
 }
 
@@ -166,8 +167,8 @@ type OptionDefinition struct {
 	// store holds one; an author never writes one.
 	//
 	// It travels because no restore mints it. The app does have a rule that
-	// derives an api key from the name, and a census of 514 real option api
-	// keys found every one of them reproduced by that rule — but the rule
+	// derives an api key from the name, and a census over a 77-space export
+	// found all 514 real option api keys reproduced by it — but the rule
 	// lives on the create path (objectcreator's injectApiObjectKey), and
 	// import does not take it: relation and relation-option snapshots are
 	// excluded from the path that would run it and are written straight
@@ -175,7 +176,10 @@ type OptionDefinition struct {
 	// api key gets none at all, and the API addresses it by a
 	// hash-derived local key rather than the spelling its callers wrote.
 	// Reproducibility was the wrong question; nothing was going to
-	// reproduce it.
+	// reproduce it — and on the wider 159-space corpus it does not even
+	// hold: 16 of the 471 option api keys that reach a dictionary are not
+	// reproducible from the name, because an api key does not follow a
+	// rename.
 	ApiKey string `json:"api_key"`
 	// InternalKey is the option's stored key. It is minted, so an author
 	// never writes one and export writes it only where it exists.
@@ -346,9 +350,11 @@ func (e *exporter) buildTypeProperties() ([]any, error) {
 }
 
 // writableTypePropertyKey reports whether buildTypeProperties will emit this
-// resolved definition — the question the type-key census (seedTypeTermLedger)
-// has to ask too, or it reserves the target types of an entry no slot writes
-// and export stops being a fixpoint (see modelledTypeKeys).
+// resolved definition: the stored key has to be one a JSON member name can
+// hold, or the entry is dropped and reported. The type-key census used to ask
+// the same question — reserving the target types of an entry no slot writes
+// made export stop being a fixpoint — and went with the type term ledger
+// (§15 #28), so the emit gate is the only asker left.
 func writableTypePropertyKey(def PropertyDefinition) bool {
 	return isWritablePropertyKey(string(def.Key))
 }
@@ -411,15 +417,19 @@ type TypeProperty struct {
 	DefaultValue    any         `json:"default_value"`
 	DefaultValueSet bool        `json:"-"`
 	Section         string      `json:"section"`
-	// Uninstalled is the dictionary-owned member, as Section is the
-	// type-owned one; each home's schema refuses the other's before this
-	// decode runs (§2f).
-	Uninstalled bool   `json:"uninstalled"`
-	ApiKey      string `json:"api_key"`
-	// Hidden is the dictionary's second owned member (§2f, §15 #23), on the
+	// Uninstalled is the first of the dictionary's four owned members, as
+	// Section is the type-owned one; each home's schema refuses the other's
+	// before this decode runs (§2f).
+	Uninstalled bool `json:"uninstalled"`
+	// ApiKey is the dictionary's second owned member (§2f): the property's
+	// stored `apiObjectKey`, which no restore re-derives
+	// (PropertyDefinition.ApiKey). The only one of the four that is not a
+	// flag.
+	ApiKey string `json:"api_key"`
+	// Hidden is the dictionary's third owned member (§2f, §15 #23), on the
 	// same footing as Uninstalled.
 	Hidden bool `json:"hidden"`
-	// BundledDiverged is the dictionary's third owned member (§2f, §15
+	// BundledDiverged is the dictionary's fourth owned member (§2f, §15
 	// #25): the space's copy of a bundled property diverged from the shipped
 	// table at export time, so the entry outranks the reader's table.
 	BundledDiverged bool `json:"bundled_diverged"`

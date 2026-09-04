@@ -20,8 +20,8 @@ package anyblockjson
 // never travels on any kind (§3) — position is what carries order.
 //
 // Its API KEY does travel, on the entry (§2f). It was omitted on the
-// reading that the app regenerates one from the name, and a census of 514
-// real option api keys did find every one of them reproduced by that rule —
+// reading that the app regenerates one from the name, and a census over a
+// 77-space export did find all 514 real option api keys reproduced by it —
 // but the rule is on the create path (objectcreator's injectApiObjectKey)
 // and import does not take it: relation and relation-option snapshots are
 // excluded from the path that would run it, and are written straight into

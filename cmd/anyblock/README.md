@@ -10,14 +10,17 @@ Every path above exists in this repository, so the three commands run as
 written. `validate` finds documents by their `.json` extension and reports a
 path that yields none, so a mistyped path fails rather than passing silently.
 
-The conversion commands operate on one snapshot/document. When `validate`
-receives a directory containing `index.json`, it also checks bundle-level
-manifest paths, duplicate ids, entrypoint/widgets, the derived-id
-reservations (`type-<key>` and `participant-<identity>` ids belong to the
-matching documents, SPEC §9), the derived type references (a
-`template_for`, a `type_internal_key` or an `object_types` entry naming a
-type by its derived id must find that document — a bundled key is exempt,
-since every reader carries the shipped table), and file bindings. A directory without `index.json` is treated as a collection of
+The conversion commands operate on one snapshot/document. `validate` runs the
+one-document codec over every `.json` document either way, so the derived-id
+reservation (`type-<key>` and `participant-<identity>` ids belong to the
+matching documents, SPEC §9) is checked on a lone document as well as inside a
+bundle — it is a fact about one document. When `validate` receives a directory
+containing `index.json`, it adds the questions a document cannot answer by
+itself: bundle-level manifest paths, duplicate ids, entrypoint/widgets, the
+derived type references (a `template_for`, a `type_internal_key` or an
+`object_types` entry naming a type by its derived id must find that document —
+a bundled key is exempt, since every reader carries the shipped table), and
+file bindings. A directory without `index.json` is treated as a collection of
 independent documents.
 
 ## What a round trip does not carry

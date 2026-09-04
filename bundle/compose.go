@@ -126,7 +126,12 @@ type Stats struct {
 // bundle-level files state: the definitions the dictionary carries (every
 // relation document the emit omitted contributes one), the option
 // vocabularies, the index lift from the omitted space-settings and widget
-// documents, and where the manifest finds each type and each file blob.
+// documents, and the two things the manifest locates — the property
+// dictionary and the bytes behind each file document. It locates no types
+// (§15 #26): a type document is found by its id, which is its stored key
+// spelled type-<internal_key> (§9). And it states no installed list (§15
+// #24): the dictionary has one list, and every entry states its complete
+// definition.
 //
 // Observe, ObserveWritten and ObserveFileBlob are safe for concurrent use —
 // the emit phase runs width-bounded tasks (design §1.5) and everything

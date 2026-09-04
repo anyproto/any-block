@@ -40,7 +40,7 @@
       "minLength": 1,
       "maxLength": 64,
       "pattern": "^[^\u0000-\u001f]+$",
-      "description": "Type documents only: the stored identity used when this type is installed, for example \"habit\". It is internal metadata, not the document spelling: objects, templates and object_types name this type by the NFC display name in its Name property. Keep it distinct from bundled stored identities."
+      "description": "Type documents only: the stored identity used when this type is installed, for example \"habit\". It is internal metadata, not the document spelling: an object names this type by the NFC display name in its Name property, and a template's `template_for` or an `object_types` entry names it by that display name or by the derived id built from this key, `type-<internal_key>` (\"type-habit\"). Keep it distinct from bundled stored identities."
     },
     "icon": {
       "$ref": "#/$defs/icon"

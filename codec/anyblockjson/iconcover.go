@@ -51,9 +51,9 @@ var (
 // truth for both directions: export writes these keys nowhere but the typed
 // envelope fields, and import refuses them in `properties`
 // (deniedPropertyKey reads this same set, §2b, §3). The precedent is
-// `type_properties` (§2a); the difference is that this list is ALWAYS on,
-// because the fields it feeds are a pure function of the details bag and need
-// no resolver.
+// `type_settings.property_definitions` (§2a); the difference is that this
+// list is ALWAYS on, because the fields it feeds are a pure function of the
+// details bag and need no resolver.
 //
 // Deriving the refusal from the list is the point — a restated list is how
 // the export and import surfaces drifted apart the last time (see
