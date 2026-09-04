@@ -1441,14 +1441,30 @@ contradict, so there is nothing left to refuse. Like every entry, a
 flagged one is written only when something references the key (§15 #23):
 a removed property nothing names is not exported.
 
-What a reader does with the flag: it MAY recreate the property with its
-removal mark set — the reconstruction is `UninstalledRelationDetails`, the
-installed one plus the mark, and the composer verifies the omission against
-it (§11) — or it MAY skip the entry, since a removed property appears in no
-listing either way and both restores look the same to the user. What it
-MUST NOT do is install the property as a live one. The entry answers for
-the key whichever way the reader chose: a value stored under it means what
-the entry says. `uninstalled` is the dictionary's own member, as `section`
+What a reader does with the flag: it MAY skip the entry, creating no
+property at all, or it MAY create the property LIVE and record the removal
+some other way — leaving it out of every type's property list is what
+"removed" means to a user. What it MUST NOT do is write the removal mark
+into the restored store, and it MUST NOT present the property as one the
+user is still using.
+
+Reproducing the mark is the one restore that breaks. The store derives
+`isDeleted` from `isUninstalled`, so a property created carrying the mark
+is born deleted and its index row is torn down with it; from then on the
+relation cannot be fetched by key, and for a SPACE-MINTED key — a bundled
+one still resolves against the shipped table — every later write touching
+that key on ANY object fails validation. The values documents already carry
+under the key are stranded: readable, and impossible to edit or clear. A
+removed property nothing references is not exported at all, so the entry
+only exists because something DOES reference it, which means those stranded
+values are the normal case rather than the corner.
+
+`UninstalledRelationDetails` is the reconstruction the COMPOSER verifies the
+omission against (§11) — the export proving it dropped nothing — not a
+shape a reader is being told to build.
+
+The entry answers for the key whichever way the reader chose: a value
+stored under it means what the entry says. `uninstalled` is the dictionary's own member, as `section`
 is the type declaration's (§2e) — on the shape's other homes it would
 describe nothing, and both refuse it — and an author never writes it,
 because a bundle that has not been installed has nothing to uninstall
@@ -1605,7 +1621,7 @@ declaration — which is how a property nobody has used yet is actually
 configured — is what carries it.
 
 The drop is reported, not silent: the composer names the properties whose
-vocabulary it left behind (`Stats.UnusedOptionKeys`, §11). §15 #21 records
+vocabulary it left behind (`Stats.UnusedPropertyKeys`, §11). §15 #21 records
 the decision, and what it costs.
 
 **What counts as a reference.** Any slot that names a property — the
@@ -4889,8 +4905,11 @@ failing closed would have bought. Every loss is stated rather than silent:
   objects the stored-layout arm of the predicate recognises are exactly the
   ones that carry a dataview.
 - An option of a property the dictionary does not carry is dropped by the
-  used-only rule (§2f), its property named in `UnusedOptionKeys`; a property
-  nothing can define is an orphan and its vocabulary goes with it, named in
+  used-only rule (§2f), its property named in `UnusedPropertyKeys` — which
+  names EVERY property that rule drops, not only the ones that own a
+  vocabulary: a number or a date dropped by the same rule used to leave no
+  trace but the anonymous omitted-document count. A property nothing can
+  define is an orphan and its vocabulary goes with it, named in
   `OrphanUsedKeys`.
 - An option a dictionary cannot state at all — a vocabulary on a property
   whose format does not admit one, an option colour outside the palette — is
@@ -5966,7 +5985,7 @@ being true.
   do not include, and once every referencing slot is counted that is
   exactly what a dropped vocabulary belongs to — a property no document
   declares, shows, groups by, filters or sorts on, or holds a value for;
-  the composer names each one (`Stats.UnusedOptionKeys`, §11). And the
+  the composer names each one (`Stats.UnusedPropertyKeys`, §11). And the
   alternative reading — the dictionary as the SPACE's schema rather than
   the bundle's — is
   exactly the change of meaning this item feared, and is not made.
@@ -6016,8 +6035,20 @@ being true.
   dictionary entry carrying `uninstalled: true` — never as a document kept
   for the flag's sake, and never under the `installed` list the format then
   had** (§2f; #24 retired the list). Recreation is
-  the reader's choice — with the removal mark set, or not at all — and the
-  format says so; what a reader may not do is install the property live.
+  the reader's choice — not at all, or live with the removal recorded some
+  other way — and the format says so; what a reader may not do is present
+  the property as one still in use, or write the removal mark into the
+  restored store.
+
+  The mark half was amended after the restore it describes was traced
+  through: the store derives `isDeleted` from `isUninstalled`, so a
+  property created carrying the mark is born deleted and loses its index
+  row, and for a space-minted key every later write touching it on any
+  object then fails validation while the values documents carry under it
+  stay stranded. The earlier wording — recreate it "mark and all", or skip
+  it, both restores look the same to the user — was true of what the user
+  sees and false of what the space can then do. It also read as permission
+  for the one option that does not work.
 
   The overturned position was the §2f keep-rule's: `isUninstalled` was one
   of three keys the omission predicate deliberately refused to classify, on

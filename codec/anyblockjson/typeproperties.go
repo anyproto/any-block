@@ -85,12 +85,24 @@ type PropertyDefinition struct {
 	DefaultValueSet bool
 	// Uninstalled records that the user REMOVED this property from the
 	// space (stored `isUninstalled` true): the bundle carries the property
-	// for backup fidelity, but a reader must not install it as a live one —
-	// recreating it, mark and all, is optional; installing it live would
-	// undo the removal. A member of the dictionary home only (§2f):
-	// on a type's declaration or a property document's settings it would
-	// say nothing, and both refuse it, the way the dictionary refuses
-	// `section`.
+	// for backup fidelity, but a reader must not present it as one the user
+	// is still using, and must not write the removal mark into the restored
+	// store. Recreating it live with the removal recorded some other way,
+	// or not recreating it at all, are the two restores that work.
+	//
+	// Reproducing the mark is the one that does not. The store derives
+	// `isDeleted` from `isUninstalled`, so a property created carrying it is
+	// born deleted and loses its index row; the relation can no longer be
+	// fetched by key, and for a space-minted key — a bundled one still
+	// resolves against the shipped table — every later write touching that
+	// key on any object fails validation, while the values documents carry
+	// under it stay readable and impossible to edit. An entry exists only
+	// because something references the key (§2f), so those values are the
+	// normal case rather than the corner.
+	//
+	// A member of the dictionary home only (§2f): on a type's declaration
+	// or a property document's settings it would say nothing, and both
+	// refuse it, the way the dictionary refuses `section`.
 	Uninstalled bool
 	// Hidden records that the store hides this property from every listing
 	// (stored `isHidden` true). With no property document in a bundle

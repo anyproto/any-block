@@ -85,8 +85,8 @@ var relationDefinitionKeys = map[string]bool{
 // of them is an artifact, because each carries something a person did:
 //
 //   - `isUninstalled`: the user REMOVED this property from the space, and
-//     installing it live on restore would undo that. The dictionary entry
-//     carries the removal as `uninstalled` (§15 #22), so
+//     restoring it as one still in use would undo that. The dictionary
+//     entry carries the removal as `uninstalled` (§15 #22), so
 //     OmittedBundledRelation classifies the key on an arm of its own (a
 //     bool, either value — see UninstalledRelation and
 //     OmittedUninstallStamp) and the composer sets the flag on the entry.
@@ -509,10 +509,13 @@ const detailKeyIsUninstalled = "isUninstalled"
 // UninstalledRelation reports a relation snapshot the user removed from the
 // space — stored `isUninstalled` true, as a bool. It is what the dictionary
 // entry's `uninstalled` member states (§2f): a property the bundle carries
-// for backup fidelity but that a reader MUST NOT install live, because
-// doing so would undo the removal on restore. An alien-kinded value is not
-// a removal; OmittedBundledRelation refuses such a copy on its own
-// fail-closed verdict, and its entry states the stored definition.
+// for backup fidelity but that a reader must not present as one the user is
+// still using, and must not recreate carrying the mark — the store derives
+// `isDeleted` from it, and a born-deleted relation strands every value
+// documents carry under its key (PropertyDefinition.Uninstalled). An
+// alien-kinded value is not a removal; OmittedBundledRelation refuses such
+// a copy on its own fail-closed verdict, and its entry states the stored
+// definition.
 func UninstalledRelation(base *model.SmartBlockSnapshotBase) bool {
 	v := base.GetDetails().GetFields()[detailKeyIsUninstalled]
 	b, isBool := v.GetKind().(*types.Value_BoolValue)

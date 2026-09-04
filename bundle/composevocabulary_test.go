@@ -138,7 +138,7 @@ func TestComposerLiftsVocabularyReferencedOnlyByADataview(t *testing.T) {
 	assert.Equal(t, "aaaa1111", byKey["status"].Options[0].InternalKey)
 	assert.Equal(t, 1, stats.OptionsLifted)
 	assert.Zero(t, stats.OptionsDropped)
-	assert.Empty(t, stats.UnusedOptionKeys)
+	assert.Empty(t, stats.UnusedPropertyKeys)
 	assert.Empty(t, stats.OrphanUsedKeys)
 }
 
@@ -153,7 +153,7 @@ func TestComposerLiftsVocabularyReferencedOnlyByADataview(t *testing.T) {
 // How this can fail: gate the options loop on the census alone rather than
 // on the entry (the referenced entry is written without its vocabulary);
 // keep the divergence exemption (the unreferenced case finds an entry, and
-// a vocabulary, nothing needs); drop silently (UnusedOptionKeys and
+// a vocabulary, nothing needs); drop silently (UnusedPropertyKeys and
 // OptionsDropped stay empty and §11's "stated rather than silent" is false).
 func TestComposerVocabularyOnADivergentInstalledCopyFollowsTheEntry(t *testing.T) {
 	build := func(t *testing.T) *Composer {
@@ -184,7 +184,7 @@ func TestComposerVocabularyOnADivergentInstalledCopyFollowsTheEntry(t *testing.T
 		require.Len(t, byKey["tag"].Options, 1, "and the entry carries its vocabulary")
 		assert.Equal(t, "urgent", byKey["tag"].Options[0].Name)
 		assert.NotContains(t, byKey, "priority", "no document references priority: used-only drops it")
-		assert.Equal(t, []string{"priority"}, stats.UnusedOptionKeys)
+		assert.Equal(t, []string{"priority"}, stats.UnusedPropertyKeys)
 		assert.Equal(t, 2, stats.OptionsDropped)
 		assert.Equal(t, 1, stats.OptionsLifted)
 		assert.Empty(t, stats.OrphanUsedKeys)
@@ -196,7 +196,7 @@ func TestComposerVocabularyOnADivergentInstalledCopyFollowsTheEntry(t *testing.T
 		require.NoError(t, err)
 		_, byKey := dictionaryByKey(t, dictData)
 		assert.NotContains(t, byKey, "tag", "a divergent copy nothing references is not exported (§15 #24)")
-		assert.Equal(t, []string{"priority", "tag"}, stats.UnusedOptionKeys)
+		assert.Equal(t, []string{"priority", "tag"}, stats.UnusedPropertyKeys)
 		assert.Equal(t, 3, stats.OptionsDropped)
 		assert.Zero(t, stats.OptionsLifted)
 	})
@@ -214,7 +214,7 @@ func TestComposerVocabularyOnADivergentInstalledCopyFollowsTheEntry(t *testing.T
 // The counterpart matters as much: with no type naming it, the same
 // property is not exported at all — no entry, no Issue — because nothing
 // in the bundle needs its format. Its options go
-// with it, named in Stats.UnusedOptionKeys as every dropped vocabulary is.
+// with it, named in Stats.UnusedPropertyKeys as every dropped property is.
 //
 // How this can fail: gate the options loop on the root `properties` maps
 // alone (a type's declaration is not counted and the vocabulary is dropped
@@ -262,7 +262,7 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 		assert.Len(t, byKey[key].Options, 2, "the vocabulary travels with the property that owns it")
 		assert.Equal(t, 2, stats.OptionsLifted)
 		assert.Zero(t, stats.OptionsDropped)
-		assert.Empty(t, stats.UnusedOptionKeys)
+		assert.Empty(t, stats.UnusedPropertyKeys)
 	})
 	t.Run("referenced by nothing", func(t *testing.T) {
 		c := build(t)
@@ -274,7 +274,7 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 		require.NoError(t, err)
 		_, byKey := dictionaryByKey(t, dictData)
 		assert.NotContains(t, byKey, key, "nothing names the key: there is no value to explain and no format to look up")
-		assert.Equal(t, []string{key}, stats.UnusedOptionKeys)
+		assert.Equal(t, []string{key}, stats.UnusedPropertyKeys)
 		assert.Equal(t, 2, stats.OptionsDropped)
 		assert.Zero(t, stats.OptionsLifted)
 	})

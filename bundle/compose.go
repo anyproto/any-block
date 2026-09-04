@@ -75,7 +75,7 @@ type Stats struct {
 	// vocabulary the dictionary now states inline (§2f); OptionsDropped
 	// counts the ones it does not — their property has no dictionary entry
 	// to travel on, either because no document references it (the used-only
-	// rule; its keys are UnusedOptionKeys), because nothing can define it
+	// rule; its keys are UnusedPropertyKeys), because nothing can define it
 	// (its key is in OrphanUsedKeys), or because the entry cannot state a
 	// vocabulary at all (RefusedOptions).
 	OptionsLifted  int
@@ -95,11 +95,21 @@ type Stats struct {
 	// four, which is the whole point of counting them: nothing an option
 	// snapshot carried leaves the emit uncounted.
 	OptionsRepeated int
-	// UnusedOptionKeys are property keys that own a lifted vocabulary but
-	// that no document references, so the used-only rule (§2f, §15 #21)
-	// dropped the vocabulary with the entry. Sorted. One of the three
-	// losses §11 states rather than hides.
-	UnusedOptionKeys []string
+	// UnusedPropertyKeys are the properties the used-only rule dropped
+	// (§2f, §15 #21): the composer observed a definition for each — a
+	// relation snapshot, or a vocabulary whose owning relation it never
+	// saw — and no document references the key, so no entry is written.
+	// Sorted. One of the three losses §11 states rather than hides.
+	//
+	// It names every such property, not only the ones that own a select
+	// vocabulary. It used to name those alone, because the vocabulary went
+	// with them and that felt like the loss worth reporting; a number, a
+	// date or a text dropped by the same rule went out under the anonymous
+	// OmittedDocs count with nothing naming it. Same omission, same rule,
+	// same definition lost — reported on the accident of the format. The
+	// options that go with the ones that do own a vocabulary are still
+	// counted, in OptionsDropped.
+	UnusedPropertyKeys []string
 	// RefusedOptions names the vocabularies the dictionary cannot state and
 	// why — one `key: reason` line each, sorted. The writer refuses a
 	// vocabulary on a property whose format does not admit one (§2a), and
@@ -573,10 +583,17 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// exemption (§15 #24): the divergent copy used to keep its entry for the
 	// sake of a claim the `installed` list made, and there is no list.
 	entries := map[string]anyblockjson.PropertyDefinition{}
+	// every property the used-only rule drops is named, whatever it owns
+	// (Stats.UnusedPropertyKeys). A key reaches this set from either
+	// source of a definition the composer holds: an observed relation
+	// snapshot, or a lifted vocabulary whose owning relation it never saw.
+	unusedProperties := map[string]bool{}
 	for key, def := range c.entries {
 		if c.used[key] {
 			entries[key] = def
+			continue
 		}
+		unusedProperties[key] = true
 	}
 	var orphans []string
 	for key := range c.used {
@@ -602,7 +619,7 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// left in THIS bundle for the vocabulary to travel — a type's §2a
 	// definition may state one too, but the composer does not write those —
 	// and an entry this loop does not write states it nowhere.
-	var unusedOptionKeys, refusedOptions []string
+	var refusedOptions []string
 	for key, stored := range c.optionsByKey {
 		def, haveEntry := entries[key]
 		if !haveEntry {
@@ -613,7 +630,7 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 			// the key is an orphan, already named above, and the
 			// vocabulary goes with it.
 			if !c.used[key] {
-				unusedOptionKeys = append(unusedOptionKeys, key)
+				unusedProperties[key] = true
 			}
 			stats.OptionsDropped += len(stored)
 			continue
@@ -729,7 +746,11 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		entries[key] = def
 		stats.OptionsLifted += len(opts)
 	}
-	sort.Strings(unusedOptionKeys)
+	unusedPropertyKeys := make([]string, 0, len(unusedProperties))
+	for key := range unusedProperties {
+		unusedPropertyKeys = append(unusedPropertyKeys, key)
+	}
+	sort.Strings(unusedPropertyKeys)
 	sort.Strings(refusedOptions)
 
 	dict := &anyblockjson.PropertyDictionary{}
@@ -779,7 +800,9 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	stats.DictionaryBytes = len(dictData)
 	stats.IndexBytes = len(idxData)
 	stats.OrphanUsedKeys = orphans
-	stats.UnusedOptionKeys = unusedOptionKeys
+	if len(unusedPropertyKeys) > 0 {
+		stats.UnusedPropertyKeys = unusedPropertyKeys
+	}
 	stats.RefusedOptions = refusedOptions
 	return idxData, dictData, stats, nil
 }

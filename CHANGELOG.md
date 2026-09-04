@@ -42,6 +42,18 @@
   a restored option got no api key at all and the API addressed it by a
   hash-derived local key. `apiObjectKey` leaves the option omission's
   install-artifact set for `optionEntryDetailKeys`.
+- `uninstalled` reader guidance (§2f, §15 #22): a reader creates the
+  property live and records the removal some other way, or creates nothing;
+  it may not write the removal mark into the restored store. The store
+  derives `isDeleted` from `isUninstalled`, so a property recreated with
+  the mark is born deleted and loses its index row, and for a space-minted
+  key every later write touching it fails while the values documents carry
+  under it stay stranded. `UninstalledRelationDetails` is the composer's
+  verification shape, not a reader's instruction.
+- `Stats.UnusedOptionKeys` becomes `Stats.UnusedPropertyKeys` and names
+  EVERY property the used-only rule dropped, not only the ones that owned a
+  select vocabulary — same omission, same loss, reported in one case only.
+  The options that go with them are still counted in `OptionsDropped`.
 
 - Establish the versioned `format/v1` and `format/v2` layout.
 - Add the AnyBlock v2 specification, schemas, examples, and conformance data.
