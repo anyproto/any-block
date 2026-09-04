@@ -19,6 +19,13 @@
   path parameter go with it; `MarshalIndex` takes `Options` and
   `bundle.BuildPlan` takes `Options` in place of a space id, so the index
   and the path plan fold through the same gates a document does.
+- A vocabulary is written in the order the picker RENDERS, not the order it
+  subscribes with (§2a, §2f): every option carrying an `orderId` first,
+  those ascending, then the order-less ones by `createdDate` descending.
+  The picker re-sorts the rows it receives and puts an ordered option ahead
+  of an order-less one; the store's own comparator answers the opposite,
+  and following it emitted the options a user dragged to the top of a
+  kanban at the bottom of the array.
 
 - Establish the versioned `format/v1` and `format/v2` layout.
 - Add the AnyBlock v2 specification, schemas, examples, and conformance data.

@@ -286,15 +286,21 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 // `createdDate` descending.
 //
 // Both halves are easy to get backwards. An option with no order id sorts
-// FIRST (the client sends no empty-placement, so heart compares raw values
-// and "" precedes every lexid), and newest-first is deliberate rather than an
-// artifact — a new option is minted with the SMALLEST order id of its
-// siblings.
+// LAST: what the picker renders is not the subscription's own order but the
+// re-sort it runs over the received rows (optionSelect.tsx, `items.sort((c1,
+// c2) => U.Data.sortByOrderId(c1, c2) || U.Data.sortByNumericKey(
+// 'createdDate', c1, c2, Desc))`), and sortByOrderId puts every option that
+// HAS an order id ahead of every option that has none. Reading heart's own
+// comparator instead gives the opposite answer — with no explicit
+// empty-placement `tryCompareEmptyValues` falls through and "" precedes every
+// lexid — and that answer is the one the user never sees. Newest-first among
+// the order-less ones is deliberate rather than an artifact.
 //
-// How this can fail: push the order-less options to the end (a partially
-// ordered vocabulary comes back with its two groups swapped); tie-break the
-// order-less ones by name (the majority of real vocabularies state no order
-// at all, and the bundle alphabetizes them).
+// How this can fail: order by the subscription's sort rather than the
+// picker's (a partially ordered vocabulary comes back with its two groups
+// swapped, so the options the user dragged to the top are emitted at the
+// bottom); tie-break the order-less ones by name (the majority of real
+// vocabularies state no order at all, and the bundle alphabetizes them).
 func TestComposerOrdersAVocabularyTheWayTheAppListsIt(t *testing.T) {
 	key := "status"
 	c := NewComposer(anyblockjson.Options{}, "Board")
@@ -328,8 +334,8 @@ func TestComposerOrdersAVocabularyTheWayTheAppListsIt(t *testing.T) {
 	for _, o := range dict.Properties[0].Options {
 		got = append(got, o.Name)
 	}
-	assert.Equal(t, []string{"Blocked", "Backlog", "To Do", "In Progress", "Done"}, got,
-		"order-less first, newest of them first; then the lexids ascending")
+	assert.Equal(t, []string{"To Do", "In Progress", "Done", "Blocked", "Backlog"}, got,
+		"the lexids ascending first, then the order-less ones, newest of them first")
 }
 
 // One unrepresentable vocabulary costs its own property, not the export.

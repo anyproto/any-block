@@ -624,34 +624,56 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		// type's own declaration (§2f), which is how a configured-but-unused
 		// vocabulary reaches a bundle.
 		//
-		// Written in the order the app shows them, which is the option
-		// picker's own subscription sort: `orderId` ascending, then
-		// `createdDate` descending (the client's optionSelect listing). The
-		// array IS the order (§2f) and no option document carries a lexid
-		// any more (§15 #21), so this comparator is the whole of what a
-		// restore can reproduce — it is worth matching the listing exactly.
+		// Written in the order the app shows them: an option that HAS an
+		// order id first, those ascending, then the order-less ones by
+		// `createdDate` descending. The array IS the order (§2f) and no
+		// option document carries a lexid any more (§15 #21), so this
+		// comparator is the whole of what a restore can reproduce — it is
+		// worth matching the listing exactly.
 		//
-		// Two consequences are easy to get backwards, and an earlier
-		// revision got both:
+		// The listing is the PICKER'S, not the subscription's, and those
+		// two disagree about exactly one thing. The picker subscribes with
+		// `orderId` Asc then `createdDate` Desc and no empty-placement, so
+		// heart's own comparator falls through
+		// (database.keyOrder.tryCompareEmptyValues returns early only for an
+		// explicit placement) and "" precedes every lexid — order-less
+		// first. Then the picker RE-SORTS the rows it received before
+		// rendering them (optionSelect.tsx: `items.sort((c1, c2) =>
+		// U.Data.sortByOrderId(c1, c2) || U.Data.sortByNumericKey(
+		// 'createdDate', c1, c2, Desc))`), and sortByOrderId opens with
 		//
-		//   - An option with NO order id sorts FIRST, not last. The client
-		//     sends no empty-placement, so heart compares the raw values
-		//     (database.keyOrder.tryCompareEmptyValues returns early only
-		//     for an explicit placement) and "" precedes every lexid. The
-		//     plain `a.order < b.order` below already does this.
-		//   - Newest first is not an artifact of the id alphabet. A new
-		//     option is minted with the SMALLEST order id of its siblings
-		//     (objectcreator.setOptionOrderId → order.GetSmallestOrder), so
+		//	if (!c1.orderId && c2.orderId) return 1;
+		//	if (c1.orderId && !c2.orderId) return -1;
+		//
+		// which puts every ordered option ahead of every order-less one.
+		// The rendered list is the one a user chose; heart's is a list
+		// nobody ever sees. Every other option-shaped listing in the client
+		// runs the same sortByOrderId, so the rule is the client's, not this
+		// one screen's.
+		//
+		// Two further consequences are easy to get backwards:
+		//
+		//   - Newest first among the order-less ones is not an artifact of
+		//     the id alphabet: a new option is minted with the SMALLEST
+		//     order id of its siblings (objectcreator.setOptionOrderId →
+		//     order.GetSmallestOrder), so where an order exists at all,
 		//     `orderId` ascending and `createdDate` descending agree, and
 		//     the created date is the right tie-break for the majority of
-		//     vocabularies that state no order at all.
-		//
-		// Sorting the order-less options by NAME instead — on the reading
-		// that a vocabulary predating the order id had no chosen order —
-		// emitted them alphabetized, which is an order nobody chose in a
-		// bundle where nothing else carries one.
+		//     vocabularies that state no order at all. That mint only fires
+		//     when a sibling already carries one, which is why partially
+		//     ordered vocabularies exist to get wrong.
+		//   - Sorting the order-less options by NAME instead — on the
+		//     reading that a vocabulary predating the order id had no chosen
+		//     order — emitted them alphabetized, which is an order nobody
+		//     chose in a bundle where nothing else carries one.
 		sort.SliceStable(stored, func(i, j int) bool {
 			a, b := stored[i], stored[j]
+			if (a.order == "") != (b.order == "") {
+				// an ordered option before an order-less one, whatever the
+				// lexids compare to: this is the half heart's own sort
+				// answers the other way round
+				return a.order != ""
+			}
 			if a.order != b.order {
 				return a.order < b.order
 			}
