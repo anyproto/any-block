@@ -487,3 +487,105 @@ func TestDerivedIds_TypeDocumentIdComesFromItsOwnKey(t *testing.T) {
 		})
 	}
 }
+
+// The reserved prefixes are the only spellings that unfold in a REFERENCE
+// slot. The platform's own `ot-<key>` is read as a type key where a key
+// belongs — `template_for`, `object_types`, the envelope `type` — because
+// that is where older documents carry it, but a reference is an address, and
+// `ot-wine` in one is an ordinary bundle-local slug that must arrive as
+// itself.
+//
+// And a document's own id unfolds only to the derived id of ITS kind, which
+// is the gate export has always had (FoldDocumentId) and import had not.
+//
+// How this can fail: let unfoldTypeRef accept `ot-` and an authored page
+// with `"id": "ot-wine"` imports as the space's Wine TYPE object, silently
+// substituting one object's identity for another's; drop the kind gate and
+// the same happens through the envelope alone.
+func TestDerivedIds_OnlyTheReservedPrefixUnfoldsInAReferenceSlot(t *testing.T) {
+	opts := typeRefOptions() // resolver: wine <-> typeid-wine
+
+	t.Run("an ordinary document keeps an ot- id and ot- references", func(t *testing.T) {
+		for name, tc := range map[string]struct{ doc, path string }{
+			"the envelope id": {`{"formatVersion":"2.0","id":"ot-wine","properties":{"Name":"Notes"}}`, "id"},
+			"a property value": {
+				`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["ot-wine"]}}`, "setOf"},
+			"a link target": {
+				`{"formatVersion":"2.0","id":"page-b","blocks":[{"id":"l","type":"link","object_id":"ot-wine"}]}`, "link"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				require.NoError(t, Validate([]byte(tc.doc), Options{}))
+				_, snap, err := Unmarshal([]byte(tc.doc), opts)
+				require.NoError(t, err)
+				switch tc.path {
+				case "id":
+					assert.Equal(t, "ot-wine", snap.GetDetails().GetFields()["id"].GetStringValue())
+				case "setOf":
+					assert.Equal(t, []string{"ot-wine"}, valueStringList(snap.GetDetails().GetFields()["setOf"]))
+				case "link":
+					assert.Equal(t, "ot-wine", snap.Blocks[1].GetLink().TargetBlockId)
+				}
+			})
+		}
+	})
+
+	t.Run("a type KEY slot still reads ot-, which is where older documents carry it", func(t *testing.T) {
+		doc := `{"formatVersion":"2.0","kind":"template","type":"Template","template_for":"ot-wine"}`
+		_, snap, err := Unmarshal([]byte(doc), opts)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ot-template", "ot-wine"}, snap.ObjectTypes)
+	})
+
+	t.Run("a type document's own derived id still rebuilds", func(t *testing.T) {
+		doc := `{"formatVersion":"2.0","kind":"object_type","id":"type-wine","internal_key":"wine",` +
+			`"properties":{"Name":"Wine"}}`
+		_, snap, err := Unmarshal([]byte(doc), opts)
+		require.NoError(t, err)
+		assert.Equal(t, "typeid-wine", snap.GetDetails().GetFields()["id"].GetStringValue())
+	})
+
+	t.Run("a page may not rebuild through a type's derived id", func(t *testing.T) {
+		// the reservation refuses this outright, so the kind gate is belt and
+		// braces — but the two must agree about which kind owns the prefix
+		err := Validate([]byte(`{"formatVersion":"2.0","id":"type-wine"}`), Options{})
+		require.Error(t, err)
+	})
+}
+
+// A truncated derived id is a malformed address, not a display name. The
+// tail of `type-` is what names the type; with nothing there, or with a tail
+// the §9 fold gate refuses, the string resolves to no key — and the type
+// namespace's fall-through would then hand it to the vocabulary as a
+// SPELLING, so `type-` would be looked up as if a type were named that. The
+// reserved prefix says what the value is; a value that wears it and is not
+// one is refused where it stands.
+//
+// How this can fail: drop the check and a bundle whose `template_for` was
+// truncated in transit binds to whatever type happens to be spelled `type-`
+// — or, more likely, passes through verbatim and becomes a stored type key
+// with a `-` in it, which no store mints and the fold gate refuses forever.
+func TestDerivedIds_ATruncatedDerivedIdIsRefusedNotResolved(t *testing.T) {
+	for name, slug := range map[string]string{
+		"the bare prefix":         "type-",
+		"a tail the gate refuses": "type-a b",
+		"a tail with a separator": "type-a-b",
+	} {
+		t.Run(name, func(t *testing.T) {
+			doc := `{"formatVersion":"2.0","kind":"template","type":"Template","template_for":"` + slug + `"}`
+			_, _, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+			require.Error(t, err)
+			var ve *ValidationError
+			require.ErrorAs(t, err, &ve)
+			require.Len(t, ve.Issues, 1)
+			assert.Equal(t, "/template_for", ve.Issues[0].Path)
+			assert.Contains(t, ve.Issues[0].Message, "type-")
+		})
+	}
+
+	t.Run("a display name that merely starts with the word type is untouched", func(t *testing.T) {
+		doc := `{"formatVersion":"2.0","kind":"template","type":"Template","template_for":"typewriter"}`
+		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ot-template", "ot-typewriter"}, snap.ObjectTypes)
+	})
+}

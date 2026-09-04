@@ -4038,7 +4038,18 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   it is then a bundle-local id, which is exactly what an authored type
   document's id is (the worked example's `type-habit`), and the import
   wiring relinks it like every other bundle slug (§2c). A key slot reads
-  the key off the id directly.
+  the key off the id directly. **Only the reserved spelling rebinds an
+  address.** A key slot also reads `ot-<key>`, because a key slot holds a
+  key and older documents spell it that way; a REFERENCE slot does not,
+  because `ot-` is not reserved — `ot-wine` is an ordinary bundle-local
+  slug the authoring `documentId` admits — and reading it as a derived id
+  made an authored page with `"id": "ot-wine"` arrive as the space's Wine
+  type object, id and all, on input the validator had passed. A document's
+  own id rebuilds only into the derived id of ITS kind, the gate export has
+  always had (`FoldDocumentId`, §13). And a value wearing `type-` whose
+  tail is not a stored key — a truncated `type-`, a tail the fold gate
+  refuses — is refused where it stands rather than falling through to be
+  resolved as a display name.
 - **What it buys, measured.** In one real export, 131 references in
   ordinary documents named a type by its CID — 73 filter values, 34
   `Template's Type`, 19 `Set of`, 3 link blocks, 2 `default_type_id` — and

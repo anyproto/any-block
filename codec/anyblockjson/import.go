@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/gogo/protobuf/types"
 
@@ -655,6 +656,18 @@ func (imp *importer) typeKey(slug, path string) string {
 	if key, ok := typeRefKey(slug); ok {
 		return key
 	}
+	// a value wearing the reserved prefix whose tail is NOT a stored key is a
+	// malformed address, and the fall-through below would hand it to the
+	// vocabulary as a display SPELLING — looking up a type named `type-`.
+	// The prefix states what the value is (§9); one that wears it and is not
+	// one is refused where it stands rather than resolved as something else.
+	if strings.HasPrefix(slug, TypeRefPrefix) {
+		imp.refuse(path, fmt.Sprintf(
+			"%q wears the reserved type- prefix (§9) but %q is not a stored type key "+
+				"([A-Za-z0-9_], 1 to 120 characters); a derived id names its key outright, and a "+
+				"type spelling may not begin with the prefix", slug, slug[len(TypeRefPrefix):]))
+		return slug
+	}
 	// §3's canonical form, in the same order as propertyKeyIn: exact stored
 	// key, then the NFC form
 	if n := nfcTerm(slug); n != slug {
@@ -818,12 +831,13 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		sbType = kindNames.value(doc.Kind)
 	}
 
-	// the envelope id goes through the reference reader like any object
-	// reference (§9): a stray informative suffix is trimmed, and a bare
-	// identity — the participant document's own folded id — rebuilds this
-	// space's participant id. Claimed so a generated block id cannot land on
-	// the rebuilt form.
-	objectId := imp.claimId(imp.objectRef(doc.Id))
+	// the envelope id goes through the reference reader (§9), under the gate
+	// its writing half has: a stray informative suffix is trimmed, and a
+	// derived id rebuilds only into the kind whose prefix it wears — this
+	// space's participant composite on a participant document, this space's
+	// type object on a type document, nothing on anything else. Claimed so a
+	// generated block id cannot land on the rebuilt form.
+	objectId := imp.claimId(imp.envelopeId(doc.Id, sbType))
 	if objectId == "" {
 		objectId = imp.genId()
 	}

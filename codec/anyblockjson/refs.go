@@ -411,21 +411,49 @@ func (o Options) unfoldParticipantRef(id string) string {
 	return domain.NewParticipantId(o.SpaceId, identity)
 }
 
-// typeRefKey classifies a type reference by its spelling: the canonical
+// typeRefKey classifies a type spelling in a type-KEY slot — the envelope
+// `type`, `template_for`, every `object_types`: the canonical
 // `type-<internal_key>`, or — input compatibility, never written — the
 // platform's own `ot-<key>` unique-key form that older documents carry. The
 // key must pass the fold gate; a `type-` string whose tail does not is not
 // a derived id this format would have written and passes through as it
 // stands.
+//
+// This is the LENIENT classifier, and it is confined to key slots on
+// purpose. See derivedTypeIdKey for why a reference slot may not use it.
 func typeRefKey(ref string) (key string, ok bool) {
-	switch {
-	case strings.HasPrefix(ref, TypeRefPrefix):
-		key = ref[len(TypeRefPrefix):]
-	case strings.HasPrefix(ref, domain.ObjectTypeKeyToIdPrefix):
-		key = ref[len(domain.ObjectTypeKeyToIdPrefix):]
-	default:
+	if key, ok = derivedTypeIdKey(ref); ok {
+		return key, ok
+	}
+	if !strings.HasPrefix(ref, domain.ObjectTypeKeyToIdPrefix) {
 		return "", false
 	}
+	key = ref[len(domain.ObjectTypeKeyToIdPrefix):]
+	if !typeKeyFoldable(key) {
+		return "", false
+	}
+	return key, true
+}
+
+// derivedTypeIdKey classifies the DERIVED ID alone — `type-<internal_key>`,
+// the one spelling this format writes and the one the reservation protects
+// (§9). It is what a REFERENCE slot reads, and the difference from
+// typeRefKey is a rule, not an omission.
+//
+// A key slot holds a key, so reading `ot-<key>` there costs nothing: the
+// value was never an address and the `ot-` form is what older documents
+// carry. A reference slot holds an ADDRESS, and `ot-` is not reserved —
+// `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$` admits it, so `ot-wine` is a perfectly
+// ordinary bundle-local slug an author may give a page (§2g). Accepting it
+// as a derived id in a reference made that page import as the space's Wine
+// TYPE object, id and all, with nothing refusing it: silent identity
+// substitution, on input a validator had passed. Only a reserved prefix may
+// rebind an id, because only a reserved prefix is one nothing else may wear.
+func derivedTypeIdKey(ref string) (key string, ok bool) {
+	if !strings.HasPrefix(ref, TypeRefPrefix) {
+		return "", false
+	}
+	key = ref[len(TypeRefPrefix):]
 	if !typeKeyFoldable(key) {
 		return "", false
 	}
@@ -496,18 +524,19 @@ func (o Options) foldTypeRef(id string) string {
 	return id
 }
 
-// unfoldTypeRef is the import half: `type-<key>` (or the legacy `ot-<key>`)
-// rebuilds the type object id the target space serves for that key, through
-// the same capability. A key the space does not serve stays as written —
-// it is then a bundle-local id, exactly what an authored type document's id
-// is, and the import wiring relinks it as it relinks every other bundle
-// slug (§2c). No resolver, no unfold.
+// unfoldTypeRef is the import half: `type-<key>` rebuilds the type object id
+// the target space serves for that key, through the same capability. Only
+// the reserved spelling is read here, never the legacy `ot-<key>` a KEY slot
+// accepts (derivedTypeIdKey). A key the space does not serve stays as
+// written — it is then a bundle-local id, exactly what an authored type
+// document's id is, and the import wiring relinks it as it relinks every
+// other bundle slug (§2c). No resolver, no unfold.
 func (o Options) unfoldTypeRef(ref string) string {
 	tr, ok := o.ResolveProperties.(TypeResolver)
 	if !ok {
 		return ref
 	}
-	key, ok := typeRefKey(ref)
+	key, ok := derivedTypeIdKey(ref)
 	if !ok {
 		return ref
 	}
@@ -823,4 +852,38 @@ func (imp *importer) objectRef(ref string) string {
 		return id
 	}
 	return imp.opts.unfoldRef(id)
+}
+
+// envelopeId reads a document's OWN id back, and is objectRef with the gate
+// FoldDocumentId has on the writing side: an id rebuilds only into the
+// derived id of ITS kind. A participant document's `participant-<identity>`
+// becomes this space's composite and a type document's `type-<key>` becomes
+// the type object this space serves; every other kind's id is its own
+// address and is returned as written, with only the informative suffix
+// trimmed.
+//
+// Without the gate the envelope was the one reference slot where any
+// document could rebuild through any namespace. The reservation covers the
+// two prefixes it defines, so a page could not claim `type-`; it does not
+// cover the legacy `ot-<key>` a KEY slot still reads, and an authored page
+// with `"id": "ot-wine"` — a legal bundle-local slug — arrived as the
+// space's Wine type object. Confining `ot-` to key slots (derivedTypeIdKey)
+// closes that spelling; this gate closes the shape, so a future accepted
+// spelling cannot reopen it through a kind that was never entitled to one.
+func (imp *importer) envelopeId(ref string, sbType model.SmartBlockType) string {
+	id := trimRefName(ref)
+	switch {
+	case sbType == model.SmartBlockType_Participant:
+		// the participant fold's own gate, and its diagnostic: see objectRef
+		if imp.opts.SpaceId == "" {
+			if _, folded := participantRefIdentity(id); folded {
+				imp.foldedUnrebuilt = true
+			}
+			return id
+		}
+		return imp.opts.unfoldParticipantRef(id)
+	case isTypeSmartBlock(sbType):
+		return imp.opts.unfoldTypeRef(id)
+	}
+	return id
 }
