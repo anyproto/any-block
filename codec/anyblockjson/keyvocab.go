@@ -74,19 +74,19 @@ import (
 //
 // The second rule is what makes §11's round-trip guarantee true for a reader
 // export never met, and a vocabulary can satisfy the first completely while
-// breaking it. The legend is the reason: a document owes a
-// `type_internal_keys`/`property_internal_keys` entry only for a spelling the READER's chain
+// breaking it. The property legend is the reason: a document owes a
+// `property_internal_keys` entry only for a spelling the READER's chain
 // cannot invert, and export can only ask the chains it can see — the bundled
 // table, which ships with every reader, and the vocabulary it is running
-// under (recordTypeKey / termInverts; that second half was missing, and a
-// conforming vocabulary lost a type because of it). A third reader's
-// vocabulary is not one of them. So a stored key both visible chains invert —
-// `task`, spelled `task` — is written with NO legend entry, and a reader whose
-// vocabulary answers `TypeKey("task") == "69bbfc…"` resolves it through that
-// answer instead. A template for the bundled Task type comes back as a
-// template for an unrelated custom type, silently. The property namespace has
-// the same shape: a bundled `description` reads back as whatever custom key
-// claimed the spelling.
+// under (recordPropertyKey / termInverts). A third reader's vocabulary is
+// not one of them. So a bundled `description` written with NO legend entry
+// reads back as whatever custom key a shadowing reader's vocabulary bound
+// the spelling to. The type namespace closed the same hole differently: the
+// stored key is stated beside the spelling on every document
+// (`type_internal_key`, §2) and every other type reference is a derived id
+// (§9), so a type spelling is never resolved by an exported document's
+// reader at all — only an AUTHORED document, which states no key, still
+// runs the type chain.
 //
 // A space-backed vocabulary can keep both halves by construction — a name
 // shared with the bundled table is answered as a CANDIDATE set (never bound
@@ -286,13 +286,11 @@ func (o Options) legendPropertyKey(slug string) string {
 	return o.propertyKey(slug)
 }
 
-// legendTypeKey is legendPropertyKey on the type namespace — with the
-// derived id in front of both (§9): `type-<key>` names its key outright.
+// legendTypeKey is legendPropertyKey on the type namespace, which has no
+// legend to consult: the derived id names its key outright (§9), and a
+// spelling resolves through the vocabulary in force.
 func (o Options) legendTypeKey(slug string) string {
 	if key, ok := typeRefKey(slug); ok {
-		return key
-	}
-	if key, ok := legendLookup(o.Legend.TypeKeys, slug); ok {
 		return key
 	}
 	return o.typeKey(slug)

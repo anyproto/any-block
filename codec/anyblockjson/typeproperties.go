@@ -614,10 +614,9 @@ func BuildRecommendedLists(props []TypeProperty, opts Options) ([]RecommendedLis
 				Message: unwritableKeyReason("resolved property key", key),
 			}}}
 		}
-		// object_types is a TYPE key slot, inverted entry by entry through the
-		// same chain as the key above: Options.Legend's type half first — a
-		// PATCH caller states what its spellings mean the way a document does
-		// with type_internal_keys (§13.1) — then the caller's vocabulary. Resolved (and
+		// object_types is a TYPE key slot, inverted entry by entry: the
+		// derived id `type-<key>` names its key outright (§9), and a spelling
+		// resolves through the caller's vocabulary. Resolved (and
 		// refused) OUTSIDE the
 		// resolver branch, so the verdict on a given input does not depend on
 		// whether the caller happened to wire a resolver — applyTypeProperties

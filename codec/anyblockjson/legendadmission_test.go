@@ -220,15 +220,15 @@ func TestExport_TypeLegendRefusesAnEntryItCannotHold(t *testing.T) {
 			require.NoError(t, err, "emitted:\n%s", data)
 
 			var doc struct {
-				Type     string            `json:"type"`
-				TypeKeys map[string]string `json:"type_internal_keys"`
+				Type            string `json:"type"`
+				TypeInternalKey string `json:"type_internal_key"`
 			}
 			require.NoError(t, json.Unmarshal(data, &doc))
-			assert.Equal(t, tc.key, doc.Type, "the term is still spelled verbatim")
-			assert.Empty(t, doc.TypeKeys,
-				"the refused entry is not written, and the target type spells its derived id (§9), owing none")
+			assert.Equal(t, tc.key, doc.Type, "the term is still spelled verbatim — that slot is unbounded (§3)")
+			assert.Empty(t, doc.TypeInternalKey,
+				"a key the member cannot hold is not written there; the verbatim spelling still lands the reader on it")
 			require.NotEmpty(t, warnings)
-			assert.Contains(t, warningsAt(warnings, "/type_internal_keys"), tc.wantWarn)
+			assert.Contains(t, warningsAt(warnings, "/type_internal_key"), tc.wantWarn)
 		})
 	}
 }

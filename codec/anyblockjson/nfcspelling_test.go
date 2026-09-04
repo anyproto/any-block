@@ -171,17 +171,18 @@ func TestNFCSpelling_ReadPath(t *testing.T) {
 		assert.Equal(t, "customKey3", dv.Views[0].Sorts[0].RelationKey)
 	})
 
-	t.Run("the type namespace normalizes the same way", func(t *testing.T) {
-		// given
-		doc := `{"formatVersion":"2.0","id":"o1","type":"` + cafeNFD + `","type_internal_keys":{"` +
-			cafeNFC + `":"customType1"}}`
+	t.Run("the type namespace needs no normalization: the key stands beside the spelling", func(t *testing.T) {
+		// given — the spelling in either normal form, the key beside it
+		for _, spelling := range []string{cafeNFD, cafeNFC} {
+			doc := `{"formatVersion":"2.0","id":"o1","type":"` + spelling + `","type_internal_key":"customType1"}`
 
-		// when
-		_, snap, err := Unmarshal([]byte(doc), Options{})
+			// when
+			_, snap, err := Unmarshal([]byte(doc), Options{})
 
-		// then
-		require.NoError(t, err)
-		assert.Contains(t, snap.ObjectTypes, "ot-customType1")
+			// then
+			require.NoError(t, err)
+			assert.Contains(t, snap.ObjectTypes, "ot-customType1")
+		}
 	})
 
 	t.Run("the fragment door's legend normalizes the same way", func(t *testing.T) {

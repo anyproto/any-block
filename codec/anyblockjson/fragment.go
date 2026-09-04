@@ -43,9 +43,6 @@ func validateFragmentRun(run []json.RawMessage, opts Options) ([]*jsonBlock, err
 	if len(opts.Legend.PropertyKeys) > 0 {
 		doc["property_internal_keys"] = opts.Legend.PropertyKeys
 	}
-	if len(opts.Legend.TypeKeys) > 0 {
-		doc["type_internal_keys"] = opts.Legend.TypeKeys
-	}
 	if len(opts.Legend.OptionIds) > 0 {
 		doc["option_ids"] = opts.Legend.OptionIds
 	}
@@ -190,18 +187,20 @@ func UnmarshalPropertyValue(key string, v any, opts Options) *types.Value {
 // internal blocks in the slice to render, §6.1) — beside the legends those
 // blocks owe, in the envelope's own member order:
 //
-//	{"property_internal_keys": {…}, "type_internal_keys": {…}, "option_ids": {…}, "blocks": […]}
+//	{"property_internal_keys": {…}, "option_ids": {…}, "blocks": […]}
 //
 // **The legends are why this is an object rather than the bare array it used
 // to be.** A block run names properties at seven slots and options at two,
 // and it names them in the DOCUMENT's spelling — which is the writer's
-// vocabulary, not the reader's. The exporter computed all three legends here
+// vocabulary, not the reader's. The exporter computed both legends here
 // all along and discarded them at the return, so a `property` block came back
 // as `{"property": "priority"}` with nothing saying which relation `priority` is,
 // where the same block inside a whole document carries
 // `property_internal_keys: {"priority": "6a32d485…"}`. A reader resolved it through
 // its own table, which is precisely the misresolution §3 wrote the legend to
-// prevent. Feed the three maps to the reading side through Options.Legend.
+// prevent. Feed the two maps to the reading side through Options.Legend. A
+// type is named in a block run only by its derived id (§9), which needs no
+// legend.
 //
 // **OmitIds and the compaction flags are refused, not ignored.** This surface
 // exists for wiring that edits a live document op-by-op, and both destroy the
@@ -256,15 +255,6 @@ func MarshalBlockSubtree(subtree []*model.Block, opts Options) (json.RawMessage,
 	env := &omap{}
 	if m := e.buildPropertyKeys(); m != nil {
 		env.set(memberPropertyInternalKeys, m)
-	}
-	// The type half is UNREACHABLE from every fragment slot today: typeSlug is
-	// called only from buildDoc and buildTypeProperties, and neither
-	// is on this path, so no subtree can owe a type_internal_keys line. Kept anyway,
-	// because the cost is three lines and the failure mode of removing it is a
-	// fragment that silently omits a legend the day a block slot starts
-	// carrying a type term. A probe confirms the branch never fires.
-	if m := e.buildTypeKeys(); m != nil {
-		env.set(memberTypeInternalKeys, m)
 	}
 	if m := e.buildOptionIds(); m != nil {
 		env.set("option_ids", m)

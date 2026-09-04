@@ -155,19 +155,12 @@
         "pattern": "^[^\u0000-\u001f]+$"
       }
     },
-    "type_internal_keys": {
-      "type": "object",
-      "description": "Legend: the stored type key each type SPELLING in this document names (§3). Same rule as property_internal_keys, on a legend of the type namespace's own: present only for spellings the bundled table cannot invert; a reader consults it before its own vocabulary. A value is a stored type key and obeys the writable-key rule (§3).",
-      "propertyNames": {
-        "pattern": "^[^\u0000-\u001f]+$",
-        "maxLength": 128
-      },
-      "additionalProperties": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 128,
-        "pattern": "^[^\u0000-\u001f]+$"
-      }
+    "type_internal_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\u0000-\u001f]+$",
+      "description": "The STORED type key the envelope `type` spelling names (§2, §3): the bundled key (`page`, `task`) or the minted key of a space's own type, written on EVERY typed document — bundled or not — so a reader resolves the key and treats the spelling as a caption. The type document is `type-<this key>` (§9). A scalar, because an object has exactly one type; the former `type_internal_keys` map is retired (§15 #28)."
     },
     "option_ids": {
       "type": "object",

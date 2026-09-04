@@ -986,6 +986,8 @@ func unknownPropertyMessage(prop string) string {
 		return `property "children" is not allowed — the flat format has no children; nest with indent instead`
 	case "refs":
 		return `property "refs" is not allowed — the object-reference legend was removed: every object id is now written in full, on every shape, with no legend. This document was written by an older exporter; replace each short label it uses with the id "refs" maps that label to, then drop "refs". Dropping it alone leaves labels that address nothing`
+	case memberTypeInternalKeys:
+		return `property "type_internal_keys" is not allowed — the type legend was retired (§2, §15 #28): an object has exactly one type, so the stored key of "type" is the scalar "type_internal_key" beside it, written on every typed document; a template's target and every object_types entry are the type's derived id, type-<internal_key> (§9), and need no legend. This document was written by an older exporter; write "type_internal_key": "<the key the map bound the type spelling to>" and drop the map`
 	}
 	return fmt.Sprintf("property %q is not allowed", prop)
 }
@@ -1177,6 +1179,14 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// whole truth.
 	kind, _ := doc["kind"].(string)
 	typeTerm, _ := doc["type"].(string)
+	// `type_internal_key` states the stored key of `type` (§2) and means
+	// nothing without it: the spelling is the caption a reader shows, the
+	// key what it resolves, and a key with no caption is a document that
+	// says less than canonical export ever writes
+	if _, ok := doc[memberTypeInternalKey]; ok && typeTerm == "" {
+		addIssue("/"+memberTypeInternalKey,
+			`type_internal_key states the stored key of "type", and needs the type spelling beside it: add "type"`)
+	}
 	if _, ok := doc["template_for"]; ok {
 		switch {
 		case kind != kindNames.name(model.SmartBlockType_Template):
@@ -1948,8 +1958,8 @@ func (r *keySlotReport) rejectValueAt(path, message string) {
 }
 
 // propertyNameIssues states, where the key is in hand, every rule the schema
-// carries as `propertyNames`: the `properties` map and the `property_internal_keys` /
-// `type_internal_keys` legends take a writable key (§3), and `option_ids` takes one at
+// carries as `propertyNames`: the `properties` map and the `property_internal_keys`
+// legend take a writable key (§3), and `option_ids` takes one at
 // its OUTER level with a merely non-empty option name at its inner level
 // (§9a). A legend VALUE rides along because it is a stored key under the same
 // rule and the schema's verdict on it names the bound, not the string — and so
@@ -2084,7 +2094,7 @@ func propertyNameIssues(doc map[string]any) keySlotReport {
 	// cannot — DEL, which sits above the pattern's control-character class —
 	// so Validate and the import seam cannot disagree about a spelling.
 	checkBlockKeySlots(doc, rejectValue)
-	for _, field := range []string{memberPropertyInternalKeys, memberTypeInternalKeys} {
+	for _, field := range []string{memberPropertyInternalKeys} {
 		legend, _ := doc[field].(map[string]any)
 		for _, term := range sortedMapKeys(legend) {
 			path := "/" + field + "/" + escapeJSONPointer(term)
@@ -2946,8 +2956,7 @@ func warnKeySpellingHygiene(doc map[string]any, warn func(path, format string, a
 				"match must reproduce the invisible bytes; the forgiving fold bridges the "+
 				"near-miss, and a cleanup belongs where the property is named", term, reason)
 	}
-	for _, member := range []string{"properties", memberPropertyInternalKeys,
-		memberTypeInternalKeys, "option_ids"} {
+	for _, member := range []string{"properties", memberPropertyInternalKeys, "option_ids"} {
 		if m, _ := doc[member].(map[string]any); m != nil {
 			for _, term := range sortedMapKeys(m) {
 				report(member, term)
@@ -2964,8 +2973,7 @@ func warnKeySpellingHygiene(doc map[string]any, warn func(path, format string, a
 // property. %+q spells the code points apart where %q would print the same
 // glyphs twice. A warning, not a refusal — see the semanticIssues call site.
 func warnNFCTwinSpellings(doc map[string]any, warn func(path, format string, args ...any)) {
-	for _, member := range []string{"properties", memberPropertyInternalKeys,
-		memberTypeInternalKeys, "option_ids"} {
+	for _, member := range []string{"properties", memberPropertyInternalKeys, "option_ids"} {
 		m, _ := doc[member].(map[string]any)
 		if m == nil {
 			continue

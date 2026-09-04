@@ -81,12 +81,12 @@ func TestExport_AVerbatimCustomTypeKeyNamesItself(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, Validate(data, Options{}))
 	var doc struct {
-		Type     string            `json:"type"`
-		TypeKeys map[string]string `json:"type_internal_keys"`
+		Type            string `json:"type"`
+		TypeInternalKey string `json:"type_internal_key"`
 	}
 	require.NoError(t, json.Unmarshal(data, &doc))
 	assert.Equal(t, "initiative", doc.Type)
-	assert.Equal(t, map[string]string{"initiative": "initiative"}, doc.TypeKeys)
+	assert.Equal(t, "initiative", doc.TypeInternalKey, "the key beside the spelling, on every typed document")
 
 	_, back, err := Unmarshal(data, Options{GenerateId: seqIds("g"), Keys: corpseVocabulary{}})
 	require.NoError(t, err)

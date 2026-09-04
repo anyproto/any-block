@@ -26,7 +26,7 @@ package anyblockjson
 // live option OF THAT RELATION in the target space, and falls back to name
 // resolution otherwise, so a bundle carried to a space that never saw those
 // ids keeps working exactly as it does without the legend. That is the
-// deliberate difference from `property_internal_keys`/`type_internal_keys`, whose values are
+// deliberate difference from `property_internal_keys`/`type_internal_key`, whose values are
 // taken at face value: a stored key IS the address, while an option id is a
 // shortcut past a name that is already one (§3).
 //

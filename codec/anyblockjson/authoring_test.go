@@ -693,7 +693,7 @@ func TestAuthoringSubset_RefusesBackupOnlySurfaces(t *testing.T) {
 		"the store escape hatch":     `{"formatVersion": "2.0", "store": {"k": 1}}`,
 		"the root escape hatch":      `{"formatVersion": "2.0", "root": {"background_color": "grey"}}`,
 		"the property legend":        `{"formatVersion": "2.0", "property_internal_keys": {"prio": "6a32d4856761631534b22f85"}}`,
-		"the type legend":            `{"formatVersion": "2.0", "type_internal_keys": {"task": "task"}}`,
+		"the type key":               `{"formatVersion": "2.0", "type": "Task", "type_internal_key": "task"}`,
 		"the option legend":          `{"formatVersion": "2.0", "properties": {"prio": ["High"]}, "option_ids": {"prio": {"High": "bafyreiopt1"}}}`,
 		"attribution in properties":  `{"formatVersion": "2.0", "properties": {"creator": "A1111111#alice"}}`,
 		"a non-authorable kind":      `{"formatVersion": "2.0", "kind": "participant"}`,

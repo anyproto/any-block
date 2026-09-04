@@ -128,22 +128,24 @@ func TestKeyVocabulary_ShadowingSlugBreaksInversion(t *testing.T) {
 	// can re-point — the template arm at the end shows that
 	snap := typedSnapshot("ot-task")
 
-	t.Run("a shadowing READER re-points a document no writer could have warned it about", func(t *testing.T) {
+	t.Run("a shadowing READER cannot re-point a document: the key stands beside the spelling", func(t *testing.T) {
 		// given — written by the package default: "Task" is the bundled
-		// table's own spelling of the bundled key, and no vocabulary this
-		// writer holds says otherwise
+		// table's own spelling of the bundled key, and the key `task` is
+		// written beside it (§2, §15 #28)
 		data, err := Marshal(model.SmartBlockType_Page, snap, Options{})
 		require.NoError(t, err)
-		assert.NotContains(t, string(data), "type_internal_keys",
-			"nothing here owes an entry — which is exactly why the reader is on its own")
+		assert.Contains(t, string(data), `"type_internal_key": "task"`)
 
 		// when
 		_, back, err := Unmarshal(data, Options{GenerateId: seqIds("g"), Keys: shadowing})
 
-		// then
+		// then — the precondition used to be the only thing standing
+		// between this reader and a silent re-point; the key beside the
+		// spelling is what stands there now, and the reader's vocabulary is
+		// never asked
 		require.NoError(t, err)
-		assert.Equal(t, []string{"ot-" + customTypeKey}, back.ObjectTypes,
-			"a shadowing vocabulary re-points the object's type, silently — the failure the precondition forbids")
+		assert.Equal(t, []string{"ot-task"}, back.ObjectTypes,
+			"the key is the document's statement; the shadowing vocabulary is not consulted")
 
 		// and the slot that spells a derived id is immune: a template's
 		// target is `type-task`, which says its key outright
@@ -154,15 +156,15 @@ func TestKeyVocabulary_ShadowingSlugBreaksInversion(t *testing.T) {
 		assert.Equal(t, "ot-task", backTpl.ObjectTypes[1], "template_for is a derived id, and no vocabulary reads it")
 	})
 
-	t.Run("a shadowing WRITER says so in the legend, and its own reader is safe", func(t *testing.T) {
+	t.Run("a shadowing WRITER states the key too, and its own reader is safe", func(t *testing.T) {
 		// when
 		data, err := Marshal(model.SmartBlockType_Page, snap, Options{Keys: shadowing})
 		require.NoError(t, err)
 
 		// then — the term "Task" is written for the stored key `task`, and
-		// this vocabulary would bind it elsewhere, so the entry is owed (§3)
-		// even though the bundled table inverts it
-		assert.Equal(t, map[string]string{"Task": "task"}, decodeEnvelope(t, data).TypeKeys)
+		// the key beside it is what a reader resolves, whatever this
+		// vocabulary would bind the spelling to
+		assert.Equal(t, "task", decodeEnvelope(t, data).TypeInternalKey)
 
 		_, back, err := Unmarshal(data, Options{GenerateId: seqIds("g"), Keys: shadowing})
 		require.NoError(t, err)
@@ -590,12 +592,12 @@ func TestKeyVocabulary_VocabularyInForceIsAReaderToo(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_Page, snap, Options{Keys: corpseVocabulary{}})
 		require.NoError(t, err)
 
-		// then: `initiative` is written verbatim, and the identity entry is
+		// then: `initiative` is written verbatim, and the key beside it is
 		// what says so — the bundled table is silent on the term, so nothing
 		// else in the document can
 		doc := decodeEnvelope(t, data)
 		assert.Equal(t, "initiative", doc.Type)
-		assert.Equal(t, map[string]string{"initiative": "initiative"}, doc.TypeKeys)
+		assert.Equal(t, "initiative", doc.TypeInternalKey)
 		require.NoError(t, Validate(data, Options{}))
 
 		// and the writer's own reader binds it back to the type it came from

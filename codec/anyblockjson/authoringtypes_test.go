@@ -234,8 +234,16 @@ func TestAuthoringVocabularyPreservesRawNonNFCStoredTypeKey(t *testing.T) {
 			require.NoError(t, err)
 			canonical, err := Marshal(kind, snapshot, Options{Keys: vocab, ResolveProperties: resolver})
 			require.NoError(t, err)
-			assert.Contains(t, string(canonical), displayName,
-				"canonical output may use the display name only after the raw stored address imported unchanged")
+			if name == "type" {
+				assert.Contains(t, string(canonical), `"type": "`+displayName+`"`,
+					"the envelope type is captioned by the display name once the raw stored address imported unchanged")
+				assert.Contains(t, string(canonical), `"type_internal_key": "`+storedKey+`"`)
+				return
+			}
+			// a key the §9 fold gate refuses (non-ASCII) is written verbatim
+			// in the type-key slots: its own address in every reader
+			assert.Contains(t, string(canonical), `"`+storedKey+`"`)
+			assert.NotContains(t, string(canonical), displayName)
 		})
 	}
 

@@ -14,9 +14,8 @@ import (
 // alone — `{"type": "template"}` with no `kind` — was refused rather than
 // migrated, because that one shape was well-formed under BOTH readings and
 // would otherwise have imported as an ordinary page with nothing anywhere
-// saying so. The refusal even read the document's own type_internal_keys
-// legend, so a document that renamed the template spelling could not slip
-// past it.
+// saying so. The refusal even read the document's own type legend, so a
+// document that renamed the template spelling could not slip past it.
 //
 // The freeze deleted it (§15 #9). Every document written under the old
 // reading declares legacy `version: 1`, and checkVersion refuses that outright before
@@ -24,8 +23,8 @@ import (
 // comparison standing in for a version marker the format did not have.
 //
 // What is left is the rule the refusal was standing in front of, and these
-// cases pin it: the kind decides, the legend decides only the TYPE, and the
-// version gate is what answers for a pre-freeze document.
+// cases pin it: the kind decides, the key beside the spelling decides only
+// the TYPE, and the version gate is what answers for a pre-freeze document.
 func TestValidate_ThePreFreezeTemplateShapeIsNoLongerSpecialCased(t *testing.T) {
 	t.Run("a kindless document is a page, whatever its type spells", func(t *testing.T) {
 		// under the old reading this WAS a template, and the deleted refusal
@@ -41,11 +40,12 @@ func TestValidate_ThePreFreezeTemplateShapeIsNoLongerSpecialCased(t *testing.T) 
 		assert.Equal(t, []string{"ot-template"}, snap.GetObjectTypes())
 	})
 
-	t.Run("and so is one whose legend renames the template spelling", func(t *testing.T) {
-		// `tpl` resolves to the stored key `template` through the document's
-		// own legend. The deleted refusal read that legend; the kind gate
-		// does not need to, because it reads a field no chain touches
-		doc := []byte(`{"formatVersion": "2.0", "type_internal_keys": {"tpl": "template"}, "type": "tpl"}`)
+	t.Run("and so is one whose key says template under another spelling", func(t *testing.T) {
+		// `tpl` is captioned onto the stored key `template` by the key
+		// beside it. The deleted refusal read the legend that used to do
+		// this; the kind gate does not need to, because it reads a field no
+		// chain touches
+		doc := []byte(`{"formatVersion": "2.0", "type": "tpl", "type_internal_key": "template"}`)
 
 		require.NoError(t, Validate(doc, Options{}))
 		sbType, snap, err := Unmarshal(doc, Options{})
@@ -54,10 +54,10 @@ func TestValidate_ThePreFreezeTemplateShapeIsNoLongerSpecialCased(t *testing.T) 
 		assert.Equal(t, []string{"ot-template"}, snap.GetObjectTypes())
 	})
 
-	t.Run("a legend that rebinds the spelling away binds the type it names", func(t *testing.T) {
+	t.Run("a key that binds the spelling away binds the type it names", func(t *testing.T) {
 		// the mirror case, and the one that never changed: the raw spelling
-		// IS `template`, but the document's own legend binds it to `custom1`
-		doc := []byte(`{"formatVersion": "2.0", "type_internal_keys": {"template": "custom1"}, "type": "template"}`)
+		// IS `template`, but the key beside it says `custom1`
+		doc := []byte(`{"formatVersion": "2.0", "type": "template", "type_internal_key": "custom1"}`)
 
 		require.NoError(t, Validate(doc, Options{}))
 		sbType, snap, err := Unmarshal(doc, Options{})

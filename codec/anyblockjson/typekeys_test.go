@@ -76,13 +76,14 @@ func typedSnapshot(objectTypes ...string) *model.SmartBlockSnapshotBase {
 }
 
 type envelopeTypeDoc struct {
-	Kind         string            `json:"kind"`
-	Type         string            `json:"type"`
-	TemplateFor  string            `json:"template_for"`
-	PropertyKeys map[string]string `json:"property_internal_keys"`
-	TypeKeys     map[string]string `json:"type_internal_keys"`
-	Properties   map[string]any    `json:"properties"`
-	TypeSettings struct {
+	Kind            string            `json:"kind"`
+	Type            string            `json:"type"`
+	TypeInternalKey string            `json:"type_internal_key"`
+	TemplateFor     string            `json:"template_for"`
+	PropertyKeys    map[string]string `json:"property_internal_keys"`
+	TypeKeys        map[string]string `json:"type_internal_keys"`
+	Properties      map[string]any    `json:"properties"`
+	TypeSettings    struct {
 		PropertyDefinitions []TypeProperty `json:"property_definitions"`
 	} `json:"type_settings"`
 }
@@ -172,7 +173,7 @@ func TestExport_IsAFixpointWhenTheCensusShrinks(t *testing.T) {
 		assert.Equal(t, gen1, gen2, "the second generation must repeat the first")
 		assert.Contains(t, gen1, `"type": "cust"`,
 			"the truncated entry is not in the document, so its key reserves nothing")
-		assert.Contains(t, gen1, `"cust": "custom1"`, "and the spelling owes its legend line")
+		assert.Contains(t, gen1, `"type_internal_key": "custom1"`, "and the key stands beside the spelling")
 	})
 
 	t.Run("a type property no slot writes", func(t *testing.T) {
@@ -192,10 +193,10 @@ func TestExport_IsAFixpointWhenTheCensusShrinks(t *testing.T) {
 	})
 }
 
-// The legend carries exactly what the bundled table cannot invert — the
-// mirror of TestExport_PropertyKeysLegendCarriesWhatTheTableCannot for the
-// type namespace.
-func TestExport_TypeKeysLegendCarriesWhatTheTableCannot(t *testing.T) {
+// The key stands beside the spelling whatever the spelling is — the mirror
+// of TestExport_PropertyKeysLegendCarriesWhatTheTableCannot for the type
+// namespace, where the statement is a scalar rather than a legend (§2, §3).
+func TestExport_TypeInternalKeyCarriesTheKeyWhateverTheSpelling(t *testing.T) {
 	vocab := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "task"}}
 	snap := typedSnapshot("ot-" + customTypeKey)
 
@@ -204,35 +205,34 @@ func TestExport_TypeKeysLegendCarriesWhatTheTableCannot(t *testing.T) {
 
 	doc := decodeEnvelope(t, data)
 	assert.Equal(t, "task", doc.Type, "the custom type key is spelled as its slug")
-	assert.Equal(t, map[string]string{"task": customTypeKey}, doc.TypeKeys,
-		"the slug shadows the bundled task key, so the document owes the entry that inverts it")
-	assert.Empty(t, doc.PropertyKeys, "the type legend is not the property legend")
+	assert.Equal(t, customTypeKey, doc.TypeInternalKey,
+		"the slug shadows the bundled task key, and the key beside it is what a reader resolves")
+	assert.Empty(t, doc.TypeKeys, "the type legend is retired")
+	assert.Empty(t, doc.PropertyKeys, "the type key is not the property legend")
 }
 
-// A bundled type spelled as its derived slug needs no entry: the table ships
-// with every reader.
-func TestExport_TypeKeysLegendOmitsWhatTheTableInverts(t *testing.T) {
+// A bundled type states its key like any other: the condition "only where
+// the shipped table cannot invert the spelling" is what §15 #28 reversed.
+func TestExport_TypeInternalKeyIsWrittenForBundledTypesToo(t *testing.T) {
 	for _, key := range []string{"page", "objectType"} {
 		data, err := Marshal(model.SmartBlockType_Page, typedSnapshot("ot-"+key), Options{})
 		require.NoError(t, err)
 		doc := decodeEnvelope(t, data)
-		assert.Empty(t, doc.TypeKeys, "bundled key %q owes no legend entry", key)
+		assert.Equal(t, key, doc.TypeInternalKey, "bundled key %q is stated outright", key)
+		assert.Empty(t, doc.TypeKeys)
 	}
 }
 
-// The identity entry (§3, type namespace): a stored type key written verbatim
-// whose spelling the bundled table binds to a DIFFERENT key. `object_type`
-// the custom stored key beside bundled `objectType` is exactly the §3 shadow
-// shape — without the entry, a package-only reader resolves the spelling
-// through the table and lands on the bundled twin.
-func TestExport_TypeKeysIdentityEntryForAShadowStoredKey(t *testing.T) {
+// The shadow shape (§3): `object_type` the custom stored key beside bundled
+// `objectType`. The spelling is the stored key verbatim, and the key beside
+// it is what keeps a package-only reader off the bundled twin.
+func TestExport_TypeInternalKeyForAShadowStoredKey(t *testing.T) {
 	data, err := Marshal(model.SmartBlockType_Page, typedSnapshot("ot-object_type"), Options{})
 	require.NoError(t, err)
 
 	doc := decodeEnvelope(t, data)
 	assert.Equal(t, "object_type", doc.Type)
-	assert.Equal(t, map[string]string{"object_type": "object_type"}, doc.TypeKeys,
-		"the document's only way to say the term is a stored key, not the bundled table's objectType")
+	assert.Equal(t, "object_type", doc.TypeInternalKey)
 
 	_, snap, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
 	require.NoError(t, err)
@@ -240,10 +240,10 @@ func TestExport_TypeKeysIdentityEntryForAShadowStoredKey(t *testing.T) {
 		"a package-only reader lands on the stored key, not the bundled twin")
 }
 
-// The point of the legend: a reader with no space gets the stored type key
-// back, and the legend outranks the reader's own vocabulary.
-func TestImport_TypeKeysLegendInvertsWithoutTheSpace(t *testing.T) {
-	doc := `{"formatVersion": "2.0", "type_internal_keys": {"task": "` + customTypeKey + `"}, "type": "task"}`
+// The point of the key: a reader with no space gets the stored type key
+// back, and the key outranks the reader's own vocabulary.
+func TestImport_TypeInternalKeyInvertsWithoutTheSpace(t *testing.T) {
+	doc := `{"formatVersion": "2.0", "type": "task", "type_internal_key": "` + customTypeKey + `"}`
 
 	t.Run("package-only reader", func(t *testing.T) {
 		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
@@ -256,7 +256,7 @@ func TestImport_TypeKeysLegendInvertsWithoutTheSpace(t *testing.T) {
 		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g"), Keys: vocab})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"ot-" + customTypeKey}, snap.ObjectTypes,
-			"the legend is the document's own statement; a vocabulary belongs to the reader")
+			"the key is the document's own statement; a vocabulary belongs to the reader")
 	})
 }
 
@@ -305,18 +305,17 @@ func TestTypeKeysLegendCoversObjectTypes(t *testing.T) {
 		assert.Empty(t, doc.TypeKeys, "a derived id names its key outright; nothing to invert")
 	})
 
-	t.Run("import reads the legend first", func(t *testing.T) {
+	t.Run("import reads the derived id first", func(t *testing.T) {
 		doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
-			"type_internal_keys": {"task": "` + customTypeKey + `"},
 			"type_settings": {"property_definitions": [{"property": "owner", "name": "Owner", "format": "objects",
-			 "object_types": ["task", "participant"]}]}}`
+			 "object_types": ["type-` + customTypeKey + `", "participant"]}]}}`
 		r := &recordingPropertyResolver{}
 
 		_, _, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g"), ResolveProperties: r})
 		require.NoError(t, err)
 		require.Len(t, r.defs, 1)
 		assert.Equal(t, []string{customTypeKey, "participant"}, r.defs[0].ObjectTypes,
-			"the legend inverts task; participant stays the bundled key")
+			"the derived id names its key; a bundled spelling still resolves through the table")
 	})
 }
 
@@ -341,7 +340,7 @@ func TestExportImport_PropertyAndTypeNamespacesShareATerm(t *testing.T) {
 	assert.Equal(t, "task", doc.Type)
 	assert.Contains(t, doc.Properties, "task")
 	assert.Equal(t, map[string]string{"task": customPropKey}, doc.PropertyKeys)
-	assert.Equal(t, map[string]string{"task": customTypeKey}, doc.TypeKeys)
+	assert.Equal(t, customTypeKey, doc.TypeInternalKey)
 
 	_, snap2, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
 	require.NoError(t, err)
@@ -350,18 +349,11 @@ func TestExportImport_PropertyAndTypeNamespacesShareATerm(t *testing.T) {
 		snap2.Details.Fields[customPropKey].GetStringValue())
 }
 
-// One term, one key — document-wide, per namespace: a stored type key named
-// anywhere in the document always keeps its own term, so no other key's
-// spelling may take it, and the contested claimant degrades through the
-// ladder — its key is a minted bson id, so it takes `<name> (<tail6>)`.
-func TestExport_TypeTermLedgerBacksACollidingSlugOff(t *testing.T) {
-	// the envelope names customTypeKey, whose vocabulary spelling is
-	// `wiki person` — but the document ALSO names the stored key
-	// `wiki person` in object_types, a key the fold gate refuses (a space),
-	// so it is spelled verbatim and the spelling is taken (verbatim-first):
-	// the envelope claimant degrades to the suffixed form, deterministic
-	// off the name and the key's own tail. (A foldable target key spells
-	// `type-<key>` and reserves nothing — TestRelationEnvelope_TargetKeysReserveOnlyWhatTheySpell.)
+// A type spelling shared with a stored key costs nothing (§2, §3): the
+// envelope's key stands beside its spelling, and a target key the fold gate
+// refuses is written verbatim, so the two slots cannot be confused however
+// they are spelled — there is no ledger left to back either off.
+func TestExport_ASharedTypeSpellingIsHarmless(t *testing.T) {
 	vocab := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "wiki person"}}
 	snap := &model.SmartBlockSnapshotBase{
 		Blocks: []*model.Block{{Id: "t1",
@@ -383,33 +375,25 @@ func TestExport_TypeTermLedgerBacksACollidingSlugOff(t *testing.T) {
 	require.NoError(t, err)
 
 	doc := decodeEnvelope(t, data)
-	assert.Equal(t, "wiki person (2d1a7c)", doc.Type,
-		"the plain spelling belongs to the stored key `wiki person`; the claimant takes the suffix")
+	assert.Equal(t, "wiki person", doc.Type, "the vocabulary's spelling, shared or not")
+	assert.Equal(t, customTypeKey, doc.TypeInternalKey, "and the key says which type it is")
 	require.Len(t, doc.TypeProps(), 1)
-	assert.Equal(t, []string{"wiki person"}, doc.TypeProps()[0].ObjectTypes)
-	assert.Equal(t, map[string]string{
-		"wiki person":          "wiki person",
-		"wiki person (2d1a7c)": customTypeKey,
-	}, doc.TypeKeys,
-		"the bundled table is silent on both keys, but THIS vocabulary binds the "+
-			"spelling `wiki_person` to customTypeKey — so the stored key written verbatim "+
-			"owes the identity entry, or its own space reads the target type back as the "+
-			"type that took its spelling; and the suffixed spelling owes its inverse, "+
-			"because no shipped table has ever heard of it")
+	assert.Equal(t, []string{"wiki person"}, doc.TypeProps()[0].ObjectTypes,
+		"a key the fold gate refuses is written verbatim, its own address")
 
-	// a package-only reader, which has no vocabulary at all
-	_, snap2, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
-	require.NoError(t, err)
-	assert.Equal(t, []string{"ot-" + customTypeKey}, snap2.ObjectTypes)
-
-	// and the writer's OWN reader, which is the one the entry is for
+	// a package-only reader lands on both keys as written. (A reader whose
+	// NON-scoped vocabulary binds the spelling `wiki person` elsewhere would
+	// re-point the verbatim target — the residual §3 rule 3 hazard for a key
+	// the fold gate refuses, which no legend guards any more; a scoped
+	// vocabulary answers verbatim-first for a live stored key, and every
+	// shipped vocabulary is scoped. Recorded in §15 #28.)
 	r := &recordingPropertyResolver{}
-	_, snap3, err := Unmarshal(data, Options{GenerateId: seqIds("h"), Keys: vocab, ResolveProperties: r})
+	_, snap3, err := Unmarshal(data, Options{GenerateId: seqIds("h"), ResolveProperties: r})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"ot-" + customTypeKey}, snap3.ObjectTypes)
 	require.Len(t, r.defs, 1)
 	assert.Equal(t, []string{"wiki person"}, r.defs[0].ObjectTypes,
-		"without the entry this reads back as customTypeKey — the target type re-pointed, silently")
+		"verbatim-first: a stored key is its own address in a package-only reader")
 }
 
 // `template` used to be an envelope-semantic spelling: export keyed
@@ -440,8 +424,9 @@ func TestExport_TemplateSpellingIsNoLongerReserved(t *testing.T) {
 		assert.Equal(t, "tmpl", doc.Type, "the vocabulary's spelling is honoured now")
 		assert.Equal(t, "template", doc.Kind, "and the kind, not the spelling, says what this is")
 		assert.Equal(t, TypeRefPrefix+customTypeKey, doc.TemplateFor, "the target type survives, as its derived id")
-		assert.Equal(t, map[string]string{"tmpl": "template"}, doc.TypeKeys,
-			"the legend is what makes the moved spelling invertible; the target owes none")
+		assert.Equal(t, "template", doc.TypeInternalKey,
+			"the key beside the moved spelling is what makes it invertible")
+		assert.Empty(t, doc.TypeKeys)
 		assert.Empty(t, warned, "nothing was refused, so there is nothing to report")
 
 		_, snap2, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
@@ -462,7 +447,7 @@ func TestExport_TemplateSpellingIsNoLongerReserved(t *testing.T) {
 		assert.Equal(t, "page", doc.Kind,
 			"the explicit page kind remains a compatibility guard for draft-era readers, "+
 				"although current v2 validation accepts the kindless form as a page")
-		assert.Equal(t, map[string]string{"template": customTypeKey}, doc.TypeKeys)
+		assert.Equal(t, customTypeKey, doc.TypeInternalKey)
 		assert.Empty(t, warned)
 
 		sbType, snap2, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
@@ -563,8 +548,8 @@ func TestTemplateGateRunsOnTheKind(t *testing.T) {
 	})
 
 	t.Run("the kind does, whatever the type is spelled", func(t *testing.T) {
-		doc := `{"formatVersion": "2.0", "kind": "template", "type_internal_keys": {"tpl": "template"},
-			"type": "tpl", "template_for": "page"}`
+		doc := `{"formatVersion": "2.0", "kind": "template", "type": "tpl", "type_internal_key": "template",
+			"template_for": "page"}`
 		require.NoError(t, Validate([]byte(doc), Options{}))
 		sbType, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 		require.NoError(t, err)
@@ -572,12 +557,12 @@ func TestTemplateGateRunsOnTheKind(t *testing.T) {
 		assert.Equal(t, []string{"ot-template", "ot-page"}, snap.ObjectTypes)
 	})
 
-	// and a legend rebinding the spelling no longer moves the kind with it:
-	// the document is a template because it says so, and its type is whatever
-	// the legend says
+	// and a key beside the spelling no longer moves the kind with it: the
+	// document is a template because it says so, and its type is whatever
+	// the key says
 	t.Run("a rebound template spelling is still a template if the kind says so", func(t *testing.T) {
-		doc := `{"formatVersion": "2.0", "kind": "template", "type_internal_keys": {"template": "custom1"},
-			"type": "template", "template_for": "page"}`
+		doc := `{"formatVersion": "2.0", "kind": "template", "type": "template", "type_internal_key": "custom1",
+			"template_for": "page"}`
 		require.NoError(t, Validate([]byte(doc), Options{}))
 		sbType, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 		require.NoError(t, err)
@@ -628,22 +613,22 @@ func TestTemplateGateRunsOnTheKind(t *testing.T) {
 	})
 }
 
-// A type legend value is a stored key and obeys the writable-key rule, like a
-// property legend value (§3).
-func TestValidate_TypeKeysLegendShape(t *testing.T) {
+// `type_internal_key` is a stored key and obeys the writable-key rule, like
+// a property legend value (§3) — and it needs its spelling beside it.
+func TestValidate_TypeInternalKeyShape(t *testing.T) {
 	for name, doc := range map[string]string{
-		"empty value":     `{"formatVersion": "2.0", "type_internal_keys": {"t": ""}}`,
-		"control value":   `{"formatVersion": "2.0", "type_internal_keys": {"t": "a` + "\\n" + `b"}}`,
-		"over-long value": `{"formatVersion": "2.0", "type_internal_keys": {"t": "` + strings.Repeat("k", 129) + `"}}`,
-		"empty spelling":  `{"formatVersion": "2.0", "type_internal_keys": {"": "task"}}`,
+		"empty value":     `{"formatVersion": "2.0", "type": "T", "type_internal_key": ""}`,
+		"control value":   `{"formatVersion": "2.0", "type": "T", "type_internal_key": "a` + "\\n" + `b"}`,
+		"over-long value": `{"formatVersion": "2.0", "type": "T", "type_internal_key": "` + strings.Repeat("k", 129) + `"}`,
+		"no type beside":  `{"formatVersion": "2.0", "type_internal_key": "task"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			err := Validate([]byte(doc), Options{})
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "/type_internal_keys")
+			assert.Contains(t, err.Error(), "/type_internal_key")
 		})
 	}
-	assert.NoError(t, Validate([]byte(`{"formatVersion": "2.0", "type_internal_keys": {"task": "`+customTypeKey+`"}}`), Options{}))
+	assert.NoError(t, Validate([]byte(`{"formatVersion": "2.0", "type": "task", "type_internal_key": "`+customTypeKey+`"}`), Options{}))
 }
 
 // A snapshot's ObjectTypes is untrusted data, and real stores hold entries
@@ -866,8 +851,8 @@ func TestImport_TheVocabularyMayMoveTheTemplateSpelling(t *testing.T) {
 // the document is accepted. This is a decision, not an oversight: it is pinned
 // here so that adding the refusal has to argue with §3 first.
 func TestTypeNamespaceHasNoDuplicateBindingRefusal(t *testing.T) {
-	doc := `{"formatVersion": "2.0", "kind": "template", "type": "a", "template_for": "b",
-		"type_internal_keys": {"a": "template", "b": "template"}}`
+	doc := `{"formatVersion": "2.0", "kind": "template", "type": "a", "type_internal_key": "template",
+		"template_for": "type-template"}`
 
 	require.NoError(t, Validate([]byte(doc), Options{}))
 	sbType, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})

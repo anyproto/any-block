@@ -167,8 +167,8 @@ bundled display names were renamed to keep that true once raw naming made
 names the wire vocabulary ("Relation key" → "Property key", "Featured
 Relations" → "Featured properties", the "Relation option" type →
 "Property option"). The word still reaches a document where a STORED key
-is recorded verbatim for fidelity — the envelope `internal_key`, the
-values of the `property_internal_keys` / `type_internal_keys` legends —
+is recorded verbatim for fidelity — the envelope `internal_key` and
+`type_internal_key`, the values of the `property_internal_keys` legend —
 and where a user put it in a name: addresses and user data are not
 vocabulary, and neither is this rule's to rename.
 
@@ -263,8 +263,11 @@ The compaction that survives is the one that needs no inverse: a block label
 is a placeholder inside its own document, never an address outside it, so
 there is no table to carry, keep in sync or read back — which is exactly the
 three obligations the deleted object legend failed. What the envelope carries
-instead is identity, not compaction: `property_internal_keys` and
-`type_internal_keys` for the stored key behind each custom spelling,
+instead is identity, not compaction: `property_internal_keys` for the
+stored key behind each custom property spelling, `type_internal_key` for
+the stored key behind the type spelling, the derived ids `type-<key>` and
+`participant-<identity>` for the two kinds of object whose identity a
+reader can know from the reference alone (§9),
 `option_ids` for the option each select name means (§3, §9a) — a spelling
 that reads back as a *different* property or type
 in a reader that cannot ask the space is the defect a sweep saw as twelve
@@ -444,7 +447,7 @@ convenience).
 | [Djot rationale](https://github.com/jgm/djot#rationale) | linear parsing; no expressive blind spots; one spelling per construct | — |
 | Block-editor APIs (common vocabulary) | block and property names (`bulleted_list_item`, `heading_1`, *property*); options by name | `{id, name}` option objects (rule 6); `database` (rule 3) |
 | Atlassian Document Format | an envelope carrying one explicit version identity; `type`-discriminated nodes | additive-within-a-version; nested `content` trees (rule 4); the single integer `version` — AnyBlock's identity is a `major.minor` string (rule 10) |
-| [Portable Text](https://www.portabletext.org/) | JSON blocks as the unit; a legend referenced by key (`markDefs` → `property_internal_keys`, `type_internal_keys`, `option_ids`) | marks as arrays on spans — Markdown in `text` instead (rule 4); a legend for object references, measured a net loss (rule 5) |
+| [Portable Text](https://www.portabletext.org/) | JSON blocks as the unit; a legend referenced by key (`markDefs` → `property_internal_keys`, `option_ids`) | marks as arrays on spans — Markdown in `text` instead (rule 4); a legend for object references, measured a net loss (rule 5) |
 | [JSON Canvas](https://jsoncanvas.org/), [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) | a short spec with its purpose stated first; goals and non-goals up front; longevity, readability, interoperability as the brief | — |
 | Anytype public REST API (`core/api`) | format names (`select`, `multi_select`, `text`, `objects`, `files`); snake_case member names | id/key duality; value fields named after formats; the derived slug vocabulary (keys spell display names, §3) |
 | Agent-API evidence 2024–2026 ([Ustynov 2026](https://arxiv.org/abs/2604.07502)) | id-addressed edits; constrained decoding as the small-model floor; examples over prose; SQL-shaped filters; the validation loop as product surface; compact but not exotic | tabular/TOON-style output by default; raw JSON Patch; whole-document rewrite as the default edit |

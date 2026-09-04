@@ -260,9 +260,6 @@ func validateQueryFragment(member string, raw json.RawMessage, opts Options) err
 	if len(opts.Legend.PropertyKeys) > 0 {
 		doc["property_internal_keys"] = opts.Legend.PropertyKeys
 	}
-	if len(opts.Legend.TypeKeys) > 0 {
-		doc["type_internal_keys"] = opts.Legend.TypeKeys
-	}
 	if len(opts.Legend.OptionIds) > 0 {
 		doc["option_ids"] = opts.Legend.OptionIds
 	}

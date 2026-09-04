@@ -126,8 +126,8 @@ byte-exactly is a solved behavior even at 4B scale, while *deriving* a
 slug from a name is where models improvise — and improvise differently in
 the key slot and the filter value that references it, the divergence that
 silently unbinds a view from its property. SPEC §3 is the rule, including the per-document collision
-ladder and the `property_internal_keys` / `type_internal_keys` legends
-that keep an exported document invertible with no space to ask
+ladder, the `property_internal_keys` legend and the `type_internal_key`
+scalar that keep an exported document invertible with no space to ask
 (`option_ids`, in the example above, is the same idea for select options:
 the id rides beside the name).
 
@@ -172,8 +172,8 @@ reaches a document from the two sources no vocabulary rename can touch.
 The app's STORED keys keep their spellings (`relationKey`,
 `featuredRelations`, the `relation` type key, …), and a document records a
 stored key verbatim exactly where fidelity demands an identity rather than
-a name: the envelope `internal_key`, and the values of the
-`property_internal_keys` / `type_internal_keys` legends — measured on the
+a name: the envelope `internal_key`, `type_internal_key`, and the values
+of the `property_internal_keys` legend — measured on the
 pre-rename corpus, each such key appears there on roughly 150 of 28,831
 documents. And user data is user data: a property someone named
 "Relation", an object called "Company relation template" — their words,

@@ -585,31 +585,26 @@ func TestRelationEnvelope_ADeniedKeySlugShadowedByTheVocabularyBacksOff(t *testi
 // its own address, so no other key's slug may take one as a spelling — the
 // same duty §2a's targets have carried since typeProperties shipped.
 //
-// A target key spelled as its derived id claims no term (§9): `type-wine`
-// is not the spelling `wine`, so the envelope `type` may still take that
-// spelling from the vocabulary, and the legend binds it — there is nothing
-// for the two slots to collide on. A target key the fold gate refuses still
-// reserves its spelling, verbatim-first (§3).
-//
-// How this can fail: reserve foldable target keys in seedTypeTermLedger
-// again, and the envelope backs off to its stored key for a spelling no slot
-// writes; drop the non-foldable arm, and a vocabulary's spelling can take a
-// verbatim target's term.
-func TestRelationEnvelope_TargetKeysReserveOnlyWhatTheySpell(t *testing.T) {
-	read := func(t *testing.T, data []byte) (string, []string, map[string]string) {
+// A target key never contends with the envelope's spelling (§2, §9): a
+// foldable key is written as `type-<key>`, a key the gate refuses verbatim,
+// and the envelope `type` carries its stored key beside it — so the two
+// slots cannot be confused however the vocabulary spells the relation's own
+// type, and there is no ledger to back anything off.
+func TestRelationEnvelope_TargetKeysNeverContendWithTheTypeSpelling(t *testing.T) {
+	read := func(t *testing.T, data []byte) (typ, key string, targets []string) {
 		t.Helper()
 		var doc struct {
-			Type             string            `json:"type"`
-			TypeKeys         map[string]string `json:"type_internal_keys"`
+			Type             string `json:"type"`
+			TypeInternalKey  string `json:"type_internal_key"`
 			PropertySettings struct {
 				ObjectTypes []string `json:"object_types"`
 			} `json:"property_settings"`
 		}
 		require.NoError(t, json.Unmarshal(data, &doc))
-		return doc.Type, doc.PropertySettings.ObjectTypes, doc.TypeKeys
+		return doc.Type, doc.TypeInternalKey, doc.PropertySettings.ObjectTypes
 	}
 
-	t.Run("a foldable target reserves nothing", func(t *testing.T) {
+	t.Run("a foldable target is its derived id", func(t *testing.T) {
 		snap := relationSnapshot(map[string]*types.Value{
 			"relationFormat":            num(100),
 			"relationFormatObjectTypes": strList("wine"),
@@ -621,13 +616,13 @@ func TestRelationEnvelope_TargetKeysReserveOnlyWhatTheySpell(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_STRelation, snap, opts)
 		require.NoError(t, err)
 
-		typ, targets, legend := read(t, data)
-		assert.Equal(t, "wine", typ, "the vocabulary's spelling is free: the target never spells it")
+		typ, key, targets := read(t, data)
+		assert.Equal(t, "wine", typ, "the vocabulary's spelling, shared with a stored key or not")
+		assert.Equal(t, "custom123", key)
 		assert.Equal(t, []string{"type-wine"}, targets)
-		assert.Equal(t, map[string]string{"wine": "custom123"}, legend)
 	})
 
-	t.Run("a target the gate refuses keeps its verbatim term", func(t *testing.T) {
+	t.Run("a target the gate refuses is written verbatim", func(t *testing.T) {
 		snap := relationSnapshot(map[string]*types.Value{
 			"relationFormat":            num(100),
 			"relationFormatObjectTypes": strList("wine region"),
@@ -639,10 +634,10 @@ func TestRelationEnvelope_TargetKeysReserveOnlyWhatTheySpell(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_STRelation, snap, opts)
 		require.NoError(t, err)
 
-		typ, targets, _ := read(t, data)
-		assert.Equal(t, "custom123", typ,
-			"the census reserved %q for the target, so the type spells its stored key", "wine region")
-		assert.Equal(t, []string{"wine region"}, targets)
+		typ, key, targets := read(t, data)
+		assert.Equal(t, "wine region", typ)
+		assert.Equal(t, "custom123", key, "the key is what says which type the relation is")
+		assert.Equal(t, []string{"wine region"}, targets, "the stored key, its own address (§3)")
 	})
 }
 

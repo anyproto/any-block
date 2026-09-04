@@ -50,13 +50,14 @@ func UnmarshalPropertyValueChecked(key string, v any, opts Options) (*types.Valu
 }
 
 type jsonDoc struct {
-	Schema        string `json:"$schema"`
-	FormatVersion string `json:"formatVersion"`
-	Kind          string `json:"kind"`
-	Id            string `json:"id"`
-	Type          string `json:"type"`
-	TemplateFor   string `json:"template_for"`
-	InternalKey   string `json:"internal_key"`
+	Schema          string `json:"$schema"`
+	FormatVersion   string `json:"formatVersion"`
+	Kind            string `json:"kind"`
+	Id              string `json:"id"`
+	Type            string `json:"type"`
+	TypeInternalKey string `json:"type_internal_key"`
+	TemplateFor     string `json:"template_for"`
+	InternalKey     string `json:"internal_key"`
 	// PropertySettings is a kind:property document's definition group (§2d):
 	// one propertyDefinition, whose three travelling members stand for the
 	// stored relation-definition keys that `properties` refuses.
@@ -75,9 +76,6 @@ type jsonDoc struct {
 	// without the space still lands on the right relation. Its values are
 	// AUTHORITATIVE — taken as the stored key, not liveness-checked (§3).
 	PropertyKeys map[string]string `json:"property_internal_keys"`
-	// TypeKeys is the same legend for the TYPE namespace — separate map,
-	// because a space may name a relation and a type one word (§3).
-	TypeKeys map[string]string `json:"type_internal_keys"`
 	// OptionIds is the §9a option legend, nested {property spelling: {option
 	// name: option id}}. Unlike the two above its values are HINTS, honoured
 	// only where the id still names a live option of that relation (§3).
@@ -209,29 +207,23 @@ type importer struct {
 	// is a fact about the term, not about any one slot.
 	warnedPropertyTerms map[string]bool
 	warnedTypeTerms     map[string]bool
-	// propLegend/typeLegend/optLegend are the document's legends expanded to
-	// also answer for the NFC form of any non-NFC-spelled entry (§3,
+	// propLegend/optLegend are the document's legends expanded to also
+	// answer for the NFC form of any non-NFC-spelled entry (§3,
 	// nfcExpandLegend), built once on first use. legendsBuilt marks them,
 	// because the fast path hands the doc's own maps back and a nil legend
 	// stays nil.
 	propLegendNFC map[string]string
-	typeLegendNFC map[string]string
 	optLegendNFC  map[string]map[string]string
 	legendsBuilt  bool
 }
 
-// propertyLegend / typeLegend / optionLegend are the §3 chain-step-1 tables:
+// propertyLegend / optionLegend are the §3 chain-step-1 tables:
 // the document's own legends, with non-NFC spellings also answering under
 // their canonical form. Values pass byte-verbatim — a legend value is a
 // stored key, and a stored key's bytes are its address.
 func (imp *importer) propertyLegend() map[string]string {
 	imp.buildLegends()
 	return imp.propLegendNFC
-}
-
-func (imp *importer) typeLegend() map[string]string {
-	imp.buildLegends()
-	return imp.typeLegendNFC
 }
 
 func (imp *importer) optionLegend() map[string]map[string]string {
@@ -245,7 +237,6 @@ func (imp *importer) buildLegends() {
 	}
 	imp.legendsBuilt = true
 	imp.propLegendNFC = nfcExpandLegend(imp.doc.PropertyKeys)
-	imp.typeLegendNFC = nfcExpandLegend(imp.doc.TypeKeys)
 	imp.optLegendNFC = nfcExpandLegend(imp.doc.OptionIds)
 }
 
@@ -635,8 +626,12 @@ func (imp *importer) finalize(fragmentPath string) error {
 	return nil
 }
 
-// typeKey inverts a TYPE key slot: the document's own legend first (§3),
-// then the vocabulary in force — propertyKey on the type namespace's legend.
+// typeKey inverts a TYPE key slot: the derived id names its key outright
+// (§9); a spelling resolves through the vocabulary in force (§3). The type
+// namespace carries no legend — the envelope's own type is stated by
+// `type_internal_key`, read by build ahead of this — so a spelling here is
+// authoring input, resolved the way an author expects: a display name, the
+// bundled table, the fold, then verbatim.
 //
 // It used to carry a reservation, the mirror of writableTypeSlug's: the
 // vocabulary could not move the `template` spelling in either direction,
@@ -660,20 +655,14 @@ func (imp *importer) typeKey(slug, path string) string {
 	if key, ok := typeRefKey(slug); ok {
 		return key
 	}
-	if key, ok := imp.typeLegend()[slug]; ok && key != "" {
-		return key
-	}
-	// §3's canonical form, in the same order as propertyKeyIn: exact legend,
-	// exact stored key, then the NFC form
+	// §3's canonical form, in the same order as propertyKeyIn: exact stored
+	// key, then the NFC form
 	if n := nfcTerm(slug); n != slug {
 		if scoped, ok := imp.opts.keys().(ScopedKeyVocabulary); ok &&
 			scoped.TypeTermFacts(slug).LiveStoredKey {
 			return slug
 		}
 		slug = n
-		if key, ok := imp.typeLegend()[slug]; ok && key != "" {
-			return key
-		}
 	}
 	scoped, ok := imp.opts.keys().(ScopedKeyVocabulary)
 	if !ok {
@@ -702,9 +691,9 @@ func (imp *importer) typeKey(slug, path string) string {
 	// the scope — so the ambiguity is refused outright, the same loud error
 	// a shared property name gets when its type cannot place it
 	imp.refuse(path, fmt.Sprintf(
-		"the spelling %q names %d live types in this space; add a %s entry "+
-			"binding the spelling to the intended stored key",
-		slug, len(cands), memberTypeInternalKeys))
+		"the spelling %q names %d live types in this space; write the intended type's "+
+			"derived id instead (type-<internal_key>, §9)",
+		slug, len(cands)))
 	return slug
 }
 
@@ -840,14 +829,20 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 	}
 
 	var objectTypes []string
-	if doc.Type != "" {
-		// the seam refuses a resolution onto the empty key (§3): a
-		// vocabulary can answer "" for a non-empty spelling, which became
-		// the ObjectTypes entry "ot-" and re-exported as no type at all —
-		// silently. That is the only refusable resolution here: a non-empty
-		// stored key of any shape round-trips verbatim, unlike a property
-		// key, which has to survive as a JSON member name.
-		typeKey := imp.typeKey(doc.Type, "/type")
+	if doc.Type != "" || doc.TypeInternalKey != "" {
+		// `type_internal_key` is the stored key outright (§2, §3) and
+		// outranks the spelling beside it; only a document that states no
+		// key — an authored one — resolves its `type` spelling. The seam
+		// refuses a resolution onto the empty key (§3): a vocabulary can
+		// answer "" for a non-empty spelling, which became the ObjectTypes
+		// entry "ot-" and re-exported as no type at all — silently. That is
+		// the only refusable resolution here: a non-empty stored key of any
+		// shape round-trips verbatim, unlike a property key, which has to
+		// survive as a JSON member name.
+		typeKey := doc.TypeInternalKey
+		if typeKey == "" {
+			typeKey = imp.typeKey(doc.Type, "/type")
+		}
 		if typeKey == "" {
 			return 0, nil, &ValidationError{Issues: []Issue{{
 				Path:    "/type",

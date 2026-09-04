@@ -312,3 +312,69 @@ func TestDerivedIds_TypeDocumentAndTypeKeySlots(t *testing.T) {
 		}
 	})
 }
+
+// C: every document that states a `type` states its stored key beside it,
+// `type_internal_key`, bundled or not — a scalar, because an object has
+// exactly one type — and the `type_internal_keys` map is retired. A reader
+// never resolves the `type` spelling: the key is the address, the spelling
+// the caption, and the type document is `type-<that key>`.
+//
+// How this can fail: write the key only when the shipped table cannot
+// invert the spelling (the bundled case below finds no member); write the
+// map beside it (the NotContains finds it); read the spelling ahead of the
+// key on import (the precedence case lands on the spelled type).
+func TestTypeInternalKey_OnEveryTypedDocument(t *testing.T) {
+	t.Run("a bundled type states its key like any other", func(t *testing.T) {
+		data, err := Marshal(model.SmartBlockType_Page, typedSnapshot("ot-page"), Options{})
+		require.NoError(t, err)
+		require.NoError(t, Validate(data, Options{}))
+		assert.Contains(t, string(data), "\"type\": \"Page\",\n  \"type_internal_key\": \"page\"")
+		assert.NotContains(t, string(data), "type_internal_keys")
+	})
+
+	t.Run("a minted key under a shadowing spelling is still the key", func(t *testing.T) {
+		vocab := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "Task"}}
+		data, err := Marshal(model.SmartBlockType_Page, typedSnapshot("ot-"+customTypeKey), Options{Keys: vocab})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"type": "Task"`)
+		assert.Contains(t, string(data), `"type_internal_key": "`+customTypeKey+`"`)
+
+		_, back, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ot-" + customTypeKey}, back.ObjectTypes,
+			"a package-only reader lands on the key, not on the bundled twin the spelling names")
+	})
+
+	t.Run("a template states its own key and its target's derived id", func(t *testing.T) {
+		data, err := Marshal(model.SmartBlockType_Template, typedSnapshot("ot-template", "ot-task"), Options{})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"type_internal_key": "template"`)
+		assert.Contains(t, string(data), `"template_for": "type-task"`)
+	})
+
+	t.Run("the key outranks the spelling on input", func(t *testing.T) {
+		_, back, err := Unmarshal([]byte(`{"formatVersion":"2.0","type":"Whatever","type_internal_key":"task"}`),
+			Options{GenerateId: seqIds("g")})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ot-task"}, back.ObjectTypes)
+	})
+
+	t.Run("the retired map is refused with the repair named", func(t *testing.T) {
+		err := Validate([]byte(`{"formatVersion":"2.0","type":"Task","type_internal_keys":{"Task":"task"}}`), Options{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "type_internal_key")
+		assert.Contains(t, err.Error(), "scalar")
+	})
+
+	t.Run("a key without a type beside it is refused", func(t *testing.T) {
+		err := Validate([]byte(`{"formatVersion":"2.0","type_internal_key":"task"}`), Options{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "/type_internal_key")
+	})
+
+	t.Run("no type, no key", func(t *testing.T) {
+		data, err := Marshal(model.SmartBlockType_Page, typedSnapshot(), Options{})
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), "type_internal_key")
+	})
+}
