@@ -35,7 +35,7 @@ func installedCopySnapshot(t *testing.T, key string, opts Options) *model.SmartB
 // A field-identical installed copy is omitted, install provenance
 // notwithstanding: the artifact keys may hold ANY value, because the next
 // install re-stamps them (§2f). And the reconstruction the reader builds
-// from the `installed` key states the table's own facts.
+// for the bundled key states the table's own facts.
 //
 // How this can fail: drop an artifact key (createdDate, origin, …) from
 // relationInstallArtifactKeys — the copy stops being omittable and the
@@ -234,7 +234,7 @@ func TestOmittedBundledRelation_UninstalledCopyOmits(t *testing.T) {
 // dictionary entry states the definition, and the kind alone decides — the
 // same unconditional shape as OmittedRelationOption. OmittedBundledRelation
 // keeps its job beside it, which is a different question: whether the
-// omitted copy travels as an `installed` key or as a full entry.
+// omitted copy's entry states the table's definition or the stored one.
 func TestOmittedRelation(t *testing.T) {
 	assert.True(t, OmittedRelation(model.SmartBlockType_STRelation))
 	assert.True(t, OmittedRelation(model.SmartBlockType_BundledRelation))

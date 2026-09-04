@@ -2,12 +2,13 @@ package bundle
 
 // composerelation_test.go pins §15 #23 on the composer: a bundle writes no
 // property document. Every relation snapshot is omitted; the dictionary
-// states the definition of each one something references — and of a
-// divergent installed copy whether or not anything does, since `installed`
-// makes a claim the entry corrects — and a property nothing references is
-// not exported at all: no entry, no `installed` mention, no Issue, no
-// counter. Nothing names the key, so there is no value to explain and no
-// format to look up.
+// states the definition of each one something references — the table's for
+// an installed copy the predicate proved identical to it, the stored one for
+// a divergent copy or a space-minted property — and a property nothing
+// references is not exported at all: no entry, no Issue, no counter. Nothing
+// names the key, so there is no value to explain and no format to look up.
+// There is no `installed` list and no exemption for a divergent copy (§15
+// #24): used-only governs every entry.
 
 import (
 	"testing"
@@ -65,9 +66,10 @@ func referencePage(t *testing.T, c *Composer, spellings ...string) {
 // (the first assertion of every case — `properties/` comes back); source
 // the entry from the resolver rather than the observed snapshot (`hidden`
 // never reaches the entry, and a resolver-less composition writes no entry
-// at all); carry an unreferenced property anyway (the "unreferenced" case
-// finds an entry nothing needs); or drop the divergence exemption (the
-// `installed` claim restores the table's name over the user's).
+// at all); carry an unreferenced property anyway (every "unreferenced" case
+// finds an entry nothing needs); state the table's definition for a
+// divergent copy (the user's rename is lost); or put the `installed` list
+// back (the bytes carry a member the schema refuses).
 func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 	const key = "67e31405450a5dcab2fa75aa"
 	t.Run("a space-minted property, referenced", func(t *testing.T) {
@@ -79,8 +81,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)
-		dict, byKey := dictionaryByKey(t, dictData)
-		assert.Empty(t, dict.Installed, "a space-minted key is never installed")
+		_, byKey := dictionaryByKey(t, dictData)
 		require.Contains(t, byKey, key)
 		def := byKey[key]
 		assert.Equal(t, "Deadline", def.Name)
@@ -104,9 +105,8 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)
-		dict, byKey := dictionaryByKey(t, dictData)
+		_, byKey := dictionaryByKey(t, dictData)
 		assert.NotContains(t, byKey, key, "nothing names the key: no entry")
-		assert.Empty(t, dict.Installed)
 		assert.Zero(t, stats.DictionaryEntries)
 		assert.Empty(t, stats.OrphanUsedKeys)
 	})
@@ -122,23 +122,68 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.False(t, byKey[key].Hidden)
 		assert.NotContains(t, string(dictData), `"hidden"`)
 	})
-	t.Run("a divergent installed copy, unreferenced", func(t *testing.T) {
+	t.Run("a divergent installed copy, referenced", func(t *testing.T) {
 		c := NewComposer(anyblockjson.Options{}, "Corpus")
 		copy := testInstalledCopy(t, "dueDate")
 		copy.Details.Fields["name"] = strVal("Deadline")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
 		require.True(t, omitted, "a divergent copy is omitted like every relation document")
 		require.Empty(t, issues)
+		referencePage(t, c, "due_date")
+
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		_, byKey := dictionaryByKey(t, dictData)
+		require.Contains(t, byKey, "dueDate")
+		assert.Equal(t, "Deadline", byKey["dueDate"].Name, "the stored definition, not the table's: the user's rename travels")
+		assert.Equal(t, 1, stats.DictionaryEntries)
+		assert.NotContains(t, string(dictData), `"installed"`, "the list is gone (§15 #24)")
+	})
+	t.Run("a divergent installed copy, unreferenced", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		copy := testInstalledCopy(t, "dueDate")
+		copy.Details.Fields["name"] = strVal("Deadline")
+		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
+		require.True(t, omitted)
+		require.Empty(t, issues, "an unreferenced property is not a loss to report, divergent or not")
 		referencePage(t, c)
 
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)
-		dict, byKey := dictionaryByKey(t, dictData)
-		assert.Equal(t, []string{"dueDate"}, dict.Installed, "the copy is installed")
-		require.Contains(t, byKey, "dueDate", "and `installed` makes a claim the entry corrects, referenced or not")
-		assert.Equal(t, "Deadline", byKey["dueDate"].Name)
-		assert.Equal(t, 1, stats.DictionaryInstalled)
+		_, byKey := dictionaryByKey(t, dictData)
+		assert.NotContains(t, byKey, "dueDate", "used-only governs: no list makes a claim for an entry to correct (§15 #24)")
+		assert.Zero(t, stats.DictionaryEntries)
+	})
+	t.Run("an identical installed copy, referenced", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		omitted, issues := c.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, "dueDate"))
+		require.True(t, omitted)
+		require.Empty(t, issues, "the reconstruction from the table is verified, and loses nothing")
+		referencePage(t, c, "due_date")
+
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		_, byKey := dictionaryByKey(t, dictData)
+		require.Contains(t, byKey, "dueDate", "a referenced property is an entry, bundled or not")
+		assert.Equal(t, "Due date", byKey["dueDate"].Name, "the table's definition: the predicate proved the copy restates it")
+		assert.Equal(t, model.RelationFormat_date, byKey["dueDate"].Format)
+		assert.False(t, byKey["dueDate"].Uninstalled)
 		assert.Equal(t, 1, stats.DictionaryEntries)
+		assert.NotContains(t, string(dictData), `"installed"`, "the list is gone (§15 #24)")
+	})
+	t.Run("an identical installed copy, unreferenced", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		omitted, issues := c.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, "dueDate"))
+		require.True(t, omitted)
+		require.Empty(t, issues)
+		referencePage(t, c)
+
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		_, byKey := dictionaryByKey(t, dictData)
+		assert.NotContains(t, byKey, "dueDate", "nothing names the key: not exported, and no list left to name it in")
+		assert.Zero(t, stats.DictionaryEntries)
+		assert.NotContains(t, string(dictData), `"installed"`)
 	})
 	t.Run("the observed snapshot outranks the resolver", func(t *testing.T) {
 		resolver := composerPropertyResolver{def: anyblockjson.PropertyDefinition{

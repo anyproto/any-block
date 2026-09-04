@@ -1,8 +1,9 @@
 package snapshotdiff
 
 // omittedrelation_test.go pins the comparator's side of the §2f omission: a
-// bundled-identical relation document travels as an `installed` key, and
-// what comes back is the reader's reconstruction from the bundled table.
+// bundled-identical relation document travels as a dictionary entry stating
+// the table's definition, and what comes back is the reader's
+// reconstruction from the bundled table.
 // The two skips that trip needs — install artifacts absent, definition
 // defaults stamped — are scoped to snapshots the omission predicate itself
 // admits, so the ordinary document round trip keeps its full sensitivity.
@@ -30,7 +31,7 @@ func omittableCopy(t *testing.T) *model.SmartBlockSnapshotBase {
 	return &model.SmartBlockSnapshotBase{Details: det}
 }
 
-// reconstruction is what the reader builds from the `installed` key: the
+// reconstruction is what the reader builds for the bundled key: the
 // bundled table's facts and nothing of the install.
 func reconstruction(t *testing.T) *model.SmartBlockSnapshotBase {
 	t.Helper()

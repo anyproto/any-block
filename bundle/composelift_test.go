@@ -98,7 +98,6 @@ func TestComposerSpaceOnlyLiftProducesBothArtifacts(t *testing.T) {
 
 	dict, err := anyblockjson.UnmarshalPropertyDictionary(properties, anyblockjson.Options{})
 	require.NoError(t, err)
-	assert.Empty(t, dict.Installed)
 	assert.Empty(t, dict.Properties)
 	require.NoError(t, Validate(fstest.MapFS{
 		anyblockjson.IndexFileName:      {Data: index},

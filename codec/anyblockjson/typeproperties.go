@@ -81,8 +81,8 @@ type PropertyDefinition struct {
 	// Uninstalled records that the user REMOVED this property from the
 	// space (stored `isUninstalled` true): the bundle carries the property
 	// for backup fidelity, but a reader must not install it as a live one —
-	// recreating it, mark and all, is optional; listing it as installed
-	// would undo the removal. A member of the dictionary home only (§2f):
+	// recreating it, mark and all, is optional; installing it live would
+	// undo the removal. A member of the dictionary home only (§2f):
 	// on a type's declaration or a property document's settings it would
 	// say nothing, and both refuse it, the way the dictionary refuses
 	// `section`.

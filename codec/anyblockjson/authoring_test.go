@@ -670,8 +670,8 @@ func TestAuthoringSubset_IndexAndDictionaryEnumValues(t *testing.T) {
 			requireSubsetDictionary(t, `{"formatVersion": "2.0", "properties": [{"property": "p1", "format": "`+v+`"}]}`)
 		}
 	})
-	t.Run("installed and a name-identified entry", func(t *testing.T) {
-		requireSubsetDictionary(t, `{"formatVersion": "2.0", "installed": ["due_date", "tag"],
+	t.Run("a name-identified entry beside spelled ones", func(t *testing.T) {
+		requireSubsetDictionary(t, `{"formatVersion": "2.0",
 			"properties": [{"name": "Cooking Time", "format": "number"},
 				{"property": "owner", "format": "objects", "object_types": ["participant"],
 				 "description": "who runs it"},

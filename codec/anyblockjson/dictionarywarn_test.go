@@ -28,22 +28,27 @@ func readDict(t *testing.T, doc string) (*PropertyDictionary, []Issue) {
 // The dictionary spells a bundled property the way every document slot does:
 // by its display name. One spelling for one concept — an object document
 // says "Due date" in its `properties` map and the dictionary beside it says
-// "Due date" in `installed`.
+// "Due date" on the entry's `property`, with the stored key beside it as
+// `internal_key` and nowhere else.
 //
-// How this can fail: emit the stored key here and the dictionary becomes the
-// odd file out; spell the name on the way out without inverting it on the
-// way in and `installed` names nothing the bundled table has.
+// How this can fail: emit the stored key as the spelling and the dictionary
+// becomes the odd file out; spell the name on the way out without inverting
+// it on the way in and the entry names nothing the bundled table has.
 func TestDictionary_SpellsPropertiesTheWayDocumentsDo(t *testing.T) {
-	d, warns := readDict(t, `{`+dictHead+`"installed":["Due date","Creation date"]}`)
+	d, warns := readDict(t, `{`+dictHead+
+		`"properties":[{"property":"Due date","format":"date"},{"property":"Creation date","format":"date"}]}`)
 
-	assert.Equal(t, []string{"dueDate", "createdDate"}, d.Installed,
-		"read as the stored keys they name — the wire spelling is the name, the codec keeps stored keys")
+	require.Len(t, d.Properties, 2)
+	assert.EqualValues(t, "dueDate", d.Properties[0].Key,
+		"read as the stored key it names — the wire spelling is the name, the codec keeps stored keys")
+	assert.EqualValues(t, "createdDate", d.Properties[1].Key)
 	assert.Empty(t, warns, "the canonical spelling must be silent")
 
 	out, err := MarshalPropertyDictionary(d, Options{})
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `"Due date"`)
-	assert.NotContains(t, string(out), `"dueDate"`, "the stored key must not survive a round trip")
+	assert.Contains(t, string(out), `"property": "Due date"`)
+	assert.Contains(t, string(out), `"internal_key": "dueDate"`, "the stored key travels as internal_key only")
+	assert.NotContains(t, string(out), `"property": "dueDate"`, "the stored key must not survive a round trip as the spelling")
 }
 
 // A stored key still names itself — an exact match wins before folding is
@@ -55,14 +60,15 @@ func TestDictionary_SpellsPropertiesTheWayDocumentsDo(t *testing.T) {
 func TestDictionary_LegacySpellingsStillNameTheirProperty(t *testing.T) {
 	for _, legacy := range []string{"dueDate", "due_date"} {
 		t.Run(legacy, func(t *testing.T) {
-			d, warns := readDict(t, `{`+dictHead+`"installed":["`+legacy+`"]}`)
+			d, warns := readDict(t, `{`+dictHead+`"properties":[{"property":"`+legacy+`","format":"date"}]}`)
 
-			assert.Equal(t, []string{"dueDate"}, d.Installed)
+			require.Len(t, d.Properties, 1)
+			assert.EqualValues(t, "dueDate", d.Properties[0].Key)
 			assert.Empty(t, warns)
 
 			out, err := MarshalPropertyDictionary(d, Options{})
 			require.NoError(t, err)
-			assert.Contains(t, string(out), `"Due date"`, "re-rendering settles on the canonical spelling")
+			assert.Contains(t, string(out), `"property": "Due date"`, "re-rendering settles on the canonical spelling")
 		})
 	}
 }
@@ -98,31 +104,11 @@ func TestDictionary_AnEntryKeyIsNamedOnlyWhenItIsBundled(t *testing.T) {
 	})
 }
 
-// `installed` names rows to restore from the bundled table, so a key outside
-// it tells a reader to install nothing. It is TOLERATED rather than refused,
-// and the tolerance is about VERSION SKEW, not custom properties: the bundled
-// table grows independently of the format version, so a backup written by a
-// newer app lists keys this build has never heard of, and refusing them would
-// make every backup unreadable one app version back.
-//
-// How this can fail: turn the warning into an error and a newer app's backup
-// stops reading; drop the warning and a bundle that installs nothing for a
-// property ships with a clean bill of health.
-func TestDictionary_AKeyFromANewerAppIsToleratedAndReported(t *testing.T) {
-	d, warns := readDict(t, `{`+dictHead+`"installed":["some_key_this_build_has_never_heard_of"]}`)
-
-	assert.Equal(t, []string{"some_key_this_build_has_never_heard_of"}, d.Installed,
-		"kept verbatim — it may be the newer app's")
-	require.Len(t, warns, 1)
-	assert.Contains(t, warns[0].Message, "installs NOTHING for it")
-	assert.Contains(t, warns[0].Message, "newer app", "the tolerance is explained, not just the fault")
-}
-
 // UnmarshalPropertyDictionary is UnmarshalPropertyDictionaryWarn with no
 // sink: the same verdicts, the warnings discarded — the relationship Validate
 // and ValidateWarn have.
 func TestDictionary_TheSinklessDoorAgrees(t *testing.T) {
-	doc := `{` + dictHead + `"installed":["Due date"]}`
+	doc := `{` + dictHead + `"properties":[{"property":"Due date","format":"date"}]}`
 
 	quiet, err := UnmarshalPropertyDictionary([]byte(doc), Options{})
 	require.NoError(t, err)

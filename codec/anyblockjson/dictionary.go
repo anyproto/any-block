@@ -46,22 +46,13 @@ const PropertiesFileName = "properties.json"
 
 // PropertyDictionary is a bundle's properties.json (§2f).
 type PropertyDictionary struct {
-	// Installed lists the BUNDLED properties present in the space —
-	// presence, not definition. This field holds STORED keys; the wire
-	// spells them as display names ("Due date", not `dueDate`) —
-	// the dictionary is aligned with every other slot.
-	// 98% of installed copies
-	// are field-identical to the bundled table, so the key is the whole of
-	// what a restore needs. A key that also appears in Properties is
-	// installed AND divergent: the entry overrides the table. A property
-	// the user REMOVED is never here (§15 #22): its entry carries
-	// Uninstalled, and a key in both places is refused on both sides.
-	Installed []string
 	// Properties carries one definition per property the bundle's objects
-	// actually reference — used-only (§2f) — plus a full entry for every
-	// installed copy that diverges from the bundled table and for every
-	// property the user removed, referenced or not. Keys are STORED
-	// keys, never document spellings: a document's property_internal_keys legend
+	// actually reference — used-only (§2f) — bundled or space-minted, and
+	// nothing else: there is no list of installed bundled keys beside it
+	// (§15 #24). A reader tells a bundled key from a space-minted one by
+	// looking it up in its own shipped table, the lookup every §3 slot
+	// runs, and not by anything the entry states. Keys are STORED keys,
+	// never document spellings: a document's property_internal_keys legend
 	// binds its labels to stored keys, and the stored key is what the
 	// dictionary answers for.
 	Properties []PropertyDefinition
@@ -100,7 +91,6 @@ var compilePropertiesSchema = sync.OnceValues(func() (*jsonschema.Schema, error)
 // — `section` never arrives, because the schema refuses it on a dictionary
 // entry before this decode runs.
 type jsonDictionary struct {
-	Installed  []string       `json:"installed"`
 	Properties []TypeProperty `json:"properties"`
 }
 
@@ -108,22 +98,14 @@ type jsonDictionary struct {
 // and decodes it (§2f). Errors wrap *ValidationError with path-addressed
 // issues, like Unmarshal and UnmarshalIndex.
 //
-// An `installed` key the bundled table does not know is TOLERATED, not
-// refused, and the asymmetry with MarshalPropertyDictionary is deliberate:
-// the bundled table grows independently of the format version, so a backup
-// written by a newer app lists keys an older reader has never heard of —
-// refusing them would make every backup unreadable one app version back.
-// The reader installs the keys it knows and skips the rest; a WRITER, which
-// checks against its own table, has no such excuse.
 // Options.Keys binds every object_types entry through the same preplanned
 // custom-type namespace as /type and /template_for.
 //
 // Warnings go to Options.OnWarning, and this file needs them more than most:
 // its keys are STORED keys while every other slot spells the snake_case
 // label, so the likeliest authoring mistake — writing the label — produces a
-// document that reads clean. An `installed` key outside the bundled table
-// failed only on the way back out; a `properties` entry keyed by the label
-// quietly minted a second property beside the bundled one.
+// document that reads clean: a `properties` entry keyed by the label quietly
+// minted a second property beside the bundled one.
 func UnmarshalPropertyDictionary(data []byte, opts Options) (*PropertyDictionary, error) {
 	return unmarshalPropertyDictionary(data, opts, opts.OnWarning)
 }
@@ -171,15 +153,12 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 	if issues := dictionaryDuplicateIssues(doc); len(issues) > 0 {
 		return nil, &ValidationError{Issues: issues}
 	}
-	if issues := dictionaryUninstalledIssues(doc); len(issues) > 0 {
-		return nil, &ValidationError{Issues: issues}
-	}
 
 	var jd jsonDictionary
 	if err := jsonUnmarshal(data, &jd); err != nil {
 		return nil, fmt.Errorf("decode property dictionary: %w", err)
 	}
-	d := &PropertyDictionary{Installed: installedKeys(jd.Installed, warn)}
+	d := &PropertyDictionary{}
 	for i, tp := range jd.Properties {
 		// an entry's `internal_key` IS the stored key and skips the chain —
 		// a stored id is its own address (§3) and the fold match below could
@@ -256,15 +235,13 @@ func dictionaryEntryIdentity(tp TypeProperty) (term string, isInternal bool, pro
 // from the shipped table (bundledname.go) — the stored key verbatim for
 // anything else (§2f).
 //
-// Only `properties` needs the condition. `installed` admits bundled keys
-// and nothing else — it names rows to restore from the bundled table — so
-// it names unconditionally. An ENTRY, by contrast, is how a bundle declares
-// a property the bundled table does NOT have, so its key population is
-// mixed: of 6,426 entries in a 77-space export, 515 are space-minted bson
-// ids. For those the condition is load-bearing rather than cosmetic: the
-// dictionary has no legend, so its spelling must be a pure function of the
-// key, and the only pure spelling a space-minted key has is itself —
-// nothing may ever be derived from a bson id.
+// The condition is load-bearing rather than cosmetic. An entry is how a
+// bundle declares a property the bundled table does NOT have as much as one
+// it does, so its key population is mixed: of 6,426 entries in a 77-space
+// export, 515 are space-minted bson ids. The dictionary has no legend, so
+// its spelling must be a pure function of the key, and the only pure
+// spelling a space-minted key has is itself — nothing may ever be derived
+// from a bson id.
 func dictionaryKeySpelling(storedKey string) string {
 	if vocabulary.HasRelation(domain.RelationKey(storedKey)) {
 		return bundledPropertySpelling(storedKey)
@@ -359,41 +336,6 @@ func dictionaryStoredKey(spelling string) (stored string, ambiguous []string) {
 	}
 }
 
-// installedKeys reads the `installed` list into stored keys, reporting a key
-// that names no bundled property.
-//
-// Every key here is meant to be bundled — `installed` names rows to restore
-// from the bundled table, and a key outside it tells a reader to install
-// nothing. Such a key is TOLERATED rather than refused, and the tolerance is
-// about VERSION SKEW rather than custom properties: the bundled table grows independently of the
-// format version, so a backup written by a newer app lists keys an older
-// reader has never heard of, and refusing them would make every backup
-// unreadable one app version back. What was missing is that nothing SAID so —
-// the document read clean and only re-rendering it failed.
-func installedKeys(raw []string, warn func(Issue)) []string {
-	if len(raw) == 0 {
-		return raw
-	}
-	out := make([]string, 0, len(raw))
-	for i, spelling := range raw {
-		path := fmt.Sprintf("/installed/%d", i)
-		stored, ambiguous := dictionaryStoredKey(spelling)
-		switch {
-		case len(ambiguous) > 0:
-			warnIssue(warn, path, "installed key %q folds onto more than one bundled property (%s), "+
-				"so which is meant cannot be decided here — write one of them",
-				spelling, strings.Join(quoteAll(ambiguous), ", "))
-		case !vocabulary.HasRelation(domain.RelationKey(stored)):
-			warnIssue(warn, path, "installed key %q is not a bundled property, so a reader "+
-				"restoring this bundle installs NOTHING for it. Give it a full entry in "+
-				"`properties`, where its definition travels with it — or, if it comes from a "+
-				"newer app whose bundled table has it, expect this reader to skip it", spelling)
-		}
-		out = append(out, stored)
-	}
-	return out
-}
-
 // dictionaryEntryKey resolves an entry's key, reporting an ambiguity.
 func dictionaryEntryKey(i int, spelling string, warn func(Issue)) string {
 	stored, ambiguous := dictionaryStoredKey(spelling)
@@ -431,30 +373,14 @@ func warnIssue(warn func(Issue), path, format string, args ...any) {
 	}
 }
 
-// dictionaryDuplicateIssues refuses an effective key stated twice, in either
-// list. Dictionary spellings are names, so byte-distinct terms such as
-// "Due date" and "due_date" can resolve to the same bundled stored key. The
-// comparison has to happen after the same resolution import uses; comparing
-// raw terms merely postpones the collision until two entries have already
-// become one property. Installed and definitions remain separate domains: a
-// definition may intentionally override an installed bundled property.
+// dictionaryDuplicateIssues refuses an effective key stated twice.
+// Dictionary spellings are names, so byte-distinct terms such as "Due date"
+// and "due_date" can resolve to the same bundled stored key. The comparison
+// has to happen after the same resolution import uses; comparing raw terms
+// merely postpones the collision until two entries have already become one
+// property.
 func dictionaryDuplicateIssues(doc map[string]any) []Issue {
 	var issues []Issue
-	seenInstalled := map[string]int{}
-	installed, _ := doc["installed"].([]any)
-	for i, raw := range installed {
-		spelling, _ := raw.(string)
-		key, _ := dictionaryStoredKey(spelling)
-		if first, dup := seenInstalled[key]; dup {
-			issues = append(issues, Issue{
-				Path: fmt.Sprintf("/installed/%d", i),
-				Message: fmt.Sprintf("%q resolves to property %q, already listed at /installed/%d — the dictionary has one slot per effective key",
-					spelling, key, first),
-			})
-			continue
-		}
-		seenInstalled[key] = i
-	}
 	seenEntries := map[string]int{}
 	entries, _ := doc["properties"].([]any)
 	for i, raw := range entries {
@@ -502,57 +428,10 @@ func dictionaryDuplicateIssues(doc map[string]any) []Issue {
 	return issues
 }
 
-// dictionaryUninstalledIssues refuses an entry that states `uninstalled`
-// for a key `installed` lists (§2f): the list tells a reader to install the
-// property, the flag tells it the user removed it, and a dictionary saying
-// both has no rule for which wins. Resolution is the reader's own, as for
-// the duplicate check above, so "Due date" against `dueDate` still meets.
-func dictionaryUninstalledIssues(doc map[string]any) []Issue {
-	installedAt := map[string]int{}
-	installed, _ := doc["installed"].([]any)
-	for i, raw := range installed {
-		spelling, _ := raw.(string)
-		key, _ := dictionaryStoredKey(spelling)
-		if _, seen := installedAt[key]; !seen {
-			installedAt[key] = i
-		}
-	}
-	if len(installedAt) == 0 {
-		return nil
-	}
-	var issues []Issue
-	entries, _ := doc["properties"].([]any)
-	for i, raw := range entries {
-		entry, _ := raw.(map[string]any)
-		if flag, _ := entry[memberUninstalled].(bool); !flag {
-			continue
-		}
-		property, _ := entry[memberProperty].(string)
-		internalKey, _ := entry[memberInternalKey].(string)
-		name, _ := entry["name"].(string)
-		term, isInternal, _, _ := dictionaryEntryIdentity(TypeProperty{Property: property, InternalKey: internalKey, Name: name})
-		key := term
-		if !isInternal {
-			key, _ = dictionaryStoredKey(term)
-		}
-		if at, listed := installedAt[key]; listed {
-			issues = append(issues, Issue{
-				Path: fmt.Sprintf("/properties/%d/%s", i, memberUninstalled),
-				Message: fmt.Sprintf("property %q is uninstalled here and listed at /installed/%d — a removed property is not installed; state one or the other",
-					key, at),
-			})
-		}
-	}
-	return issues
-}
-
 // MarshalPropertyDictionary renders a dictionary in the canonical byte form
-// (§4): `installed` and `properties` each sorted by key, one slot per key.
-// It refuses what UnmarshalPropertyDictionary refuses — a duplicated key —
-// and two things only a writer can check: an entry whose key has no written
-// form, and an `installed` key its own bundled table does not know, which
-// would tell the reader to install nothing (the repair is a full entry in
-// `properties`, where the format travels with it).
+// (§4): `properties` sorted by key, one slot per key. It refuses what
+// UnmarshalPropertyDictionary refuses — a duplicated key — and one thing
+// only a writer can check: an entry whose key has no written form.
 func MarshalPropertyDictionary(d *PropertyDictionary, opts Options) ([]byte, error) {
 	if d == nil {
 		return nil, fmt.Errorf("nil property dictionary")
@@ -561,47 +440,12 @@ func MarshalPropertyDictionary(d *PropertyDictionary, opts Options) ([]byte, err
 	doc.set("$schema", PropertiesSchemaURL)
 	doc.set("formatVersion", FormatVersion)
 
-	// stored keys in, NAMES out (§2f): every key here is a bundled property,
-	// and a bundled property's written spelling is its display name
-	// everywhere else in the format. The dictionary used to be the one file
-	// that spelled a property one way while every document beside it spelled
-	// it another (`dueDate` against the then-current `due_date`).
-	installed := make([]string, 0, len(d.Installed))
-	for _, key := range d.Installed {
-		if _, err := vocabulary.GetRelation(domain.RelationKey(key)); err != nil {
-			return nil, fmt.Errorf("installed key %q is not a bundled property: `installed` restores from the "+
-				"bundled table, so a key outside it tells the reader to install nothing — give it a full "+
-				"entry in `properties` instead", key)
-		}
-		// the bundled spelling unconditionally, not dictionaryKeySpelling:
-		// the check above has already established this key is bundled, and
-		// `installed` admits nothing else — it is a list of rows to restore
-		// from the bundled table, so a space-minted key has no meaning in it.
-		installed = append(installed, bundledPropertySpelling(key))
-	}
-	sort.Strings(installed)
-	for i, key := range installed {
-		if i > 0 && installed[i-1] == key {
-			return nil, fmt.Errorf("installed key %q is listed twice: the dictionary has one slot per key", key)
-		}
-	}
-	doc.setNonEmpty("installed", stringsToAny(installed))
-
-	installedKeys := make(map[string]bool, len(d.Installed))
-	for _, key := range d.Installed {
-		installedKeys[key] = true
-	}
 	defs := append([]PropertyDefinition(nil), d.Properties...)
 	sort.Slice(defs, func(i, j int) bool { return defs[i].Key < defs[j].Key })
 	var entries []any
 	for i, def := range defs {
 		if i > 0 && defs[i-1].Key == def.Key {
 			return nil, fmt.Errorf("property %q is defined twice: one property, one definition", def.Key)
-		}
-		if def.Uninstalled && installedKeys[string(def.Key)] {
-			// what dictionaryUninstalledIssues refuses on read, refused here
-			// before the bytes exist (§11 I1)
-			return nil, fmt.Errorf("property %q is uninstalled and listed as installed: a removed property is not installed — state one or the other", def.Key)
 		}
 		entry, err := dictionaryEntryOmapWithOptions(def, opts)
 		if err != nil {

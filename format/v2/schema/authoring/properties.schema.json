@@ -18,14 +18,6 @@
     "formatVersion": {
       "const": "2.0"
     },
-    "installed": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "description": "Built-in properties this bundle wants available, by name: [\"Due date\", \"Tag\"]. Presence only — never redefine a built-in here."
-    },
     "properties": {
       "type": "array",
       "items": {

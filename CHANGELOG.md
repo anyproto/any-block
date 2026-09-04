@@ -14,3 +14,9 @@
   is a dictionary entry (`hidden` joins `uninstalled` on the entry), the
   `properties/` kind directory is gone, and what an entry cannot state is
   reported (`UnaccountedRelationDetails`).
+- The property dictionary has one member: `installed` is gone. An installed
+  copy identical to the shipped table is an entry stating the table's
+  definition when something references it, and a reader tells a bundled key
+  from a space-minted one by its own shipped table. The divergence exemption
+  and the installed/uninstalled refusal go with the list, and so does
+  `Stats.DictionaryInstalled`.

@@ -28,13 +28,12 @@ func boolPtr(b bool) *bool { return &b }
 //
 // How this can fail: drop a member from dictionaryEntryOmap or from the
 // TypeProperty decode path (the member vanishes on the way round); stop
-// sorting entries or `installed` (the second marshal reorders and the byte
-// check goes red); or route default_value around the canonicalizing value
+// sorting entries (the second marshal reorders and the byte check goes
+// red); or route default_value around the canonicalizing value
 // pipeline (a map-shaped default re-marshals with unstable member order).
 func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 	// given
 	in := &PropertyDictionary{
-		Installed: []string{"tag", "dueDate"},
 		Properties: []PropertyDefinition{
 			{
 				Key:    "6a32d4856761631534b22f85",
@@ -87,7 +86,6 @@ func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 	require.NotNil(t, stage.IncludeTime)
 	assert.False(t, *stage.IncludeTime)
 	assert.Equal(t, []OptionDefinition{{Name: "Now", Color: "red"}, {Name: "Later"}}, stage.Options)
-	assert.Equal(t, []string{"dueDate", "tag"}, got.Installed, "installed is sorted on the way out")
 }
 
 // `format` resolves per key, exactly as a property_settings format does
@@ -176,17 +174,6 @@ func TestPropertyDictionary_OneSlotPerKey(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "/properties/1/property")
 	})
-	t.Run("a duplicated installed key is refused on read", func(t *testing.T) {
-		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["tag","tag"]}`), Options{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "/installed/1")
-	})
-	t.Run("installed aliases resolving to one key are refused", func(t *testing.T) {
-		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["Due date","due_date"]}`), Options{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "/installed/1")
-		assert.Contains(t, err.Error(), `"dueDate"`)
-	})
 	t.Run("definition aliases resolving to one key are refused", func(t *testing.T) {
 		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","properties":[
 			{"property":"Due date","format":"date"},{"property":"due_date","format":"text"}]}`), Options{})
@@ -203,22 +190,12 @@ func TestPropertyDictionary_OneSlotPerKey(t *testing.T) {
 		assert.Contains(t, err.Error(), "/properties/1/property")
 		assert.Contains(t, err.Error(), `"dueDate"`)
 	})
-	t.Run("installed and overriding definition stay separate domains", func(t *testing.T) {
-		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["Due date"],
-			"properties":[{"property":"due_date","format":"date"}]}`), Options{})
-
-		require.NoError(t, err)
-	})
 	t.Run("marshal refuses the duplicate entry too", func(t *testing.T) {
 		_, err := MarshalPropertyDictionary(&PropertyDictionary{Properties: []PropertyDefinition{
 			{Key: "dueDate", Format: model.RelationFormat_date},
 			{Key: "dueDate", Format: model.RelationFormat_longtext},
 		}}, Options{})
 
-		require.Error(t, err)
-	})
-	t.Run("marshal refuses the duplicate installed key too", func(t *testing.T) {
-		_, err := MarshalPropertyDictionary(&PropertyDictionary{Installed: []string{"tag", "tag"}}, Options{})
 		require.Error(t, err)
 	})
 }
@@ -253,31 +230,6 @@ func TestPropertyDictionary_NameOnlyIdentityObeysWritableKeyBound(t *testing.T) 
 	_, err := UnmarshalPropertyDictionary(data, Options{})
 	require.NoError(t, err)
 	require.NoError(t, ValidateAuthoringPropertyDictionary(data))
-}
-
-// `installed` restores from the bundled table, so the two sides treat an
-// unknown key differently ON PURPOSE: the writer checks against its own
-// table and refuses (a key it cannot name tells the reader to install
-// nothing — the repair is a full entry, where the format travels along),
-// while the reader TOLERATES one, because the bundled table grows
-// independently of the format version and a backup written by a newer app
-// must stay readable one app version back.
-//
-// How this can fail: drop the writer-side bundled check (first case goes
-// green and a typo'd installed key ships, silently installing nothing), or
-// "fix" the asymmetry by refusing unknown keys on read (second case red,
-// and every forward-written backup with it).
-func TestPropertyDictionary_InstalledDiscipline(t *testing.T) {
-	t.Run("the writer refuses a key its table cannot name", func(t *testing.T) {
-		_, err := MarshalPropertyDictionary(&PropertyDictionary{Installed: []string{"notABundledKey"}}, Options{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "properties", "the error names the repair: a full entry")
-	})
-	t.Run("the reader tolerates one", func(t *testing.T) {
-		got, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["aKeyFromANewerApp"]}`), Options{})
-		require.NoError(t, err)
-		assert.Equal(t, []string{"aKeyFromANewerApp"}, got.Installed)
-	})
 }
 
 // Marshal never emits what its own Unmarshal rejects (§11 I1): an entry key
@@ -360,19 +312,16 @@ func TestPropertyDictionary_MaxCountStaysWithinWhatItCanRead(t *testing.T) {
 // from the space, and the bundle carries the removal for backup fidelity
 // rather than a document (§2f, §15 #22). The member is the dictionary's
 // own: the shape's other two homes refuse it, the way the dictionary
-// refuses `section`. And an uninstalled property is not installed, so its
-// key in `installed` is a contradiction refused on both sides.
+// refuses `section`. The flag is the whole statement: there is no list of
+// installed keys for it to contradict (§15 #24).
 //
 // How this can fail: leave the member off the schema's dictionaryEntry (the
-// round trip is refused on read); write it from the shared member renderer
-// (the type document below stops being refused, and a type would carry a
-// flag that means nothing on it); or drop either conflict check (a
-// dictionary that both installs and uninstalls one key ships, and the
-// reader has no rule for which wins).
+// round trip is refused on read); or write it from the shared member
+// renderer (the type document below stops being refused, and a type would
+// carry a flag that means nothing on it).
 func TestPropertyDictionary_UninstalledEntry(t *testing.T) {
 	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
 		in := &PropertyDictionary{
-			Installed: []string{"tag"},
 			Properties: []PropertyDefinition{
 				{Key: "dueDate", Name: "Due date", Format: model.RelationFormat_date, Uninstalled: true},
 				{Key: "6a32d4856761631534b22f85", Name: "Budget", Format: model.RelationFormat_number},
@@ -393,20 +342,6 @@ func TestPropertyDictionary_UninstalledEntry(t *testing.T) {
 		}
 		assert.True(t, byKey["dueDate"].Uninstalled)
 		assert.False(t, byKey["6a32d4856761631534b22f85"].Uninstalled)
-		assert.Equal(t, []string{"tag"}, got.Installed)
-	})
-	t.Run("an uninstalled key in installed is refused on read", func(t *testing.T) {
-		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["Due date"],
-			"properties":[{"property":"Due date","format":"date","uninstalled":true}]}`), Options{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "/installed/0", "the contradiction names both slots")
-	})
-	t.Run("and on write", func(t *testing.T) {
-		_, err := MarshalPropertyDictionary(&PropertyDictionary{
-			Installed:  []string{"dueDate"},
-			Properties: []PropertyDefinition{{Key: "dueDate", Format: model.RelationFormat_date, Uninstalled: true}},
-		}, Options{})
-		require.Error(t, err)
 	})
 	t.Run("a non-boolean is refused", func(t *testing.T) {
 		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0",
@@ -498,4 +433,21 @@ func TestPropertyDictionary_HiddenEntry(t *testing.T) {
 			"properties":[{"name":"Streak","format":"number","hidden":true}]}`))
 		require.Error(t, err)
 	})
+}
+
+// `installed` is not a member of the dictionary, and the schema refuses it.
+// The list once named the bundled properties present in the space —
+// presence without definition — and was retired (§2f, §15 #24): every
+// property the bundle carries is an entry in `properties`, and a reader
+// tells a bundled key from a space-minted one by looking it up in its own
+// shipped table. A second statement of the same fact is what this format's
+// one-source discipline exists to refuse.
+//
+// How this can fail: put the member back on the schema (the read goes
+// clean, and a dictionary can again say "installed" beside an entry that
+// says "uninstalled", with no rule for which wins).
+func TestPropertyDictionary_InstalledIsNotAMember(t *testing.T) {
+	_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["Due date"]}`), Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "/installed")
 }

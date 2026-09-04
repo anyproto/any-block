@@ -142,61 +142,64 @@ func TestComposerLiftsVocabularyReferencedOnlyByADataview(t *testing.T) {
 	assert.Empty(t, stats.OrphanUsedKeys)
 }
 
-// The used-only drop is stated, not silent, and it does not apply to an
-// entry that is present anyway. A divergent installed copy of `tag` earns an
-// entry whether or not anything uses it (§2f), and the entry is the
-// vocabulary's vehicle — so its options ride along even when no document
-// references `tag`. A lifted vocabulary whose property has NO entry is
-// dropped, and Finish says which one and how many options it cost.
+// The used-only drop is stated, not silent, and it governs a divergent
+// installed copy like every other property (§15 #24): a renamed `tag` earns
+// an entry when something references it, and the entry is the vocabulary's
+// vehicle — so its options ride along. A lifted vocabulary whose property
+// has NO entry is dropped, and Finish says which one and how many options
+// it cost — a divergent copy nothing references included, since there is no
+// `installed` claim left for an entry to correct.
 //
-// How this can fail: gate the options loop on the census alone (the
-// divergent entry is written without its vocabulary, exactly the case §2f's
-// "no entry to travel on" does not describe); drop silently (UnusedOptionKeys
-// and OptionsDropped stay empty and §11's "stated rather than silent" is
-// false).
-func TestComposerKeepsVocabularyOnDivergentInstalledEntryAndReportsTheDrop(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
-	divergent := testInstalledCopy(t, "tag")
-	divergent.Details.Fields["name"] = strVal("Labels")
-	omitted, _ := c.Observe(model.SmartBlockType_STRelation, divergent)
-	require.True(t, omitted, "a renamed installed copy is omitted like every relation document, and earns a full entry (§15 #23)")
-
-	for _, opt := range []*model.SmartBlockSnapshotBase{
-		optionSnapshot("bafyurgent", "tag", "urgent", "red", "bbbb2222"),
-		optionSnapshot("bafyhigh", "priority", "high", "orange", "cccc3333"),
-		optionSnapshot("bafylow", "priority", "low", "grey", "dddd4444"),
-	} {
-		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption, opt)
-		require.True(t, omitted)
-		require.Empty(t, issues)
+// How this can fail: gate the options loop on the census alone rather than
+// on the entry (the referenced entry is written without its vocabulary);
+// keep the divergence exemption (the unreferenced case finds an entry, and
+// a vocabulary, nothing needs); drop silently (UnusedOptionKeys and
+// OptionsDropped stay empty and §11's "stated rather than silent" is false).
+func TestComposerVocabularyOnADivergentInstalledCopyFollowsTheEntry(t *testing.T) {
+	build := func(t *testing.T) *Composer {
+		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		divergent := testInstalledCopy(t, "tag")
+		divergent.Details.Fields["name"] = strVal("Labels")
+		omitted, _ := c.Observe(model.SmartBlockType_STRelation, divergent)
+		require.True(t, omitted, "a renamed installed copy is omitted like every relation document (§15 #23)")
+		for _, opt := range []*model.SmartBlockSnapshotBase{
+			optionSnapshot("bafyurgent", "tag", "urgent", "red", "bbbb2222"),
+			optionSnapshot("bafyhigh", "priority", "high", "orange", "cccc3333"),
+			optionSnapshot("bafylow", "priority", "low", "grey", "dddd4444"),
+		} {
+			omitted, issues := c.Observe(model.SmartBlockType_STRelationOption, opt)
+			require.True(t, omitted)
+			require.Empty(t, issues)
+		}
+		return c
 	}
-
-	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafypage")})}
-	omitted, _ = c.Observe(model.SmartBlockType_Page, page)
-	require.False(t, omitted)
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
-		[]byte(`{"formatVersion":"2.0","id":"bafypage","properties":{"Name":"Nothing tagged"}}`),
-		"objects/bafypage.anyblock.json"))
-
-	_, dictData, stats, err := c.Finish()
-	require.NoError(t, err)
-
-	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
-	require.NoError(t, err)
-	byKey := map[string]anyblockjson.PropertyDefinition{}
-	for _, def := range dict.Properties {
-		byKey[string(def.Key)] = def
-	}
-	require.Contains(t, byKey, "tag", "the divergent copy is an entry regardless of use")
-	assert.Equal(t, "Labels", byKey["tag"].Name)
-	require.Len(t, byKey["tag"].Options, 1, "and the entry carries its vocabulary")
-	assert.Equal(t, "urgent", byKey["tag"].Options[0].Name)
-	assert.NotContains(t, byKey, "priority", "no document references priority: used-only drops it")
-
-	assert.Equal(t, []string{"priority"}, stats.UnusedOptionKeys)
-	assert.Equal(t, 2, stats.OptionsDropped)
-	assert.Equal(t, 1, stats.OptionsLifted)
-	assert.Empty(t, stats.OrphanUsedKeys)
+	t.Run("referenced: the entry carries its vocabulary", func(t *testing.T) {
+		c := build(t)
+		referencePage(t, c, "Tag")
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		_, byKey := dictionaryByKey(t, dictData)
+		require.Contains(t, byKey, "tag")
+		assert.Equal(t, "Labels", byKey["tag"].Name, "the stored definition, not the table's")
+		require.Len(t, byKey["tag"].Options, 1, "and the entry carries its vocabulary")
+		assert.Equal(t, "urgent", byKey["tag"].Options[0].Name)
+		assert.NotContains(t, byKey, "priority", "no document references priority: used-only drops it")
+		assert.Equal(t, []string{"priority"}, stats.UnusedOptionKeys)
+		assert.Equal(t, 2, stats.OptionsDropped)
+		assert.Equal(t, 1, stats.OptionsLifted)
+		assert.Empty(t, stats.OrphanUsedKeys)
+	})
+	t.Run("unreferenced: no entry, and the vocabulary goes with it, named", func(t *testing.T) {
+		c := build(t)
+		referencePage(t, c)
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		_, byKey := dictionaryByKey(t, dictData)
+		assert.NotContains(t, byKey, "tag", "a divergent copy nothing references is not exported (§15 #24)")
+		assert.Equal(t, []string{"priority", "tag"}, stats.UnusedOptionKeys)
+		assert.Equal(t, 3, stats.OptionsDropped)
+		assert.Zero(t, stats.OptionsLifted)
+	})
 }
 
 // A property referenced only by a TYPE keeps its entry and its vocabulary:
@@ -209,8 +212,8 @@ func TestComposerKeepsVocabularyOnDivergentInstalledEntryAndReportsTheDrop(t *te
 // source, and the omitted option snapshots are the vocabulary's.
 //
 // The counterpart matters as much: with no type naming it, the same
-// property is not exported at all — no entry, no `installed` mention, no
-// Issue — because nothing in the bundle needs its format. Its options go
+// property is not exported at all — no entry, no Issue — because nothing
+// in the bundle needs its format. Its options go
 // with it, named in Stats.UnusedOptionKeys as every dropped vocabulary is.
 //
 // How this can fail: gate the options loop on the root `properties` maps
@@ -251,8 +254,7 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)
-		dict, byKey := dictionaryByKey(t, dictData)
-		assert.Empty(t, dict.Installed)
+		_, byKey := dictionaryByKey(t, dictData)
 		require.Contains(t, byKey, key)
 		assert.Equal(t, "Chat category", byKey[key].Name, "the entry is the observed snapshot's definition")
 		assert.Equal(t, model.RelationFormat_status, byKey[key].Format)
@@ -270,9 +272,8 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)
-		dict, byKey := dictionaryByKey(t, dictData)
+		_, byKey := dictionaryByKey(t, dictData)
 		assert.NotContains(t, byKey, key, "nothing names the key: there is no value to explain and no format to look up")
-		assert.Empty(t, dict.Installed)
 		assert.Equal(t, []string{key}, stats.UnusedOptionKeys)
 		assert.Equal(t, 2, stats.OptionsDropped)
 		assert.Zero(t, stats.OptionsLifted)

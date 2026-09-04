@@ -1,14 +1,14 @@
 package bundle
 
 // composeuninstalled_test.go pins the composer's side of §15 #22 as §15 #23
-// leaves it: a property the user REMOVED travels as a dictionary entry
-// carrying `uninstalled`, never as an `installed` key — whether the omitted
-// snapshot was a bundled-identical copy, a divergent copy or a space-minted
-// property — and, like every entry, only when something references the
-// key. A removed property nothing references is not exported at all: nothing
-// names the key, so there is no value to explain and no removal to restate.
-// The one used-only exemption is the divergence rule, and it turns on a key
-// LISTED in `installed`; a removed key is not listed.
+// and #24 leave it: a property the user REMOVED travels as a dictionary
+// entry carrying `uninstalled` — whether the omitted snapshot was a
+// bundled-identical copy, a divergent copy or a space-minted property — and,
+// like every entry, only when something references the key. A removed
+// property nothing references is not exported at all: nothing names the
+// key, so there is no value to explain and no removal to restate. The flag
+// on the entry is the whole statement; there is no `installed` list for it
+// to contradict.
 
 import (
 	"testing"
@@ -32,9 +32,9 @@ func dictionaryByKey(t *testing.T, data []byte) (*anyblockjson.PropertyDictionar
 	return dict, byKey
 }
 
-// How this can fail: list the omitted copy under `installed` (the restore
-// reinstalls what the user removed — the first assertion of every
-// referenced case); keep a document for the divergent copy (omitted goes
+// How this can fail: drop the flag from the entry (the restore installs
+// what the user removed — the first assertion of every referenced case);
+// keep a document for the divergent copy (omitted goes
 // false); verify the identical copy's omission against
 // InstalledRelationDetails instead of the uninstalled reconstruction (an
 // Issue reports the flag lost); forget the entry's vocabulary (the option
@@ -81,10 +81,9 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 
 			_, dictData, stats, err := c.Finish()
 			require.NoError(t, err)
-			dict, byKey := dictionaryByKey(t, dictData)
-			assert.NotContains(t, dict.Installed, shape.key, "listing it would undo the removal on restore")
+			_, byKey := dictionaryByKey(t, dictData)
 			require.Contains(t, byKey, shape.key)
-			assert.True(t, byKey[shape.key].Uninstalled)
+			assert.True(t, byKey[shape.key].Uninstalled, "the flag is the removal; without it the restore installs the property live")
 			assert.Equal(t, shape.wantName, byKey[shape.key].Name)
 			assert.Equal(t, shape.wantFormat, byKey[shape.key].Format)
 			if shape.wantFormat == model.RelationFormat_tag {
@@ -92,7 +91,6 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 				assert.Equal(t, 1, stats.OptionsLifted)
 			}
 			assert.Equal(t, 1, stats.DictionaryUninstalled)
-			assert.Zero(t, stats.DictionaryInstalled)
 			assert.Equal(t, 2, stats.OmittedDocs, "the option and the relation")
 		})
 		t.Run(shape.name+", unreferenced", func(t *testing.T) {
@@ -104,9 +102,8 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 
 			_, dictData, stats, err := c.Finish()
 			require.NoError(t, err)
-			dict, byKey := dictionaryByKey(t, dictData)
+			_, byKey := dictionaryByKey(t, dictData)
 			assert.NotContains(t, byKey, shape.key, "an unreferenced property is not exported, removed or not")
-			assert.NotContains(t, dict.Installed, shape.key)
 			assert.Zero(t, stats.DictionaryUninstalled)
 			assert.Zero(t, stats.DictionaryEntries)
 		})
@@ -118,11 +115,13 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
 		require.True(t, omitted)
 		assert.Empty(t, issues, "the stamp is absent-equivalent; the comparator reads the same predicate")
+		referencePage(t, c, "Tag")
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)
-		dict, byKey := dictionaryByKey(t, dictData)
-		assert.Contains(t, dict.Installed, "tag")
-		assert.NotContains(t, byKey, "tag")
+		_, byKey := dictionaryByKey(t, dictData)
+		require.Contains(t, byKey, "tag", "referenced, so an entry — the table's definition")
+		assert.False(t, byKey["tag"].Uninstalled, "a false stamp is no removal")
 		assert.Zero(t, stats.DictionaryUninstalled)
+		assert.NotContains(t, string(dictData), `"installed"`, "the list is gone (§15 #24)")
 	})
 }

@@ -65,8 +65,9 @@ func testSpaceSnapshot() *model.SmartBlockSnapshotBase {
 }
 
 // testInstalledCopy is a field-identical installed copy of a bundled
-// relation — the omit-into-`installed` case (§2f), install provenance and
-// all.
+// relation — the identical-copy case (§2f): omitted, verified against the
+// table, and entered as the table's definition when referenced — install
+// provenance and all.
 func testInstalledCopy(t *testing.T, key string) *model.SmartBlockSnapshotBase {
 	t.Helper()
 	det, ok := anyblockjson.InstalledRelationDetails(key, anyblockjson.Options{})
@@ -98,7 +99,7 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	require.Empty(t, issues)
 
 	omitted, issues = c.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, "dueDate"))
-	require.True(t, omitted, "a field-identical installed copy travels as its key")
+	require.True(t, omitted, "a field-identical installed copy is omitted; its entry states the table")
 	require.Empty(t, issues)
 
 	typeSnap := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
@@ -146,22 +147,24 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	assert.Equal(t, map[string]string{"bafyfile": "files/bafyfile.png"}, idx.Manifest.Files)
 	assert.Equal(t, anyblockjson.PropertiesFileName, idx.Manifest.Properties)
 
-	// the dictionary: the installed key, and one entry per USED key — with
-	// the minted vocabulary inline on the property that owns it
+	// the dictionary: one entry per USED key — the identical copy's states
+	// the table's definition, and the minted vocabulary sits inline on the
+	// property that owns it
 	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"dueDate"}, dict.Installed)
 	byKey := map[string]anyblockjson.PropertyDefinition{}
 	for _, def := range dict.Properties {
 		byKey[string(def.Key)] = def
 	}
+	require.Contains(t, byKey, "dueDate", "referenced by the page, so an entry (§15 #24)")
+	assert.Equal(t, "Due date", byKey["dueDate"].Name)
 	require.Contains(t, byKey, "tag")
 	require.Len(t, byKey["tag"].Options, 1)
 	assert.Equal(t, "urgent", byKey["tag"].Options[0].Name)
 	assert.Equal(t, "red", byKey["tag"].Options[0].Color)
 	assert.Equal(t, "abcd1234", byKey["tag"].Options[0].InternalKey)
 
-	assert.Equal(t, 1, stats.DictionaryInstalled)
+	assert.Equal(t, 2, stats.DictionaryEntries, "due date and tag")
 	assert.Equal(t, 1, stats.ManifestTypes)
 	assert.Equal(t, 1, stats.ManifestFiles)
 	// three: the space document, the widget document, and the option

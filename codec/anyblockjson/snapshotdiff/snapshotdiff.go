@@ -124,8 +124,9 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 	out = append(out, compareObjectTypes(orig, got, sbType)...)
 
 	// the §2f omission: a bundled-identical relation document is not written
-	// at all — its key travels in the dictionary's `installed` list and a
-	// reader reconstructs it from the bundled table. Across that trip the
+	// at all — it travels as a dictionary entry stating the table's
+	// definition, when something references it, and a reader reconstructs
+	// it from the bundled table. Across that trip the
 	// install artifacts (createdDate, origin, apiObjectKey, …) come back
 	// absent, re-stamped by the next install, and a definition member the
 	// copy never stored comes back as its explicit empty default. Both skips

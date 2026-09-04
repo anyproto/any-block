@@ -77,7 +77,7 @@ func TestManifestDictionaryPathIsExactAndExtensionIndependent(t *testing.T) {
 }
 
 func TestBundledPropertyNeedsNoFullDictionaryEntry(t *testing.T) {
-	t.Run("installed-only object alias", func(t *testing.T) {
+	t.Run("an object's bundled-key alias", func(t *testing.T) {
 		fsys := fstest.MapFS{
 			"index.json": &fstest.MapFile{Data: []byte(`{
 				"formatVersion":"2.0",
@@ -85,7 +85,7 @@ func TestBundledPropertyNeedsNoFullDictionaryEntry(t *testing.T) {
 				"manifest":{"properties":"dictionary.data"}
 			}`)},
 			"dictionary.data": &fstest.MapFile{Data: []byte(`{
-				"formatVersion":"2.0","installed":["Due date"]
+				"formatVersion":"2.0"
 			}`)},
 			"object.json": &fstest.MapFile{Data: []byte(`{
 				"formatVersion":"2.0","id":"page",
@@ -112,7 +112,7 @@ func TestBundledPropertyNeedsNoFullDictionaryEntry(t *testing.T) {
 	})
 }
 
-func TestInstalledDoesNotReplaceCustomPropertyDefinition(t *testing.T) {
+func TestACustomKeyNeedsAFullDictionaryEntry(t *testing.T) {
 	fsys := fstest.MapFS{
 		"index.json": &fstest.MapFile{Data: []byte(`{
 			"formatVersion":"2.0",
@@ -120,13 +120,35 @@ func TestInstalledDoesNotReplaceCustomPropertyDefinition(t *testing.T) {
 			"manifest":{"properties":"dictionary.data"}
 		}`)},
 		"dictionary.data": &fstest.MapFile{Data: []byte(`{
-			"formatVersion":"2.0","installed":["custom_key"]
+			"formatVersion":"2.0"
 		}`)},
 	}
 
 	err := Validate(fsys)
 	require.ErrorContains(t, err,
 		`dictionary.data does not define stored property key "custom_key" referenced at widgets[0].properties[0]`)
+}
+
+// `installed` is not a member of the dictionary (§2f, §15 #24), and a bundle
+// whose dictionary carries it is refused by the dictionary's own schema —
+// the validator reads the file through UnmarshalPropertyDictionary, so the
+// two cannot disagree about the member.
+//
+// How this can fail: put the member back on the schema, and a dictionary
+// can again claim a bundled property is present without stating it.
+func TestValidateRefusesTheRetiredInstalledMember(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.json": &fstest.MapFile{Data: []byte(`{
+			"formatVersion":"2.0",
+			"manifest":{"properties":"dictionary.data"}
+		}`)},
+		"dictionary.data": &fstest.MapFile{Data: []byte(`{
+			"formatVersion":"2.0","installed":["Due date"]
+		}`)},
+	}
+
+	err := Validate(fsys)
+	require.ErrorContains(t, err, "installed")
 }
 
 func TestValidateRejectsManifestPathAssignedToMultipleRoles(t *testing.T) {

@@ -7,30 +7,32 @@ package anyblockjson
 // Two predicates, two questions. OmittedRelation answers whether a snapshot
 // is a relation document at all — the kind alone, unconditional, the shape
 // OmittedRelationOption has. OmittedBundledRelation answers the narrower
-// question that decides HOW the omitted copy travels: an installed copy
-// whose definition restates the bundled table travels as one key in the
-// dictionary's `installed` list — or as an entry flagged `uninstalled` when
-// the user removed it (§15 #22) — and a reader reconstructs the object from
-// its own table; every other relation, a divergent copy or a space-minted
-// property, travels as a full entry stating its stored definition, and only
-// when something references it (§2f: an unreferenced property is not
-// exported at all).
+// question that decides WHICH definition the omitted copy's entry states:
+// an installed copy whose definition restates the bundled table travels as
+// an entry stating the TABLE's definition — flagged `uninstalled` when the
+// user removed it (§15 #22) — and a reader reconstructs the object from its
+// own table; every other relation, a divergent copy or a space-minted
+// property, travels as an entry stating its STORED definition. Either entry
+// is written only when something references the key (§2f: an unreferenced
+// property is not exported at all). There is no separate list of installed
+// keys (§15 #24): the entry is the one statement, and the predicate's
+// verdict is what licenses stating the table for a copy rather than the
+// copy itself.
 //
 // Measured over the 38,061-document corpus: 9,675 of 10,617 relation
 // documents are installed copies of the 194 bundled relations, and ~98% of
 // them are field-identical to vocabulary/relations.json — each a ~967-byte
-// restatement of `{key, name, format}` every reader already ships. The
-// `installed` list stands for them.
+// restatement of `{key, name, format}` every reader already ships.
 //
 // OmittedBundledRelation stays FAIL-CLOSED in every direction, because what
 // it admits is an identity claim: a detail key it cannot classify, a stored
 // value of an alien kind, a block the format preserves, a definition member
-// that differs from the table — each DENIES the `installed` key, and the
-// property gets a full entry instead. What that entry cannot state is not
-// failed closed on — there is no document left to keep — but REPORTED:
-// UnaccountedRelationDetails names it, the role UnaccountedOptionDetails
-// plays for an option, so the composer raises an Issue rather than losing
-// anything in silence (§11).
+// that differs from the table — each DENIES the identical verdict, and the
+// property's entry states the stored definition instead. What that entry
+// cannot state is not failed closed on — there is no document left to keep
+// — but REPORTED: UnaccountedRelationDetails names it, the role
+// UnaccountedOptionDetails plays for an option, so the composer raises an
+// Issue rather than losing anything in silence (§11).
 
 import (
 	"fmt"
@@ -48,13 +50,12 @@ import (
 
 // relationDefinitionKeys are the stored keys that ARE the property's
 // definition — what the bundled table states, what a copy must match member
-// for member to travel as an `installed` key, and what a full dictionary
-// entry states otherwise. Everything a relation document carries is one of
-// three things: a definition key, an install artifact
-// (relationInstallArtifactKeys, any value), or an internal key the format
-// never writes (strippedDetailKeys); a key that is none of them is real
-// data — it denies the `installed` key, and UnaccountedRelationDetails
-// names it.
+// for member to be admitted as identical to it, and what a dictionary entry
+// states either way. Everything a relation document carries is one of three
+// things: a definition key, an install artifact (relationInstallArtifactKeys,
+// any value), or an internal key the format never writes
+// (strippedDetailKeys); a key that is none of them is real data — it denies
+// the identical verdict, and UnaccountedRelationDetails names it.
 var relationDefinitionKeys = map[string]bool{
 	"name":                             true,
 	"description":                      true,
@@ -80,12 +81,11 @@ var relationDefinitionKeys = map[string]bool{
 // of them is an artifact, because each carries something a person did:
 //
 //   - `isUninstalled`: the user REMOVED this property from the space, and
-//     listing its key as installed would undo that. The dictionary entry
+//     installing it live on restore would undo that. The dictionary entry
 //     carries the removal as `uninstalled` (§15 #22), so
 //     OmittedBundledRelation classifies the key on an arm of its own (a
 //     bool, either value — see UninstalledRelation and
-//     OmittedUninstallStamp) and the composer routes the omitted copy to an
-//     entry instead of the `installed` list.
+//     OmittedUninstallStamp) and the composer sets the flag on the entry.
 //     Measured over a census of 40 spaces' object stores (5,284 relation
 //     documents, 4,905 on bundled keys): not one bundled-key relation
 //     document carries the flag, and the 5 space-minted ones that do are
@@ -97,9 +97,9 @@ var relationDefinitionKeys = map[string]bool{
 //     same verdict §2a reached for a type's isHidden. No relation document
 //     in the same census carries either (0 of 5,284; corpus-wide the keys
 //     occur 35 and 193 times, never on a relation or an option), so they
-//     get no verdict of their own: an unvetted key denies the `installed`
-//     key by the fail-closed default, and UnaccountedRelationDetails names
-//     it — that is all they need.
+//     get no verdict of their own: an unvetted key denies the identical
+//     verdict by the fail-closed default, and UnaccountedRelationDetails
+//     names it — that is all they need.
 //   - `includeTime` — the BARE spelling: an orphan detail beside
 //     relationFormatIncludeTime that no admission evidence explains; a key
 //     the test cannot explain is unvetted, and treated as the two above
@@ -178,15 +178,18 @@ func InstallStampedDefault(key string, v *types.Value) bool {
 
 // OmittedBundledRelation reports whether a relation snapshot is an installed
 // copy whose definition is field-identical to the bundled table — the §2f
-// `installed` rule: the composition lists the key in the dictionary's
-// `installed` and a reader reconstructs the object from the table. The
-// returned key is the bundled key the dictionary carries — under
-// `installed`, or as an entry flagged `uninstalled` when UninstalledRelation
-// reports the copy removed (§15 #22); the composer asks that second
-// question. Whether the DOCUMENT goes is not this predicate's question any
-// more: no relation document is written (OmittedRelation, §15 #23), and a
-// copy this predicate refuses travels as a full entry stating its stored
-// definition instead.
+// identical rule: the composition writes an entry stating the TABLE's
+// definition for the key, when something references it, and a reader
+// reconstructs the object from the table. The verdict is the omission's
+// proof — the composer verifies the reconstruction against the copy through
+// the round-trip comparator — and it decides which definition the entry
+// states: a copy this predicate refuses travels as an entry stating its
+// STORED definition instead. The returned key is the bundled key the entry
+// carries; the entry is flagged `uninstalled` when UninstalledRelation
+// reports the copy removed (§15 #22), which the composer asks second.
+// Whether the DOCUMENT goes is not this predicate's question: no relation
+// document is written (OmittedRelation, §15 #23), and there is no list of
+// installed keys for the verdict to decide either (§15 #24).
 //
 // opts matters for one member: relationFormatObjectTypes stores type OBJECT
 // ids (an install rewrites the table's bundled urls to the space's derived
@@ -262,10 +265,10 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 }
 
 // OmittedRelation reports a relation document, which a bundle never writes
-// (§2f, §15 #23): the property dictionary states the definition — as an
-// `installed` key when OmittedBundledRelation admits the copy, as a full
-// entry otherwise — and a property nothing references is not exported at
-// all. The kind alone decides, as for OmittedRelationOption; what the entry
+// (§2f, §15 #23): the property dictionary states the definition — the
+// table's when OmittedBundledRelation admits the copy, the stored one
+// otherwise — and a property nothing references is not exported at all.
+// The kind alone decides, as for OmittedRelationOption; what the entry
 // cannot state is UnaccountedRelationDetails' report.
 func OmittedRelation(sbType model.SmartBlockType) bool {
 	return isPropertySmartBlock(sbType)
@@ -386,10 +389,10 @@ const detailKeyIsUninstalled = "isUninstalled"
 // UninstalledRelation reports a relation snapshot the user removed from the
 // space — stored `isUninstalled` true, as a bool. It is what the dictionary
 // entry's `uninstalled` member states (§2f): a property the bundle carries
-// for backup fidelity but that MUST NOT be listed as installed, because
-// listing it would undo the removal on restore. An alien-kinded value is not
-// a removal; OmittedBundledRelation keeps such a document on its own
-// fail-closed verdict.
+// for backup fidelity but that a reader MUST NOT install live, because
+// doing so would undo the removal on restore. An alien-kinded value is not
+// a removal; OmittedBundledRelation refuses such a copy on its own
+// fail-closed verdict, and its entry states the stored definition.
 func UninstalledRelation(base *model.SmartBlockSnapshotBase) bool {
 	v := base.GetDetails().GetFields()[detailKeyIsUninstalled]
 	b, isBool := v.GetKind().(*types.Value_BoolValue)
@@ -551,9 +554,11 @@ func blockContentKind(content any) string {
 	return strings.ToLower(name[:1]) + name[1:]
 }
 
-// InstalledRelationDetails is the import half of the `installed` list: the
-// stored details a reader reconstructs for a bundled key — the shape a fresh
-// install writes, minus the ids and provenance the installer stamps itself.
+// InstalledRelationDetails is the reconstruction of an installed copy: the
+// stored details a reader recreates for a bundled key it meets in the
+// dictionary — the shape a fresh install writes, minus the ids and
+// provenance the installer stamps itself. It is what the composer verifies
+// an identical copy's omission against (§11).
 // Definition members are written even when empty — an install states the
 // whole definition — which is why the comparator's added-details direction
 // reads InstallStampedDefault. The TypeResolver capability translates the

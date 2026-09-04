@@ -1269,7 +1269,6 @@ belongs in the index because a manifest is what an index is).
 {
   "$schema": "https://schemas.anytype.io/anyblock/2.0/properties.schema.json",
   "formatVersion": "2.0",
-  "installed": ["Creation date", "Due date", "Done"],
   "properties": [
     { "property": "6a32d4856761631534b22f85",
       "internal_key": "6a32d4856761631534b22f85", "name": "Budget", "format": "number" },
@@ -1283,6 +1282,7 @@ belongs in the index because a manifest is what an index is).
         { "name": "In progress", "color": "blue", "internal_key": "69c1b7d0e2f34a5b6c7d8e9f_In progress" },
         { "name": "Done",        "color": "lime", "internal_key": "69c1b7d0e2f34a5b6c7d8e9f_Done" }
       ] },
+    { "property": "Creation date", "internal_key": "createdDate", "name": "Creation date", "format": "date" },
     { "property": "Due date", "internal_key": "dueDate", "name": "End Date", "format": "date" },
     { "property": "Tag", "internal_key": "tag", "name": "Tag", "format": "multi_select",
       "uninstalled": true }
@@ -1298,40 +1298,57 @@ copies of the 194 bundled relations, **98% field-identical to
 envelope, attribution and system properties, to restate `{key, name,
 format}` a table every reader already ships. The dictionary replaces those
 restatements, and since §15 #23 every other property document too: **a
-bundle writes no property document at all** (§11). A bundled-identical
-copy is one key in `installed`; every other property something references
-is a full entry; a property nothing references is not exported.
+bundle writes no property document at all** (§11). A property something
+references is an entry — a bundled-identical copy's stating the shipped
+table's definition, every other's its stored one; a property nothing
+references is not exported. There is no second list (§15 #24).
 
-Two members:
+One member:
 
-- **`installed`** — the BUNDLED properties present in the space, spelled by
-  canonical name (§3): presence, not definition. A restore reinstalls each key
-  from the reader's own bundled table. An installed copy that DIVERGES from
-  the table — a rename, a changed `is_hidden` (174 of 9,675 in the corpus:
-  132 by `is_hidden` alone, 8 real renames) — gets a full entry here,
-  whether or not anything references it, which overrides the table member
-  for member: the list makes a claim, and the entry is what corrects it.
-  There is no document (§15 #23). A
-  key the reader's table cannot name is **skipped, not refused**: the
-  bundled table grows independently of the format version, so a backup
-  written by a newer app must stay readable one app version back. (The
-  writer has no such excuse — `MarshalPropertyDictionary` refuses a key its
-  own table cannot name, since it would tell the reader to install nothing;
-  the repair is a full entry, where the format travels along.)
 - **`properties`** — one `propertyDefinition` (§2e) per property the
-  bundle's objects actually REFERENCE. **Used-only, not
-  everything installed**: a space installs a median 125 bundled properties
-  and uses 57 (47%), and the 68 nothing touches buy a reader nothing a
-  restore does not already provide. Space-minted properties appear here in
-  full — the dictionary is the only place a bundle states one (§15 #23), in
-  the same vocabulary as a type's `property_definitions` entry, and it is
-  where an author declares one too. **A property nothing references is not
-  exported at all**: no document, no entry, and no `installed` mention if
-  it was space-minted. That is not a loss to report — nothing names the
+  bundle's objects actually REFERENCE, bundled or space-minted.
+  **Used-only, not everything the space holds**: a space installs a median
+  125 bundled properties and uses 57 (47%), and the 68 nothing touches buy
+  a reader nothing a restore does not already provide. Space-minted
+  properties appear here in full — the dictionary is the only place a
+  bundle states one (§15 #23), in the same vocabulary as a type's
+  `property_definitions` entry, and it is where an author declares one
+  too. **A property nothing references is not exported at all**: no
+  document, no entry. That is not a loss to report — nothing names the
   key, so there is no value to explain and no format to look up — and the
   composer raises no warning, Issue or counter for it. A type's
   `property_definitions` entry is a reference (below), which is how a
   configured-but-unused property reaches a bundle: its type names it.
+
+**A bundled property is an entry like any other, and the shipped table is
+what says it is bundled.** There is no list of installed bundled keys
+beside `properties` (§15 #24) and no `bundled` flag on an entry. A reader
+tells a bundled property from a space-minted one by looking the entry's
+stored key up in its own shipped table — the §3 chain it already runs for
+every key — and this format's discipline is that one fact has one source:
+a list or a flag would be a second statement of what the lookup already
+says. What the entry states depends on what the space's copy was:
+
+- An installed copy **field-identical to the table** (98% of them) gets an
+  entry stating the TABLE's definition — the `Creation date` entry above.
+  The composer proves the identity before it writes the entry: the copy is
+  compared against the table's reconstruction (`InstalledRelationDetails`)
+  through the same comparator as every ordinary round trip (§11), and that
+  verdict is what licenses stating the table for the copy rather than the
+  copy itself. It is the same entry a referenced bundled key with no copy
+  in the space at all gets. A restore reinstalls the key from its own
+  table; a third-party reader interprets values by the entry.
+- An installed copy that **DIVERGES** from the table — a rename, a changed
+  `is_hidden` (174 of 9,675 in the corpus: 132 by `is_hidden` alone, 8 real
+  renames) — gets an entry stating the STORED definition, member for
+  member (the `Due date` entry above, renamed "End Date"), which is what
+  carries the user's change. It is written when something references the
+  key and not otherwise, like every entry: the exemption a divergent copy
+  once had existed to correct a claim the list made, and there is no list.
+- A bundled key the reader's table cannot name — a newer app's — reads as
+  an ordinary entry carrying its own `format`. The tolerance the list
+  needed for version skew is not needed by an entry, which states what it
+  means.
 
 **A property the user REMOVED travels as a flag, not as a document.** The
 app cannot delete an installed copy of a bundled property — the copy is
@@ -1340,13 +1357,11 @@ every listing filters the mark out. A bundle carries the removal for backup
 fidelity, as an entry whose `uninstalled` member is `true` (§15 #22): the
 entry states the definition beside the flag — the table's for an identical
 copy (the `Tag` entry above), the stored one for a divergent copy or a
-space-minted property — and the key appears in `installed` NOWHERE: the
-list tells a reader to install, the flag tells it the user removed, and a
-dictionary that says both is refused on read and on write alike. Like
-every entry, a flagged one is written only when something references the
-key (§15 #23): a removed property nothing names is not exported, and the
-divergence exemption does not reach it, since that exemption answers for a
-key `installed` lists and a removed key is never listed.
+space-minted property. The flag is the whole statement of the removal
+(§15 #24): the dictionary keeps no list of installed keys for it to
+contradict, so there is nothing left to refuse. Like every entry, a
+flagged one is written only when something references the key (§15 #23):
+a removed property nothing names is not exported.
 
 What a reader does with the flag: it MAY recreate the property with its
 removal mark set — the reconstruction is `UninstalledRelationDetails`, the
@@ -1368,11 +1383,13 @@ Measured over a census of 40 spaces' object stores (5,284 relation
 documents, 4,905 on bundled keys): no bundled-key relation document carries
 the flag, and the 5 space-minted ones that do are all `isDeleted` besides,
 which the app's exporter skips. The rule removed no document from that
-corpus, and since §15 #23 there is none to remove. What it removes is a
-contradiction the composition could otherwise write: a divergent
-bundled-key copy is listed under `installed` as well as entered — every
-one in the 40 spaces a 77-space export overlaps, 85 of 85 — so a removed
-copy that had diverged would have been reinstalled by its own backup.
+corpus, and since §15 #23 there is none to remove. What it removed, at the
+time, was a contradiction the composition could otherwise write: a
+divergent bundled-key copy was listed under the then-existing `installed`
+list as well as entered — every one in the 40 spaces a 77-space export
+overlaps, 85 of 85 — so a removed copy that had diverged would have been
+reinstalled by its own backup. Since §15 #24 there is no list, and the
+flag on the entry is the only statement.
 
 **A property the store hides travels as a flag too.** The store's
 `isHidden` on a relation object keeps the property out of every listing;
@@ -1388,9 +1405,9 @@ which says where a property sits on ONE type: `hidden` says whether the
 property is shown at all. In the same 40-space census, 20 of the 379
 space-minted relation documents carry `isHidden: true` (131 carry it
 false) — the fact that would otherwise have gone nowhere. A bundled key's
-own hidden bit needs no entry: an identical copy travels as its `installed`
-key and the table restates it, and a copy that differs on the bit is a
-divergent one, entered in full.
+own hidden bit needs no `hidden` member: an identical copy's entry states
+the table's definition and the table carries the bit, and a copy that
+differs on the bit is a divergent one, whose entry states it.
 
 **What an entry cannot state is reported.** Omitting a property document
 is unconditional — a kept one would put `properties/` back in the layout —
@@ -1398,7 +1415,7 @@ so a snapshot carrying something the entry has no member for is not failed
 closed on but named, per snapshot, in the composer's Issues (§11): the role
 `UnaccountedOptionDetails` plays for an option, played for a relation by
 `UnaccountedRelationDetails` (§13), reading the same classification the
-`installed` omission runs — the definition members the entry states, the
+identical-copy omission runs — the definition members the entry states, the
 install artifacts the next install re-stamps, attribution and the internal
 set that never travel, and the two flags above. What it names is user
 intent on the property's page (`isFavorite`, `isArchived`), an unvetted
@@ -1480,16 +1497,18 @@ bundle does not state a vocabulary for a property it does not carry.
 
 A property the bundle DOES carry keeps its vocabulary, whether or not any
 VALUE slot names it: the entry is the vehicle, and writing it without the
-options would drop the vocabulary while the property travels. That covers
-the divergent installed copy, whose entry is there for the `installed`
-claim's sake, and the commoner case by far — a space-minted select
-property added to a type and not yet applied to anything. Its type's
-`property_definitions` entry names it, and a type's declaration is a
-reference (below), so the entry is written and the vocabulary with it. An
-earlier revision reached the same vocabulary by exempting a property whose
-own relation document the bundle wrote; §15 #23 removed the document and
-the exemption together, and the type's declaration — which is how a
-property nobody has used yet is actually configured — is what carries it.
+options would drop the vocabulary while the property travels. The case is
+a select property added to a type and not yet applied to anything —
+space-minted, by far the commonest, or a divergent bundled copy. Its
+type's `property_definitions` entry names it, and a type's declaration is
+a reference (below), so the entry is written and the vocabulary with it.
+An earlier revision reached the same vocabulary by exempting a property
+whose own relation document the bundle wrote; §15 #23 removed the document
+and the exemption together. A later one kept a divergent installed copy's
+entry, and so its vocabulary, for the sake of the claim the `installed`
+list made; §15 #24 removed the list and that exemption too. The type's
+declaration — which is how a property nobody has used yet is actually
+configured — is what carries it.
 
 The drop is reported, not silent: the composer names the properties whose
 vocabulary it left behind (`Stats.UnusedOptionKeys`, §11). §15 #21 records
@@ -1583,9 +1602,7 @@ third-party reader must be able to interpret a backup WITHOUT shipping
 `codec/anyblockjson/vocabulary/relations.json` — tell a date from a string, an option name from
 free text. Dropping bundled relation documents with *no* dictionary was
 considered and rejected for exactly this reason; it is the same "stands
-alone" property that keeps a space id off the envelope. (`installed` keys
-carry no format because they are not interpretation, they are restore
-instructions — the definitions a reader interprets by are the entries.)
+alone" property that keeps a space id off the envelope.
 `format` resolves per key exactly as everywhere else (§3): `"text"` on a
 bundled short-text key stays short text.
 
@@ -1597,8 +1614,8 @@ value can hold a null (§2d), and a dictionary describes a property rather
 than mirroring a store slot. `section` is refused: it is the type-owned
 member, meaningless off a type document — and `uninstalled` and `hidden`
 are admitted for the mirror-image reason, as the entry's own (§2e). One key, one slot: a key stated
-twice — in `installed` or in `properties` — is refused on read and on
-write alike, with the first occurrence named.
+twice in `properties` is refused on read and on write alike, with the
+first occurrence named.
 
 `formatVersion` follows the same rule as every other file in a bundle (§2c, §10).
 
@@ -1606,10 +1623,8 @@ The tooling knows this is not an object document, the way it knows
 `index.json` is not: a bundle walk excludes it from the object documents
 (`anyblockbatch.DiscoverJSONFiles`, in the Anytype application),
 `bundle.Validate` and `cmd/anyblock validate` check it against its own schema
-rather than the object one — tools warn where the codec tolerates, so an
-`installed` key the local table cannot name is a warning and not a refusal —
-and the conversion tool reads it as a declaration source (§3, the import
-wiring).
+rather than the object one, and the conversion tool reads it as a
+declaration source (§3, the import wiring).
 
 ## 2g. The authoring subset (`authoring/*.schema.json`)
 
@@ -4490,12 +4505,12 @@ The §2f dictionary adds three normalizations, and all three are
 COMPOSITION rules rather than document ones — the per-document codec is
 untouched by any of them.
 The first: **a bundled-identical relation document is not written at
-all**. Its key travels
-in the dictionary's `installed` list — or, for a copy the user REMOVED, as
-an entry carrying `uninstalled` (§2f, §15 #22) — and a reader reconstructs
-the object from its own bundled table (`InstalledRelationDetails`, or
-`UninstalledRelationDetails`, the same plus the removal mark), across
-which trip (a) the install artifacts —
+all**. It travels as a dictionary entry stating the table's definition,
+when something references it — flagged `uninstalled` for a copy the user
+REMOVED (§2f, §15 #22) — and a reader reconstructs the object from its own
+bundled table (`InstalledRelationDetails`, or `UninstalledRelationDetails`,
+the same plus the removal mark), across which trip (a) the install
+artifacts —
 `createdDate`, `origin`, `addedDate`, `sourceObject`, `revision`,
 `apiObjectKey`, `featuredRelations`, `scope`, `importType`,
 `lastModifiedDate`, `layout`/`resolvedLayout`, the three recommended-list
@@ -4513,10 +4528,12 @@ predicate itself admits, so the ordinary document round trip keeps its full
 sensitivity. The predicate is fail-closed on every axis — a divergent
 definition member, an unclassified detail key, an alien-kinded value, a
 block the format preserves (19 corpus relation documents carry a dataview
-or free text) each deny the `installed` key — because reconstructing a
-copy from the table when the copy differed would rewrite the user's
-definition silently, which is disqualifying for a backup format. What it
-denies falls to the second normalization. Each admitted artifact key
+or free text) each deny the identical verdict — because stating the table
+for a copy that differed would rewrite the user's definition silently,
+which is disqualifying for a backup format. What it denies falls to the
+second normalization: the verdict is the omission's proof, and it is also
+what decides which definition the copy's entry states (§15 #24). Each
+admitted artifact key
 passed the §15 #12 test individually against the 9,675 bundled-key
 relation documents; the verdicts live on `relationInstallArtifactKeys`.
 The keys that stay unclassified — `isFavorite`, `isArchived`, the bare
@@ -5652,7 +5669,8 @@ being true.
 - **#22 The removed property** — settled: **a property the user removed
   from the space (`isUninstalled`) is exported for backup fidelity, as a
   dictionary entry carrying `uninstalled: true` — never as a document kept
-  for the flag's sake, and never under `installed`** (§2f). Recreation is
+  for the flag's sake, and never under the `installed` list the format then
+  had** (§2f; #24 retired the list). Recreation is
   the reader's choice — with the removal mark set, or not at all — and the
   format says so; what a reader may not do is install the property live.
 
@@ -5660,11 +5678,11 @@ being true.
   of three keys the omission predicate deliberately refused to classify, on
   the reading that the document was the only place the removal could live.
   It was the only place — and a kept document was still listed under
-  `installed`, because the composition lists every bundled key it meets
+  `installed`, because the composition then listed every bundled key it met
   whether or not the copy was removed, so the backup of a removed,
-  divergent copy reinstalled it. That is a property of the composition
+  divergent copy reinstalled it. That was a property of the composition
   itself rather than a corpus finding: a bundled-key relation document
-  earns its `installed` entry the moment the composer observes it. The entry is where the fact belongs: a
+  earned its `installed` entry the moment the composer observed it. The entry is where the fact belongs: a
   removal is a statement about the property's presence in the space, which
   is what the dictionary is for, and a flag a reader meets before it opens
   a document. It is the dictionary's own member, as `section` is the type
@@ -5692,7 +5710,7 @@ being true.
   census holds either (0 of 5,284; 35 and 193 occurrences corpus-wide,
   never on a relation or an option), so they need no verdict of their own
   — an unvetted key kept the document by the fail-closed default (since
-  #23 it denies the `installed` key and the report names it), and that is
+  #23 it denies the identical verdict and the report names it), and that is
   all they get. Had anything carried them they would have stayed named and
   counted. The bare `includeTime` stays unexplained and
   therefore unvetted (0 of 5,284 here).
@@ -5709,7 +5727,7 @@ being true.
   include-time, max count, readonly, default value, options — plus
   `uninstalled: true` if the user removed it (#22) and `hidden: true` if
   the store hid it. Not referenced, it is **not exported at all**: no
-  document, no entry, no `installed` mention if it was space-minted, and
+  document, no entry, and
   no warning, Issue or counter — nothing names the key, so there is no
   value to explain and no format to look up. An unreferenced property is
   not data.
@@ -5720,7 +5738,9 @@ being true.
   listed in `installed` whose stored definition diverges from the table
   keeps an entry whether or not anything references it, because the list
   makes a claim and the entry is what corrects it. That rule turns on a
-  key LISTED, so a removed copy, never listed, has no exemption.
+  key LISTED, so a removed copy, never listed, has no exemption. (#24
+  overturned the first and the third, and the refusal with them: there is
+  no list, so no claim to correct and nothing to contradict.)
 
   Two things are new. `hidden` joins the entry as its second owned member,
   on `uninstalled`'s footing exactly: dictionary-owned, refused by a type's
@@ -5752,6 +5772,79 @@ being true.
   `isFavorite` and `isArchived` on none. The dump is details-only and
   cannot see blocks, so how many property pages carry content is not
   measured here; the report is what says so, per export.
+
+- **#24 The `installed` list** — settled: **the dictionary has one member,
+  `properties`, and no list of installed bundled keys** (§2f). A bundled
+  property the bundle carries is an entry like any other — the shipped
+  table's definition for an installed copy identical to it, the stored one
+  for a copy that diverges — and a reader tells a bundled key from a
+  space-minted one by looking it up in its own shipped table, the §3 chain
+  it runs for every key. **No `bundled` flag replaces the list**:
+  bundled-ness is a table lookup, and this format's discipline is that one
+  fact has one source; a flag would be a second.
+
+  The list was presence without definition — "reinstall these from your
+  table" — and the ruling that retired it has two steps. First, `installed`
+  becomes used-only like everything else: a bundled key nothing references
+  is not data, by #23's own reasoning. Second, once it is used-only it is
+  redundant, because every key that survives is also an entry in
+  `properties` — measured below, without exception. A member that says
+  nothing an entry does not already say is a second source for one fact.
+
+  Three things went with it, none preserved. The divergence exemption: an
+  entry for a divergent installed copy was kept whether or not anything
+  referenced it, because the list made a claim needing correction; with no
+  list there is no claim, and used-only governs, full stop. The refusal of
+  a key both listed and flagged `uninstalled`, on read and on write: there
+  is no list left to contradict, and `uninstalled: true` on an entry is the
+  whole statement (#22's member and its meaning stay). And
+  `Stats.DictionaryInstalled`, which nothing read.
+
+  What survives, deliberately: the reconstruction verification. The
+  composer still proves an installed copy identical to the table by
+  comparing it against the table's reconstruction
+  (`OmittedBundledRelation`, `InstalledRelationDetails`, the §11
+  comparator) and reports a lossy omission. The verdict no longer decides a
+  list, but it still decides which definition the copy's entry states —
+  the table's for an identical copy, the stored one for a divergent copy —
+  because the proof is what licenses stating the table rather than the
+  copy, and an identical copy's entry written from the table is exactly
+  the entry a referenced bundled key with no copy of its own already got.
+  `UnaccountedRelationDetails` and its Issue are untouched.
+
+  The census that decided it, over three real v2 exports written before
+  this entry, with 108, 142 and 137 keys in `installed`: **57, 73 and 64 of
+  those keys were referenced by nothing** — about half of every list — and
+  every listed key that WAS referenced already had an entry in
+  `properties`, without exception. Across the three, 79 distinct
+  unreferenced keys, classified against the shipped table: 29 local or
+  derived (keys the format never writes in any document — `Anytype ID`,
+  `Space ID`, `Snippet`, `Is deleted`, `Sync status`, `Object
+  restrictions`, `Unique object key`, …); 3 internal (`Emoji`, `Image`,
+  `Internal flags`); 33 system, which every space has (the cover keys, the
+  space-invite keys, the three recommended lists, `Done`, `Plural name`,
+  …); 9 whose spelling the table cannot bind; and 5 ordinary (`API Object
+  Key`, `IncludeTime`, `Order id`, `Is uninstalled`, `Discussion id`). Not
+  one is a property a person chose to add. The 9 — `fileId`,
+  `fileVariantIds`, `fileVariantKeys`, `fileVariantChecksums`,
+  `fileVariantMills`, `fileVariantOptions`, `fileVariantPaths`,
+  `fileVariantWidths`, `fileSourceChecksum` — are in the shipped table, but
+  all nine share one display name, `Underlying file id`, the table's only
+  name collision, so the writer could not spell them by name and the list
+  carried them as raw stored keys: a defect of the list on its own terms,
+  since it promised a restore by name, and the one place the format's
+  spelling discipline broke. The divergence exemption, for its part, was
+  keeping 8, 2 and 2 unreferenced entries in the three exports —
+  `featuredRelations`, `linkedProjects`, the three recommended lists,
+  `relationKey`, `relationOptionColor`, `relationReadonlyValue`; then
+  `unreadMentionCount` and `unreadMessageCount` twice — every one a bundled
+  key whose stored copy disagrees with the table, none a property a person
+  created.
+
+  The overturned position was #23's residue: "three things stay", of which
+  the list and the divergence rule were two. Both rested on the list making
+  a claim, and the claim was half noise and the other half restated by an
+  entry.
 
 ### Deferred past 2.0
 

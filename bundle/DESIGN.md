@@ -104,13 +104,15 @@ Four phases, two of them new relative to today's exporter:
 |---|---|---|
 | **collect** | as today | dependency closure over the request: nested objects, dataview-referenced objects, types, relations, options, templates, linked files, recommended relations (`processProtobuf`, export.go:610). Extracted behind a format-agnostic interface; the bare `isProtobuf bool` (export.go:503-504) becomes an explicit closure mode. Output: `map[id]*Doc`, complete before anything is written. |
 | **plan** | single-threaded | classify every collected doc (kind → directory, §1.2), compute every filename (§1.3 — a pure per-document function of the id, no collision machinery), and pre-build the manifest type-path table (stored type keys come from the `uniqueKey` detail). **Plan reads details only — id, name, type/layout, uniqueKey — never content**; that invariant is what keeps it O(collected details) in memory and free of object loads (§1.6). Cheap: map passes over details already in memory, no store reads, no marshal. |
-| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:197, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy lands in `installed` or as an `uninstalled` entry, SPEC §15 #22), plus `OmittedRelation` (omittedrelation.go:270) and `OmittedRelationOption` (omittedoption.go:98), which need only the smartblock type and so COULD run at plan time but deliberately do not — both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (omittedrelation.go:293) and `UnaccountedOptionDetails` (omittedoption.go:116) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (installed keys, dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
+| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:197, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy's entry carries `uninstalled`, SPEC §15 #22), plus `OmittedRelation` (omittedrelation.go:270) and `OmittedRelationOption` (omittedoption.go:98), which need only the smartblock type and so COULD run at plan time but deliberately do not — both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (omittedrelation.go:293) and `UnaccountedOptionDetails` (omittedoption.go:116) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
 | **finish** | single-threaded, at the `postProcess` seam (export.go:1529) | compose and write `properties.json` and `index.json` (with manifest), re-reading both through the package's own `Unmarshal` before writing — the bundle-level I1 discipline the harness already practices (cmd/anyblockroundtrip/main.go:983-1012). |
 
 The composer is a production re-home of the harness's `spaceComposer`
 (cmd/anyblockroundtrip/main.go:711-1030), which already implements the §2f
-composition end to end: installed-key census, divergent-entry override,
-option vocabulary with `orderId` ordering — now lifted off the OMITTED
+composition end to end: the used-key census, the dictionary entries (an
+identical installed copy's from the table, every other's from its snapshot
+— SPEC §15 #24; there is no `installed` list), option vocabulary with
+`orderId` ordering — now lifted off the OMITTED
 option objects rather than off the documents it used to write (SPEC §2f,
 §15 #21) — index lift from the omitted space-settings and widget documents,
 manifest, and the re-read check. What
@@ -155,12 +157,12 @@ Proposed layout, one bundle root per space:
   templates/          — kind: template
                         There is NO properties/ and NO options/: a bundle
                         carries no property document and no option document
-                        at all. A bundled-identical copy is omitted into the
-                        dictionary's `installed` list; every other property
-                        something references is a full dictionary entry —
+                        at all. Every property something references is a
+                        dictionary entry — the table's definition for a
+                        bundled-identical copy, the stored one otherwise,
                         `uninstalled` and `hidden` on the entry — and a
                         property nothing references is not exported (SPEC
-                        §2f, §15 #22, #23). The dictionary states every
+                        §2f, §15 #22, #23, #24). The dictionary states every
                         select vocabulary inline on the entry of the
                         property that owns it, order as array position
                         (SPEC §2f, §15 #21)
@@ -654,8 +656,8 @@ close-after-write is design, not optimization.
   widget object, every relation document and every option document are
   omitted only through the package predicates, whose lift-before-omit
   ordering and reconstruction checks (`WidgetsSnapshot` verified via
-  `snapshotdiff`, main.go:786-800; the `installed` key's trip verified the
-  same way) come along unchanged — and where an omission is unconditional
+  `snapshotdiff`, main.go:786-800; the identical copy's trip to the table
+  verified the same way) come along unchanged — and where an omission is unconditional
   and has no reconstruction, its report (`UnaccountedRelationDetails`,
   `UnaccountedOptionDetails`) is what stands in for failing closed.
 - **Deterministic bytes end to end**: same space state ⇒ same file set,
