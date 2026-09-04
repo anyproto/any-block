@@ -13,86 +13,6 @@ import (
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
-func TestBundleRequiresCanonicalManifestTypeKeys(t *testing.T) {
-	for _, key := range []string{"", "   ", "task", "TASK"} {
-		t.Run(fmt.Sprintf("reject_%q", key), func(t *testing.T) {
-			fsys := fstest.MapFS{
-				"index.json": {Data: []byte(fmt.Sprintf(`{"formatVersion":"2.0","manifest":{"types":{%q:"type.data"}}}`, key))},
-				"type.data":  {Data: manifestTypeTargetDocument("task")},
-			}
-			err := Validate(fsys)
-			require.ErrorContains(t, err, "/manifest/types/")
-			require.ErrorContains(t, err, "manifest type key")
-		})
-	}
-
-	for _, tc := range []struct {
-		wire, internal string
-	}{
-		{wire: "Task", internal: "task"},
-		{wire: "custom-id", internal: "custom-id"},
-	} {
-		t.Run("accept_"+tc.wire, func(t *testing.T) {
-			fsys := fstest.MapFS{
-				"index.json": {Data: []byte(fmt.Sprintf(`{"formatVersion":"2.0","manifest":{"types":{%q:"type.data"}}}`, tc.wire))},
-				"type.data":  {Data: manifestTypeTargetDocument(tc.internal)},
-			}
-			require.NoError(t, Validate(fsys))
-		})
-	}
-}
-
-func TestManifestTypeTargetsUseExactAuthoritativePath(t *testing.T) {
-	paths := []string{
-		"types/task.json",
-		"types/task.JSON",
-		"types/task",
-		"types/task.data",
-		"types/properties.json",
-	}
-	tests := []struct {
-		name       string
-		document   []byte
-		omitTarget bool
-		want       string
-	}{
-		{name: "valid", document: manifestTypeTargetDocument("task")},
-		{name: "missing", omitTarget: true, want: "points to missing path"},
-		{name: "invalid", document: []byte(`{`), want: "target %q is invalid"},
-		{name: "wrong kind", document: []byte(`{"formatVersion":"2.0","id":"ordinary"}`), want: "not an object type"},
-		{name: "absent identity", document: []byte(`{"formatVersion":"2.0","id":"type-object","kind":"object_type","type":"Object type"}`), want: "must declare a non-empty internal_key"},
-		{name: "empty identity", document: []byte(`{"formatVersion":"2.0","id":"type-object","kind":"object_type","internal_key":"","type":"Object type"}`), want: "target %q is invalid"},
-		{name: "mismatched identity", document: manifestTypeTargetDocument("habit"), want: `declares internal_key "habit"`},
-	}
-
-	for _, targetPath := range paths {
-		for _, tc := range tests {
-			t.Run(strings.ReplaceAll(targetPath, "/", "_")+"_"+tc.name, func(t *testing.T) {
-				fsys := fstest.MapFS{
-					"index.json": {Data: []byte(fmt.Sprintf(`{"formatVersion":"2.0","manifest":{"types":{"Task":%q}}}`, targetPath))},
-				}
-				if !tc.omitTarget {
-					fsys[targetPath] = &fstest.MapFile{Data: tc.document}
-				}
-				err := Validate(fsys)
-				if tc.want == "" {
-					require.NoError(t, err)
-					return
-				}
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), "manifest.types[task]")
-				if strings.Contains(tc.want, "%q") {
-					assert.Contains(t, err.Error(), fmt.Sprintf(tc.want, targetPath))
-				} else {
-					assert.Contains(t, err.Error(), tc.want)
-				}
-				assert.NotContains(t, err.Error(), "which is not an object-type document")
-				assert.Equal(t, 1, strings.Count(err.Error(), "manifest.types[task]"), err.Error())
-			})
-		}
-	}
-}
-
 func TestUnnamedObservedSpaceUsesFallbackAsSemanticState(t *testing.T) {
 	space := testSpaceSnapshot()
 	delete(space.Details.Fields, "name")
@@ -264,10 +184,6 @@ func TestInferredDefaultDictionaryParticipatesInRoleCollisions(t *testing.T) {
 		}
 		require.NoError(t, Validate(fsys))
 	})
-}
-
-func manifestTypeTargetDocument(internal string) []byte {
-	return []byte(fmt.Sprintf(`{"formatVersion":"2.0","id":"type-object","kind":"object_type","internal_key":%q,"type":"Object type"}`, internal))
 }
 
 func cloneMapFS(source fstest.MapFS) fstest.MapFS {

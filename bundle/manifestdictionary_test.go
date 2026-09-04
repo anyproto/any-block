@@ -9,46 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateRejectsEmptyManifestTypeKey(t *testing.T) {
-	fsys := fstest.MapFS{
-		"index.json": &fstest.MapFile{Data: []byte(`{
-			"formatVersion":"2.0",
-			"manifest":{"types":{"":"types/type.json"}}
-		}`)},
-		"types/type.json": &fstest.MapFile{Data: []byte(`{
-			"formatVersion":"2.0","id":"type-object","kind":"object_type",
-			"internal_key":"habit","type":"Object type"
-		}`)},
-	}
-
-	err := Validate(fsys)
-	require.ErrorContains(t, err, `/manifest/types/`)
-	require.ErrorContains(t, err, `manifest type key must contain a non-whitespace canonical spelling`)
-}
-
-func TestManifestBoundTypeRequiresNonEmptyInternalKey(t *testing.T) {
-	fsys := fstest.MapFS{
-		"index.json": &fstest.MapFile{Data: []byte(`{
-			"formatVersion":"2.0",
-			"manifest":{"types":{"habit":"types/type.json"}}
-		}`)},
-		"types/type.json": &fstest.MapFile{Data: []byte(`{
-			"formatVersion":"2.0","id":"type-object","kind":"object_type",
-			"type":"Object type"
-		}`)},
-	}
-
-	err := Validate(fsys)
-	require.ErrorContains(t, err,
-		`manifest.types[habit] points to "types/type.json", whose object-type document must declare a non-empty internal_key`)
-
-	fsys["types/type.json"] = &fstest.MapFile{Data: []byte(`{
-		"formatVersion":"2.0","id":"type-object","kind":"object_type",
-		"internal_key":"habit","type":"Object type"
-	}`)}
-	require.NoError(t, Validate(fsys))
-}
-
 func TestCanonicalHabitTrackerBundleValidates(t *testing.T) {
 	root := filepath.Join("..", "format", "v2", "examples", "habit_tracker")
 	require.NoError(t, Validate(os.DirFS(root)))

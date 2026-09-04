@@ -14,16 +14,16 @@ func TestCLIContainsAuthoritativeSymlinkTargets(t *testing.T) {
 		t.Skip("creating symlinks requires privileges not guaranteed on Windows")
 	}
 	temp := t.TempDir()
-	outside := filepath.Join(temp, "outside-type.data")
-	require.NoError(t, os.WriteFile(outside, validTypeDocument(), 0o644))
+	outside := filepath.Join(temp, "outside-dictionary.data")
+	require.NoError(t, os.WriteFile(outside, validDictionary(), 0o644))
 
 	escaping := filepath.Join(temp, "escaping-bundle")
 	require.NoError(t, os.Mkdir(escaping, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(escaping, "index.json"), typeManifestIndex(), 0o644))
-	require.NoError(t, os.Symlink(outside, filepath.Join(escaping, "type.data")))
+	require.NoError(t, os.WriteFile(filepath.Join(escaping, "index.json"), dictionaryManifestIndex(), 0o644))
+	require.NoError(t, os.Symlink(outside, filepath.Join(escaping, "dictionary.data")))
 
 	secureErr := validateBundleDirectory(escaping)
-	require.ErrorContains(t, secureErr, `manifest.types[task] cannot inspect target "type.data"`)
+	require.ErrorContains(t, secureErr, `manifest.properties cannot inspect target "dictionary.data"`)
 	require.ErrorContains(t, secureErr, "path escapes from parent")
 
 	err := runValidate([]string{escaping})
@@ -31,15 +31,15 @@ func TestCLIContainsAuthoritativeSymlinkTargets(t *testing.T) {
 
 	contained := filepath.Join(temp, "contained-bundle")
 	require.NoError(t, os.Mkdir(contained, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(contained, "index.json"), typeManifestIndex(), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(contained, "type.data"), validTypeDocument(), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(contained, "index.json"), dictionaryManifestIndex(), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(contained, "dictionary.data"), validDictionary(), 0o644))
 	require.NoError(t, runValidate([]string{contained}))
 }
 
-func typeManifestIndex() []byte {
-	return []byte(`{"formatVersion":"2.0","manifest":{"types":{"Task":"type.data"}}}`)
+func dictionaryManifestIndex() []byte {
+	return []byte(`{"formatVersion":"2.0","manifest":{"properties":"dictionary.data"}}`)
 }
 
-func validTypeDocument() []byte {
-	return []byte(`{"formatVersion":"2.0","id":"type-object","kind":"object_type","internal_key":"task","type":"Object type"}`)
+func validDictionary() []byte {
+	return []byte(`{"formatVersion":"2.0"}`)
 }

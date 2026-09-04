@@ -1,8 +1,9 @@
 package anyblockjson
 
-// manifest_test.go pins the §2c index manifest: the one place a reader can
-// find a type by stored key without a folder convention — which the spec has
-// never defined — and without scanning.
+// manifest_test.go pins the §2c index manifest: where a reader finds the
+// property dictionary and the bytes behind each file document — the two
+// things a walk over the documents cannot reach. Types are not among them
+// (§15 #26): a type document is found by its id, `type-<internal_key>`.
 
 import (
 	"errors"
@@ -26,7 +27,7 @@ func TestIndex_ManifestRoundTrip(t *testing.T) {
 	in := &Index{
 		Name: "Corpus",
 		Manifest: &Manifest{
-			Types:      map[string]string{"task": "types/bafytask.anyblock.json", "page": "types/bafypage.anyblock.json"},
+			Files:      map[string]string{"bafytask": "files/bafytask.png", "bafypage": "files/bafypage.pdf"},
 			Properties: PropertiesFileName,
 		},
 	}
@@ -42,7 +43,7 @@ func TestIndex_ManifestRoundTrip(t *testing.T) {
 	// then
 	assert.Equal(t, string(data), string(data2), "Marshal ∘ Unmarshal must be byte-stable")
 	require.NotNil(t, got.Manifest)
-	assert.Equal(t, in.Manifest.Types, got.Manifest.Types)
+	assert.Equal(t, in.Manifest.Files, got.Manifest.Files)
 	assert.Equal(t, PropertiesFileName, got.Manifest.Properties)
 
 	// an empty manifest is not written at all
@@ -51,34 +52,15 @@ func TestIndex_ManifestRoundTrip(t *testing.T) {
 	assert.NotContains(t, string(bare), "manifest")
 }
 
-// Manifest type keys are author-facing spellings but the in-memory lookup is
-// keyed by stored type identity. Two distinct spellings can therefore name
-// the same key; accepting both used to let map iteration choose which path
-// survived re-keying.
-func TestIndex_ManifestRejectsCanonicalTypeKeyCollisions(t *testing.T) {
-	const data = `{"formatVersion":"2.0","manifest":{"types":{
-		"Object type":"types/a.json","objectType":"types/b.json"}}}`
-
-	for i := 0; i < 100; i++ {
-		_, err := UnmarshalIndex([]byte(data), Options{})
-		var ve *ValidationError
-		require.True(t, errors.As(err, &ve), "iteration %d: %v", i, err)
-		require.Len(t, ve.Issues, 1)
-		assert.Equal(t, "/manifest/types/objectType", ve.Issues[0].Path)
-		assert.Contains(t, ve.Issues[0].Message, `"Object type" and "objectType"`)
-		assert.Contains(t, ve.Issues[0].Message, `stored key "objectType"`)
-	}
-}
-
 func TestIndex_RejectsDuplicateJSONMembersBeforeDecoding(t *testing.T) {
-	_, err := UnmarshalIndex([]byte(`{"formatVersion":"2.0","manifest":{"types":{
-		"Task":"types/a.json","Task":"types/b.json"}}}`), Options{})
+	_, err := UnmarshalIndex([]byte(`{"formatVersion":"2.0","manifest":{"files":{
+		"bafyx":"files/a.png","bafyx":"files/b.png"}}}`), Options{})
 
 	var ve *ValidationError
 	require.True(t, errors.As(err, &ve), "%v", err)
 	require.Len(t, ve.Issues, 1)
-	assert.Equal(t, "/manifest/types/Task", ve.Issues[0].Path)
-	assert.Contains(t, ve.Issues[0].Message, `duplicate object member "Task"`)
+	assert.Equal(t, "/manifest/files/bafyx", ve.Issues[0].Path)
+	assert.Contains(t, ve.Issues[0].Message, `duplicate object member "bafyx"`)
 }
 
 // The manifest is closed: `additionalProperties: false` on the index root
@@ -95,7 +77,7 @@ func TestIndex_ManifestRefusals(t *testing.T) {
 		require.Error(t, err)
 	})
 	t.Run("a non-string path is refused", func(t *testing.T) {
-		_, err := UnmarshalIndex([]byte(`{"formatVersion":"2.0","manifest":{"types":{"task":42}}}`), Options{})
+		_, err := UnmarshalIndex([]byte(`{"formatVersion":"2.0","manifest":{"files":{"bafyx":42}}}`), Options{})
 		require.Error(t, err)
 	})
 	t.Run("an empty path is refused", func(t *testing.T) {
@@ -128,11 +110,11 @@ func TestIndex_ManifestDoesNotLocateOptions(t *testing.T) {
 	t.Run("export never writes it", func(t *testing.T) {
 		data, err := MarshalIndex(&Index{
 			Name:     "Corpus",
-			Manifest: &Manifest{Types: map[string]string{"task": "types/t.anyblock.json"}, Properties: PropertiesFileName},
+			Manifest: &Manifest{Files: map[string]string{"bafyx": "files/bafyx.png"}, Properties: PropertiesFileName},
 		})
 		require.NoError(t, err)
 		assert.NotContains(t, string(data), `"options"`)
-		assert.Contains(t, string(data), `"types"`, "the lookup a reader DOES have stays")
+		assert.Contains(t, string(data), `"files"`, "the lookup a reader DOES have stays")
 	})
 
 	// A bundle written before v0.46 is REFUSED rather than quietly ignored,
@@ -153,7 +135,7 @@ func TestIndex_ManifestDoesNotLocateOptions(t *testing.T) {
 
 // The manifest binds file blobs (v0.47): file object id → the blob's
 // archive-relative path, keys VERBATIM — an id is its own spelling, so
-// unlike `types` there is nothing to re-key on either side. The map is the
+// there is nothing to re-key on either side. The map is the
 // `source`-clobber's replacement: the legacy exporter stuffed the blob path
 // into the real, editable Source relation on the document itself, and the
 // destruction round-tripped through import. Here the document carries no
@@ -161,9 +143,9 @@ func TestIndex_ManifestDoesNotLocateOptions(t *testing.T) {
 //
 // How this can fail: drop Files from the Manifest struct or MarshalIndex
 // (the binding vanishes on the way round and every blob is orphaned); stop
-// sorting the map (the byte check goes red); re-key the ids through the
-// type-spelling chain (an id that happens to fold onto a bundled key gets
-// rewritten and the entry dangles); or forget empty() (a files-only
+// sorting the map (the byte check goes red); re-spell the ids through any
+// name chain (an id that happens to fold onto a bundled key gets rewritten
+// and the entry dangles); or forget empty() (a files-only
 // manifest is dropped as "empty" and ships nothing).
 func TestIndex_ManifestBindsFileBlobs(t *testing.T) {
 	// given — two entries, deliberately out of sorted order
@@ -209,16 +191,14 @@ func TestIndex_ManifestOmitsEmptyPaths(t *testing.T) {
 	data, err := MarshalIndex(&Index{
 		Name: "Corpus",
 		Manifest: &Manifest{
-			Types: map[string]string{"task": "types/t.anyblock.json", "ghost": ""},
-			Files: map[string]string{"bafyx": ""},
+			Files: map[string]string{"bafyreal": "files/bafyreal.png", "bafyx": ""},
 		},
 	})
 	require.NoError(t, err)
 	_, err = UnmarshalIndex(data, Options{})
 	require.NoError(t, err, "what Marshal writes, Unmarshal accepts (I1)")
-	assert.NotContains(t, string(data), "ghost")
 	assert.NotContains(t, string(data), "bafyx")
-	assert.Contains(t, string(data), "Task")
+	assert.Contains(t, string(data), "bafyreal")
 
 	// a manifest whose every entry is empty collapses to no manifest at all
 	bare, err := MarshalIndex(&Index{Name: "Corpus", Manifest: &Manifest{Files: map[string]string{"bafyx": ""}}})

@@ -278,15 +278,22 @@ type Widget struct {
 	Properties []string `json:"properties"`
 }
 
-// Manifest says where to find what a reader must resolve by key rather than
-// by walking (§2c): the format defines no folder layout, and an object names
-// its type by spelling alone, so without one a reader resolves a type by
-// scanning every document for a matching key. Types are keyed by STORED type
-// key — the spelling that survives a rename — and Properties points at the
-// dictionary (§2f), which answers for stored property keys the same way.
-// Paths are relative to the index file.
+// Manifest says where to find what a reader cannot reach by walking the
+// documents (§2c): the property dictionary, and the bytes behind each file
+// document. Paths are relative to the index file.
 //
-// It does NOT locate options, and since §15 #21 there is nothing to locate:
+// It does NOT locate types, since §15 #26: a type document is found by its
+// id like every other document, and under the derived-id rule (§9) that id
+// IS the stored key — `type-<internal_key>` — so a spelling→path table was a
+// second, legend-less statement of one binding, and a legend-less spelling
+// surface cannot be read back: a legacy `chat` type wrote `"chat"`, the
+// reader's fold bound it to the bundled `chatDerived`, MarshalIndex refused
+// the binding, and a real export died with its documents on disk and no
+// index.json. The reader that used to need the table — object → `type`
+// spelling → stored key → path — now reads the object's own
+// `type_internal_key` and opens `type-<key>`.
+//
+// It does NOT locate options either, and since §15 #21 there is nothing to locate:
 // a bundle carries no option documents at all. The map went first, on its
 // own reasoning — a manifest exists to answer a lookup a reader would
 // otherwise have to scan for, and no reader has that lookup for an option,
@@ -308,12 +315,11 @@ type Widget struct {
 // editable relation on the document itself. A document member is not a slot
 // for archive bookkeeping; the manifest's whole charter is "where to find
 // what a reader must resolve by id rather than by walking", and blobs are
-// exactly that. Keys are object ids verbatim, so — unlike Types — they take
-// no re-spelling on either side. Adjacency of blob and document in `files/`
-// is one exporter's layout convention riding on top; the map is the only
-// binding a reader may rely on (§2c).
+// exactly that. Keys are object ids verbatim and take no re-spelling on
+// either side. Adjacency of blob and document in `files/` is one exporter's
+// layout convention riding on top; the map is the only binding a reader may
+// rely on (§2c).
 type Manifest struct {
-	Types      map[string]string `json:"types"`
 	Properties string            `json:"properties"`
 	Files      map[string]string `json:"files"`
 }
@@ -321,7 +327,7 @@ type Manifest struct {
 // empty reports whether the manifest locates nothing — the shape setNonEmpty
 // cannot judge for a struct.
 func (m *Manifest) empty() bool {
-	return m == nil || (len(m.Types) == 0 && m.Properties == "" && len(m.Files) == 0)
+	return m == nil || (m.Properties == "" && len(m.Files) == 0)
 }
 
 // Index is a bundle's index.json (§2c).
@@ -479,14 +485,11 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 	if issues := platformNameIssues(doc); len(issues) > 0 {
 		return nil, &ValidationError{Issues: issues}
 	}
-	// The manifest's raw member names are authoritative canonical spellings.
-	// Check many-to-one collisions first so an alias set keeps the more useful
-	// collision diagnosis, then check singleton canonicality before decoding
-	// erases the raw terms by re-keying them to stored identities.
-	if issues := manifestTypeKeyCollisionIssues(doc); len(issues) > 0 {
-		return nil, &ValidationError{Issues: issues}
-	}
-	if issues := manifestTypeKeyCanonicalityIssues(doc); len(issues) > 0 {
+	// The retired type table is refused with the repair named, ahead of the
+	// schema, whose closed manifest would only say "not allowed" (§10, §15
+	// #26) — the `refs` rule: an index written by an older exporter carries
+	// it, and the obvious wrong repair is to keep resolving types through it.
+	if issues := manifestTypesRetiredIssues(doc); len(issues) > 0 {
 		return nil, &ValidationError{Issues: issues}
 	}
 	// the typed icon's discriminator, worded the same way it is on an object
@@ -516,13 +519,6 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 	if migrated {
 		idx.FormatVersion = FormatVersion
 	}
-	// the manifest's type keys arrive in the format's spelling and are held
-	// as STORED keys, the way the dictionary holds its property keys: the
-	// wire says "Chat", the codec says `chatDerived`, and a caller
-	// looking a type up by stored key finds it (§2c).
-	if idx.Manifest != nil {
-		idx.Manifest.Types = mapStringKeys(idx.Manifest.Types, StoredTypeKey)
-	}
 	// a widget's shown properties follow the same rule: spelled on the wire,
 	// held as STORED keys, resolved by the chain every key slot uses. An
 	// ambiguous spelling stays verbatim — the index is display state, and
@@ -536,39 +532,22 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 	return &idx, nil
 }
 
-// manifestTypeKeyCanonicalityIssues checks the raw manifest terms while they
-// still exist. Once decoding maps them through StoredTypeKey, `Task`, `task`
-// and `TASK` are indistinguishable and bundle validation cannot enforce the
-// manifest's one-canonical-spelling lookup contract.
-func manifestTypeKeyCanonicalityIssues(doc map[string]any) []Issue {
+// manifestTypesRetiredIssues refuses the manifest's retired `types` table
+// (§15 #26) with the repair named: a type document is found by its id,
+// `type-<internal_key>`, and every object states that key outright in
+// `type_internal_key` — the table answered a lookup no reader has any more.
+func manifestTypesRetiredIssues(doc map[string]any) []Issue {
 	manifest, _ := doc["manifest"].(map[string]any)
-	types, _ := manifest["types"].(map[string]any)
-	terms := make([]string, 0, len(types))
-	for term := range types {
-		terms = append(terms, term)
+	if _, has := manifest["types"]; !has {
+		return nil
 	}
-	sort.Strings(terms)
-	var issues []Issue
-	for _, term := range terms {
-		issuePath := "/manifest/types/" + escapeJSONPointer(term)
-		if strings.TrimSpace(term) == "" {
-			issues = append(issues, Issue{
-				Path:    issuePath,
-				Message: "manifest type key must contain a non-whitespace canonical spelling",
-			})
-			continue
-		}
-		stored := StoredTypeKey(term)
-		canonical := TypeKeySpelling(stored)
-		if term != canonical {
-			issues = append(issues, Issue{
-				Path: issuePath,
-				Message: fmt.Sprintf("manifest type key %q resolves to stored key %q; use its canonical spelling %q",
-					term, stored, canonical),
-			})
-		}
-	}
-	return issues
+	return []Issue{{
+		Path: "/manifest/types",
+		Message: `manifest "types" is not allowed — the type table was removed (§2c, §15 #26): a type document ` +
+			`is found by its id, which is its stored key spelled type-<internal_key>, and every object states ` +
+			`that key in type_internal_key. This index was written by an older exporter; drop "types" — nothing ` +
+			`resolves through it any more`,
+	}}
 }
 
 // indexWidgetPropertyCollisionIssues refuses distinct raw spellings in one
@@ -601,39 +580,6 @@ func indexWidgetPropertyCollisionIssues(doc map[string]any) []Issue {
 			}
 			firstByStored[stored] = claimant{spelling: spelling, index: propertyIndex}
 		}
-	}
-	return issues
-}
-
-// manifestTypeKeyCollisionIssues refuses two manifest spellings that resolve
-// to one stored type key. Re-keying such a map would otherwise choose a
-// survivor by Go map iteration order, changing the authoritative lookup from
-// run to run. Raw spellings are sorted so both the named first claimant and
-// the issue order are deterministic.
-func manifestTypeKeyCollisionIssues(doc map[string]any) []Issue {
-	manifest, _ := doc["manifest"].(map[string]any)
-	types, _ := manifest["types"].(map[string]any)
-	if len(types) < 2 {
-		return nil
-	}
-	terms := make([]string, 0, len(types))
-	for term := range types {
-		terms = append(terms, term)
-	}
-	sort.Strings(terms)
-	firstByStored := make(map[string]string, len(terms))
-	var issues []Issue
-	for _, term := range terms {
-		stored := StoredTypeKey(term)
-		if first, exists := firstByStored[stored]; exists {
-			issues = append(issues, Issue{
-				Path: "/manifest/types/" + escapeJSONPointer(term),
-				Message: fmt.Sprintf("type key spellings %q and %q both resolve to stored key %q; "+
-					"keep one authoritative manifest binding", first, term, stored),
-			})
-			continue
-		}
-		firstByStored[stored] = term
 	}
 	return issues
 }
@@ -729,80 +675,6 @@ func (i *Index) IconImageId() string {
 	return i.Icon.File
 }
 
-// mapStringKeys re-spells a map after the reader has already rejected
-// effective-key collisions. It is the decode-side half of the manifest
-// transform; reKeyed below is deliberately stricter because a writer has to
-// prove that its output will decode back to the source identities.
-func mapStringKeys(in map[string]string, spell func(string) string) map[string]string {
-	if len(in) == 0 {
-		return in
-	}
-	out := make(map[string]string, len(in))
-	for k, v := range in {
-		out[spell(k)] = v
-	}
-	return out
-}
-
-// reKeyed renders a stored-key map into wire spellings only when the mapping
-// is closed under the reader's inverse. Source keys are sorted before either
-// collision selection or diagnostics, so a malformed caller map cannot make
-// MarshalIndex's result depend on Go map iteration order.
-//
-// Empty paths are ignored here because the canonical manifest omits them;
-// they make no binding and therefore cannot collide with one that is written.
-func reKeyed(in map[string]string, sourcePath string, spell, read func(string) string) (map[string]string, error) {
-	type binding struct {
-		source    string
-		wire      string
-		effective string
-		path      string
-	}
-
-	bindings := make([]binding, 0, len(in))
-	for _, source := range sortedStringKeys(in) {
-		if in[source] == "" {
-			continue
-		}
-		wire := spell(source)
-		bindings = append(bindings, binding{
-			source:    source,
-			wire:      wire,
-			effective: read(wire),
-			path:      sourcePath + "/" + escapeJSONPointer(source),
-		})
-	}
-
-	firstByEffective := make(map[string]binding, len(bindings))
-	for _, current := range bindings {
-		if first, exists := firstByEffective[current.effective]; exists {
-			return nil, &ValidationError{Issues: []Issue{{
-				Path: current.path,
-				Message: fmt.Sprintf("source type keys %q and %q write as %q and %q, and both read as stored key %q; "+
-					"keep one authoritative manifest binding", first.source, current.source,
-					first.wire, current.wire, current.effective),
-			}}}
-		}
-		firstByEffective[current.effective] = current
-	}
-	for _, current := range bindings {
-		if current.effective != current.source {
-			return nil, &ValidationError{Issues: []Issue{{
-				Path: current.path,
-				Message: fmt.Sprintf("source type key %q writes as %q, which reads as stored key %q; "+
-					"the index cannot preserve this manifest binding", current.source,
-					current.wire, current.effective),
-			}}}
-		}
-	}
-
-	out := make(map[string]string, len(bindings))
-	for _, current := range bindings {
-		out[current.wire] = in[current.source]
-	}
-	return out, nil
-}
-
 // indexWidgetPropertyBinding is the shared write/read identity predicate for
 // both widget-document lifting and direct Index marshaling. The index carries
 // no property legend, so a stored key is representable only when the reader
@@ -875,20 +747,10 @@ func MarshalIndex(idx *Index) ([]byte, error) {
 	doc.setNonEmpty("auto_widget_disabled", idx.AutoWidgetDisabled)
 	if !idx.Manifest.empty() {
 		m := &omap{}
-		// the manifest keys types the way the dictionary keys properties and
-		// the way a type document spells a target type: one spelling per
-		// concept (§2c, §2f). It carried `chatDerived`, `objectType`,
-		// `relationOption` and `spaceView` — 308 camelCase keys across 77
-		// bundles — while the documents beside it said `chat_derived`.
-		types, err := reKeyed(idx.Manifest.Types, "/manifest/types", TypeKeySpelling, StoredTypeKey)
-		if err != nil {
-			return nil, err
-		}
-		m.setNonEmpty("types", sortedStringOmap(types))
 		m.setNonEmpty("properties", idx.Manifest.Properties)
 		// file blob bindings are keyed by object id VERBATIM (§2c): an id is
-		// its own spelling, so unlike `types` there is nothing to re-key —
-		// only the canonical sort
+		// its own spelling, so there is nothing to re-key — only the
+		// canonical sort
 		m.setNonEmpty("files", sortedStringOmap(idx.Manifest.Files))
 		doc.setNonEmpty("manifest", m)
 	}

@@ -12,35 +12,6 @@ import (
 	"github.com/anyproto/any-block/internal/testfixtures"
 )
 
-func TestIndexReaderRequiresRawCanonicalManifestTypeKeys(t *testing.T) {
-	for _, key := range []string{"", "   ", "task", "TASK"} {
-		t.Run(fmt.Sprintf("reject_%q", key), func(t *testing.T) {
-			data := []byte(fmt.Sprintf(`{"formatVersion":"2.0","manifest":{"types":{%q:"types/type.data"}}}`, key))
-			idx, err := UnmarshalIndex(data, Options{})
-			assert.Nil(t, idx)
-			var validation *ValidationError
-			require.ErrorAs(t, err, &validation)
-			require.Len(t, validation.Issues, 1)
-			assert.Equal(t, "/manifest/types/"+escapeJSONPointer(key), validation.Issues[0].Path)
-			assert.Contains(t, validation.Issues[0].Message, "manifest type key")
-		})
-	}
-
-	for _, tc := range []struct {
-		wire, stored string
-	}{
-		{wire: "Task", stored: "task"},
-		{wire: "custom-id", stored: "custom-id"},
-	} {
-		t.Run("accept_"+tc.wire, func(t *testing.T) {
-			data := []byte(fmt.Sprintf(`{"formatVersion":"2.0","manifest":{"types":{%q:"types/type.data"}}}`, tc.wire))
-			idx, err := UnmarshalIndex(data, Options{})
-			require.NoError(t, err)
-			assert.Equal(t, "types/type.data", idx.Manifest.Types[tc.stored])
-		})
-	}
-}
-
 func TestIndexWriterRequiresWidgetPropertyFixedPoints(t *testing.T) {
 	const target = testfixtures.ObjectID
 	marshal := func(properties []string, widgetTarget string) ([]byte, error) {

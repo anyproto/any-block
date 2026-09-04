@@ -830,32 +830,39 @@ round-trip check cannot drift apart (§11).
 
 ### The manifest
 
-The index also says **where to find what a reader must resolve by key or id
-rather than by walking**. The format defines no folder layout — `objects/`,
-`types/`, `files/` are one exporter's convention (below) — and an object
-names its type by *spelling* alone, so without a manifest a reader resolves
-a type by scanning every document for a matching `internal_key`, and a file
-document's bytes by guessing at a layout.
+The index also says **where to find what a reader cannot reach by walking
+the documents**: the property dictionary, and the bytes behind each file
+document. The format defines no folder layout — `objects/`, `types/`,
+`files/` are one exporter's convention (below) — and a document is found by
+its id, so the manifest names only what an id cannot: a file that is not a
+document (the dictionary) and the bytes a file document stands for.
 
 ```json
 { "manifest": {
-    "types":      { "Task": "types/bafyrei….anyblock.json" },
     "properties": "properties.json",
     "files":      { "bafyreigp3him…": "files/bafyreigp3him….png" } } }
 ```
 
-- **`types`** — the type's CANONICAL SPELLING → the type document's path.
-  The canonical spelling, not a per-document term: the display name from
-  the shipped table for a bundled type, the stored key verbatim for a
-  space-minted one — a pure function of the key, the same rule the
-  dictionary applies to its own entry keys (§2f), because the index has no
-  legend and its keys must resolve through the shipped ladder alone (an
-  exact stored key names itself, then the name table, then the fold). A
-  reader inverting a document's own spelling still goes through that
-  document's `type_internal_keys` legend first, as everywhere.
-  The manifest does NOT locate options, and since §15 #21 there is nothing
-  to locate: a bundle carries no option documents at all. The map went
-  first, on its own reasoning — a manifest exists to answer a lookup a
+- **There is no `types` table** (§15 #26). It used to map a type's
+  canonical spelling to the type document's path, so that a reader could
+  go from an object's `type` to the type file without scanning. Two things
+  retired it. A type document's id is now its stored key spelled
+  `type-<internal_key>` (§9), and every object states that key outright in
+  `type_internal_key` (§2, §3), so the path is a function of what the
+  object already says and the table was a second statement of one binding.
+  And it was a legend-less spelling surface, which this format says
+  elsewhere cannot be read back (§2f): its keys were canonical spellings
+  resolved through the shipped ladder, and the ladder's fold is not
+  injective over stored keys — a legacy type keyed `chat` wrote `"chat"`,
+  the reader folded that spelling onto the bundled name `Chat` and read it
+  back as `chatDerived`, `MarshalIndex` refused the binding, and a real
+  export died with 1,409 valid documents on disk and neither bundle file
+  written. An index that still carries the member is refused with the
+  repair named, the `refs` rule (§10, §12).
+
+  The manifest does NOT locate options either, and since §15 #21 there is
+  nothing to locate: a bundle carries no option documents at all. The map
+  went first, on its own reasoning — a manifest exists to answer a lookup a
   reader would otherwise have to scan for, and no reader has that lookup
   for an option, because the dictionary states a property's whole
   vocabulary inline: each option's name, color, position and, since the
@@ -901,11 +908,14 @@ document's bytes by guessing at a layout.
   else — no variant keys, no encryption keys, and the thin bundle's future
   marker slot stays untouched.
 
-Paths are relative to the index file. The reader flow, with no scanning and
-no folder convention: object → `type: "task"` → the object's legend → stored
-key → manifest → the type file → `property_definitions` → property not
-there → manifest → the dictionary → the entry; a file document → `manifest.files`
-→ the bytes.
+Paths are relative to the index file. The reader flow, with no table and
+no name matching: object → `type_internal_key: "task"` → the document whose
+id is `type-task` (§9) → `property_definitions` → property not there →
+manifest → the dictionary → the entry; a file document → `manifest.files`
+→ the bytes. Which file holds `type-task` is the one question left, and it
+is the question every reference already poses: the reader indexes the
+bundle's documents by id once, and this exporter's convention (below) makes
+it `types/type-task.anyblock.json` without the walk.
 
 **This exporter's convention** (the "one exporter's convention" slot,
 recorded so a reader of OUR bundles knows the layout without reverse-

@@ -63,7 +63,6 @@ type Stats struct {
 	// references them (§15 #23). Each is also counted in DictionaryEntries.
 	DictionaryUninstalled int
 	DictionaryEntries     int
-	ManifestTypes         int
 	ManifestFiles         int
 	DictionaryBytes       int
 	IndexBytes            int
@@ -143,7 +142,6 @@ type Composer struct {
 	// exemption for a divergent copy (§15 #24).
 	entries map[string]anyblockjson.PropertyDefinition
 
-	typePaths map[string]string
 	filePaths map[string]string
 	// optionsByKey is the select vocabulary each property actually has in
 	// this space, gathered from the omitted option snapshots — a bundle
@@ -204,7 +202,6 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 		opts:         opts,
 		spaceName:    spaceName,
 		entries:      map[string]anyblockjson.PropertyDefinition{},
-		typePaths:    map[string]string{},
 		filePaths:    map[string]string{},
 		optionsByKey: map[string][]storedOption{},
 		seenOptions:  map[optionIdentity]anyblockjson.OptionDefinition{},
@@ -385,13 +382,12 @@ func (c *Composer) observeRelation(sbType model.SmartBlockType, base *model.Smar
 	return issues
 }
 
-// ObserveWritten records one emitted document: its place for the manifest —
-// a type by its STORED key, a file blob binding is ObserveFileBlob's — and
-// the property keys the document's bytes reference (the dictionary's
-// used-only census, §2f).
-// path is the document's bundle-relative path, slash-separated, exactly as
-// it should appear in the manifest.
-func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase, doc []byte, path string) error {
+// ObserveWritten records one emitted document: the property keys its bytes
+// reference (the dictionary's used-only census, §2f). A document's place
+// in the bundle is not the composer's to record: a document is found by
+// its id (§2c, §15 #26), and the one binding a reader cannot derive — a file
+// document's blob — is ObserveFileBlob's.
+func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase, doc []byte) error {
 	used, err := UsedPropertyKeysFromBytes(doc)
 	if err != nil {
 		return fmt.Errorf("scan used property keys: %w", err)
@@ -402,16 +398,6 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 	for key := range used {
 		c.used[key] = true
 	}
-	det := base.GetDetails().GetFields()
-	if det == nil {
-		return nil
-	}
-	switch sbType {
-	case model.SmartBlockType_STType, model.SmartBlockType_BundledObjectType:
-		if key := storedInternalKey(base, "ot-"); key != "" {
-			c.typePaths[key] = path
-		}
-	}
 	return nil
 }
 
@@ -419,11 +405,9 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 // `internal_key`: the snapshot's own Key, which is the single member Marshal
 // writes there (export.go). The `uniqueKey` detail spells the same value
 // behind a kind prefix, but it is a DETAIL and can be absent, and deriving
-// identity from it gave one value two sources — the manifest keyed on the
-// detail and the document keyed on Key then disagree, and bundle.Validate
-// refuses that pair, so the composer would emit an index its own package
-// rejects. Key is the source; the detail is the fallback for a snapshot
-// that carries no tree-root key.
+// identity from it gave one value two sources that could disagree. Key is
+// the source; the detail is the fallback for a snapshot that carries no
+// tree-root key.
 func storedInternalKey(base *model.SmartBlockSnapshotBase, prefix string) string {
 	if key := base.GetKey(); key != "" {
 		return key
@@ -747,7 +731,6 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		idx.Name = c.spaceName
 	}
 	idx.Manifest = &anyblockjson.Manifest{
-		Types:      copyNonEmpty(c.typePaths),
 		Properties: anyblockjson.PropertiesFileName,
 		Files:      copyNonEmpty(c.filePaths),
 	}
@@ -765,7 +748,6 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 			stats.DictionaryUninstalled++
 		}
 	}
-	stats.ManifestTypes = len(c.typePaths)
 	stats.ManifestFiles = len(c.filePaths)
 	stats.DictionaryBytes = len(dictData)
 	stats.IndexBytes = len(idxData)
@@ -785,7 +767,7 @@ func (c *Composer) hasSemanticState() bool {
 		(c.observedSpaceSettings && c.spaceName != "") ||
 		c.spaceSettings.hasValues() ||
 		len(c.entries) != 0 || len(c.used) != 0 ||
-		len(c.typePaths) != 0 || len(c.filePaths) != 0 || len(c.optionsByKey) != 0 ||
+		len(c.filePaths) != 0 || len(c.optionsByKey) != 0 ||
 		idx.Name != "" || idx.Description != "" || idx.Icon != nil || idx.Entrypoint != "" || idx.Homepage != "" ||
 		len(idx.Widgets) != 0 || len(idx.AutoWidgetTargets) != 0 || idx.AutoWidgetDisabled
 }

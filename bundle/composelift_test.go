@@ -40,7 +40,6 @@ func TestComposerWidgetOnlyLiftProducesBothArtifacts(t *testing.T) {
 		require.NotEmpty(t, properties)
 		assert.Equal(t, 1, stats.OmittedDocs)
 		assert.Equal(t, 1, stats.DictionaryEntries)
-		assert.Zero(t, stats.ManifestTypes)
 
 		idx, err := anyblockjson.UnmarshalIndex(index, anyblockjson.Options{})
 		require.NoError(t, err)

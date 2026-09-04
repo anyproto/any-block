@@ -45,8 +45,7 @@ func TestComposerCanonicalizesCustomDictionaryTypeTargetsWithItsVocabulary(t *te
 	omitted, issues := composer.Observe(model.SmartBlockType_Page, page)
 	require.False(t, omitted)
 	require.Empty(t, issues)
-	require.NoError(t, composer.ObserveWritten(model.SmartBlockType_Page, page, document,
-		"objects/ritual-page.json"))
+	require.NoError(t, composer.ObserveWritten(model.SmartBlockType_Page, page, document))
 
 	_, properties, _, err := composer.Finish()
 	require.NoError(t, err)
@@ -121,7 +120,7 @@ func TestComposerLiftsVocabularyReferencedOnlyByADataview(t *testing.T) {
 				"sorts":[{"property":"Status","direction":"asc"}]}]}]}`)
 	omitted, _ = c.Observe(model.SmartBlockType_Page, page)
 	require.False(t, omitted)
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page, board, "objects/bafyboard.anyblock.json"))
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page, board))
 
 	_, dictData, stats, err := c.Finish()
 	require.NoError(t, err)
@@ -250,7 +249,7 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 		used, err := UsedPropertyKeysFromBytes(doc)
 		require.NoError(t, err)
 		require.Contains(t, used, key, "a type's declaration is a reference (§2f)")
-		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnap, doc, "types/bafyritual.anyblock.json"))
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnap, doc))
 
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)
@@ -268,7 +267,7 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 		c := build(t)
 		page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
-			[]byte(`{"formatVersion":"2.0","id":"bafyp","properties":{"Name":"Untagged"}}`), "objects/bafyp.anyblock.json"))
+			[]byte(`{"formatVersion":"2.0","id":"bafyp","properties":{"Name":"Untagged"}}`)))
 
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)
@@ -317,7 +316,7 @@ func TestComposerOrdersAVocabularyTheWayTheAppListsIt(t *testing.T) {
 	}
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
-		[]byte(`{"formatVersion":"2.0","properties":{"status":["Done"]}}`), "objects/p.anyblock.json"))
+		[]byte(`{"formatVersion":"2.0","properties":{"status":["Done"]}}`)))
 
 	_, dictData, _, err := c.Finish()
 	require.NoError(t, err)
@@ -358,7 +357,7 @@ func TestComposerDropsAnUnstatableVocabularyRatherThanTheBundle(t *testing.T) {
 	}
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
-		[]byte(`{"formatVersion":"2.0","properties":{"completion_status":true}}`), "objects/p.anyblock.json"))
+		[]byte(`{"formatVersion":"2.0","properties":{"completion_status":true}}`)))
 
 	idxData, dictData, stats, err := c.Finish()
 	require.NoError(t, err, "the bundle survives")
@@ -388,7 +387,7 @@ func TestComposerSalvagesTheOptionsAWriterCanStill(t *testing.T) {
 	}
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
-		[]byte(`{"formatVersion":"2.0","properties":{"status":["To Do"]}}`), "objects/p.anyblock.json"))
+		[]byte(`{"formatVersion":"2.0","properties":{"status":["To Do"]}}`)))
 
 	_, dictData, stats, err := c.Finish()
 	require.NoError(t, err)

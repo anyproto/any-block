@@ -26,15 +26,6 @@ type bundleDocumentEnvelope struct {
 	InternalKey string `json:"internal_key"`
 }
 
-type manifestTypeTargetState struct {
-	pathReadable bool
-	readErr      error
-	validateErr  error
-	decodeErr    error
-	decoded      bool
-	envelope     bundleDocumentEnvelope
-}
-
 type authoritativeBundlePaths struct {
 	exact   map[string]struct{}
 	aliases map[string]struct{}
@@ -141,7 +132,6 @@ func Validate(fsys fs.FS) error {
 	propertyPath := anyblockjson.PropertiesFileName
 	dictionaryDeclared := false
 	dictionaryReadable := false
-	manifestTypeTargets := map[string]*manifestTypeTargetState{}
 	manifestRoles := map[string]map[string][]string{}
 	addManifestRole := func(name, role, field string) {
 		if name == "" {
@@ -163,17 +153,6 @@ func Validate(fsys fs.FS) error {
 			dictionaryDeclared = true
 			addManifestRole(propertyPath, "property dictionary", "manifest.properties")
 			dictionaryReadable = validateBundlePath(fsys, propertyPath, "manifest.properties", authoritativePaths, &issues)
-		}
-		for key, name := range idx.Manifest.Types {
-			field := manifestTypeField(key)
-			addManifestRole(name, "object type", field)
-			readable := validateBundlePath(fsys, name, field, authoritativePaths, &issues)
-			state := manifestTypeTargets[name]
-			if state == nil {
-				state = &manifestTypeTargetState{}
-				manifestTypeTargets[name] = state
-			}
-			state.pathReadable = state.pathReadable || readable
 		}
 	}
 	if !dictionaryDeclared {
@@ -252,40 +231,6 @@ func Validate(fsys fs.FS) error {
 		}
 		documentPaths[envelope.ID] = name
 		documentKinds[envelope.ID] = envelope.Kind
-	}
-
-	// A manifest type target is authoritative. Classify the exact path here,
-	// independent of extension and basename, while the field-to-target state
-	// remains available for precise binding diagnostics below. The generic
-	// walk skips every such path, preventing both dictionary/blob dispatch and
-	// duplicate derivative issues from overriding the manifest's declared role.
-	manifestTypePaths := make([]string, 0, len(manifestTypeTargets))
-	for name := range manifestTypeTargets {
-		manifestTypePaths = append(manifestTypePaths, name)
-	}
-	sort.Strings(manifestTypePaths)
-	for _, name := range manifestTypePaths {
-		state := manifestTypeTargets[name]
-		if !state.pathReadable {
-			continue
-		}
-		data, readErr := fs.ReadFile(fsys, name)
-		if readErr != nil {
-			state.readErr = readErr
-			continue
-		}
-		if validateErr := anyblockjson.Validate(data, anyblockjson.Options{}); validateErr != nil {
-			state.validateErr = validateErr
-			continue
-		}
-		if decodeErr := json.Unmarshal(data, &state.envelope); decodeErr != nil {
-			state.decodeErr = decodeErr
-			continue
-		}
-		state.decoded = true
-		authoringDocuments[name] = data
-		recordPropertyUses(name, data)
-		recordDocument(name, state.envelope)
 	}
 
 	err = fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, walkErr error) error {
@@ -392,44 +337,6 @@ func Validate(fsys fs.FS) error {
 				issues = append(issues, fmt.Sprintf("manifest.files[%s] names a %q document, not a file_object", id, kind))
 			}
 		}
-		for key, name := range idx.Manifest.Types {
-			field := manifestTypeField(key)
-			state := manifestTypeTargets[name]
-			if state == nil || !state.pathReadable {
-				continue
-			}
-			if state.readErr != nil {
-				issues = append(issues, fmt.Sprintf("%s cannot read target %q: %v", field, name, state.readErr))
-				continue
-			}
-			if state.validateErr != nil {
-				issues = append(issues, fmt.Sprintf("%s target %q is invalid: %v", field, name, state.validateErr))
-				continue
-			}
-			if state.decodeErr != nil || !state.decoded {
-				issues = append(issues, fmt.Sprintf("%s cannot decode target %q envelope: %v", field, name, state.decodeErr))
-				continue
-			}
-			if state.envelope.Kind != "object_type" && state.envelope.Kind != "bundled_object_type" {
-				issues = append(issues, fmt.Sprintf("%s points to %q, which declares kind %q, not an object type", field, name, state.envelope.Kind))
-				continue
-			}
-			if state.envelope.ID == "" {
-				issues = append(issues, fmt.Sprintf("%s points to %q, whose object-type document must declare a non-empty id", field, name))
-			}
-			declared := state.envelope.InternalKey
-			if declared == "" {
-				issues = append(issues, fmt.Sprintf("%s points to %q, whose object-type document must declare a non-empty internal_key", field, name))
-			}
-			if declared == "" {
-				continue
-			}
-			storedKey := anyblockjson.StoredTypeKey(key)
-			if declared != storedKey {
-				issues = append(issues, fmt.Sprintf("%s resolves to stored type key %q, "+
-					"but %q declares internal_key %q", field, storedKey, name, declared))
-			}
-		}
 	}
 	if !dictionaryDeclared || dictionaryDecoded {
 		for key, sources := range propertyUses {
@@ -458,13 +365,6 @@ func Validate(fsys fs.FS) error {
 	}
 	sort.Strings(issues)
 	return fmt.Errorf("bundle validation failed:\n- %s", strings.Join(issues, "\n- "))
-}
-
-func manifestTypeField(key string) string {
-	if key == "" {
-		return `manifest.types[""]`
-	}
-	return "manifest.types[" + key + "]"
 }
 
 func appendManifestRoleIssues(bindings map[string]map[string][]string, issues *[]string) {

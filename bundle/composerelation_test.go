@@ -62,7 +62,7 @@ func referencePage(t *testing.T, c *Composer, spellings ...string) {
 	doc += `}`
 	omitted, _ := c.Observe(model.SmartBlockType_Page, page)
 	require.False(t, omitted)
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page, []byte(doc), "objects/bafypage.anyblock.json"))
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page, []byte(doc)))
 }
 
 // assertEntryStatesTable checks that an entry states the shipped table's
