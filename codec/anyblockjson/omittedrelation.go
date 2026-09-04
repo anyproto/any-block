@@ -7,17 +7,21 @@ package anyblockjson
 // Two predicates, two questions. OmittedRelation answers whether a snapshot
 // is a relation document at all — the kind alone, unconditional, the shape
 // OmittedRelationOption has. OmittedBundledRelation answers the narrower
-// question that decides WHICH definition the omitted copy's entry states:
-// an installed copy whose definition restates the bundled table travels as
-// an entry stating the TABLE's definition — flagged `uninstalled` when the
-// user removed it (§15 #22) — and a reader reconstructs the object from its
-// own table; every other relation, a divergent copy or a space-minted
-// property, travels as an entry stating its STORED definition. Either entry
-// is written only when something references the key (§2f: an unreferenced
-// property is not exported at all). There is no separate list of installed
-// keys (§15 #24): the entry is the one statement, and the predicate's
-// verdict is what licenses stating the table for a copy rather than the
-// copy itself.
+// question of whether an installed copy of a bundled property still
+// restates the shipped table. Every relation travels as a dictionary entry
+// stating its STORED definition, complete — there is one entry shape, no
+// reduced form for a bundled key (§15 #25) — flagged `uninstalled` when
+// the user removed it (§15 #22); the predicate's verdict adds two things
+// to that. A copy it refuses on a key the table names is flagged
+// `bundled_modified`: the copy diverged at export time, which only the
+// export can know, so a reader takes the entry over its own table. A copy
+// it admits has a reconstruction — key → the reader's own table — that the
+// composer verifies against the snapshot through the round-trip comparator,
+// so the trip a table-shipping reader may take instead of the entry is
+// proven lossless. Either way the entry is written only when something
+// references the key (§2f: an unreferenced property is not exported at
+// all), and there is no separate list of installed keys (§15 #24): the
+// entry is the one statement.
 //
 // Measured over the 38,061-document corpus: 9,675 of 10,617 relation
 // documents are installed copies of the 194 bundled relations, and ~98% of
@@ -28,9 +32,9 @@ package anyblockjson
 // it admits is an identity claim: a detail key it cannot classify, a stored
 // value of an alien kind, a block the format preserves, a definition member
 // that differs from the table — each DENIES the identical verdict, and the
-// property's entry states the stored definition instead. What that entry
-// cannot state is not failed closed on — there is no document left to keep
-// — but REPORTED: UnaccountedRelationDetails names it, the role
+// property's entry is flagged `bundled_modified`. What the entry cannot
+// state is not failed closed on — there is no document left to keep — but
+// REPORTED: UnaccountedRelationDetails names it, the role
 // UnaccountedOptionDetails plays for an option, so the composer raises an
 // Issue rather than losing anything in silence (§11).
 
@@ -178,18 +182,24 @@ func InstallStampedDefault(key string, v *types.Value) bool {
 
 // OmittedBundledRelation reports whether a relation snapshot is an installed
 // copy whose definition is field-identical to the bundled table — the §2f
-// identical rule: the composition writes an entry stating the TABLE's
-// definition for the key, when something references it, and a reader
-// reconstructs the object from the table. The verdict is the omission's
-// proof — the composer verifies the reconstruction against the copy through
-// the round-trip comparator — and it decides which definition the entry
-// states: a copy this predicate refuses travels as an entry stating its
-// STORED definition instead. The returned key is the bundled key the entry
-// carries; the entry is flagged `uninstalled` when UninstalledRelation
-// reports the copy removed (§15 #22), which the composer asks second.
-// Whether the DOCUMENT goes is not this predicate's question: no relation
-// document is written (OmittedRelation, §15 #23), and there is no list of
-// installed keys for the verdict to decide either (§15 #24).
+// identity check. The verdict does two things and selects no entry shape:
+// every entry states the copy's stored definition, complete (§15 #25). An
+// admitted copy has a reconstruction — key → the reader's own table,
+// InstalledRelationDetails — that the composer verifies against the copy
+// through the round-trip comparator, the proof that a reader restoring the
+// key from its table loses nothing. A REFUSED copy on a key the table
+// names is flagged `bundled_modified` on its entry: the copy diverged from
+// the table at export time, a fact a reader cannot recover once the table
+// has moved, so the entry outranks the reader's table for that key. The
+// verdict is fail-closed, so the flag follows it: a copy refused for an
+// unclassified detail or a block on its page is flagged too, and its entry
+// then equals the table, which costs the reader nothing. The returned key
+// is the bundled key; the entry is flagged `uninstalled` besides when
+// UninstalledRelation reports the copy removed (§15 #22), which the
+// composer asks second. Whether the DOCUMENT goes is not this predicate's
+// question: no relation document is written (OmittedRelation, §15 #23),
+// and there is no list of installed keys for the verdict to decide either
+// (§15 #24).
 //
 // opts matters for one member: relationFormatObjectTypes stores type OBJECT
 // ids (an install rewrites the table's bundled urls to the space's derived
@@ -265,11 +275,11 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 }
 
 // OmittedRelation reports a relation document, which a bundle never writes
-// (§2f, §15 #23): the property dictionary states the definition — the
-// table's when OmittedBundledRelation admits the copy, the stored one
-// otherwise — and a property nothing references is not exported at all.
-// The kind alone decides, as for OmittedRelationOption; what the entry
-// cannot state is UnaccountedRelationDetails' report.
+// (§2f, §15 #23): the property dictionary states the stored definition,
+// complete, and a property nothing references is not exported at all. The
+// kind alone decides, as for OmittedRelationOption; what the entry cannot
+// state is UnaccountedRelationDetails' report, and whether a bundled key's
+// entry is flagged `bundled_modified` is OmittedBundledRelation's.
 func OmittedRelation(sbType model.SmartBlockType) bool {
 	return isPropertySmartBlock(sbType)
 }

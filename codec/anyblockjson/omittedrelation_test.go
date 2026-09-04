@@ -234,7 +234,9 @@ func TestOmittedBundledRelation_UninstalledCopyOmits(t *testing.T) {
 // dictionary entry states the definition, and the kind alone decides — the
 // same unconditional shape as OmittedRelationOption. OmittedBundledRelation
 // keeps its job beside it, which is a different question: whether the
-// omitted copy's entry states the table's definition or the stored one.
+// omitted copy still restates the table — verified through the
+// reconstruction when it does, flagged `bundled_modified` when it does not
+// (§15 #25).
 func TestOmittedRelation(t *testing.T) {
 	assert.True(t, OmittedRelation(model.SmartBlockType_STRelation))
 	assert.True(t, OmittedRelation(model.SmartBlockType_BundledRelation))

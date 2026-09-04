@@ -66,8 +66,8 @@ func testSpaceSnapshot() *model.SmartBlockSnapshotBase {
 
 // testInstalledCopy is a field-identical installed copy of a bundled
 // relation — the identical-copy case (§2f): omitted, verified against the
-// table, and entered as the table's definition when referenced — install
-// provenance and all.
+// table, and entered as its stored definition — the table's, complete —
+// when referenced, install provenance and all.
 func testInstalledCopy(t *testing.T, key string) *model.SmartBlockSnapshotBase {
 	t.Helper()
 	det, ok := anyblockjson.InstalledRelationDetails(key, anyblockjson.Options{})
@@ -148,8 +148,8 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	assert.Equal(t, anyblockjson.PropertiesFileName, idx.Manifest.Properties)
 
 	// the dictionary: one entry per USED key — the identical copy's states
-	// the table's definition, and the minted vocabulary sits inline on the
-	// property that owns it
+	// its stored definition, complete, which is the table's, and the minted
+	// vocabulary sits inline on the property that owns it
 	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
 	require.NoError(t, err)
 	byKey := map[string]anyblockjson.PropertyDefinition{}
@@ -158,6 +158,8 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	}
 	require.Contains(t, byKey, "dueDate", "referenced by the page, so an entry (§15 #24)")
 	assert.Equal(t, "Due date", byKey["dueDate"].Name)
+	assert.Equal(t, int64(1), byKey["dueDate"].MaxCount, "complete, not reduced: the table's max count travels (§15 #25)")
+	assert.False(t, byKey["dueDate"].BundledModified)
 	require.Contains(t, byKey, "tag")
 	require.Len(t, byKey["tag"].Options, 1)
 	assert.Equal(t, "urgent", byKey["tag"].Options[0].Name)

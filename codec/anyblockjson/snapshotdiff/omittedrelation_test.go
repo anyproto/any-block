@@ -2,8 +2,9 @@ package snapshotdiff
 
 // omittedrelation_test.go pins the comparator's side of the §2f omission: a
 // bundled-identical relation document travels as a dictionary entry stating
-// the table's definition, and what comes back is the reader's
-// reconstruction from the bundled table.
+// its definition — complete, and equal to the table's — and what a reader
+// that ships the table may build instead is its own reconstruction from
+// that table, which is what comes back here.
 // The two skips that trip needs — install artifacts absent, definition
 // defaults stamped — are scoped to snapshots the omission predicate itself
 // admits, so the ordinary document round trip keeps its full sensitivity.

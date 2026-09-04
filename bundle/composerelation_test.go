@@ -1,14 +1,15 @@
 package bundle
 
-// composerelation_test.go pins §15 #23 on the composer: a bundle writes no
-// property document. Every relation snapshot is omitted; the dictionary
-// states the definition of each one something references — the table's for
-// an installed copy the predicate proved identical to it, the stored one for
-// a divergent copy or a space-minted property — and a property nothing
+// composerelation_test.go pins §15 #23 and #25 on the composer: a bundle
+// writes no property document. Every relation snapshot is omitted; the
+// dictionary states the COMPLETE definition of each one something references
+// — its stored definition, which for an installed copy the predicate proved
+// identical to the table equals the table's — and a property nothing
 // references is not exported at all: no entry, no Issue, no counter. Nothing
 // names the key, so there is no value to explain and no format to look up.
 // There is no `installed` list and no exemption for a divergent copy (§15
-// #24): used-only governs every entry.
+// #24): used-only governs every entry. A bundled key whose copy diverged is
+// flagged `bundled_modified`; one shape, no reduced form (§15 #25).
 
 import (
 	"testing"
@@ -18,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/anyproto/any-block/codec/anyblockjson"
+	"github.com/anyproto/any-block/codec/anyblockjson/domain"
+	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
@@ -62,14 +65,41 @@ func referencePage(t *testing.T, c *Composer, spellings ...string) {
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page, []byte(doc), "objects/bafypage.anyblock.json"))
 }
 
+// assertEntryStatesTable checks that an entry states the shipped table's
+// definition COMPLETELY — every member, not the `{key, name, format,
+// object_types}` a reduced entry once carried on the reasoning that a reader
+// fills the rest from its own table (§15 #25). Read off the table rather
+// than spelled here, so the test pins the rule and not one revision of the
+// table.
+func assertEntryStatesTable(t *testing.T, def anyblockjson.PropertyDefinition, key string) {
+	t.Helper()
+	rel, err := vocabulary.GetRelation(domain.RelationKey(key))
+	require.NoError(t, err)
+	assert.Equal(t, rel.Name, def.Name)
+	assert.Equal(t, rel.Format, def.Format)
+	assert.Equal(t, rel.Description, def.Description)
+	assert.Equal(t, int64(rel.MaxCount), def.MaxCount)
+	assert.Equal(t, rel.ReadOnly, def.Readonly)
+	assert.Equal(t, rel.Hidden, def.Hidden)
+	require.NotNil(t, def.IncludeTime, "an install states the whole definition, include-time with it")
+	assert.Equal(t, rel.IncludeTime, *def.IncludeTime)
+	assert.False(t, def.BundledModified, "the table's own definition is by definition unmodified")
+}
+
 // How this can fail: keep a relation document for a space-minted property
 // (the first assertion of every case — `properties/` comes back); source
 // the entry from the resolver rather than the observed snapshot (`hidden`
 // never reaches the entry, and a resolver-less composition writes no entry
 // at all); carry an unreferenced property anyway (every "unreferenced" case
 // finds an entry nothing needs); state the table's definition for a
-// divergent copy (the user's rename is lost); or put the `installed` list
-// back (the bytes carry a member the schema refuses).
+// divergent copy (the user's rename is lost); write a REDUCED entry for a
+// bundled key (the identical and no-copy cases find a description, a max
+// count, a hidden bit missing — a reader without Anytype's table cannot
+// interpret the export, §15 #25); forget the flag on a divergent copy (a
+// restore installs the table's version over the user's, once the table
+// moves); flag a space-minted property (the flag stops meaning "bundled and
+// changed"); or put the `installed` list back (the bytes carry a member the
+// schema refuses).
 func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 	const key = "67e31405450a5dcab2fa75aa"
 	t.Run("a space-minted property, referenced", func(t *testing.T) {
@@ -93,6 +123,8 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.True(t, def.Readonly)
 		assert.True(t, def.Hidden, "the store hid it, and the entry is the only place that can say so")
 		assert.False(t, def.Uninstalled)
+		assert.False(t, def.BundledModified, "not a bundled property: the flag says nothing about it")
+		assert.NotContains(t, string(dictData), `"bundled_modified"`)
 		assert.Equal(t, 1, stats.DictionaryEntries)
 		assert.Equal(t, 1, stats.OmittedDocs)
 	})
@@ -135,9 +167,41 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		require.NoError(t, err)
 		_, byKey := dictionaryByKey(t, dictData)
 		require.Contains(t, byKey, "dueDate")
-		assert.Equal(t, "Deadline", byKey["dueDate"].Name, "the stored definition, not the table's: the user's rename travels")
+		def := byKey["dueDate"]
+		assert.Equal(t, "Deadline", def.Name, "the stored definition, not the table's: the user's rename travels")
+		assert.True(t, def.BundledModified, "the copy diverged at export time, and only the export could know (§15 #25)")
+		assert.Contains(t, string(dictData), `"bundled_modified": true`)
+		// the rest of the stored definition travels with the rename — the
+		// entry is complete, as every entry is
+		rel, err := vocabulary.GetRelation("dueDate")
+		require.NoError(t, err)
+		assert.Equal(t, rel.Format, def.Format)
+		assert.Equal(t, int64(rel.MaxCount), def.MaxCount)
+		require.NotNil(t, def.IncludeTime)
+		assert.Equal(t, rel.IncludeTime, *def.IncludeTime)
 		assert.Equal(t, 1, stats.DictionaryEntries)
 		assert.NotContains(t, string(dictData), `"installed"`, "the list is gone (§15 #24)")
+	})
+	t.Run("a copy refused for a non-definition reason is modified too", func(t *testing.T) {
+		// the predicate is fail-closed: an unclassified detail denies the
+		// identical verdict even when every definition member matches, and
+		// the flag follows the verdict — the entry it points at then equals
+		// the table, so taking it costs a reader nothing
+		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		copy := testInstalledCopy(t, "dueDate")
+		copy.Details.Fields["isFavorite"] = boolVal(true)
+		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
+		require.True(t, omitted)
+		require.Len(t, issues, 1, "what the entry cannot state is reported")
+		assert.Contains(t, issues[0].Detail, "isFavorite")
+		referencePage(t, c, "due_date")
+
+		_, dictData, _, err := c.Finish()
+		require.NoError(t, err)
+		_, byKey := dictionaryByKey(t, dictData)
+		require.Contains(t, byKey, "dueDate")
+		assert.True(t, byKey["dueDate"].BundledModified, "refused is refused: the verdict is the predicate's, not a member diff")
+		assert.Equal(t, "Due date", byKey["dueDate"].Name)
 	})
 	t.Run("a divergent installed copy, unreferenced", func(t *testing.T) {
 		c := NewComposer(anyblockjson.Options{}, "Corpus")
@@ -165,11 +229,59 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		require.NoError(t, err)
 		_, byKey := dictionaryByKey(t, dictData)
 		require.Contains(t, byKey, "dueDate", "a referenced property is an entry, bundled or not")
-		assert.Equal(t, "Due date", byKey["dueDate"].Name, "the table's definition: the predicate proved the copy restates it")
+		assert.Equal(t, "Due date", byKey["dueDate"].Name, "the stored definition, which the predicate proved restates the table")
 		assert.Equal(t, model.RelationFormat_date, byKey["dueDate"].Format)
 		assert.False(t, byKey["dueDate"].Uninstalled)
+		assertEntryStatesTable(t, byKey["dueDate"], "dueDate")
+		assert.NotContains(t, string(dictData), `"bundled_modified"`, "unmodified is the absent form")
 		assert.Equal(t, 1, stats.DictionaryEntries)
 		assert.NotContains(t, string(dictData), `"installed"`, "the list is gone (§15 #24)")
+	})
+	t.Run("an identical installed copy states every member the table holds", func(t *testing.T) {
+		// dueDate's table row is mostly empty, so it cannot tell a complete
+		// entry from a reduced one; createdDate carries a description, a max
+		// count and include-time, and `name` is hidden — each a member the
+		// reduced form left for the reader's table to supply
+		for _, key := range []string{"createdDate", "name"} {
+			c := NewComposer(anyblockjson.Options{}, "Corpus")
+			omitted, issues := c.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, key))
+			require.True(t, omitted)
+			require.Empty(t, issues)
+			referencePage(t, c, key)
+			_, dictData, _, err := c.Finish()
+			require.NoError(t, err)
+			_, byKey := dictionaryByKey(t, dictData)
+			require.Contains(t, byKey, key)
+			assertEntryStatesTable(t, byKey[key], key)
+		}
+		rel, err := vocabulary.GetRelation("createdDate")
+		require.NoError(t, err)
+		require.NotEmpty(t, rel.Description, "the fixture key must carry what a reduced entry dropped")
+		require.True(t, rel.IncludeTime)
+		hidden, err := vocabulary.GetRelation("name")
+		require.NoError(t, err)
+		require.True(t, hidden.Hidden)
+	})
+	t.Run("a referenced bundled key with no copy in the space", func(t *testing.T) {
+		// the Finish fallback: nothing observed, the shipped table is the
+		// source — and the entry it writes is the SAME entry an observed
+		// identical copy produces, byte for byte. One shape (§15 #25).
+		fromTable := NewComposer(anyblockjson.Options{}, "Corpus")
+		referencePage(t, fromTable, "createdDate")
+		_, tableData, stats, err := fromTable.Finish()
+		require.NoError(t, err)
+		assert.Empty(t, stats.OrphanUsedKeys)
+		_, byKey := dictionaryByKey(t, tableData)
+		require.Contains(t, byKey, "createdDate")
+		assertEntryStatesTable(t, byKey["createdDate"], "createdDate")
+
+		fromCopy := NewComposer(anyblockjson.Options{}, "Corpus")
+		omitted, _ := fromCopy.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, "createdDate"))
+		require.True(t, omitted)
+		referencePage(t, fromCopy, "createdDate")
+		_, copyData, _, err := fromCopy.Finish()
+		require.NoError(t, err)
+		assert.Equal(t, string(copyData), string(tableData), "observed or not, an unmodified bundled property is one entry")
 	})
 	t.Run("an identical installed copy, unreferenced", func(t *testing.T) {
 		c := NewComposer(anyblockjson.Options{}, "Corpus")

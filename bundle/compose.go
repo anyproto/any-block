@@ -133,13 +133,14 @@ type Composer struct {
 	// entries are the definitions the space's own relation snapshots state,
 	// keyed by stored key — one per relation the emit observed, since no
 	// relation document is written (§15 #23) and the snapshot is the only
-	// source the dictionary has. An installed copy the predicate proved
-	// identical to the bundled table contributes the TABLE's definition; a
-	// divergent copy and a space-minted property contribute the STORED one
-	// (observeRelation); a removed copy contributes whichever of the two it
-	// is, flagged `uninstalled` (§15 #22). Finish writes the entries
-	// something references and nothing else: there is no `installed` list
-	// and no exemption for a divergent copy (§15 #24).
+	// source the dictionary has. Every snapshot contributes its STORED
+	// definition, complete (observeRelation): for an installed copy the
+	// predicate proved identical to the bundled table that is the table's
+	// definition, for a divergent copy it is the user's, flagged
+	// `bundled_modified` (§15 #25); a removed copy contributes the same,
+	// flagged `uninstalled` (§15 #22). Finish writes the entries something
+	// references and nothing else: there is no `installed` list and no
+	// exemption for a divergent copy (§15 #24).
 	entries map[string]anyblockjson.PropertyDefinition
 
 	typePaths map[string]string
@@ -295,67 +296,56 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 		}
 		return true, issues
 	}
-	// a relation document is never written (§2f, §15 #23). An installed
-	// copy field-identical to the bundled table travels as a dictionary
-	// entry stating the TABLE's definition, and the trip a reader takes
-	// INSTEAD — key → its own bundled table — is verified here through the
-	// same comparator as every ordinary round trip. The verdict is
-	// load-bearing for what is WRITTEN, not only for the report: it is what
-	// licenses stating the table for the copy rather than the copy itself,
-	// so the identical-vs-divergent distinction still decides which
-	// definition an entry states (§15 #24) — the table's here, the stored
-	// one in observeRelation. A copy the user REMOVED omits the same way and
-	// its entry carries `uninstalled`, verified against the reconstruction
-	// that restates the mark — a reader that recreates the entry writes
-	// exactly that (§15 #22). Whether the entry is WRITTEN is Finish's
-	// used-only question, as for every entry.
-	if key, ok := anyblockjson.OmittedBundledRelation(sbType, base, c.opts); ok {
-		def, _ := bundledDefinition(key) // the predicate matched the table on this key
-		var det *types.Struct
-		if anyblockjson.UninstalledRelation(base) {
-			def.Uninstalled = true
-			det, ok = anyblockjson.UninstalledRelationDetails(key, c.opts)
-		} else {
-			det, ok = anyblockjson.InstalledRelationDetails(key, c.opts)
-		}
-		c.entries[key] = def
-		if !ok {
-			return true, []Issue{{Category: IssueOmittedReconstruction,
-				Detail: fmt.Sprintf("bundled key %q has no reconstruction from the table", key)}}
-		}
-		var issues []Issue
-		got := &model.SmartBlockSnapshotBase{Details: det, ObjectTypes: base.ObjectTypes}
-		for _, d := range snapshotdiff.Compare(base, got, sbType, c.opts) {
-			issues = append(issues, Issue{Category: IssueOmittedReconstruction, Detail: d})
-		}
-		return true, issues
-	}
-	// every other relation — a divergent installed copy, a space-minted
-	// property — is omitted too, and its STORED definition is what the
-	// dictionary entry states, when Finish writes one. There is no
-	// reconstruction to verify: the omission is unconditional, so what the
-	// entry cannot state is reported instead, the option omission's rule.
+	// a relation document is never written (§2f, §15 #23): every relation
+	// snapshot — an installed copy of a bundled property, identical to the
+	// table or diverged from it, a space-minted property, a copy the user
+	// REMOVED — travels as a dictionary entry stating its STORED definition,
+	// complete, when something references the key (Finish's used-only
+	// question, as for every entry). There is one entry shape (§15 #25): an
+	// unmodified copy's stored definition IS the table's, so what a reader
+	// meets never depends on whether it ships Anytype's table. The identity
+	// predicate still decides two things — whether a bundled key's entry is
+	// flagged `bundled_modified`, and whether there is a reconstruction (the
+	// trip a table-shipping reader takes, key → its own table) to verify
+	// through the round-trip comparator — and observeRelation does both.
 	if anyblockjson.OmittedRelation(sbType) {
-		return true, c.observeRelation(base)
+		return true, c.observeRelation(sbType, base)
 	}
 	return false, nil
 }
 
 // observeRelation records one omitted relation snapshot's contribution to
-// the dictionary (§2f, §15 #23): its stored definition, `hidden` and
-// `uninstalled` included, under its stored key — for a divergent installed
-// copy the copy's definition and not the table's, which is what carries the
-// user's rename. Whether the entry is WRITTEN is Finish's question:
-// something must reference the key (§15 #24). Called with the composer's
-// mutex held.
+// the dictionary (§2f, §15 #23, #25): its stored definition, complete —
+// `hidden` and `uninstalled` included — under its stored key, which for a
+// divergent installed copy is what carries the user's rename and for an
+// identical one restates the table. Whether the entry is WRITTEN is
+// Finish's question: something must reference the key (§15 #24). Called
+// with the composer's mutex held.
+//
+// The identity predicate's verdict does two things here and nothing else.
+// A copy it REFUSES on a key the shipped table names is flagged
+// `bundled_modified`: the copy diverged from the table at export time, a
+// fact only the export can know — the table moves, and a later reader
+// cannot tell the user's rename from the table's — so a reader takes the
+// entry over its own table for that key. The verdict is the predicate's
+// fail-closed one, not a member diff: a copy refused for an unclassified
+// detail or a block on its page is flagged too, and the entry it points at
+// then equals the table, which costs the reader nothing. A copy it ADMITS
+// gets its reconstruction — key → the reader's table, plus the removal
+// mark when UninstalledRelation reports the copy removed (§15 #22) —
+// verified against the snapshot through the same comparator as every
+// ordinary round trip, so the trip a table-shipping reader may take
+// instead of reading the entry is proven lossless.
 //
 // A snapshot that states no key contributes nothing the dictionary can
 // carry, and with no document travelling either it would vanish without a
 // trace — that is one loss this omission can produce, and it is reported.
 // The other is a detail or a block the entry cannot state
 // (UnaccountedRelationDetails): named per snapshot, the difference between
-// this omission and a silent one.
-func (c *Composer) observeRelation(base *model.SmartBlockSnapshotBase) []Issue {
+// this omission and a silent one. An admitted copy carries none by
+// construction — the predicate classified every key — so the report runs
+// on refused snapshots only.
+func (c *Composer) observeRelation(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) []Issue {
 	det := base.GetDetails().GetFields()
 	key := det["relationKey"].GetStringValue()
 	if key == "" {
@@ -365,13 +355,34 @@ func (c *Composer) observeRelation(base *model.SmartBlockSnapshotBase) []Issue {
 	}
 	def := storedRelationDefinition(base, c.opts)
 	def.Uninstalled = anyblockjson.UninstalledRelation(base)
+	_, identical := anyblockjson.OmittedBundledRelation(sbType, base, c.opts)
+	def.BundledModified = !identical && vocabulary.HasRelation(domain.RelationKey(key))
 	c.entries[key] = def
-	if extra := anyblockjson.UnaccountedRelationDetails(base); len(extra) > 0 {
-		return []Issue{{Category: IssueOmittedReconstruction,
-			Detail: fmt.Sprintf("relation %q (property %q) carries %s, which its dictionary entry does not state",
-				det["id"].GetStringValue(), key, strings.Join(extra, ", "))}}
+	if !identical {
+		if extra := anyblockjson.UnaccountedRelationDetails(base); len(extra) > 0 {
+			return []Issue{{Category: IssueOmittedReconstruction,
+				Detail: fmt.Sprintf("relation %q (property %q) carries %s, which its dictionary entry does not state",
+					det["id"].GetStringValue(), key, strings.Join(extra, ", "))}}
+		}
+		return nil
 	}
-	return nil
+	var rebuilt *types.Struct
+	var ok bool
+	if def.Uninstalled {
+		rebuilt, ok = anyblockjson.UninstalledRelationDetails(key, c.opts)
+	} else {
+		rebuilt, ok = anyblockjson.InstalledRelationDetails(key, c.opts)
+	}
+	if !ok {
+		return []Issue{{Category: IssueOmittedReconstruction,
+			Detail: fmt.Sprintf("bundled key %q has no reconstruction from the table", key)}}
+	}
+	var issues []Issue
+	got := &model.SmartBlockSnapshotBase{Details: rebuilt, ObjectTypes: base.ObjectTypes}
+	for _, d := range snapshotdiff.Compare(base, got, sbType, c.opts) {
+		issues = append(issues, Issue{Category: IssueOmittedReconstruction, Detail: d})
+	}
+	return issues
 }
 
 // ObserveWritten records one emitted document: its place for the manifest —
@@ -900,9 +911,11 @@ type storedOption struct {
 }
 
 // storedRelationDefinition reads the definition a relation snapshot states,
-// off its stored details — the §2f full entry for a space-minted property
-// or a divergent installed copy, now that no relation document is written
-// (§15 #23). Members mirror what a property document would have carried,
+// off its stored details — the §2f entry for every relation the emit
+// observes, now that no relation document is written (§15 #23) and no
+// entry is reduced (§15 #25): a space-minted property, a divergent
+// installed copy, and an identical one, whose stored definition restates
+// the table. Members mirror what a property document would have carried,
 // plus `hidden`, which only the entry can carry. Read through coercing
 // getters: a member stored under an alien kind is named by
 // UnaccountedRelationDetails rather than guessed at here.
@@ -967,31 +980,23 @@ func resolvedDefinition(key string, opts anyblockjson.Options) (anyblockjson.Pro
 	return anyblockjson.PropertyDefinition{}, false
 }
 
-// bundledDefinition is the dictionary entry the bundled table states for
-// one of its keys — what the composer writes for a used bundled key with no
-// snapshot of its own, and for an installed copy the predicate proved
-// identical to the table, removed or not (§2f, §15 #24). The same members
-// InstalledRelationDetails restates.
+// bundledDefinition is the dictionary entry for a used bundled key with no
+// snapshot of its own — a referenced property the space never installed —
+// which Finish writes from the shipped table. It is read off the table's
+// RECONSTRUCTION (InstalledRelationDetails, the details a fresh install
+// writes) through the same reader every observed snapshot goes through, so
+// the entry is the one an observed unmodified copy produces, byte for
+// byte: one shape (§15 #25), and one statement of what an installed copy
+// looks like. Complete, like every entry — description, max count,
+// readonly, include-time and hidden included — so a reader that does not
+// ship the table can still interpret the key. Bundled target urls turn
+// into type keys on the way (§2d's chain); no resolver is needed for that.
 func bundledDefinition(key string) (anyblockjson.PropertyDefinition, bool) {
-	rel, err := vocabulary.GetRelation(domain.RelationKey(key))
-	if err != nil {
+	det, ok := anyblockjson.InstalledRelationDetails(key, anyblockjson.Options{})
+	if !ok {
 		return anyblockjson.PropertyDefinition{}, false
 	}
-	return anyblockjson.PropertyDefinition{
-		Key: domain.RelationKey(key), Name: rel.Name, Format: rel.Format,
-		ObjectTypes: bundledTargetKeys(rel.ObjectTypes),
-	}, true
-}
-
-// bundledTargetKeys turns the bundled table's target urls into type keys.
-func bundledTargetKeys(urls []string) []string {
-	var out []string
-	for _, u := range urls {
-		if k, err := vocabulary.TypeKeyFromUrl(u); err == nil {
-			out = append(out, string(k))
-		}
-	}
-	return out
+	return storedRelationDefinition(&model.SmartBlockSnapshotBase{Details: det}, anyblockjson.Options{}), true
 }
 
 // sortedEntryKeys lists a map's keys in order — the canonical entry order.

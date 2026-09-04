@@ -435,6 +435,83 @@ func TestPropertyDictionary_HiddenEntry(t *testing.T) {
 	})
 }
 
+// An entry may state `bundled_modified: true` — the space's copy of a
+// BUNDLED property had diverged from the shipped table when the bundle was
+// written (§2f, §15 #25). The verdict is only knowable at export time: an
+// importer could diff the entry against its own table, but the table moves
+// between app versions, and once it does a later importer cannot tell the
+// user's rename from the table's. The member is the dictionary's third owned
+// one, on `uninstalled`'s footing exactly: refused by the shape's other two
+// homes and by the authoring subset, written `true` only. It is NOT a
+// `bundled` flag (§15 #24): absent says "not bundled, or bundled and
+// unmodified", and the table lookup still tells which.
+//
+// How this can fail: leave the member off the schema's dictionaryEntry (the
+// round trip is refused on read); write it from the shared member renderer
+// (a type declaration starts carrying a verdict about a space it never
+// saw); or read it through the shared builder (the PATCH-type channel
+// starts overriding bundled properties).
+func TestPropertyDictionary_BundledModifiedEntry(t *testing.T) {
+	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
+		in := &PropertyDictionary{
+			Properties: []PropertyDefinition{
+				{Key: "dueDate", Name: "Deadline", Format: model.RelationFormat_date, BundledModified: true},
+				{Key: "createdDate", Name: "Creation date", Format: model.RelationFormat_date},
+				{Key: "6a32d4856761631534b22f85", Name: "Budget", Format: model.RelationFormat_number},
+			},
+		}
+		data, err := MarshalPropertyDictionary(in, Options{})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"bundled_modified": true`)
+		assert.Equal(t, 1, strings.Count(string(data), "bundled_modified"), "a false flag is not written")
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		data2, err := MarshalPropertyDictionary(got, Options{})
+		require.NoError(t, err)
+		assert.Equal(t, string(data), string(data2))
+		byKey := map[domain.RelationKey]PropertyDefinition{}
+		for _, def := range got.Properties {
+			byKey[def.Key] = def
+		}
+		assert.True(t, byKey["dueDate"].BundledModified)
+		assert.False(t, byKey["createdDate"].BundledModified, "absent: bundled and unmodified")
+		assert.False(t, byKey["6a32d4856761631534b22f85"].BundledModified, "absent: not bundled at all")
+	})
+	t.Run("beside uninstalled and hidden on one entry", func(t *testing.T) {
+		data, err := MarshalPropertyDictionary(&PropertyDictionary{
+			Properties: []PropertyDefinition{{Key: "tag", Name: "Labels", Format: model.RelationFormat_tag,
+				Hidden: true, Uninstalled: true, BundledModified: true}},
+		}, Options{})
+		require.NoError(t, err)
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		require.Len(t, got.Properties, 1)
+		assert.True(t, got.Properties[0].Hidden)
+		assert.True(t, got.Properties[0].Uninstalled)
+		assert.True(t, got.Properties[0].BundledModified)
+	})
+	t.Run("a non-boolean is refused", func(t *testing.T) {
+		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"property":"Due date","format":"date","bundled_modified":"yes"}]}`), Options{})
+		require.Error(t, err)
+	})
+	t.Run("the other two homes refuse it", func(t *testing.T) {
+		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
+			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","bundled_modified":true}]}}`)
+		require.Error(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
+		relDoc := []byte(`{"formatVersion":"2.0","id":"r1","kind":"property","type":"Property",
+			"internal_key":"dueDate","property_settings":{"format":"date","bundled_modified":true}}`)
+		require.Error(t, Validate(relDoc, Options{}), "a property document's property_settings")
+	})
+	t.Run("the authoring subset does not admit it", func(t *testing.T) {
+		// an author has no space whose copy could have diverged: the member
+		// is an export-time verdict, like internal_key
+		err := ValidateAuthoringPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"name":"Streak","format":"number","bundled_modified":true}]}`))
+		require.Error(t, err)
+	})
+}
+
 // `installed` is not a member of the dictionary, and the schema refuses it.
 // The list once named the bundled properties present in the space —
 // presence without definition — and was retired (§2f, §15 #24): every

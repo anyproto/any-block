@@ -135,18 +135,20 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 	// (§2f) — and references the shape across files by its published URL,
 	// the way the index schema references plainIcon. Same discipline: a
 	// layer of narrowings (`object_types` back to a real array) plus the
-	// home's own requirements, closed with unevaluatedProperties. One
-	// member is the dictionary's OWN rather than a narrowing:
-	// `uninstalled` (§15 #22), which means nothing on a type's declaration
-	// or a property document's settings, so it lives on the entry's layer
-	// and NOT on the shared shape — which is what makes the other two
-	// homes refuse it, as this one refuses their `section`.
+	// home's own requirements, closed with unevaluatedProperties. Three
+	// members are the dictionary's OWN rather than narrowings:
+	// `uninstalled` (§15 #22), `hidden` (§15 #23) and `bundled_modified`
+	// (§15 #25), each of which means nothing on a type's declaration or a
+	// property document's settings, so they live on the entry's layer and
+	// NOT on the shared shape — which is what makes the other two homes
+	// refuse them, as this one refuses their `section`.
 	//
 	// How this can fail: restate the ten members inside
 	// properties.schema.json instead of the $ref (drift starts), widen the
-	// entry's layer beyond the narrowing and the owned member, move
-	// `uninstalled` onto propertyDefinition (a type declaration starts
-	// admitting a flag it cannot act on), or reopen the entry by deleting
+	// entry's layer beyond the narrowing and the owned members, move an
+	// owned member onto propertyDefinition (a type declaration starts
+	// admitting a flag it cannot act on — a removal, a hidden bit, or a
+	// verdict about a space it never saw), or reopen the entry by deleting
 	// its unevaluatedProperties gate.
 	var propSchema struct {
 		Defs map[string]schemaNode `json:"$defs"`
@@ -168,14 +170,14 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 		if string(raw) == "false" {
 			continue
 		}
-		assert.Truef(t, m == "object_types" || m == "uninstalled" || m == "hidden",
-			"dictionaryEntry restates %q — its layer holds the one narrowing and the two dictionary-owned members only", m)
+		assert.Truef(t, m == "object_types" || m == "uninstalled" || m == "hidden" || m == "bundled_modified",
+			"dictionaryEntry restates %q — its layer holds the one narrowing and the three dictionary-owned members only", m)
 	}
 	var objSchema struct {
 		Defs map[string]schemaNode `json:"$defs"`
 	}
 	require.NoError(t, json.Unmarshal(schemaJSON, &objSchema))
-	for _, owned := range []string{"uninstalled", "hidden"} {
+	for _, owned := range []string{"uninstalled", "hidden", "bundled_modified"} {
 		_, onEntry := entry.Properties[owned]
 		assert.Truef(t, onEntry, "`%s` is a member of the dictionary entry's own layer (§2f)", owned)
 		_, shared := objSchema.Defs["propertyDefinition"].Properties[owned]

@@ -96,6 +96,21 @@ type PropertyDefinition struct {
 	// says where a property sits on ONE type; Hidden says whether the
 	// property is shown at all.
 	Hidden bool
+	// BundledModified records that the space's copy of a BUNDLED property
+	// — a key the shipped table names — had DIVERGED from the table when
+	// the bundle was written: OmittedBundledRelation refused the copy, so
+	// the entry states the user's version, and a reader restoring the key
+	// must take the entry over its own table. The verdict is only knowable
+	// at export time — a reader could diff the entry against its table, but
+	// the table moves between app versions, and once it has a later reader
+	// cannot tell the user's rename from the table's — which is why it is a
+	// member and not a derivation. Absent says "not a bundled property, or
+	// bundled and unmodified"; the table lookup a reader already runs (§15
+	// #24) tells those apart, so this is NOT a `bundled` flag. The third
+	// dictionary-owned member (§2f, §15 #25), on Uninstalled's footing:
+	// refused on the shape's other two homes and by the authoring subset,
+	// written `true` only.
+	BundledModified bool
 }
 
 // OptionDefinition is one entry of a declared select vocabulary (§2a). Color
@@ -352,6 +367,10 @@ type TypeProperty struct {
 	// Hidden is the dictionary's second owned member (§2f, §15 #23), on the
 	// same footing as Uninstalled.
 	Hidden bool `json:"hidden"`
+	// BundledModified is the dictionary's third owned member (§2f, §15
+	// #25): the space's copy of a bundled property diverged from the shipped
+	// table at export time, so the entry outranks the reader's table.
+	BundledModified bool `json:"bundled_modified"`
 }
 
 // UnmarshalJSON preserves two facts encoding/json otherwise collapses:

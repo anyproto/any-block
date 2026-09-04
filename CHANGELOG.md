@@ -20,3 +20,9 @@
   from a space-minted one by its own shipped table. The divergence exemption
   and the installed/uninstalled refusal go with the list, and so does
   `Stats.DictionaryInstalled`.
+- Every dictionary entry states the complete definition: the reduced
+  `{key, name, format, object_types}` entry for a bundled key is gone, so a
+  reader interprets an export without Anytype's shipped table. A new
+  entry member, `bundled_modified`, records that a bundled property's copy
+  had diverged from the table at export time — knowable only then, since
+  the table moves — and a reader takes such an entry over its own table.
