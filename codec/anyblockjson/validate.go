@@ -84,6 +84,12 @@ const (
 	// portable bare participant identities but had no destination space with
 	// which to rebuild participant object IDs.
 	IssueCodeFoldedParticipantsWithoutSpace IssueCode = "folded_participants_without_space"
+	// IssueCodeFoldedTypesWithoutResolver is its type-namespace twin: an
+	// import encountered `type-<internal_key>` references (§9) in id-valued
+	// slots but had no TypeResolver with which to rebuild the type object
+	// ids of the destination space, so the folded strings stand where
+	// addresses belong.
+	IssueCodeFoldedTypesWithoutResolver IssueCode = "folded_types_without_resolver"
 )
 
 // Issue is a single path-addressed validation problem or warning.

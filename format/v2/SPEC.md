@@ -4038,7 +4038,12 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   it is then a bundle-local id, which is exactly what an authored type
   document's id is (the worked example's `type-habit`), and the import
   wiring relinks it like every other bundle slug (§2c). A key slot reads
-  the key off the id directly. **Only the reserved spelling rebinds an
+  the key off the id directly. A run that names a destination space and
+  carries no resolver says so once, under
+  `IssueCodeFoldedTypesWithoutResolver` (§13) — the type namespace's twin of
+  the participant fold's own diagnostic, in the same position: a stated
+  destination whose ids the run cannot build. **Only the reserved spelling
+  rebinds an
   address.** A key slot also reads `ot-<key>`, because a key slot holds a
   key and older documents spell it that way; a REFERENCE slot does not,
   because `ot-` is not reserved — `ot-wine` is an ordinary bundle-local
@@ -5382,13 +5387,21 @@ type Issue struct {
     Code    IssueCode
 }
 
-// IssueCode names an Issue's semantic meaning. One code exists: a reader
-// wired without a SpaceId leaves this document's folded participant
-// identities bare, addressing no object (§9, §11), and says so once for the
-// document under IssueCodeFoldedParticipantsWithoutSpace.
+// IssueCode names an Issue's semantic meaning. Two codes exist, one per
+// derived-id namespace (§9, §11): a reader wired without a SpaceId leaves
+// this document's folded participant identities bare, addressing no object,
+// and a reader that DOES name a space but carries no TypeResolver leaves its
+// `type-<internal_key>` references folded, addressing no object in that
+// space. Each is reported once for the document. A space-less read reports
+// neither type issue: it is not reading into a space, so `type-<key>` is a
+// bundle-local id its wiring relinks (§2c), which is what an authored
+// bundle's own type document ids are.
 type IssueCode string
 
-const IssueCodeFoldedParticipantsWithoutSpace IssueCode = "folded_participants_without_space"
+const (
+    IssueCodeFoldedParticipantsWithoutSpace IssueCode = "folded_participants_without_space"
+    IssueCodeFoldedTypesWithoutResolver     IssueCode = "folded_types_without_resolver"
+)
 
 type Options struct {
     ResolveFormat     FormatResolver   // optional; nil = bundle-only resolution (§3)

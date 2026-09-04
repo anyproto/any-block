@@ -194,6 +194,12 @@ type importer struct {
 	// reader's wiring, not any one slot's, and a document can hold thousands
 	// of them.
 	foldedUnrebuilt bool
+	// foldedTypeUnrebuilt is its type-namespace twin: the document carries
+	// `type-<internal_key>` references (§9) in id-valued slots and this run
+	// wired no TypeResolver, so the folded strings stand where type object
+	// ids belong. Reported once, with a code, exactly as the participant
+	// half is (unfoldRef).
+	foldedTypeUnrebuilt bool
 	// scopeType is the resolved stored key of the document's declared type —
 	// for a template, the TARGET type, whose instances the template's
 	// properties describe. It is the disambiguating scope for a shared
@@ -623,6 +629,13 @@ func (imp *importer) finalize(fragmentPath string) error {
 				"Options.SpaceId names no space: their references import as the folded "+
 				"participant-<identity> ids, which address no object. Set SpaceId to the "+
 				"space this document is being read into.")
+	}
+	if imp.foldedTypeUnrebuilt {
+		imp.warnWithCode(IssueCodeFoldedTypesWithoutResolver, fragmentPath,
+			"this document names types by their derived ids, Options.SpaceId names the space "+
+				"it is being read into, and Options.ResolveProperties carries no TypeResolver: "+
+				"their references import as the folded type-<internal_key> ids, which address no "+
+				"object in that space. Wire a resolver that answers TypeIdByKey.")
 	}
 	return nil
 }
@@ -1343,7 +1356,7 @@ func (imp *importer) textFromJSON(jb *jsonBlock) (*model.BlockContentText, error
 	}
 	if style == model.BlockContentText_Callout {
 		calloutIconFrom(jb.Icon, t)
-		t.IconImage = imp.opts.unfoldRef(t.IconImage)
+		t.IconImage = imp.unfoldRef(t.IconImage)
 	}
 	return t, nil
 }

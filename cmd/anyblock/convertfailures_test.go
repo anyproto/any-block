@@ -202,3 +202,28 @@ func TestShippedV1FixtureConvertsToV2(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, anyblockjson.Validate(data, anyblockjson.Options{}), "the fixture must convert to a valid v2 document")
 }
+
+// The type fold's inverse is fatal before the write, exactly as the
+// participant fold's is. The CLI wires no TypeResolver — nothing in this
+// repository does — so a `type-<internal_key>` reference cannot be rebuilt
+// here, and writing the literal string into a v1 snapshot's `setOf` puts a
+// non-address where an object id belongs.
+//
+// How this can fail: leave the new code unobserved and the conversion
+// silently writes a snapshot whose type references address nothing.
+func TestFoldedTypesWithoutResolverAreFatalBeforeTheWrite(t *testing.T) {
+	temp := t.TempDir()
+	input := filepath.Join(temp, "type.anyblock.json")
+	output := filepath.Join(temp, "type.pb.json")
+	doc := `{"formatVersion":"2.0","id":"page-one","properties":{"Set of":["type-task"]}}`
+	require.NoError(t, os.WriteFile(input, []byte(doc), 0o644))
+	warnings := captureCLIWarnings(t)
+
+	err := runToV1([]string{"-in", input, "-out", output, "-encoding", "json", "-space-id", testSpaceID})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot be rebuilt without a TypeResolver")
+	assert.Contains(t, warnings.String(), "carries no TypeResolver")
+	_, statErr := os.Stat(output)
+	assert.ErrorIs(t, statErr, os.ErrNotExist, "a pre-write failure writes nothing")
+}

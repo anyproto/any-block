@@ -724,10 +724,10 @@ func (imp *importer) unfoldMarks(marks []*model.BlockContentTextMark) {
 		}
 		switch m.Type {
 		case model.BlockContentTextMark_Mention, model.BlockContentTextMark_Object:
-			m.Param = imp.opts.unfoldRef(m.Param)
+			m.Param = imp.unfoldRef(m.Param)
 		case model.BlockContentTextMark_Link:
 			if id, ok := parseObjectLink(m.Param); ok {
-				if unfolded := imp.opts.unfoldRef(id); unfolded != id {
+				if unfolded := imp.unfoldRef(id); unfolded != id {
 					m.Param = objectLinkDest(unfolded)
 				}
 			}
@@ -831,27 +831,78 @@ const missingObjectId = "_missing_object"
 const MissingObjectId = missingObjectId
 
 // objectRef reads one object reference back (§9): the informative suffix is
-// trimmed at the first `#`, unread, and a folded participant id unfolds into this
-// space's participant id. Everything else passes verbatim, exactly as
+// trimmed at the first `#`, unread, and a folded derived id unfolds into
+// this space's object id. Everything else passes verbatim, exactly as
 // before the suffix existed — which is what keeps a bare id and a suffixed
 // id importing identically.
 func (imp *importer) objectRef(ref string) string {
-	id := trimRefName(ref)
-	// A folded participant reference in a reference slot is the folded
-	// half of a participant id (§9), and only a space can rebuild it. A
-	// reader that names none would store the folded form where the
-	// composite belongs — a reference to an object that does not exist, in
-	// silence. The classifier is exact (a strkey checksum), so the reader
-	// KNOWS this has happened and says so, once, in build. It may not
-	// refuse: Validate never sees Options, so refusing here would put the
-	// two surfaces into disagreement over one document (§12 I2).
-	if imp.opts.SpaceId == "" {
-		if _, folded := participantRefIdentity(id); folded {
-			imp.foldedUnrebuilt = true
-		}
+	return imp.unfoldRef(trimRefName(ref))
+}
+
+// unfoldRef is the importer's half of the derived-id fold on one reference
+// slot: Options.unfoldRef, plus the two diagnostics a caller needs when a
+// capability it did not wire was the one that could have rebuilt an address.
+// Every importer slot goes through here so a document reports the fact once,
+// whichever slot met it first.
+//
+// A folded derived id in a reference slot is HALF an address (§9), and only
+// the matching capability completes it: a space for a participant composite,
+// a TypeResolver for a type object id. A reader that has neither would store
+// the folded form where the id belongs — a reference to an object that does
+// not exist, in silence. Both classifiers are exact (a strkey checksum; the
+// reserved prefix plus the fold gate), so the reader KNOWS this has happened
+// and says so, once, in build.
+//
+// Neither may REFUSE: Validate never sees Options, so refusing here would
+// put the two surfaces into disagreement over one document (§12 I2). The
+// caller decides what a coded warning means — the CLI makes both fatal
+// before it writes anything.
+//
+// The two gates are independent, which is the fix for a document that came
+// back half rebuilt: export folds a type reference under the TypeResolver
+// alone, so a run holding one must unfold under it alone, whether or not it
+// also names a space.
+func (imp *importer) unfoldRef(id string) string {
+	if _, folded := participantRefIdentity(id); folded && imp.opts.SpaceId == "" {
+		imp.foldedUnrebuilt = true
+		return id
+	}
+	if imp.typeRefUnrebuildable(id) {
 		return id
 	}
 	return imp.opts.unfoldRef(id)
+}
+
+// typeRefUnrebuildable reports a `type-<key>` reference this run cannot
+// rebuild for want of the capability, and records it.
+//
+// Two cases are deliberately NOT this, and both are §9's own words. A
+// resolver that IS wired and does not serve the key: "a key the space does
+// not serve stays as written — it is then a bundle-local id, which is
+// exactly what an authored type document's id is, and the import wiring
+// relinks it like every other bundle slug (§2c)". And a run that names no
+// SpaceId at all: it is not reading into a space, so it has no space's ids
+// to rebuild against and `type-<key>` is the address — the worked example's
+// `type-habit` names `types/habit.json` in its own bundle, and a reader of
+// that bundle is right to keep it.
+//
+// What is left is the wiring gap worth reporting: a run that says which
+// space it is reading into and cannot address that space's types. That is
+// where the folded string becomes a non-address, and it is the exact
+// position in which the participant fold reports its own twin — a stated
+// destination whose ids the run cannot build.
+func (imp *importer) typeRefUnrebuildable(id string) bool {
+	if imp.opts.SpaceId == "" {
+		return false
+	}
+	if _, folded := derivedTypeIdKey(id); !folded {
+		return false
+	}
+	if _, wired := imp.opts.ResolveProperties.(TypeResolver); wired {
+		return false
+	}
+	imp.foldedTypeUnrebuilt = true
+	return true
 }
 
 // envelopeId reads a document's OWN id back, and is objectRef with the gate
@@ -883,6 +934,9 @@ func (imp *importer) envelopeId(ref string, sbType model.SmartBlockType) string 
 		}
 		return imp.opts.unfoldParticipantRef(id)
 	case isTypeSmartBlock(sbType):
+		if imp.typeRefUnrebuildable(id) {
+			return id
+		}
 		return imp.opts.unfoldTypeRef(id)
 	}
 	return id

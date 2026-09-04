@@ -30,6 +30,14 @@ way back. Property values survive; the legend binding a value's spelling to a
 stored option id does not. A caller that needs the legend preserved should use
 the Go API and supply `Options.ResolveOptions`.
 
+It wires no `TypeResolver` either, so it cannot turn a `type-<internal_key>`
+reference (SPEC §9) into a space's type object id. With `-space-id` — which
+says the document is being read into that space — `to-v1` refuses rather than
+writing the folded string where an address belongs, the same pre-write
+refusal folded participant references get. Without `-space-id` the conversion
+is bundle-local and the derived ids pass through as the bundle-local ids they
+are, which is what an authored bundle's own type documents use.
+
 ## Conversion formats
 
 `-encoding` has opposite directions on the two conversion commands. File

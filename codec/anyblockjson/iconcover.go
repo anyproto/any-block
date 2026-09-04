@@ -612,7 +612,7 @@ func (imp *importer) applyIcon(details *types.Struct) {
 		// the shape all 12 011 populated cases in the corpus hold
 		details.Fields[detailKeyIconImage] = &types.Value{Kind: &types.Value_ListValue{
 			ListValue: &types.ListValue{Values: []*types.Value{
-				{Kind: &types.Value_StringValue{StringValue: imp.opts.unfoldRef(ic.File)}},
+				{Kind: &types.Value_StringValue{StringValue: imp.unfoldRef(ic.File)}},
 			}},
 		}}
 	case "icon":
@@ -648,7 +648,7 @@ func (imp *importer) applyCover(details *types.Struct) {
 		setNum(detailKeyCoverType, coverTypeGradient)
 		return
 	}
-	setStr(detailKeyCoverId, imp.opts.unfoldRef(cv.File))
+	setStr(detailKeyCoverId, imp.unfoldRef(cv.File))
 	switch cv.Source {
 	case coverSourceUnsplash:
 		setNum(detailKeyCoverType, coverTypeUnsplash)

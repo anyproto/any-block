@@ -589,3 +589,104 @@ func TestDerivedIds_ATruncatedDerivedIdIsRefusedNotResolved(t *testing.T) {
 		assert.Equal(t, []string{"ot-template", "ot-typewriter"}, snap.ObjectTypes)
 	})
 }
+
+// The type fold's inverse gets the participant fold's refusal. A
+// `type-<key>` reference read without a TypeResolver cannot be rebuilt: the
+// literal string lands in a snapshot slot where a type object id belongs,
+// which addresses no object. The participant fold has said so, with a code,
+// since it existed; the type fold said nothing at all, and this repository
+// wires no TypeResolver anywhere, so `to-v1` wrote the string and exited 0.
+//
+// It is a warning, not a refusal, for the reason the participant one is:
+// Validate never sees Options, so refusing here would put the two surfaces
+// into disagreement over one document (§12 I2). The CALLER decides — the CLI
+// makes it fatal before it writes.
+//
+// How this can fail: drop the flag and the only signal is the string itself.
+func TestDerivedIds_TypeRefWithoutAResolverIsReported(t *testing.T) {
+	collect := func(opts Options, doc string) []Issue {
+		var got []Issue
+		opts.OnWarning = func(i Issue) { got = append(got, i) }
+		opts.GenerateId = seqIds("g")
+		if opts.SpaceId == "" {
+			opts.SpaceId = foldSpaceId // a stated destination: see typeRefUnrebuildable
+		}
+		_, _, err := Unmarshal([]byte(doc), opts)
+		require.NoError(t, err)
+		return got
+	}
+	coded := func(issues []Issue) bool {
+		for _, i := range issues {
+			if i.Code == IssueCodeFoldedTypesWithoutResolver {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("a reference slot", func(t *testing.T) {
+		assert.True(t, coded(collect(Options{},
+			`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["type-page"]}}`)))
+	})
+	t.Run("a view's default type", func(t *testing.T) {
+		assert.True(t, coded(collect(Options{}, `{"formatVersion":"2.0","id":"page-b","blocks":[{"id":"dv",`+
+			`"type":"dataview","views":[{"id":"v","type":"list","default_type_id":"type-page"}]}]}`)))
+	})
+	t.Run("a mention", func(t *testing.T) {
+		assert.True(t, coded(collect(Options{}, `{"formatVersion":"2.0","id":"page-c","blocks":[{"id":"t",`+
+			`"type":"paragraph","text":"see <mention object_id=\"type-page\">Pages</mention>"}]}`)))
+	})
+	t.Run("a type document's own id", func(t *testing.T) {
+		assert.True(t, coded(collect(Options{}, `{"formatVersion":"2.0","kind":"object_type","id":"type-page",`+
+			`"internal_key":"page","properties":{"Name":"Page"}}`)))
+	})
+	t.Run("silent once a resolver is wired", func(t *testing.T) {
+		assert.False(t, coded(collect(typeRefOptions(),
+			`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["type-page"]}}`)),
+			"the resolver serves this key")
+		assert.False(t, coded(collect(typeRefOptions(),
+			`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["type-unserved"]}}`)),
+			"a key the space does not serve is a bundle-local id the wiring relinks (§2c), not a fault")
+	})
+	t.Run("a key slot is not a reference and does not report", func(t *testing.T) {
+		assert.False(t, coded(collect(Options{},
+			`{"formatVersion":"2.0","kind":"template","type":"Template","template_for":"type-page"}`)),
+			"template_for holds a key, which needs no resolver to read")
+	})
+	t.Run("a space-less read is not reading into a space and does not report", func(t *testing.T) {
+		var got []Issue
+		_, _, err := Unmarshal([]byte(`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["type-habit"]}}`),
+			Options{GenerateId: seqIds("g"), OnWarning: func(i Issue) { got = append(got, i) }})
+		require.NoError(t, err)
+		assert.False(t, coded(got),
+			"an authored bundle's type-habit names types/habit.json beside it (§9); there is no space to rebuild against")
+	})
+}
+
+// Export folds a type reference under the TypeResolver alone, so import must
+// unfold it under the TypeResolver alone. Gating the whole unfold on SpaceId
+// left one document half rebuilt: the slots reached through Options.unfoldRef
+// directly (a view's default type, an icon, the index) came back as store
+// ids while the slots reached through the importer's own objectRef (property
+// values, `items`, block targets, marks) kept the folded string.
+//
+// How this can fail: put the type unfold back behind the SpaceId early
+// return and `Set of` and `default_type_id` disagree about the same type.
+func TestDerivedIds_TypeUnfoldDoesNotDependOnSpaceId(t *testing.T) {
+	opts := typeRefOptions()
+	opts.SpaceId = "" // a TypeResolver, and no space
+
+	data, err := Marshal(model.SmartBlockType_Page, typeRefSnapshot(), opts)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "typeid-", "export folds under the resolver alone")
+
+	_, back, err := Unmarshal(data, opts)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"typeid-page"}, valueStringList(back.GetDetails().GetFields()["setOf"]),
+		"a property value is a reference slot like any other")
+	assert.Equal(t, []string{"typeid-wine"}, valueStringList(back.GetCollections().GetFields()[storeKeyItems]))
+	assert.Equal(t, "typeid-page", back.Blocks[1].GetLink().TargetBlockId)
+	dv := back.Blocks[2].GetDataview()
+	assert.Equal(t, "typeid-wine", dv.Views[0].DefaultObjectTypeId)
+	assert.Equal(t, "typeid-page", back.Blocks[3].GetText().GetMarks().GetMarks()[0].Param)
+}
