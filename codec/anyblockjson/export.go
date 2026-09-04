@@ -1564,17 +1564,22 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	}
 
 	// the envelope id: the derived-id fold applies — a participant
-	// document's OWN id folds to `participant-<identity>`, or a reader could
-	// not textually join a folded reference to the document it points at (§9) —
-	// but never the name suffix: the document's name is right below in
-	// `properties`, and the envelope id is the one slot a reader must be
-	// able to use verbatim as an address.
-	// the derived-id fold applies to the document's own id only for the
-	// kind the prefix names (FoldDocumentId), and a raw store id that wears
-	// a prefix it is not entitled to — a synthetic snapshot; no store mints
-	// one — is refused rather than written, because Validate refuses it
-	// (§9, §11 I1)
-	envelopeId := FoldDocumentId(e.opts, sbType, e.objectId())
+	// document's OWN id folds to `participant-<identity>` and a type
+	// document's to `type-<internal_key>`, or a reader could not textually
+	// join a folded reference to the document it points at (§9) — but never
+	// the name suffix: the document's name is right below in `properties`,
+	// and the envelope id is the one slot a reader must be able to use
+	// verbatim as an address.
+	//
+	// The fold applies to the document's own id only for the kind the prefix
+	// names (FoldDocumentId), and a raw store id that wears a prefix it is
+	// not entitled to — a synthetic snapshot; no store mints one — is
+	// refused rather than written, because Validate refuses it (§9, §11 I1).
+	// A type folds through its OWN key, the one it writes into
+	// `internal_key` two lines below, so the id and the key slots that name
+	// it are one function and the reservation check is a restatement rather
+	// than a second opinion.
+	envelopeId := FoldDocumentId(e.opts, sbType, e.objectId(), e.snapshot.Key)
 	if msg := reservedIdViolation(envelopeId, isTypeSmartBlock(sbType),
 		sbType == model.SmartBlockType_Participant, e.snapshot.Key, kindNames.name(sbType)); msg != "" {
 		return nil, fmt.Errorf("envelope id: %s", msg)

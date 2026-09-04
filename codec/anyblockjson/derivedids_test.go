@@ -248,9 +248,12 @@ func TestDerivedIds_TypeDocumentAndTypeKeySlots(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_STType, snap, opts)
 		require.NoError(t, err)
 		assert.Contains(t, string(data), `"id": "type-page"`)
-		assert.Equal(t, "type-page", FoldDocumentId(opts, model.SmartBlockType_STType, "typeid-page"))
-		assert.Equal(t, "typeid-page", FoldDocumentId(foldOptions(), model.SmartBlockType_STType, "typeid-page"), "no resolver, no fold")
-		assert.Equal(t, "typeid-page", FoldDocumentId(opts, model.SmartBlockType_Page, "typeid-page"),
+		assert.Equal(t, "type-page", FoldDocumentId(opts, model.SmartBlockType_STType, "typeid-page", "page"))
+		assert.Equal(t, "type-page", FoldDocumentId(foldOptions(), model.SmartBlockType_STType, "typeid-page", "page"),
+			"a type document's own id is derived from its own key, so no resolver is needed")
+		assert.Equal(t, "typeid-page", FoldDocumentId(opts, model.SmartBlockType_STType, "typeid-page", ""),
+			"no key, nothing to derive from")
+		assert.Equal(t, "typeid-page", FoldDocumentId(opts, model.SmartBlockType_Page, "typeid-page", "page"),
 			"a page's own id never folds to a type's derived id: the prefix belongs to the kind it names")
 
 		_, imported, err := Unmarshal(data, opts)
@@ -429,4 +432,58 @@ func TestDerivedIds_PrefixesAreReserved(t *testing.T) {
 		err := ValidateAuthoring([]byte(`{"formatVersion":"2.0","id":"participant-` + identity + `","kind":"page"}`))
 		require.Error(t, err, "an author never mints a participant")
 	})
+}
+
+// A type document's own id is derived from the key it already states in
+// `internal_key`, with no resolver: the document knows its own key, so the
+// envelope id, the type-KEY slots that name it (`template_for`, every
+// `object_types`) and the bundle's path plan reach `type-<key>` by the same
+// pure function and cannot disagree.
+//
+// How this can fail: put the envelope id back on TypeResolver.TypeKeyById
+// and a run whose resolver cannot map one type object — a deleted type,
+// measured at 15 of 1,808 across a 159-space corpus — writes
+// `template_for: "type-<key>"` beside a type document still wearing its
+// CID, which is a dead link in a format where the derived id is the only
+// road from an object to its type (§2c).
+func TestDerivedIds_TypeDocumentIdComesFromItsOwnKey(t *testing.T) {
+	typeDoc := func() *model.SmartBlockSnapshotBase {
+		return &model.SmartBlockSnapshotBase{
+			Key: "corpse",
+			Blocks: []*model.Block{{
+				Id:      "typeid-corpse",
+				Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
+			}},
+			Details: fields(map[string]*types.Value{"id": str("typeid-corpse"), "name": str("Corpse")}),
+		}
+	}
+	template := func() *model.SmartBlockSnapshotBase {
+		return &model.SmartBlockSnapshotBase{
+			ObjectTypes: []string{"ot-template", "ot-corpse"},
+			Blocks: []*model.Block{{
+				Id:      "bafyreitemplate",
+				Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
+			}},
+			Details: fields(map[string]*types.Value{"id": str("bafyreitemplate")}),
+		}
+	}
+
+	// typeRefOptions' resolver knows `page` and `wine`, never `corpse`: the
+	// partially-capable run, which is the one the corpus exhibits.
+	for name, opts := range map[string]Options{
+		"no resolver at all":                   {},
+		"a resolver that cannot map this type": typeRefOptions(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			data, err := Marshal(model.SmartBlockType_STType, typeDoc(), opts)
+			require.NoError(t, err)
+			require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (§11 I1)")
+			assert.Contains(t, string(data), `"id": "type-corpse"`,
+				"the document states internal_key: corpse, so its own id needs no resolver")
+
+			tmpl, err := Marshal(model.SmartBlockType_Template, template(), opts)
+			require.NoError(t, err)
+			assert.Contains(t, string(tmpl), `"template_for": "type-corpse"`)
+		})
+	}
 }

@@ -718,19 +718,41 @@ const TypeRefPrefix = "type-"
 // FoldDocumentId is the derived-id fold on a document's OWN envelope id, for
 // callers that must agree with what Marshal writes WITHOUT marshalling —
 // the bundle's path plan names a file by its envelope id (bundle/DESIGN.md
-// §1.3). It runs the reference fold's gates — no SpaceId, no participant
-// fold; no TypeResolver, no type fold — plus one of its own: a document's
-// id folds only to the derived id of ITS kind. A participant folds to
-// `participant-<identity>` and a type to `type-<key>`; a page whose store
-// id happens to be a participant composite or a type object's id keeps it
+// §1.3). internalKey is the snapshot's own Key, which for a type document is
+// the internal key it writes verbatim into `internal_key`; every other kind
+// ignores it.
+//
+// A document's id folds only to the derived id of ITS kind: a participant to
+// `participant-<identity>`, a type to `type-<key>`, and a page whose store id
+// happens to be a participant composite or a type object's id keeps it
 // verbatim, because the prefix is reserved for the kind it names (§9) and
 // Marshal never emits what Validate rejects (§11).
-func FoldDocumentId(opts Options, sbType model.SmartBlockType, id string) string {
+//
+// The two kinds are gated differently, and the difference is the point. A
+// participant id is a COMPOSITE that only the run's own SpaceId can be shown
+// to rebuild, so no SpaceId means no fold. A type document, by contrast,
+// carries its own key: `type-<key>` is a pure function of a field the
+// document already states, so it needs no resolver and asks none. Routing it
+// through TypeResolver.TypeKeyById instead put the id fold and the KEY fold
+// (typeKeyRef, the pure function `template_for` and every `object_types`
+// use) on two gates that could disagree — and on a 159-space corpus they did,
+// for the 15 of 1,808 types whose object id no resolver could map: two
+// templates said `template_for: "type-<key>"` beside a type document still
+// wearing its CID, and 14 objects stated a `type_internal_key` whose
+// `type-<key>` document did not exist. Deriving from the key makes the two
+// one function, so a type document and every key-spelled reference to it
+// agree by construction, resolver or no resolver.
+func FoldDocumentId(opts Options, sbType model.SmartBlockType, id, internalKey string) string {
 	switch {
 	case sbType == model.SmartBlockType_Participant:
 		return opts.foldParticipantRef(id)
 	case isTypeSmartBlock(sbType):
-		return opts.foldTypeRef(id)
+		// typeRef applies the §9 fold gate and answers "" for a key it
+		// refuses; the document then keeps its store id, exactly as every
+		// reference that names that key keeps the key verbatim.
+		if ref := typeRef(internalKey); ref != "" {
+			return ref
+		}
 	}
 	return id
 }

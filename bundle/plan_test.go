@@ -162,34 +162,31 @@ func TestBuildPlan_RefusesABlobWearingTheDocumentExtension(t *testing.T) {
 }
 
 // A type document's filename is its ENVELOPE id too — `type-<internal_key>`
-// under the §9 fold — and the plan computes it through the same gate Marshal
-// does: no TypeResolver, no fold, so a plan never names a file by an id the
-// document inside does not declare.
+// under the §9 fold — and the plan derives it from the same input Marshal
+// does: the document's OWN key, which needs no resolver. A key the fold gate
+// refuses keeps the store id, exactly as its envelope does, so a plan never
+// names a file by an id the document inside does not declare.
 func TestBuildPlan_TypeStemIsTheDerivedId(t *testing.T) {
-	resolver := planTypeResolver{keyById: map[string]string{"bafytask": "task", "bafyodd": "my type"}}
-	opts := anyblockjson.Options{ResolveProperties: resolver}
-
-	plan, err := BuildPlan(opts, []DocMeta{
-		{Id: "bafytask", SbType: model.SmartBlockType_STType},
-		{Id: "bafyodd", SbType: model.SmartBlockType_STType},
+	plan, err := BuildPlan(anyblockjson.Options{}, []DocMeta{
+		{Id: "bafytask", SbType: model.SmartBlockType_STType, Key: "task"},
+		{Id: "bafyodd", SbType: model.SmartBlockType_STType, Key: "my type"},
+		{Id: "bafynokey", SbType: model.SmartBlockType_STType},
 		{Id: "bafypage", SbType: model.SmartBlockType_Page},
 	})
 	require.NoError(t, err)
 
 	got, ok := plan.DocPath("bafytask")
 	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds")
-	assert.Equal(t, "types/type-task.anyblock.json", got)
+	assert.Equal(t, "types/type-task.anyblock.json", got, "no resolver is consulted: the key is the document's own")
 
 	got, _ = plan.DocPath("bafyodd")
 	assert.Equal(t, "types/bafyodd.anyblock.json", got, "a key the fold gate refuses keeps the store id, as its envelope does")
 
+	got, _ = plan.DocPath("bafynokey")
+	assert.Equal(t, "types/bafynokey.anyblock.json", got, "no key, nothing to derive from")
+
 	got, _ = plan.DocPath("bafypage")
 	assert.Equal(t, "objects/bafypage.anyblock.json", got)
-
-	bare, err := BuildPlan(anyblockjson.Options{}, []DocMeta{{Id: "bafytask", SbType: model.SmartBlockType_STType}})
-	require.NoError(t, err)
-	got, _ = bare.DocPath("bafytask")
-	assert.Equal(t, "types/bafytask.anyblock.json", got, "no resolver, no fold")
 }
 
 // planTypeResolver is the TypeResolver capability alone, which is all the
@@ -213,4 +210,22 @@ func (r planTypeResolver) TypeIdByKey(key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// Two documents may not be planned onto one path. The store id gave
+// uniqueness for free — it is the map key — but a DERIVED stem is a function
+// of content, and two documents can state one key: two type documents
+// sharing an `internal_key`, or two participants sharing an identity. Before
+// the fold that was unreachable; now it is one map lookup away, and the
+// failure it prevents is an export whose second writer silently overwrites
+// the first's document.
+func TestBuildPlan_RefusesTwoDocumentsPlannedOntoOnePath(t *testing.T) {
+	_, err := BuildPlan(anyblockjson.Options{}, []DocMeta{
+		{Id: "bafyone", SbType: model.SmartBlockType_STType, Key: "task"},
+		{Id: "bafytwo", SbType: model.SmartBlockType_STType, Key: "task"},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "types/type-task.anyblock.json")
+	assert.Contains(t, err.Error(), "bafyone")
+	assert.Contains(t, err.Error(), "bafytwo")
 }

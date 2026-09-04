@@ -3992,13 +3992,27 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
 - **Every reference slot folds, and only under a resolver.** A type
   reference in an id-valued slot — a filter `value`, `Set of`, `Template's
   Type`, a view's `default_type_id`, a link block, a mention, `items`, the
-  index's widget targets — needs the store to say which key an id names
-  (`TypeResolver.TypeKeyById`, §2d, §13); the type document's own envelope
-  id folds under the same capability, and the bundle's path plan names its
-  file by the same function (`FoldDocumentId`). **No resolver, no fold, in
-  either direction** — a folded document never sits beside references a
-  resolver-less run could not fold, which is worse than no fold at all. The
+  index's widget targets — holds a space-local CID, so folding it needs the
+  store to say which key that id names (`TypeResolver.TypeKeyById`, §2d,
+  §13). **No resolver, no fold, in either direction** for those slots: a
+  reference no run could translate keeps the store id it had. The
   participant fold is armed by `Options.SpaceId` the same way.
+- **A type document's own id is derived from its own key.** The document
+  states `internal_key`; `type-<internal_key>` is a pure function of it, so
+  the envelope id — and the bundle path plan that names the file
+  (`FoldDocumentId`, §13) — asks no resolver and cannot decline while a
+  key-spelled reference to the same type folds. That agreement is the whole
+  requirement: a folded reference beside an unfolded document is a dead
+  link, and in a format where the derived id is the only road from an object
+  to its type (§2c) it is the one failure this design must not have. Routing
+  the document id through the resolver instead produced exactly that on a
+  159-space corpus — 15 of 1,808 type documents kept their CID because no
+  resolver could map them, and two templates and 14 objects named those
+  types by a `type-<key>` no document carried. The residue the resolver
+  gate still owns is one-directional and harmless by comparison: an
+  id-valued reference a resolver-less run leaves as a CID names a document
+  the bundle addresses differently, so it dangles — but it dangled before
+  the fold existed too, and it never contradicts a document that folded.
 - **The type-KEY slots spell the same id.** `template_for` and every
   `object_types` — a type document's `property_definitions` (§2a), a
   property document's `property_settings` (§2d), a dictionary entry (§2f)
@@ -5523,14 +5537,19 @@ derived ids under the same gates a document's do, and `UnmarshalIndex`
 unfolds them against the same options.
 
 ```go
-func FoldDocumentId(opts Options, id string) string
+func FoldDocumentId(opts Options, sbType model.SmartBlockType, id, internalKey string) string
 ```
 
 is the derived-id fold on a document's own envelope id, for a caller that
 must agree with what `Marshal` writes without marshalling — the bundle's
-path plan names a file by it (bundle/DESIGN.md §1.3). It runs the fold's
-own gates: no `SpaceId`, no participant fold; no `TypeResolver`, no type
-fold; a key the gate refuses, no fold.
+path plan names a file by it (bundle/DESIGN.md §1.3). `internalKey` is the
+snapshot's own `Key`; every kind but a type ignores it. An id folds only to
+the derived id of ITS kind, and the two kinds are gated differently because
+their inputs are: a participant id is a composite only `Options.SpaceId`
+can be shown to rebuild, so no `SpaceId` means no fold, while a type folds
+from the key it already states — no resolver is consulted, and a key the §9
+gate refuses keeps the store id. That is what keeps the envelope id and the
+type-KEY slots (`template_for`, every `object_types`) one function.
 
 The dictionary's Go surface is `[]PropertyDefinition` — the same struct the
 resolvers speak and both doors of the §2a array build — rather than a

@@ -44,6 +44,13 @@ const (
 type DocMeta struct {
 	Id     string
 	SbType model.SmartBlockType
+	// Key is the snapshot's own `Key` — for a type document the internal key
+	// it writes verbatim into `internal_key`, which is what its envelope id
+	// `type-<Key>` is derived from (SPEC §9). Ignored for every other kind.
+	// It is a detail-level fact like the two below, not content: the store
+	// carries it as the object's unique key, so reading it keeps plan free of
+	// object loads (design §1.1).
+	Key string
 	// FileExt and FileMime are a file object's stored `fileExt` /
 	// `fileMimeType` details, raw — the blob path inputs. Ignored for every
 	// other kind. Raw because the corpus measured `fileExt` dirty as a path
@@ -74,26 +81,40 @@ type Plan struct {
 // The filename stem is the ENVELOPE id, which for a participant or a type
 // document is not the store id: Marshal folds
 // `_participant_<spaceId>_<identity>` to `participant-<identity>` and a
-// type object's id to `type-<internal_key>` (SPEC §9), and a file named by
+// type document's id to `type-<internal_key>` (SPEC §9), and a file named by
 // the store id would break the pure reference→path function §1.3 exists
 // for — a reference carries the FOLDED id. The fold runs through the same
-// function Marshal uses (FoldDocumentId) under the same Options, so it
-// declines exactly when Marshal's does — no SpaceId, a foreign space, no
-// TypeResolver, a key the fold gate refuses — and stem and envelope cannot
-// disagree. The Plan stays keyed by the STORE id, which is what the emit
-// loop holds.
+// function Marshal uses (FoldDocumentId) on the same inputs, so it declines
+// exactly when Marshal's does — no SpaceId or a foreign space for a
+// participant, a key the fold gate refuses for a type — and stem and
+// envelope cannot disagree. The Plan stays keyed by the STORE id, which is
+// what the emit loop holds.
+//
+// A derived stem is a function of CONTENT, so it must also be checked for
+// uniqueness, which the store id supplied for free by being the map key. Two
+// type documents stating one `internal_key`, or two participants one
+// identity, would otherwise be planned onto one path and the second emit
+// would overwrite the first in silence.
 func BuildPlan(opts anyblockjson.Options, docs []DocMeta) (*Plan, error) {
 	p := &Plan{
 		docPaths:  make(map[string]string, len(docs)),
 		blobPaths: map[string]string{},
 	}
+	claimed := make(map[string]string, len(docs))
 	for _, d := range docs {
-		stem := anyblockjson.FoldDocumentId(opts, d.SbType, d.Id)
+		stem := anyblockjson.FoldDocumentId(opts, d.SbType, d.Id, d.Key)
 		if err := checkIdSafe(stem); err != nil {
 			return nil, fmt.Errorf("plan document paths: %w", err)
 		}
 		dir := KindDirectory(d.SbType)
-		p.docPaths[d.Id] = dir + "/" + stem + DocExtension
+		docPath := dir + "/" + stem + DocExtension
+		if first, taken := claimed[docPath]; taken {
+			return nil, fmt.Errorf("plan document paths: %s and %s are both planned onto %q — "+
+				"a derived id (SPEC §9) is a function of the document's content, and these two state the same one",
+				first, d.Id, docPath)
+		}
+		claimed[docPath] = d.Id
+		p.docPaths[d.Id] = docPath
 		if dir == DirFiles {
 			// the blob sits beside its document: same directory, same stem
 			// (the id), real sanitized extension — so the two halves of a
