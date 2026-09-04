@@ -446,6 +446,11 @@ func (c *Composer) observeRelationOption(base *model.SmartBlockSnapshotBase) []I
 		Name:        name,
 		Color:       det["relationOptionColor"].GetStringValue(),
 		InternalKey: internalKey,
+		// the spelling the public API addresses this option by. Not
+		// derivable: it does not follow a rename, and the app's rule that
+		// derives one from a name runs on the create path, which import
+		// does not take (OptionDefinition.ApiKey).
+		ApiKey: det["apiObjectKey"].GetStringValue(),
 	}
 	ident := optionIdentity{owner: key, id: det["id"].GetStringValue()}
 	if ident.id == "" {

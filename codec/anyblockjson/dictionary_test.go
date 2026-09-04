@@ -534,3 +534,49 @@ func TestPropertyDictionary_InstalledIsNotAMember(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "/installed")
 }
+
+// A vocabulary entry states the option's api key, and the option's shape
+// stays canonical: the bare name for an option with nothing else to say,
+// the object form the moment any of colour, stored key or api key exists.
+//
+// The api key travels because no restore mints one. The app derives an api
+// key from a name on its create path, and import does not take that path —
+// relation and relation-option snapshots are written straight into their
+// trees — so an option restored from a bundle stating none gets none, and
+// the API addresses it by a hash-derived local key rather than the spelling
+// its callers wrote. It would not be recoverable even if something tried:
+// an api key does not follow a rename.
+//
+// How this can fail: leave the api key out of the bare-name condition (an
+// option carrying only an api key is written as a bare string and the key
+// is lost at the writer); state it on the type-declaration home but not the
+// dictionary's, or the reverse, so the shape means two things (§2e).
+func TestPropertyDictionary_OptionApiKeyRoundTrips(t *testing.T) {
+	// given
+	in := &PropertyDictionary{Properties: []PropertyDefinition{{
+		Key:    "5f1e0a7788aa631534b22f02",
+		Name:   "Stage",
+		Format: model.RelationFormat_status,
+		Options: []OptionDefinition{
+			{Name: "Canceled", Color: "red", InternalKey: "63454af2", ApiKey: "cancelled"},
+			{Name: "Shipped", ApiKey: "done"},
+			{Name: "Later"},
+		},
+	}}}
+
+	// when
+	data, err := MarshalPropertyDictionary(in, Options{})
+	require.NoError(t, err)
+
+	// then
+	assert.Contains(t, string(data), `"api_key": "cancelled"`)
+	assert.Contains(t, string(data), `"Later"`, "an option with nothing else to say stays a bare name")
+	back, err := UnmarshalPropertyDictionary(data, Options{})
+	require.NoError(t, err)
+	require.Len(t, back.Properties, 1)
+	assert.Equal(t, in.Properties[0].Options, back.Properties[0].Options)
+
+	again, err := MarshalPropertyDictionary(back, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, string(data), string(again), "the second write is byte-identical (§4)")
+}

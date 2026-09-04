@@ -35,6 +35,13 @@
   missing from the dictionary, unreported. `UnaccountedOptionDetails` now
   names the blocks on an option's page too, through the same reader the
   property half uses.
+- An option's `api_key` travels on its vocabulary entry (§2a, §15 #21):
+  `OptionDefinition.ApiKey`, written where the store holds one. It was
+  omitted on the reading that the app regenerates one from the name; the
+  rule exists but lives on the create path, which import does not take, so
+  a restored option got no api key at all and the API addressed it by a
+  hash-derived local key. `apiObjectKey` leaves the option omission's
+  install-artifact set for `optionEntryDetailKeys`.
 
 - Establish the versioned `format/v1` and `format/v2` layout.
 - Add the AnyBlock v2 specification, schemas, examples, and conformance data.

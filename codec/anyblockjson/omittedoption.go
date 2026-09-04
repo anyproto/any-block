@@ -16,10 +16,22 @@ package anyblockjson
 // What an option OBJECT holds beyond the entry is deliberately not carried,
 // the same policy as the omitted space and widget documents beside this one
 // (§2c): its timestamps and attribution are re-minted by a restore the way
-// every omitted document's are; its api key is regenerated from the name by
-// the app's own rule (measured: all 514 real option api keys reproduce,
-// §2f); and its stored `orderId` is a lexid, which never travels on any
-// kind (§3) — position is what carries order.
+// every omitted document's are, and its stored `orderId` is a lexid, which
+// never travels on any kind (§3) — position is what carries order.
+//
+// Its API KEY does travel, on the entry (§2f). It was omitted on the
+// reading that the app regenerates one from the name, and a census of 514
+// real option api keys did find every one of them reproduced by that rule —
+// but the rule is on the create path (objectcreator's injectApiObjectKey)
+// and import does not take it: relation and relation-option snapshots are
+// excluded from the path that would run it, and are written straight into
+// their trees. An option restored from a bundle stating no api key
+// therefore gets none at all, and the API addresses it by a hash-derived
+// local key instead of the spelling its callers wrote. Reproducibility was
+// the wrong question — and it does not hold either: measured over a
+// 159-space corpus, 16 of the 471 option api keys that reach a dictionary
+// are not reproducible from the name, because an api key does not follow a
+// rename (`Canceled` keeps `cancelled`, `Product` keeps `produc`).
 //
 // UNCONDITIONAL, like the profile page beside it — but REPORTED, which is
 // what the space and widget omissions get from failing closed. An option
@@ -57,10 +69,11 @@ package anyblockjson
 //	id, type and the stripped set  never travel in any document
 //	creator, lastModifiedBy        attribution on an option records who ran
 //	                               the import, not who authored the option
+//	apiObjectKey                   the entry's api_key
 //	the install-artifact set       createdDate, layout, resolvedLayout,
-//	                               apiObjectKey, origin, addedDate,
-//	                               importType and the rest, each with its
-//	                               own verdict in omittedrelation.go
+//	                               origin, addedDate, importType and the
+//	                               rest, each with its own verdict in
+//	                               omittedrelation.go
 //
 // What that set deliberately does NOT admit is reported rather than
 // classified: `isFavorite` and `isArchived` (user intent, the verdict the
@@ -156,4 +169,9 @@ var optionEntryDetailKeys = map[string]bool{
 	"uniqueKey":           true,
 	// the lexid the array position replaces (§2f, §3)
 	"orderId": true,
+	// the entry's `api_key`. It sat in the install-artifact set until the
+	// rule that was said to regenerate it turned out never to run on the
+	// import path (OptionDefinition.ApiKey); an entry states it now, so
+	// this is where it is accounted for.
+	"apiObjectKey": true,
 }

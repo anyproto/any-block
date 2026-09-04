@@ -331,21 +331,20 @@ func TestDictionary_ADisagreeingIdentityPairIsReported(t *testing.T) {
 
 // An inline option says what the option MEANS — its name, its colour, and by
 // its position where it sits. Its stored key says what the option IS, and
-// that is the one thing about it derivable from nothing.
+// its api key says what callers address it by. Neither is derivable: the
+// stored key is minted, and the api key is minted from the name ONCE and
+// then never rewritten, so it survives no rename and no restore mints a
+// replacement (OptionDefinition.ApiKey).
 //
-// Everything else about an option can be reconstructed. The api key is
-// regenerated from the name by the app's own rule at creation: measured over
-// a 77-space export, all 514 real option api keys are reproduced by it — 470
-// by the api slug and 44 by the transliterate fallback, for names like `$$`
-// that slug to nothing. Not one survived a rename, so none needs to travel.
-// The order is the array position (§2f). The property is the entry holding it.
+// What is left over genuinely is reconstructible. The order is the array
+// position (§2f). The property is the entry holding it.
 //
-// So `internal_key` is what an inline vocabulary was missing to be complete
-// rather than merely descriptive.
+// So `internal_key` and `api_key` are what an inline vocabulary was missing
+// to be complete rather than merely descriptive.
 //
-// How this can fail: render it on an option that has none and the compact
-// bare-name form disappears for every colourless option; drop it from the
-// object form and a vocabulary can never state identity.
+// How this can fail: render either on an option that has none and the
+// compact bare-name form disappears for every colourless option; drop
+// either from the object form and a vocabulary can never state identity.
 func TestDictionary_AnOptionCarriesItsStoredKey(t *testing.T) {
 	d, warns := readDict(t, `{`+dictHead+
 		`"properties":[{"property":"Status","name":"Status","format":"select","options":[`+

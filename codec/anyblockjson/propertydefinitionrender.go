@@ -142,8 +142,16 @@ func checkedPropertyOptions(def PropertyDefinition, format string, authorable bo
 				return nil, fmt.Errorf("property %q: options[%d].internal_key is not valid UTF-8", def.Key, i)
 			}
 		}
+		if option.ApiKey != "" {
+			if !utf8.ValidString(option.ApiKey) {
+				return nil, fmt.Errorf("property %q: options[%d].api_key is not valid UTF-8", def.Key, i)
+			}
+		}
 
-		if option.Color == "" && option.InternalKey == "" {
+		// the bare name stays canonical only when there is nothing else to
+		// say: a member added to the shape has to be added here too, or the
+		// writer drops it while the reader still accepts it
+		if option.Color == "" && option.InternalKey == "" && option.ApiKey == "" {
 			out = append(out, option.Name)
 			continue
 		}
@@ -151,6 +159,7 @@ func checkedPropertyOptions(def PropertyDefinition, format string, authorable bo
 		entry.set("name", option.Name)
 		entry.setNonEmpty("color", option.Color)
 		entry.setNonEmpty("internal_key", option.InternalKey)
+		entry.setNonEmpty("api_key", option.ApiKey)
 		out = append(out, entry)
 	}
 	return out, nil

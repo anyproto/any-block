@@ -1519,7 +1519,12 @@
             "internal_key": {
               "type": "string",
               "minLength": 1,
-              "description": "The option's stored key — a minted id, so an AUTHOR never writes one and export writes it only where it exists. It is the one thing about an option that is derivable from nothing: the name and colour say what the option MEANS, the array position says where it sits, and the option's api key is regenerated from the name by the app's own rule (measured: every one of 514 real option api keys is reproduced by that rule, so none needs to travel). Carrying the internal key is what lets a bundle state a vocabulary completely rather than only describe it."
+              "description": "The option's stored key — a minted id, so an AUTHOR never writes one and export writes it only where it exists. It is minted rather than derived: the name and colour say what the option MEANS and the array position says where it sits, but nothing about an option implies its stored key. Carrying it is what lets a bundle state a vocabulary completely rather than only describe it."
+            },
+            "api_key": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The option's public API key (stored `apiObjectKey`) — the spelling callers address the option by, and NOT a slug of the name: an api key does not follow a rename and nothing rewrites it, so `Canceled` keeps the api key `cancelled` it was minted with and `Product` keeps `produc`. Export writes it where the store holds one; an author never writes one. It travels because no restore mints it — the app's rule that derives an api key from a name lives on the create path, and import does not take that path (relation and relation-option snapshots are written straight into their trees), so an option restored from a bundle that states none gets none at all and the API addresses it by a hash-derived local key instead. The same reasoning gives a TYPE its `type_settings.api_key`."
             }
           },
           "required": [

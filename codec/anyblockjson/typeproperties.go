@@ -129,16 +129,34 @@ type PropertyDefinition struct {
 type OptionDefinition struct {
 	Name  string `json:"name"`
 	Color string `json:"color"`
+	// ApiKey is the option's public API key (stored `apiObjectKey`) — the
+	// spelling callers address the option by on the API surface, which is
+	// NOT a slug of the name. An api key does not follow a rename, and
+	// nothing rewrites it: `Canceled` keeps the api key `cancelled` it was
+	// minted with, `Product` keeps `produc`. Export writes it where the
+	// store holds one; an author never writes one.
+	//
+	// It travels because no restore mints it. The app does have a rule that
+	// derives an api key from the name, and a census of 514 real option api
+	// keys found every one of them reproduced by that rule — but the rule
+	// lives on the create path (objectcreator's injectApiObjectKey), and
+	// import does not take it: relation and relation-option snapshots are
+	// excluded from the path that would run it and are written straight
+	// into their trees. So an option restored from a bundle that states no
+	// api key gets none at all, and the API addresses it by a
+	// hash-derived local key rather than the spelling its callers wrote.
+	// Reproducibility was the wrong question; nothing was going to
+	// reproduce it.
+	ApiKey string `json:"api_key"`
 	// InternalKey is the option's stored key. It is minted, so an author
 	// never writes one and export writes it only where it exists.
 	//
-	// It is the only thing about an option that is derivable from nothing.
-	// The name and colour say what the option MEANS; the array position says
-	// where it sits (§2f); and the option's api key is regenerated from the
-	// name by the app's own rule — measured over a 77-space export, all 514
-	// real option api keys are reproduced by that rule (470 by the slug, 44
-	// by the transliterate fallback for names like `$$` that slug to
-	// nothing), so not one of them needs to travel.
+	// It is minted rather than derived: the name and colour say what the
+	// option MEANS and the array position says where it sits (§2f), but
+	// nothing about an option implies its stored key, so it has to be
+	// stated. The api key beside it is stated for a different reason —
+	// there IS a rule that derives one from a name, and no restore runs it
+	// (ApiKey).
 	InternalKey string `json:"internal_key"`
 }
 
@@ -161,7 +179,7 @@ func optionsToAny(opts []OptionDefinition) []any {
 		if o.Name == "" {
 			continue
 		}
-		if o.Color == "" && o.InternalKey == "" {
+		if o.Color == "" && o.InternalKey == "" && o.ApiKey == "" {
 			out = append(out, o.Name)
 			continue
 		}
@@ -169,6 +187,7 @@ func optionsToAny(opts []OptionDefinition) []any {
 		m.set("name", o.Name)
 		m.setNonEmpty("color", o.Color)
 		m.setNonEmpty("internal_key", o.InternalKey)
+		m.setNonEmpty("api_key", o.ApiKey)
 		out = append(out, m)
 	}
 	return out
