@@ -4081,11 +4081,23 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   a reader learned which type only by opening the file the CID named, when
   it was there: 86 of 120 templates and 45 of 47 `default_type_id`s in that
   export pointed at a type document the bundle did not carry. Written as
-  `type-<key>`, the same references say which type without a lookup, and
-  the ones that dangle say which type is missing. The stale-id class §2d
-  records for `object_types` — an object id differs in every space while a
-  key does not — is closed for every slot at once: a bundle re-imported
-  anywhere carries keys, which the importer resolves.
+  `type-<key>`, the same references say which type without a lookup. The
+  stale-id class §2d records for `object_types` — an object id differs in
+  every space while a key does not — is closed for every slot at once: a
+  bundle re-imported anywhere carries keys, which the importer resolves.
+
+  **A dangling reference says which type is missing only where the slot
+  holds a key.** Measured over the 159-space corpus: `template_for` is 423
+  of 423 folded and `object_types` 5,544 of 5,544 in documents, because
+  both hold keys and fold by a pure function — the 55 `template_for`
+  entries that name no document still name the key, which is the whole
+  claim. The id-valued slots depend on the resolver, and there the claim
+  does not hold: `default_type_id` is 13 folded against 124 raw, and all
+  124 of the raw ones dangle saying nothing but a CID. The dictionary's
+  `object_types` sits between the two at 669 of 730, because §2d lets that
+  slot carry an object id no resolver could translate. So the readability
+  the fold buys is complete in the key slots and partial in the id slots,
+  and a reader must still expect a bare CID in the latter.
 
 ### The participant fold
 
@@ -6233,6 +6245,14 @@ being true.
   one fact. An index that still carries the member is refused with the
   repair named (§10, the `refs` rule).
 
+  What the table DID carry, and what deleting it dropped on the floor, is
+  the check: `bundle.Validate` resolved its targets, and for a while
+  afterwards nothing verified that a type reference reached a document at
+  all. §2c reinstates it on the reference itself, which is where it
+  belongs — a `template_for`, a `type_internal_key` and every
+  `object_types` entry spelling a derived id must find the document
+  carrying it, a bundled key excepted.
+
 - **#27 Derived ids** — settled: **a participant document is
   `participant-<identity>` and a type document `type-<internal_key>`, in
   the envelope and in every reference slot** (§9). The participant fold
@@ -6246,21 +6266,37 @@ being true.
   29.7% and 17.1% of all references in three exports point outside the
   bundle, and none of the outside TYPE references were live in any sibling
   space. Written as `type-<key>`, a reference says which type without a
-  lookup, a dangling one says which type is missing, and the stale-id class
-  §2d records for `object_types` — an object id differs in every space
-  while a key does not — is closed for every slot at once.
+  lookup, and the stale-id class §2d records for `object_types` — an object
+  id differs in every space while a key does not — is closed for every slot
+  at once. The claim that a DANGLING reference says which type is missing
+  holds only where the slot holds a key, and §9 records the measurement
+  that bounds it: `template_for` 423 of 423 folded and `object_types` 5,544
+  of 5,544 in documents, against `default_type_id` at 13 folded and 124
+  raw, every one of the 124 dangling with nothing but a CID to show.
 
   The gates, because a fold that fires on one side only is worse than none:
   `-` is outside every ordinary id alphabet and outside every stored type
   key, so no ordinary id is or begins a derived id; a type key folds when it
   is `[A-Za-z0-9_]`, 1–120 characters, not `_`-prefixed and not a CID,
-  else the CID stays on the document and in every reference; the type fold
-  needs the store's id↔key answer (`TypeResolver`) and folds nothing
-  without it, in either direction, as the participant fold folds nothing
-  without `Options.SpaceId`; the bundle's path plan names a file through
-  the same function (`FoldDocumentId`). The type-KEY slots — `template_for`,
-  every `object_types` — spell the derived id too, with no resolver, and
-  read a display name or `ot-<key>` as input. A reference's spelling never
+  else the CID stays on the document and in every reference. A type
+  document's OWN id, and the file the path plan names for it
+  (`FoldDocumentId`), derive from the key the document already states, so
+  they ask no resolver and agree by construction with the type-KEY slots —
+  `template_for`, every `object_types` — which spell the derived id by the
+  same pure function and read a display name or `ot-<key>` as input. Only
+  the id-valued slots need the store's id↔key answer (`TypeResolver`), and
+  without it they keep the store id, as the participant fold keeps the
+  composite without `Options.SpaceId`.
+
+  Routing the document id through the resolver as well was the original
+  shape, and it was wrong in the one way that matters: the two gates could
+  disagree, and on the 159-space corpus they did. Fifteen of 1,808 type
+  documents kept their CID because no resolver could map them, while two
+  templates and 14 objects named those same types by a `type-<key>` no
+  document carried — a folded reference beside an unfolded document, which
+  since #26 deleted the type table is a dead link rather than a slower
+  lookup. Deriving from the key folds 1,808 of 1,808 and makes the
+  disagreement unrepresentable. A reference's spelling never
   depends on export scope: the position that a reference to an object the
   bundle does not carry should wear a marker (`outside/<id>`) was weighed
   and declined — it makes an unchanged object's bytes differ between a full
