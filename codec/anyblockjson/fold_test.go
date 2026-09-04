@@ -149,7 +149,7 @@ func TestFold_ParticipantOwnEnvelopeId(t *testing.T) {
 	}
 
 	// when
-	data, err := Marshal(model.SmartBlockType_Page, snap, foldOptions())
+	data, err := Marshal(model.SmartBlockType_Participant, snap, foldOptions())
 	require.NoError(t, err)
 
 	// then

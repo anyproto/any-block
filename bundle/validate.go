@@ -88,9 +88,11 @@ func bundlePathAliasKey(name string) string {
 }
 
 // Validate checks the cross-document invariants of an AnyBlock v2 bundle.
-// The one-document codec validates each JSON grammar; this function adds the
-// filesystem questions a document cannot answer by itself: manifest paths,
-// duplicate ids, and index references to objects in the bundle.
+// The one-document codec validates each JSON grammar — the derived-id
+// reservation of §9 included, since it is a fact about one document — and
+// this function adds the filesystem questions a document cannot answer by
+// itself: manifest paths, duplicate ids, and index references to objects in
+// the bundle.
 //
 // The supplied filesystem must confine every resolved path to the bundle
 // root. Validate can enforce lexical and exact-directory-entry paths, but an

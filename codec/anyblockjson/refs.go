@@ -43,6 +43,7 @@ package anyblockjson
 
 import (
 	"encoding/binary"
+	"fmt"
 	"strings"
 	"unicode"
 
@@ -714,14 +715,56 @@ const ParticipantRefPrefix = "participant-"
 // id, and every reference to it, is `type-<internal_key>`.
 const TypeRefPrefix = "type-"
 
-// FoldDocumentId is the derived-id fold on a document's own envelope id, for
+// FoldDocumentId is the derived-id fold on a document's OWN envelope id, for
 // callers that must agree with what Marshal writes WITHOUT marshalling —
 // the bundle's path plan names a file by its envelope id (bundle/DESIGN.md
-// §1.3). It runs the same gates as the reference fold, so the plan and the
-// envelope cannot disagree: no SpaceId, no participant fold; no
-// TypeResolver, no type fold.
-func FoldDocumentId(opts Options, id string) string {
-	return opts.foldRef(id)
+// §1.3). It runs the reference fold's gates — no SpaceId, no participant
+// fold; no TypeResolver, no type fold — plus one of its own: a document's
+// id folds only to the derived id of ITS kind. A participant folds to
+// `participant-<identity>` and a type to `type-<key>`; a page whose store
+// id happens to be a participant composite or a type object's id keeps it
+// verbatim, because the prefix is reserved for the kind it names (§9) and
+// Marshal never emits what Validate rejects (§11).
+func FoldDocumentId(opts Options, sbType model.SmartBlockType, id string) string {
+	switch {
+	case sbType == model.SmartBlockType_Participant:
+		return opts.foldParticipantRef(id)
+	case isTypeSmartBlock(sbType):
+		return opts.foldTypeRef(id)
+	}
+	return id
+}
+
+// reservedIdViolation states the derived-id reservation (§9) once, for the
+// validator and for Marshal alike: an id wearing `type-` must belong to a
+// type document whose internal_key is the remainder, and one wearing
+// `participant-` to a participant document whose remainder is an account
+// identity. The message names the repair; "" means the id is entitled to
+// whatever it wears.
+func reservedIdViolation(id string, isType, isParticipant bool, internalKey, kind string) string {
+	switch {
+	case strings.HasPrefix(id, TypeRefPrefix):
+		key := id[len(TypeRefPrefix):]
+		if !isType {
+			return fmt.Sprintf("id %q wears the reserved type- prefix (§9), which belongs to a type document whose "+
+				"internal_key is %q; this document is not a type (kind %q) — choose an id without the prefix", id, key, kind)
+		}
+		if internalKey != key {
+			return fmt.Sprintf("id %q wears the reserved type- prefix (§9), which belongs to the type whose internal_key "+
+				"is %q; this document's internal_key is %q — the two must agree", id, key, internalKey)
+		}
+	case strings.HasPrefix(id, ParticipantRefPrefix):
+		identity := id[len(ParticipantRefPrefix):]
+		if !isParticipant {
+			return fmt.Sprintf("id %q wears the reserved participant- prefix (§9), which belongs to a participant "+
+				"document; this document is not one (kind %q) — choose an id without the prefix", id, kind)
+		}
+		if !isAccountIdentity(identity) {
+			return fmt.Sprintf("id %q wears the reserved participant- prefix (§9), but %q is not an account identity",
+				id, identity)
+		}
+	}
+	return ""
 }
 
 // dateIdPrefix marks a virtual date object id (pkg/lib/localstore/addr).

@@ -12,7 +12,9 @@ path that yields none, so a mistyped path fails rather than passing silently.
 
 The conversion commands operate on one snapshot/document. When `validate`
 receives a directory containing `index.json`, it also checks bundle-level
-manifest paths, duplicate ids, entrypoint/widgets, and file bindings. A directory without `index.json` is treated as a collection of
+manifest paths, duplicate ids, entrypoint/widgets, the derived-id
+reservations (`type-<key>` and `participant-<identity>` ids belong to the
+matching documents, SPEC §9), and file bindings. A directory without `index.json` is treated as a collection of
 independent documents.
 
 ## What a round trip does not carry

@@ -992,6 +992,24 @@ func unknownPropertyMessage(prop string) string {
 	return fmt.Sprintf("property %q is not allowed", prop)
 }
 
+// derivedIdIssue enforces the derived-id reservation on the envelope id
+// (§9) through the predicate Marshal refuses by (reservedIdViolation), so
+// the two cannot disagree: an ordinary object wearing `type-` or
+// `participant-` is refused at `/id`, and the prefix stays a statement a
+// reader can trust. A `-` anywhere else in an id (`page-welcome`) is an
+// ordinary bundle-local slug and is not this rule's business.
+func derivedIdIssue(doc map[string]any) (Issue, bool) {
+	id, _ := doc["id"].(string)
+	kind, _ := doc["kind"].(string)
+	internal, _ := doc[memberInternalKey].(string)
+	msg := reservedIdViolation(id, isTypeKind(doc),
+		kind == kindNames.name(model.SmartBlockType_Participant), internal, kind)
+	if msg == "" {
+		return Issue{}, false
+	}
+	return Issue{Path: "/id", Message: msg}, true
+}
+
 // textBearing reports whether the block type's text is parsed for inline
 // markup; code/embed text is literal (§8.4).
 func textBearing(typ string) bool {
@@ -1157,6 +1175,13 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// stored keys, each its own verbatim address, so a hard refusal here
 	// would make Marshal emit what Validate rejects (§11, I1).
 	warnNFCTwinSpellings(doc, warnIssue)
+
+	// The derived-id prefixes are reserved (§9): an id that says "type" or
+	// "participant" has to be one, or a reader that trusts the prefix — the
+	// whole point of writing it — is lied to by an ordinary object.
+	if issue, reserved := derivedIdIssue(doc); reserved {
+		issues = append(issues, issue)
+	}
 
 	// The template gate reads `kind`, and nothing else (§2). It used to
 	// resolve the `type` spelling through the document's own chain — legend,

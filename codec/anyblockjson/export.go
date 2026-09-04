@@ -1569,7 +1569,17 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	// but never the name suffix: the document's name is right below in
 	// `properties`, and the envelope id is the one slot a reader must be
 	// able to use verbatim as an address.
-	doc.setNonEmpty("id", e.opts.foldRef(e.objectId()))
+	// the derived-id fold applies to the document's own id only for the
+	// kind the prefix names (FoldDocumentId), and a raw store id that wears
+	// a prefix it is not entitled to — a synthetic snapshot; no store mints
+	// one — is refused rather than written, because Validate refuses it
+	// (§9, §11 I1)
+	envelopeId := FoldDocumentId(e.opts, sbType, e.objectId())
+	if msg := reservedIdViolation(envelopeId, isTypeSmartBlock(sbType),
+		sbType == model.SmartBlockType_Participant, e.snapshot.Key, kindNames.name(sbType)); msg != "" {
+		return nil, fmt.Errorf("envelope id: %s", msg)
+	}
+	doc.setNonEmpty("id", envelopeId)
 	doc.setNonEmpty("type", typeTerm)
 	// the stored key beside the spelling, on EVERY typed document (§2, §3):
 	// the spelling is a caption, the key is what a reader resolves, and the

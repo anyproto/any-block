@@ -385,7 +385,7 @@ func TestPropertyDefinition_StoredOptionKeysAreUnbounded(t *testing.T) {
 			snapshot := &model.SmartBlockSnapshotBase{
 				Key: "test-type",
 				Details: fields(map[string]*types.Value{
-					"id":                   str("type-test"),
+					"id":                   str("type-test-type"),
 					"recommendedRelations": strList("property-under-test"),
 				}),
 				ObjectTypes: []string{"ot-objectType"},
@@ -458,7 +458,7 @@ func TestPropertyDefinition_TypeExportRejectsUnreadableDefinitions(t *testing.T)
 			snapshot := &model.SmartBlockSnapshotBase{
 				Key: "test-type",
 				Details: fields(map[string]*types.Value{
-					"id":                   str("type-test"),
+					"id":                   str("type-test-type"),
 					"recommendedRelations": strList("property-under-test"),
 				}),
 				ObjectTypes: []string{"ot-objectType"},

@@ -88,7 +88,7 @@ func BuildPlan(opts anyblockjson.Options, docs []DocMeta) (*Plan, error) {
 		blobPaths: map[string]string{},
 	}
 	for _, d := range docs {
-		stem := anyblockjson.FoldDocumentId(opts, d.Id)
+		stem := anyblockjson.FoldDocumentId(opts, d.SbType, d.Id)
 		if err := checkIdSafe(stem); err != nil {
 			return nil, fmt.Errorf("plan document paths: %w", err)
 		}

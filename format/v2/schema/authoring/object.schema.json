@@ -159,6 +159,29 @@
           "template_for": false
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "id": {
+            "pattern": "^type-"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "then": {
+        "required": [
+          "kind",
+          "internal_key"
+        ],
+        "properties": {
+          "kind": {
+            "const": "object_type"
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -166,20 +189,27 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
       "not": {
-        "enum": [
-          "favorite",
-          "recent",
-          "recentOpen",
-          "set",
-          "collection",
-          "allObjects",
-          "chat",
-          "bin",
-          "widgets",
-          "graph"
+        "anyOf": [
+          {
+            "enum": [
+              "favorite",
+              "recent",
+              "recentOpen",
+              "set",
+              "collection",
+              "allObjects",
+              "chat",
+              "bin",
+              "widgets",
+              "graph"
+            ]
+          },
+          {
+            "pattern": "^participant-"
+          }
         ]
       },
-      "description": "A bundle-local id: letters, digits, `-`, `_`; never starting with `_` (that prefix is the platform's) and never one of the ten reserved listing words — the index authoring schema beside this one reserves the same ten, and `chat` and `bin` are the two most common listing widgets."
+      "description": "A bundle-local id: letters, digits, `-`, `_`; never starting with `_` (that prefix is the platform's), never one of the ten reserved listing words — the index authoring schema beside this one reserves the same ten, and `chat` and `bin` are the two most common listing widgets — and never `participant-…`, which belongs to a participant document, a kind an author never writes. `type-<internal_key>` is a type document's own id (§9): write it on the type document whose internal_key it names, and nowhere else."
     },
     "propertyMap": {
       "type": "object",

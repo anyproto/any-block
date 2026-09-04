@@ -241,12 +241,12 @@ func TestAuthoringCustomTypeReferencesUseDeclaredDisplayName(t *testing.T) {
 		storedKey   = "habit_record_v2"
 	)
 	vocabulary := declaredAuthoringTypes(t, map[string][]byte{
-		"types/ritual.json": []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-ritual","internal_key":"habit_record_v2","properties":{"Name":"Café Ritual"},"type_settings":{"layout":"basic"}}`),
+		"types/ritual.json": []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-habit_record_v2","internal_key":"habit_record_v2","properties":{"Name":"Café Ritual"},"type_settings":{"layout":"basic"}}`),
 	})
 	resolver := &authoringPropertyResolver{}
 	opts := Options{Keys: vocabulary, ResolveProperties: resolver, GenerateId: seqIds("authoring")}
 
-	typeDocument := []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-ritual","internal_key":"habit_record_v2","properties":{"Name":"Café Ritual"},"type_settings":{"layout":"basic","property_definitions":[{"name":"Related ritual","format":"objects","object_types":["Café Ritual"]}]}}`)
+	typeDocument := []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-habit_record_v2","internal_key":"habit_record_v2","properties":{"Name":"Café Ritual"},"type_settings":{"layout":"basic","property_definitions":[{"name":"Related ritual","format":"objects","object_types":["Café Ritual"]}]}}`)
 	ordinary := []byte(`{"formatVersion":"2.0","id":"ritual-one","type":"Café Ritual"}`)
 	template := []byte(`{"formatVersion":"2.0","kind":"template","id":"template-ritual","type":"template","template_for":"Café Ritual"}`)
 	for name, data := range map[string][]byte{
@@ -346,7 +346,7 @@ func TestAuthoringSubset_StructuralFixtures(t *testing.T) {
 			"properties": {"name": "New habit"},
 			"blocks": [{"type": "paragraph", "text": "Why this habit matters:"}]}`,
 		"a type with the whole settings surface": `{"formatVersion": "2.0", "kind": "object_type",
-			"id": "type-r", "internal_key": "review",
+			"id": "type-review", "internal_key": "review",
 			"icon": {"format": "icon", "name": "book", "color": "teal"},
 			"properties": {"name": "Review", "description": "One review."},
 			"type_settings": {

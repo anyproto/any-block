@@ -248,8 +248,10 @@ func TestDerivedIds_TypeDocumentAndTypeKeySlots(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_STType, snap, opts)
 		require.NoError(t, err)
 		assert.Contains(t, string(data), `"id": "type-page"`)
-		assert.Equal(t, "type-page", FoldDocumentId(opts, "typeid-page"))
-		assert.Equal(t, "typeid-page", FoldDocumentId(foldOptions(), "typeid-page"), "no resolver, no fold")
+		assert.Equal(t, "type-page", FoldDocumentId(opts, model.SmartBlockType_STType, "typeid-page"))
+		assert.Equal(t, "typeid-page", FoldDocumentId(foldOptions(), model.SmartBlockType_STType, "typeid-page"), "no resolver, no fold")
+		assert.Equal(t, "typeid-page", FoldDocumentId(opts, model.SmartBlockType_Page, "typeid-page"),
+			"a page's own id never folds to a type's derived id: the prefix belongs to the kind it names")
 
 		_, imported, err := Unmarshal(data, opts)
 		require.NoError(t, err)
@@ -376,5 +378,55 @@ func TestTypeInternalKey_OnEveryTypedDocument(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_Page, typedSnapshot(), Options{})
 		require.NoError(t, err)
 		assert.NotContains(t, string(data), "type_internal_key")
+	})
+}
+
+// The derived-id prefixes are reserved (§9): `type-<key>` is valid only on
+// a type document whose internal_key is <key>, and `participant-<identity>`
+// only on a participant document of that identity. An ordinary object
+// cannot claim either, so a reader that sees the prefix can trust it.
+func TestDerivedIds_PrefixesAreReserved(t *testing.T) {
+	identity := foldIdentity
+	for name, tc := range map[string]struct {
+		doc  string
+		want string // "" = valid
+	}{
+		"a type document owns its derived id": {
+			`{"formatVersion":"2.0","kind":"object_type","id":"type-habit","internal_key":"habit","properties":{"Name":"Habit"}}`, ""},
+		"a page may not wear type-": {
+			`{"formatVersion":"2.0","id":"type-habit"}`, "/id"},
+		"a type document whose key disagrees may not either": {
+			`{"formatVersion":"2.0","kind":"object_type","id":"type-habit","internal_key":"ritual","properties":{"Name":"Habit"}}`, "/id"},
+		"a participant document owns its derived id": {
+			`{"formatVersion":"2.0","kind":"participant","id":"participant-` + identity + `"}`, ""},
+		"a page may not wear participant-": {
+			`{"formatVersion":"2.0","id":"participant-` + identity + `"}`, "/id"},
+		"a participant whose tail is no identity": {
+			`{"formatVersion":"2.0","kind":"participant","id":"participant-nobody"}`, "/id"},
+		"a hyphen elsewhere is an ordinary bundle-local id": {
+			`{"formatVersion":"2.0","id":"page-welcome"}`, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := Validate([]byte(tc.doc), Options{})
+			if tc.want == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			var ve *ValidationError
+			require.ErrorAs(t, err, &ve)
+			require.Len(t, ve.Issues, 1)
+			assert.Equal(t, tc.want, ve.Issues[0].Path)
+			assert.Contains(t, ve.Issues[0].Message, "reserved")
+			_, _, uerr := Unmarshal([]byte(tc.doc), Options{GenerateId: seqIds("g")})
+			require.Error(t, uerr, "Unmarshal agrees (§12 I2)")
+		})
+	}
+
+	t.Run("the authoring subset states the same reservation", func(t *testing.T) {
+		require.NoError(t, ValidateAuthoring([]byte(
+			`{"formatVersion":"2.0","kind":"object_type","id":"type-habit","internal_key":"habit","properties":{"Name":"Habit"},"type_settings":{"layout":"basic"}}`)))
+		err := ValidateAuthoring([]byte(`{"formatVersion":"2.0","id":"participant-` + identity + `","kind":"page"}`))
+		require.Error(t, err, "an author never mints a participant")
 	})
 }

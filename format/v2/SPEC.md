@@ -4008,6 +4008,16 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   there (a `type` this bundle declares by its `Name`, a bundled name), and
   so is the platform's own `ot-<key>`, as input for authoring (§2g); export
   writes the derived id.
+- **The prefixes are reserved.** An id that wears `type-` belongs to a
+  type document whose `internal_key` is the remainder, and one that wears
+  `participant-` to a participant document whose remainder is an account
+  identity; anything else claiming either is refused at `/id`, by the
+  document validator and so by `bundle.Validate` and the authoring subset
+  (§2g, whose `documentId` refuses `participant-` outright, a kind an
+  author never writes, and gates `type-` on `kind: "object_type"`). The
+  prefix is a statement a reader may trust only because nothing else may
+  make it. A `-` anywhere else in an id — `page-welcome` — is an ordinary
+  bundle-local slug.
 - **Import rebuilds through the same capability.** `type-<key>` in an
   id-valued slot becomes the type object the target space serves for that
   key (`TypeIdByKey`); a key the space does not serve stays as written —
