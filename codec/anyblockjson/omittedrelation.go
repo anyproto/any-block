@@ -133,7 +133,13 @@ var relationInstallArtifactKeys = map[string]string{
 	// derived from the bundled definition at install: measured, 154 bundled
 	// keys carry one across 9,675 copies and NOT ONE key has a second
 	// distinct value — a per-space fact would
-	"apiObjectKey": "derived from the bundled definition: 0 of 154 keys carry a second value",
+	// The entry states it (PropertyDefinition.ApiKey), so omitting the
+	// document loses nothing — which is a stronger reason than the one this
+	// line carried before, that a bundled key's api key is derivable from
+	// the shipped table (measured: 154 bundled keys across 9,675 copies, not
+	// one carrying a second distinct value). Derivability held only for
+	// bundled keys, and the predicate governs every relation.
+	"apiObjectKey": "stated by the dictionary entry; for a bundled key also derivable from the table",
 	// what the relation OBJECT's page features — an app-version stamp, not
 	// the definition: 90 of 134 keys carry two different stamps for the SAME
 	// key across spaces

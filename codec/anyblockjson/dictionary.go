@@ -221,6 +221,7 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 		// dictionary-owned, so set here rather than in the shared builder:
 		// the type-document door never sees the member (its schema refuses
 		// it), and the PATCH channel has no removal to state
+		def.ApiKey = tp.ApiKey
 		def.Uninstalled = tp.Uninstalled
 		def.Hidden = tp.Hidden
 		def.BundledDiverged = tp.BundledDiverged
@@ -526,6 +527,7 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	// type's declaration each would describe nothing (§2f). True only — a
 	// false flag is the absent form, the omit-default canon for a flag
 	// that is not a property value.
+	m.setNonEmpty(memberApiKey, def.ApiKey)
 	m.setNonEmpty(memberUninstalled, def.Uninstalled)
 	m.setNonEmpty(memberHidden, def.Hidden)
 	m.setNonEmpty(memberBundledDiverged, def.BundledDiverged)
@@ -534,6 +536,10 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 
 // memberUninstalled is the dictionary entry's removal flag (§2f).
 const memberUninstalled = "uninstalled"
+
+// memberApiKey is the dictionary entry's public API key (§2f): the stored
+// `apiObjectKey`, which no restore re-derives.
+const memberApiKey = "api_key"
 
 // memberHidden is the dictionary entry's hidden flag (§2f, §15 #23): the
 // store's `isHidden`, which since a bundle carries no property document

@@ -170,14 +170,19 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 		if string(raw) == "false" {
 			continue
 		}
-		assert.Truef(t, m == "object_types" || m == "uninstalled" || m == "hidden" || m == "bundled_diverged",
-			"dictionaryEntry restates %q — its layer holds the one narrowing and the three dictionary-owned members only", m)
+		assert.Truef(t, m == "object_types" || m == "uninstalled" || m == "hidden" ||
+			m == "bundled_diverged" || m == "api_key",
+			"dictionaryEntry restates %q — its layer holds the one narrowing and the four dictionary-owned members only", m)
 	}
 	var objSchema struct {
 		Defs map[string]schemaNode `json:"$defs"`
 	}
 	require.NoError(t, json.Unmarshal(schemaJSON, &objSchema))
-	for _, owned := range []string{"uninstalled", "hidden", "bundled_diverged"} {
+	// api_key joins the three flags as dictionary-owned: a type's declaration
+	// says how THAT type uses a property, and the property's public API
+	// address is not one of the things it says. It is the entry's only
+	// carrier since §15 #23 left no property document to hold it.
+	for _, owned := range []string{"uninstalled", "hidden", "bundled_diverged", "api_key"} {
 		_, onEntry := entry.Properties[owned]
 		assert.Truef(t, onEntry, "`%s` is a member of the dictionary entry's own layer (§2f)", owned)
 		_, shared := objSchema.Defs["propertyDefinition"].Properties[owned]

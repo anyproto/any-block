@@ -104,6 +104,23 @@ type PropertyDefinition struct {
 	// or a property document's settings it would say nothing, and both
 	// refuse it, the way the dictionary refuses `section`.
 	Uninstalled bool
+	// ApiKey is the property's public API key (stored `apiObjectKey`) — the
+	// spelling callers address it by on the API surface, which is NOT a slug
+	// of the name: an api key does not follow a rename, and nothing rewrites
+	// it (`Location` keeps `restaurant_location`, `Link` keeps `website`).
+	//
+	// It travels for the reason OptionDefinition.ApiKey does — no restore
+	// mints one. The rule that derives an api key lives on the create path
+	// (objectcreator's injectApiObjectKey) and import does not take it: a
+	// relation snapshot is written straight into its tree. Since §15 #23 a
+	// bundle writes no property document either, so this entry is the only
+	// place the stored value can travel; without it the API addresses a
+	// restored property by something its callers never wrote.
+	//
+	// Dictionary-owned, like the flags above: a type's declaration says how
+	// THAT type uses a property, and the property's public address is not
+	// one of the things it says.
+	ApiKey string
 	// Hidden records that the store hides this property from every listing
 	// (stored `isHidden` true). With no property document in a bundle
 	// (§15 #23) the dictionary entry is the only place the fact can travel,
@@ -397,7 +414,8 @@ type TypeProperty struct {
 	// Uninstalled is the dictionary-owned member, as Section is the
 	// type-owned one; each home's schema refuses the other's before this
 	// decode runs (§2f).
-	Uninstalled bool `json:"uninstalled"`
+	Uninstalled bool   `json:"uninstalled"`
+	ApiKey      string `json:"api_key"`
 	// Hidden is the dictionary's second owned member (§2f, §15 #23), on the
 	// same footing as Uninstalled.
 	Hidden bool `json:"hidden"`

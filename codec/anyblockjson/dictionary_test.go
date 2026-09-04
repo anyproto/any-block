@@ -636,3 +636,52 @@ func TestPropertyDictionary_StatedInternalKeyIsAuthoritative(t *testing.T) {
 		}
 	}
 }
+
+// A property's api key travels on its dictionary entry, for the reason the
+// option's does (§2f): no restore mints one. The rule that derives an api key
+// from a name lives on the create path, and import does not take it — a
+// relation snapshot is written straight into its tree — so a property
+// restored from a bundle stating no api key gets none, and the API then
+// addresses it by something its callers never wrote.
+//
+// The dictionary is the only home that can carry it: since §15 #23 a bundle
+// writes no property document, so the stored `apiObjectKey` has nowhere else
+// to go.
+//
+// How this can fail: treat the api key as derivable from the name (the census
+// that suggested it measured reproducibility, which was never the question);
+// write it into the shared builder, where a type's declaration would carry a
+// member that says nothing about how that type uses the property.
+func TestPropertyDictionary_EntryCarriesTheApiKey(t *testing.T) {
+	const minted = "68ba835996ab900b9b0231ac"
+	data := []byte(`{"formatVersion":"2.0","properties":[
+		{"property":"` + minted + `","internal_key":"` + minted + `","name":"Location",
+		 "format":"text","api_key":"restaurant_location"},
+		{"property":"Cooking time","internal_key":"cookingtime","name":"Cooking time","format":"number"}
+	]}`)
+	dict, err := UnmarshalPropertyDictionary(data, Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 2)
+
+	byKey := map[string]PropertyDefinition{}
+	for _, def := range dict.Properties {
+		byKey[string(def.Key)] = def
+	}
+	assert.Equal(t, "restaurant_location", byKey[minted].ApiKey,
+		"the api key does not follow the name and nothing re-derives it")
+	assert.Empty(t, byKey["cookingtime"].ApiKey, "an entry stating none has none")
+
+	// and it survives the writer, so a re-export addresses the property the
+	// same way the source space did
+	out, err := MarshalPropertyDictionary(dict, Options{})
+	require.NoError(t, err)
+	assert.Contains(t, string(out), `"api_key": "restaurant_location"`)
+
+	back, err := UnmarshalPropertyDictionary(out, Options{})
+	require.NoError(t, err)
+	for _, def := range back.Properties {
+		if string(def.Key) == minted {
+			assert.Equal(t, "restaurant_location", def.ApiKey)
+		}
+	}
+}

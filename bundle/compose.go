@@ -962,6 +962,11 @@ func storedRelationDefinition(base *model.SmartBlockSnapshotBase, opts anyblockj
 		MaxCount:    int64(det["relationMaxCount"].GetNumberValue()),
 		Readonly:    det["relationReadonlyValue"].GetBoolValue(),
 		Hidden:      det["isHidden"].GetBoolValue(),
+		// the public API address, which no restore mints: the rule that
+		// derives one lives on the app's create path and an import does not
+		// take it, and since §15 #23 the entry is its only carrier
+		// (PropertyDefinition.ApiKey)
+		ApiKey: det["apiObjectKey"].GetStringValue(),
 	}
 	if v := det["relationFormatIncludeTime"]; v != nil {
 		switch v.GetKind().(type) {

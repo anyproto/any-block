@@ -451,3 +451,35 @@ func TestComposerReportsWhatAnOmittedOptionsEntryCannotCarry(t *testing.T) {
 		assert.Contains(t, issues[0].Detail, "does not state")
 	})
 }
+
+// A property's api key reaches its dictionary entry. Since §15 #23 a bundle
+// writes no property document, so the entry is the only carrier the stored
+// `apiObjectKey` has — and no restore mints one, because the rule that
+// derives an api key lives on the app's create path and an import does not
+// take it.
+//
+// How this can fail: leave the composer reading only the definition members
+// (the entry gains the field and nothing ever fills it, so the loss looks
+// fixed and is not).
+func TestComposerCarriesAPropertysApiKey(t *testing.T) {
+	minted := "68ba835996ab900b9b0231ac"
+	c := NewComposer(anyblockjson.Options{}, "Restaurants")
+	rel := &model.SmartBlockSnapshotBase{Key: minted, Details: detFields(map[string]*types.Value{
+		"id": strVal("bafyrel"), "relationKey": strVal(minted), "name": strVal("Location"),
+		"relationFormat": numVal(0), "apiObjectKey": strVal("restaurant_location"),
+	})}
+	omitted, _ := c.Observe(model.SmartBlockType_STRelation, rel)
+	require.True(t, omitted, "no property document travels (§15 #23)")
+
+	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
+		[]byte(`{"formatVersion":"2.0","properties":{"`+minted+`":"Berlin"}}`)))
+
+	_, dictData, _, err := c.Finish()
+	require.NoError(t, err)
+	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 1)
+	assert.Equal(t, "restaurant_location", dict.Properties[0].ApiKey,
+		"the api key does not follow the name, and nothing on the restore path re-derives it")
+}
