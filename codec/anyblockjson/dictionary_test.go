@@ -51,10 +51,15 @@ func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 				DefaultValue: map[string]any{"b": 2.0, "a": 1.0},
 			},
 			{
-				Key:         "5f1e0a7788aa631534b22f02",
-				Name:        "Stage",
-				Format:      model.RelationFormat_status,
-				Options:     []OptionDefinition{{Name: "Now", Color: "red"}, {Name: "Later"}},
+				Key:     "5f1e0a7788aa631534b22f02",
+				Name:    "Stage",
+				Format:  model.RelationFormat_status,
+				Options: []OptionDefinition{{Name: "Now", Color: "red"}, {Name: "Later"}},
+			},
+			{
+				Key:         "5f1e0a7788aa631534b22f03",
+				Name:        "Deadline",
+				Format:      model.RelationFormat_date,
 				IncludeTime: boolPtr(false), // a pointer false is a declaration, not an absence
 			},
 		},
@@ -70,7 +75,7 @@ func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 
 	// then
 	assert.Equal(t, string(data), string(data2), "Marshal ∘ Unmarshal must be byte-stable")
-	require.Len(t, got.Properties, 3)
+	require.Len(t, got.Properties, 4)
 	byKey := map[domain.RelationKey]PropertyDefinition{}
 	for _, def := range got.Properties {
 		byKey[def.Key] = def
@@ -83,9 +88,10 @@ func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 	assert.True(t, owner.Readonly)
 	assert.Equal(t, map[string]any{"a": 1.0, "b": 2.0}, owner.DefaultValue)
 	stage := byKey["5f1e0a7788aa631534b22f02"]
-	require.NotNil(t, stage.IncludeTime)
-	assert.False(t, *stage.IncludeTime)
 	assert.Equal(t, []OptionDefinition{{Name: "Now", Color: "red"}, {Name: "Later"}}, stage.Options)
+	deadline := byKey["5f1e0a7788aa631534b22f03"]
+	require.NotNil(t, deadline.IncludeTime)
+	assert.False(t, *deadline.IncludeTime)
 }
 
 // `format` resolves per key, exactly as a property_settings format does
@@ -291,9 +297,9 @@ func TestPropertyDictionary_MaxCountStaysWithinWhatItCanRead(t *testing.T) {
 	}
 
 	t.Run("an ordinary bound still writes and reads back", func(t *testing.T) {
-		// given
+		// given — on a format where the member exists (§2a)
 		d := &PropertyDictionary{Properties: []PropertyDefinition{{
-			Key: "estimated_hours", Format: model.RelationFormat_number, MaxCount: 1,
+			Key: "attendees", Format: model.RelationFormat_object, MaxCount: 1,
 		}}}
 
 		// when
@@ -435,7 +441,7 @@ func TestPropertyDictionary_HiddenEntry(t *testing.T) {
 	})
 }
 
-// An entry may state `bundled_modified: true` — the space's copy of a
+// An entry may state `bundled_diverged: true` — the space's copy of a
 // BUNDLED property had diverged from the shipped table when the bundle was
 // written (§2f, §15 #25). The verdict is only knowable at export time: an
 // importer could diff the entry against its own table, but the table moves
@@ -443,27 +449,27 @@ func TestPropertyDictionary_HiddenEntry(t *testing.T) {
 // user's rename from the table's. The member is the dictionary's third owned
 // one, on `uninstalled`'s footing exactly: refused by the shape's other two
 // homes and by the authoring subset, written `true` only. It is NOT a
-// `bundled` flag (§15 #24): absent says "not bundled, or bundled and
-// unmodified", and the table lookup still tells which.
+// `bundled` flag (§15 #24): absent says "not bundled, or bundled and not
+// diverged", and the table lookup still tells which.
 //
 // How this can fail: leave the member off the schema's dictionaryEntry (the
 // round trip is refused on read); write it from the shared member renderer
 // (a type declaration starts carrying a verdict about a space it never
 // saw); or read it through the shared builder (the PATCH-type channel
 // starts overriding bundled properties).
-func TestPropertyDictionary_BundledModifiedEntry(t *testing.T) {
+func TestPropertyDictionary_BundledDivergedEntry(t *testing.T) {
 	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
 		in := &PropertyDictionary{
 			Properties: []PropertyDefinition{
-				{Key: "dueDate", Name: "Deadline", Format: model.RelationFormat_date, BundledModified: true},
+				{Key: "dueDate", Name: "Deadline", Format: model.RelationFormat_date, BundledDiverged: true},
 				{Key: "createdDate", Name: "Creation date", Format: model.RelationFormat_date},
 				{Key: "6a32d4856761631534b22f85", Name: "Budget", Format: model.RelationFormat_number},
 			},
 		}
 		data, err := MarshalPropertyDictionary(in, Options{})
 		require.NoError(t, err)
-		assert.Contains(t, string(data), `"bundled_modified": true`)
-		assert.Equal(t, 1, strings.Count(string(data), "bundled_modified"), "a false flag is not written")
+		assert.Contains(t, string(data), `"bundled_diverged": true`)
+		assert.Equal(t, 1, strings.Count(string(data), "bundled_diverged"), "a false flag is not written")
 		got, err := UnmarshalPropertyDictionary(data, Options{})
 		require.NoError(t, err)
 		data2, err := MarshalPropertyDictionary(got, Options{})
@@ -473,14 +479,14 @@ func TestPropertyDictionary_BundledModifiedEntry(t *testing.T) {
 		for _, def := range got.Properties {
 			byKey[def.Key] = def
 		}
-		assert.True(t, byKey["dueDate"].BundledModified)
-		assert.False(t, byKey["createdDate"].BundledModified, "absent: bundled and unmodified")
-		assert.False(t, byKey["6a32d4856761631534b22f85"].BundledModified, "absent: not bundled at all")
+		assert.True(t, byKey["dueDate"].BundledDiverged)
+		assert.False(t, byKey["createdDate"].BundledDiverged, "absent: bundled and not diverged")
+		assert.False(t, byKey["6a32d4856761631534b22f85"].BundledDiverged, "absent: not bundled at all")
 	})
 	t.Run("beside uninstalled and hidden on one entry", func(t *testing.T) {
 		data, err := MarshalPropertyDictionary(&PropertyDictionary{
 			Properties: []PropertyDefinition{{Key: "tag", Name: "Labels", Format: model.RelationFormat_tag,
-				Hidden: true, Uninstalled: true, BundledModified: true}},
+				Hidden: true, Uninstalled: true, BundledDiverged: true}},
 		}, Options{})
 		require.NoError(t, err)
 		got, err := UnmarshalPropertyDictionary(data, Options{})
@@ -488,26 +494,26 @@ func TestPropertyDictionary_BundledModifiedEntry(t *testing.T) {
 		require.Len(t, got.Properties, 1)
 		assert.True(t, got.Properties[0].Hidden)
 		assert.True(t, got.Properties[0].Uninstalled)
-		assert.True(t, got.Properties[0].BundledModified)
+		assert.True(t, got.Properties[0].BundledDiverged)
 	})
 	t.Run("a non-boolean is refused", func(t *testing.T) {
 		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0",
-			"properties":[{"property":"Due date","format":"date","bundled_modified":"yes"}]}`), Options{})
+			"properties":[{"property":"Due date","format":"date","bundled_diverged":"yes"}]}`), Options{})
 		require.Error(t, err)
 	})
 	t.Run("the other two homes refuse it", func(t *testing.T) {
 		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
-			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","bundled_modified":true}]}}`)
+			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","bundled_diverged":true}]}}`)
 		require.Error(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
 		relDoc := []byte(`{"formatVersion":"2.0","id":"r1","kind":"property","type":"Property",
-			"internal_key":"dueDate","property_settings":{"format":"date","bundled_modified":true}}`)
+			"internal_key":"dueDate","property_settings":{"format":"date","bundled_diverged":true}}`)
 		require.Error(t, Validate(relDoc, Options{}), "a property document's property_settings")
 	})
 	t.Run("the authoring subset does not admit it", func(t *testing.T) {
 		// an author has no space whose copy could have diverged: the member
 		// is an export-time verdict, like internal_key
 		err := ValidateAuthoringPropertyDictionary([]byte(`{"formatVersion":"2.0",
-			"properties":[{"name":"Streak","format":"number","bundled_modified":true}]}`))
+			"properties":[{"name":"Streak","format":"number","bundled_diverged":true}]}`))
 		require.Error(t, err)
 	})
 }

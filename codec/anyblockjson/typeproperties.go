@@ -64,10 +64,15 @@ type PropertyDefinition struct {
 	// (stored `relationFormatIncludeTime`). A pointer because absent and
 	// false differ: absent says nothing, false clears the flag. IncludeTimeSet
 	// distinguishes an explicit null (set with a nil pointer) from absence.
+	// A date's member only: on any other format neither door writes or
+	// reads it (§2a, FormatFixedDefinitionMember).
 	IncludeTime    *bool
 	IncludeTimeSet bool
 	// MaxCount bounds how many values the property holds (stored
-	// `relationMaxCount`); 0 is unlimited, the stored default.
+	// `relationMaxCount`) on a format that can hold more than one
+	// (MultiValuedFormat); 0 is unlimited, the stored default. On a
+	// single-valued format the member does not exist — the format fixes
+	// the count at one — and neither door writes or reads it (§2a).
 	MaxCount int64
 	// Readonly marks the property's value as not user-writable (stored
 	// `relationReadonlyValue`).
@@ -96,7 +101,7 @@ type PropertyDefinition struct {
 	// says where a property sits on ONE type; Hidden says whether the
 	// property is shown at all.
 	Hidden bool
-	// BundledModified records that the space's copy of a BUNDLED property
+	// BundledDiverged records that the space's copy of a BUNDLED property
 	// — a key the shipped table names — had DIVERGED from the table when
 	// the bundle was written: OmittedBundledRelation refused the copy, so
 	// the entry states the user's version, and a reader restoring the key
@@ -105,12 +110,12 @@ type PropertyDefinition struct {
 	// the table moves between app versions, and once it has a later reader
 	// cannot tell the user's rename from the table's — which is why it is a
 	// member and not a derivation. Absent says "not a bundled property, or
-	// bundled and unmodified"; the table lookup a reader already runs (§15
+	// bundled and not diverged"; the table lookup a reader already runs (§15
 	// #24) tells those apart, so this is NOT a `bundled` flag. The third
 	// dictionary-owned member (§2f, §15 #25), on Uninstalled's footing:
 	// refused on the shape's other two homes and by the authoring subset,
 	// written `true` only.
-	BundledModified bool
+	BundledDiverged bool
 }
 
 // OptionDefinition is one entry of a declared select vocabulary (§2a). Color
@@ -367,10 +372,10 @@ type TypeProperty struct {
 	// Hidden is the dictionary's second owned member (§2f, §15 #23), on the
 	// same footing as Uninstalled.
 	Hidden bool `json:"hidden"`
-	// BundledModified is the dictionary's third owned member (§2f, §15
+	// BundledDiverged is the dictionary's third owned member (§2f, §15
 	// #25): the space's copy of a bundled property diverged from the shipped
 	// table at export time, so the entry outranks the reader's table.
-	BundledModified bool `json:"bundled_modified"`
+	BundledDiverged bool `json:"bundled_diverged"`
 }
 
 // UnmarshalJSON preserves two facts encoding/json otherwise collapses:
@@ -503,6 +508,18 @@ func (tp TypeProperty) identityForResolution(path string) (term string, isIntern
 // travel.
 func (tp TypeProperty) definition(key string, format model.RelationFormat, targets []string) PropertyDefinition {
 	term, stated := tp.authoredKey()
+	// a member the format fixes is not read (§2a): a max_count on a text
+	// property, an include_time on a select — the writer never states one,
+	// and one an author wrote would have the wiring store a cap or a flag
+	// the format cannot honour. The reader assumes the format's answer.
+	includeTime, includeTimeSet := tp.IncludeTime, tp.IncludeTimeSet || tp.IncludeTime != nil
+	if FormatFixedDefinitionMember(format, detailKeyRelationFormatIncludeTime) {
+		includeTime, includeTimeSet = nil, false
+	}
+	maxCount := maxCountValue(tp.MaxCount)
+	if FormatFixedDefinitionMember(format, "relationMaxCount") {
+		maxCount = 0
+	}
 	return PropertyDefinition{
 		Key: domain.RelationKey(key),
 		// authoritative when the entry STATED the key, and equally when
@@ -516,9 +533,9 @@ func (tp TypeProperty) definition(key string, format model.RelationFormat, targe
 		Options:         tp.Options,
 		ObjectTypes:     targets,
 		Description:     tp.Description,
-		IncludeTime:     tp.IncludeTime,
-		IncludeTimeSet:  tp.IncludeTimeSet || tp.IncludeTime != nil,
-		MaxCount:        maxCountValue(tp.MaxCount),
+		IncludeTime:     includeTime,
+		IncludeTimeSet:  includeTimeSet,
+		MaxCount:        maxCount,
 		Readonly:        tp.Readonly,
 		DefaultValue:    tp.DefaultValue,
 		DefaultValueSet: tp.DefaultValueSet || tp.DefaultValue != nil,

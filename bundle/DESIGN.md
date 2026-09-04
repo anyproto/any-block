@@ -104,13 +104,13 @@ Four phases, two of them new relative to today's exporter:
 |---|---|---|
 | **collect** | as today | dependency closure over the request: nested objects, dataview-referenced objects, types, relations, options, templates, linked files, recommended relations (`processProtobuf`, export.go:610). Extracted behind a format-agnostic interface; the bare `isProtobuf bool` (export.go:503-504) becomes an explicit closure mode. Output: `map[id]*Doc`, complete before anything is written. |
 | **plan** | single-threaded | classify every collected doc (kind → directory, §1.2), compute every filename (§1.3 — a pure per-document function of the id, no collision machinery), and pre-build the manifest type-path table (stored type keys come from the `uniqueKey` detail). **Plan reads details only — id, name, type/layout, uniqueKey — never content**; that invariant is what keeps it O(collected details) in memory and free of object loads (§1.6). Cheap: map passes over details already in memory, no store reads, no marshal. |
-| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:197, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy's entry carries `uninstalled`, SPEC §15 #22, and the first's own refusal on a bundled key is what flags the entry `bundled_modified`, SPEC §15 #25), plus `OmittedRelation` (omittedrelation.go:270) and `OmittedRelationOption` (omittedoption.go:98), which need only the smartblock type and so COULD run at plan time but deliberately do not — both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (omittedrelation.go:293) and `UnaccountedOptionDetails` (omittedoption.go:116) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
+| **emit** | width-bounded concurrent queue tasks (§1.5; the queue is already width-4 today, export.go:152-156) | per document: load state, run the omission predicates on the loaded snapshot (`OmittedBundledRelation`, `OmittedSpaceSettings`, `OmittedWidgetObject`, `OmittedProfilePage` — omittedrelation.go:197, spacesettings.go:156, widgetobject.go:387, profilepage.go:40 — they take the snapshot base, so they CANNOT run at plan time; `UninstalledRelation` beside the first decides whether an omitted copy's entry carries `uninstalled`, SPEC §15 #22, and the first's own refusal on a bundled key is what flags the entry `bundled_diverged`, SPEC §15 #25), plus `OmittedRelation` (omittedrelation.go:270) and `OmittedRelationOption` (omittedoption.go:98), which need only the smartblock type and so COULD run at plan time but deliberately do not — both omissions are unconditional, so the planned name simply goes unused and a plan stays a pure per-document function of the id (§1.1); the composer additionally calls `UnaccountedRelationDetails` (omittedrelation.go:293) and `UnaccountedOptionDetails` (omittedoption.go:116) on the same snapshots, which is what makes an unconditional omission reported rather than silent; lift-or-`anyblockjson.Marshal`, write to the planned filename, close (§1.5); for file objects, stream the blob (§1.4). Accumulates bundle facts (dictionary entries, option vocabularies, index lift, used property keys) into a mutex-guarded composer. A name planned for a document emit then omits simply goes unused — determinism is unaffected, since omission is itself a deterministic function of state. |
 | **finish** | single-threaded, at the `postProcess` seam (export.go:1529) | compose and write `properties.json` and `index.json` (with manifest), re-reading both through the package's own `Unmarshal` before writing — the bundle-level I1 discipline the harness already practices (cmd/anyblockroundtrip/main.go:983-1012). |
 
 The composer is a production re-home of the harness's `spaceComposer`
 (cmd/anyblockroundtrip/main.go:711-1030), which already implements the §2f
 composition end to end: the used-key census, the dictionary entries (every
-observed relation's from its snapshot, complete, flagged `bundled_modified`
+observed relation's from its snapshot, complete, flagged `bundled_diverged`
 when a bundled key's copy diverged from the table; a referenced bundled key
 with no snapshot from the table's reconstruction, the same entry — SPEC §15
 #24, #25; there is no `installed` list and no reduced entry), option
@@ -162,7 +162,7 @@ Proposed layout, one bundle root per space:
                         carries no property document and no option document
                         at all. Every property something references is a
                         dictionary entry stating its complete definition
-                        — `uninstalled`, `hidden` and `bundled_modified`
+                        — `uninstalled`, `hidden` and `bundled_diverged`
                         on the entry, one shape whether the key is bundled
                         or not — and a property nothing references is not
                         exported (SPEC §2f, §15 #22, #23, #24, #25). The
@@ -454,7 +454,7 @@ and the manifest accumulates paths. Three options were on the table:
   function of its own id, and the plan fixes the manifest tables before
   the first task starts (`namer.Get`'s nondeterminism is retired with the
   naming scheme itself, §1.3). What remains shared during emit is commutative map/set insertion
-  (dictionary entries, their `uninstalled` and `bundled_modified` flags, option vocabularies, used property
+  (dictionary entries, their `uninstalled` and `bundled_diverged` flags, option vocabularies, used property
   keys, the index lift) — guarded by one mutex, held for microseconds per
   document against marshal work measured in milliseconds (the §9a census
   alone is 4.2 ms → 6.7 ms on a 1,630-block document, SPEC §9a), so

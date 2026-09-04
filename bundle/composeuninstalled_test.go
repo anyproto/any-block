@@ -48,9 +48,9 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 		snapshot            func(t *testing.T) *model.SmartBlockSnapshotBase
 		wantName            string
 		wantFormat          model.RelationFormat
-		// wantModified is `bundled_modified` beside the removal (§15 #25):
+		// wantDiverged is `bundled_diverged` beside the removal (§15 #25):
 		// only the divergent copy of a bundled key carries it
-		wantModified bool
+		wantDiverged bool
 	}{
 		{"an omitted bundled-identical copy", "tag", "tag", func(t *testing.T) *model.SmartBlockSnapshotBase {
 			copy := testInstalledCopy(t, "tag")
@@ -89,7 +89,7 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 			assert.True(t, byKey[shape.key].Uninstalled, "the flag is the removal; without it the restore installs the property live")
 			assert.Equal(t, shape.wantName, byKey[shape.key].Name)
 			assert.Equal(t, shape.wantFormat, byKey[shape.key].Format)
-			assert.Equal(t, shape.wantModified, byKey[shape.key].BundledModified, "removed and diverged are two facts, and both travel")
+			assert.Equal(t, shape.wantDiverged, byKey[shape.key].BundledDiverged, "removed and diverged are two facts, and both travel")
 			if shape.wantFormat == model.RelationFormat_tag {
 				assert.Len(t, byKey[shape.key].Options, 1, "the entry is the vocabulary's only vehicle")
 				assert.Equal(t, 1, stats.OptionsLifted)
@@ -124,7 +124,7 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 		require.NoError(t, err)
 		_, byKey := dictionaryByKey(t, dictData)
 		require.Contains(t, byKey, "tag", "referenced, so an entry — the stored definition, which is the table's")
-		assert.False(t, byKey["tag"].BundledModified, "a stamp is not a divergence either")
+		assert.False(t, byKey["tag"].BundledDiverged, "a stamp is not a divergence either")
 		assert.False(t, byKey["tag"].Uninstalled, "a false stamp is no removal")
 		assert.Zero(t, stats.DictionaryUninstalled)
 		assert.NotContains(t, string(dictData), `"installed"`, "the list is gone (§15 #24)")

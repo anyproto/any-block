@@ -235,7 +235,7 @@ func TestOmittedBundledRelation_UninstalledCopyOmits(t *testing.T) {
 // same unconditional shape as OmittedRelationOption. OmittedBundledRelation
 // keeps its job beside it, which is a different question: whether the
 // omitted copy still restates the table — verified through the
-// reconstruction when it does, flagged `bundled_modified` when it does not
+// reconstruction when it does, flagged `bundled_diverged` when it does not
 // (§15 #25).
 func TestOmittedRelation(t *testing.T) {
 	assert.True(t, OmittedRelation(model.SmartBlockType_STRelation))
@@ -376,4 +376,67 @@ func TestUnaccountedRelationDetails(t *testing.T) {
 		})
 	}
 	assert.Nil(t, UnaccountedRelationDetails(nil))
+}
+
+// A definition member the format leaves no room for cannot divide a copy
+// from the table (§2a, §15 #25): the app stamps relationMaxCount 1 on a
+// select and nothing on a date, and a false includeTime rides on 8,375
+// non-date relations — none of it a person's choice, none of it carried on
+// an entry — so the identity check reads past `relationMaxCount` on a
+// single-valued format and `relationFormatIncludeTime` off a date. The
+// predicate is exported because the comparator and the renderer read the
+// same verdict: what the entry omits, the round trip must not report.
+//
+// How this can fail: compare relationMaxCount on a date (every date copy
+// the app created without a stamp is flagged diverged); or read past a
+// member the format admits (a tag capped at 3 passes as the table's 0).
+func TestOmittedBundledRelation_FormatFixedMembersDoNotDivide(t *testing.T) {
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	boolean := func(b bool) *types.Value { return &types.Value{Kind: &types.Value_BoolValue{BoolValue: b}} }
+	t.Run("the predicate", func(t *testing.T) {
+		for _, f := range []model.RelationFormat{model.RelationFormat_tag, model.RelationFormat_file,
+			model.RelationFormat_object, model.RelationFormat_relations} {
+			assert.True(t, MultiValuedFormat(f), f.String())
+			assert.False(t, FormatFixedDefinitionMember(f, "relationMaxCount"), f.String())
+			assert.True(t, FormatFixedDefinitionMember(f, "relationFormatIncludeTime"), f.String())
+		}
+		for _, f := range []model.RelationFormat{model.RelationFormat_longtext, model.RelationFormat_shorttext,
+			model.RelationFormat_number, model.RelationFormat_status, model.RelationFormat_checkbox,
+			model.RelationFormat_url, model.RelationFormat_email, model.RelationFormat_phone,
+			model.RelationFormat_emoji, model.RelationFormat_map} {
+			assert.False(t, MultiValuedFormat(f), f.String())
+			assert.True(t, FormatFixedDefinitionMember(f, "relationMaxCount"), f.String())
+			assert.True(t, FormatFixedDefinitionMember(f, "relationFormatIncludeTime"), f.String())
+		}
+		assert.True(t, FormatFixedDefinitionMember(model.RelationFormat_date, "relationMaxCount"))
+		assert.False(t, FormatFixedDefinitionMember(model.RelationFormat_date, "relationFormatIncludeTime"))
+		assert.False(t, FormatFixedDefinitionMember(model.RelationFormat_date, "name"), "the two members only")
+		assert.False(t, FormatFixedDefinitionMember(model.RelationFormat_longtext, "isHidden"))
+	})
+	t.Run("a date copy without the max count stamp is the table's", func(t *testing.T) {
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		delete(base.Details.Fields, "relationMaxCount")
+		key, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		require.True(t, omitted, "the table says 1, the format says 1, the stamp says nothing")
+		assert.Equal(t, "dueDate", key)
+		base.Details.Fields["relationMaxCount"] = num(0)
+		_, omitted = OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		assert.True(t, omitted)
+	})
+	t.Run("a text copy carrying includeTime is the table's", func(t *testing.T) {
+		base := installedCopySnapshot(t, "description", Options{})
+		base.Details.Fields["relationFormatIncludeTime"] = boolean(true)
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		assert.True(t, omitted, "nothing reads a time-of-day flag on a text")
+	})
+	t.Run("a member the format admits still divides", func(t *testing.T) {
+		tag := installedCopySnapshot(t, "tag", Options{})
+		tag.Details.Fields["relationMaxCount"] = num(3)
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, tag, Options{})
+		assert.False(t, omitted, "a multi_select's cap is real")
+		date := installedCopySnapshot(t, "dueDate", Options{})
+		date.Details.Fields["relationFormatIncludeTime"] = boolean(true)
+		_, omitted = OmittedBundledRelation(model.SmartBlockType_STRelation, date, Options{})
+		assert.False(t, omitted, "a date's include-time is real")
+	})
 }

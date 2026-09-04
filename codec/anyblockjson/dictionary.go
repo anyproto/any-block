@@ -51,7 +51,7 @@ type PropertyDictionary struct {
 	// nothing else: there is no list of installed bundled keys beside it
 	// (§15 #24). A reader tells a bundled key from a space-minted one by
 	// looking it up in its own shipped table, the lookup every §3 slot
-	// runs, and not by a flag: `bundled_modified` says a bundled key's
+	// runs, and not by a flag: `bundled_diverged` says a bundled key's
 	// copy had diverged from the table (§15 #25), and its absence says
 	// nothing about bundled-ness. Every entry states the complete
 	// definition, whichever the key is. Keys are STORED keys,
@@ -209,7 +209,7 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 		// it), and the PATCH channel has no removal to state
 		def.Uninstalled = tp.Uninstalled
 		def.Hidden = tp.Hidden
-		def.BundledModified = tp.BundledModified
+		def.BundledDiverged = tp.BundledDiverged
 		d.Properties = append(d.Properties, def)
 	}
 	return d, nil
@@ -506,7 +506,7 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	// that is not a property value.
 	m.setNonEmpty(memberUninstalled, def.Uninstalled)
 	m.setNonEmpty(memberHidden, def.Hidden)
-	m.setNonEmpty(memberBundledModified, def.BundledModified)
+	m.setNonEmpty(memberBundledDiverged, def.BundledDiverged)
 	return m, nil
 }
 
@@ -518,9 +518,9 @@ const memberUninstalled = "uninstalled"
 // has no other place to travel.
 const memberHidden = "hidden"
 
-// memberBundledModified is the dictionary entry's divergence verdict (§2f,
+// memberBundledDiverged is the dictionary entry's divergence verdict (§2f,
 // §15 #25): the space's copy of a bundled property differed from the
 // shipped table when the bundle was written. Knowable only at export time,
 // because the table moves — which is why it is a member rather than a diff
 // the reader runs.
-const memberBundledModified = "bundled_modified"
+const memberBundledDiverged = "bundled_diverged"

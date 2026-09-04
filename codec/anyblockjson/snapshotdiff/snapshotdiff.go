@@ -147,6 +147,23 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 	// in one sweep.
 	widgetOmitted := anyblockjson.OmittedWidgetObject(sbType, orig)
 
+	// a definition member the FORMAT fixes (§2a, §15 #25) — relationMaxCount
+	// on a single-valued format, relationFormatIncludeTime off a date — is
+	// not a difference on any relation snapshot, in any direction: no entry
+	// carries it, a reader assumes the format's answer, and the identity
+	// predicate reads past it, so a copy the predicate admits with
+	// `relationMaxCount: 0` on a date must not then be reported against the
+	// table's 1. Scoped to relation snapshots (every one travels as an
+	// entry, §15 #23) and owned by the same predicate the renderer and the
+	// identity check read, the InstallStampedDefault discipline extended.
+	formatFixed := func(k string) bool {
+		if !anyblockjson.OmittedRelation(sbType) {
+			return false
+		}
+		format, ok := relationFormatOf(orig, got)
+		return ok && anyblockjson.FormatFixedDefinitionMember(format, k)
+	}
+
 	if orig.Details != nil {
 		gotFields := map[string]*types.Value{}
 		if got.Details != nil {
@@ -231,6 +248,9 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 			if gotFields[k] == nil && widgetOmitted && anyblockjson.WidgetObjectResidualKey(k, orig.Details.Fields[k]) {
 				continue
 			}
+			if formatFixed(k) {
+				continue
+			}
 			if !detailEqual(k, orig.Details.Fields[k], gotFields[k], opts) {
 				out = append(out, fmt.Sprintf("detail %q changed: %s -> %s",
 					k, valuePreview(orig.Details.Fields[k]), valuePreview(gotFields[k])))
@@ -268,6 +288,12 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 			if omittable && anyblockjson.InstallStampedDefault(k, got.Details.Fields[k]) {
 				continue
 			}
+			// and a member the format fixes, which the table's
+			// reconstruction states in full — `relationMaxCount: 1` on a
+			// date — against a copy that never stored it
+			if formatFixed(k) {
+				continue
+			}
 			out = append(out, fmt.Sprintf("detail %q added: %s", k, valuePreview(got.Details.Fields[k])))
 		}
 	}
@@ -284,6 +310,20 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 		}
 	}
 	return out
+}
+
+// relationFormatOf reads a relation snapshot's stored format, from the
+// original first and the reconstruction second — the one member the
+// format-fixed skip turns on. A snapshot stating no readable format fixes
+// nothing, and every member then compares as ordinary state.
+func relationFormatOf(orig, got *model.SmartBlockSnapshotBase) (model.RelationFormat, bool) {
+	for _, base := range []*model.SmartBlockSnapshotBase{orig, got} {
+		v := base.GetDetails().GetFields()["relationFormat"]
+		if n, isNumber := v.GetKind().(*types.Value_NumberValue); isNumber {
+			return model.RelationFormat(int32(n.NumberValue)), true
+		}
+	}
+	return 0, false
 }
 
 // typeKeyIdPrefix is the "ot-" prefix an ObjectTypes entry carries.

@@ -158,8 +158,8 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	}
 	require.Contains(t, byKey, "dueDate", "referenced by the page, so an entry (§15 #24)")
 	assert.Equal(t, "Due date", byKey["dueDate"].Name)
-	assert.Equal(t, int64(1), byKey["dueDate"].MaxCount, "complete, not reduced: the table's max count travels (§15 #25)")
-	assert.False(t, byKey["dueDate"].BundledModified)
+	require.NotNil(t, byKey["dueDate"].IncludeTime, "complete, not reduced: a date's include-time travels (§15 #25)")
+	assert.False(t, byKey["dueDate"].BundledDiverged)
 	require.Contains(t, byKey, "tag")
 	require.Len(t, byKey["tag"].Options, 1)
 	assert.Equal(t, "urgent", byKey["tag"].Options[0].Name)

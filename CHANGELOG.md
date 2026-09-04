@@ -23,6 +23,13 @@
 - Every dictionary entry states the complete definition: the reduced
   `{key, name, format, object_types}` entry for a bundled key is gone, so a
   reader interprets an export without Anytype's shipped table. A new
-  entry member, `bundled_modified`, records that a bundled property's copy
+  entry member, `bundled_diverged`, records that a bundled property's copy
   had diverged from the table at export time — knowable only then, since
-  the table moves — and a reader takes such an entry over its own table.
+  the table moves — and a reader takes such an entry over its own table;
+  the resolver path sets it too.
+- `include_time` is a date's member and `max_count` exists only on a
+  format that can hold more than one value (`multi_select`, `files`,
+  `objects`, `properties`): both doors omit them elsewhere whatever the
+  store holds, the reader assumes the format's answer, and the identity
+  check and the round-trip comparator read past them
+  (`FormatFixedDefinitionMember`).

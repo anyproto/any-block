@@ -9,7 +9,7 @@ package bundle
 // names the key, so there is no value to explain and no format to look up.
 // There is no `installed` list and no exemption for a divergent copy (§15
 // #24): used-only governs every entry. A bundled key whose copy diverged is
-// flagged `bundled_modified`; one shape, no reduced form (§15 #25).
+// flagged `bundled_diverged`; one shape, no reduced form (§15 #25).
 
 import (
 	"testing"
@@ -78,12 +78,23 @@ func assertEntryStatesTable(t *testing.T, def anyblockjson.PropertyDefinition, k
 	assert.Equal(t, rel.Name, def.Name)
 	assert.Equal(t, rel.Format, def.Format)
 	assert.Equal(t, rel.Description, def.Description)
-	assert.Equal(t, int64(rel.MaxCount), def.MaxCount)
 	assert.Equal(t, rel.ReadOnly, def.Readonly)
 	assert.Equal(t, rel.Hidden, def.Hidden)
-	require.NotNil(t, def.IncludeTime, "an install states the whole definition, include-time with it")
-	assert.Equal(t, rel.IncludeTime, *def.IncludeTime)
-	assert.False(t, def.BundledModified, "the table's own definition is by definition unmodified")
+	// the two members a format can fix (§2a): stated where they exist,
+	// absent where the format already answers
+	if anyblockjson.MultiValuedFormat(rel.Format) {
+		assert.Equal(t, int64(rel.MaxCount), def.MaxCount)
+	} else {
+		assert.Zero(t, def.MaxCount, "a single-valued format holds one; the count is not the entry's to state")
+	}
+	if rel.Format == model.RelationFormat_date {
+		require.NotNil(t, def.IncludeTime, "an install states the whole definition, a date's include-time with it")
+		assert.Equal(t, rel.IncludeTime, *def.IncludeTime)
+	} else {
+		assert.Nil(t, def.IncludeTime, "include-time is a date's member")
+		assert.False(t, def.IncludeTimeSet)
+	}
+	assert.False(t, def.BundledDiverged, "the table's own definition has, by definition, not diverged")
 }
 
 // How this can fail: keep a relation document for a space-minted property
@@ -119,12 +130,12 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.Equal(t, model.RelationFormat_date, def.Format)
 		require.NotNil(t, def.IncludeTime)
 		assert.True(t, *def.IncludeTime)
-		assert.Equal(t, int64(1), def.MaxCount)
+		assert.Zero(t, def.MaxCount, "a date holds one value: the count is the format's, not the entry's (§2a)")
 		assert.True(t, def.Readonly)
 		assert.True(t, def.Hidden, "the store hid it, and the entry is the only place that can say so")
 		assert.False(t, def.Uninstalled)
-		assert.False(t, def.BundledModified, "not a bundled property: the flag says nothing about it")
-		assert.NotContains(t, string(dictData), `"bundled_modified"`)
+		assert.False(t, def.BundledDiverged, "not a bundled property: the flag says nothing about it")
+		assert.NotContains(t, string(dictData), `"bundled_diverged"`)
 		assert.Equal(t, 1, stats.DictionaryEntries)
 		assert.Equal(t, 1, stats.OmittedDocs)
 	})
@@ -169,20 +180,20 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		require.Contains(t, byKey, "dueDate")
 		def := byKey["dueDate"]
 		assert.Equal(t, "Deadline", def.Name, "the stored definition, not the table's: the user's rename travels")
-		assert.True(t, def.BundledModified, "the copy diverged at export time, and only the export could know (§15 #25)")
-		assert.Contains(t, string(dictData), `"bundled_modified": true`)
+		assert.True(t, def.BundledDiverged, "the copy diverged at export time, and only the export could know (§15 #25)")
+		assert.Contains(t, string(dictData), `"bundled_diverged": true`)
 		// the rest of the stored definition travels with the rename — the
 		// entry is complete, as every entry is
 		rel, err := vocabulary.GetRelation("dueDate")
 		require.NoError(t, err)
 		assert.Equal(t, rel.Format, def.Format)
-		assert.Equal(t, int64(rel.MaxCount), def.MaxCount)
 		require.NotNil(t, def.IncludeTime)
 		assert.Equal(t, rel.IncludeTime, *def.IncludeTime)
+		assert.NotContains(t, string(dictData), `"max_count"`, "a date holds one value; the format says so, not the entry")
 		assert.Equal(t, 1, stats.DictionaryEntries)
 		assert.NotContains(t, string(dictData), `"installed"`, "the list is gone (§15 #24)")
 	})
-	t.Run("a copy refused for a non-definition reason is modified too", func(t *testing.T) {
+	t.Run("a copy refused for a non-definition reason is diverged too", func(t *testing.T) {
 		// the predicate is fail-closed: an unclassified detail denies the
 		// identical verdict even when every definition member matches, and
 		// the flag follows the verdict — the entry it points at then equals
@@ -200,7 +211,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		require.NoError(t, err)
 		_, byKey := dictionaryByKey(t, dictData)
 		require.Contains(t, byKey, "dueDate")
-		assert.True(t, byKey["dueDate"].BundledModified, "refused is refused: the verdict is the predicate's, not a member diff")
+		assert.True(t, byKey["dueDate"].BundledDiverged, "refused is refused: the verdict is the predicate's, not a member diff")
 		assert.Equal(t, "Due date", byKey["dueDate"].Name)
 	})
 	t.Run("a divergent installed copy, unreferenced", func(t *testing.T) {
@@ -233,7 +244,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.Equal(t, model.RelationFormat_date, byKey["dueDate"].Format)
 		assert.False(t, byKey["dueDate"].Uninstalled)
 		assertEntryStatesTable(t, byKey["dueDate"], "dueDate")
-		assert.NotContains(t, string(dictData), `"bundled_modified"`, "unmodified is the absent form")
+		assert.NotContains(t, string(dictData), `"bundled_diverged"`, "not diverged is the absent form")
 		assert.Equal(t, 1, stats.DictionaryEntries)
 		assert.NotContains(t, string(dictData), `"installed"`, "the list is gone (§15 #24)")
 	})
@@ -262,6 +273,25 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, hidden.Hidden)
 	})
+	t.Run("an identical date copy the app created without a max count stamp", func(t *testing.T) {
+		// the app stamps relationMaxCount only on a select; a date copy
+		// stores nothing, the table says 1, and the format says 1 — no
+		// divergence, no Issue from the reconstruction check, and no
+		// `max_count` on the entry either way (§2a, §15 #25)
+		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		copy := testInstalledCopy(t, "dueDate")
+		delete(copy.Details.Fields, "relationMaxCount")
+		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
+		require.True(t, omitted)
+		assert.Empty(t, issues, "the reconstruction check reads past a member the format fixes")
+		referencePage(t, c, "due_date")
+		_, dictData, _, err := c.Finish()
+		require.NoError(t, err)
+		_, byKey := dictionaryByKey(t, dictData)
+		require.Contains(t, byKey, "dueDate")
+		assert.False(t, byKey["dueDate"].BundledDiverged, "not a divergence: the knob does not exist on a date")
+		assert.NotContains(t, string(dictData), `"max_count"`)
+	})
 	t.Run("a referenced bundled key with no copy in the space", func(t *testing.T) {
 		// the Finish fallback: nothing observed, the shipped table is the
 		// source — and the entry it writes is the SAME entry an observed
@@ -281,7 +311,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		referencePage(t, fromCopy, "createdDate")
 		_, copyData, _, err := fromCopy.Finish()
 		require.NoError(t, err)
-		assert.Equal(t, string(copyData), string(tableData), "observed or not, an unmodified bundled property is one entry")
+		assert.Equal(t, string(copyData), string(tableData), "observed or not, a bundled property that matches the table is one entry")
 	})
 	t.Run("an identical installed copy, unreferenced", func(t *testing.T) {
 		c := NewComposer(anyblockjson.Options{}, "Corpus")
@@ -365,5 +395,58 @@ func TestComposerReportsWhatAnOmittedRelationsEntryCannotState(t *testing.T) {
 		_, _, stats, err := c.Finish()
 		require.NoError(t, err, "the bundle survives")
 		assert.Zero(t, stats.DictionaryEntries)
+	})
+}
+
+// The resolver path closes the last gap in the flag (§15 #25): a used
+// bundled key with no snapshot in the export but a definition the space's
+// resolver can supply gets that definition — the space's copy — and the
+// copy can have diverged like any other. Finish asks the same identity
+// predicate the observed path asks, on the resolved definition restated as
+// stored details, so there is one verdict and not a second opinion; a
+// member the format fixes (a date's max count) is read past there too.
+//
+// How this can fail: enter the resolver's definition unflagged (a reader
+// installs the table over the user's rename — exactly the loss the flag
+// exists to prevent); diff the definition by hand instead of through the
+// predicate (a resolver that hands back a date with no max count, the
+// entry's own reading, is flagged as diverged); or flag a space-minted key
+// the resolver defines.
+func TestComposerFlagsAResolvedBundledCopyThatDiverged(t *testing.T) {
+	compose := func(t *testing.T, def anyblockjson.PropertyDefinition, spelling string) anyblockjson.PropertyDefinition {
+		t.Helper()
+		c := NewComposer(anyblockjson.Options{ResolveProperties: composerPropertyResolver{def: def}}, "Corpus")
+		referencePage(t, c, spelling)
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		assert.Empty(t, stats.OrphanUsedKeys)
+		_, byKey := dictionaryByKey(t, dictData)
+		require.Contains(t, byKey, string(def.Key))
+		return byKey[string(def.Key)]
+	}
+	t.Run("a renamed copy is flagged", func(t *testing.T) {
+		got := compose(t, anyblockjson.PropertyDefinition{Key: "dueDate", Name: "Deadline", Format: model.RelationFormat_date}, "due_date")
+		assert.Equal(t, "Deadline", got.Name, "the resolver's definition is the space's copy, and the entry states it")
+		assert.True(t, got.BundledDiverged, "and the copy diverged: the reader must not install the table over it")
+	})
+	t.Run("a copy identical to the table is not", func(t *testing.T) {
+		rel, err := vocabulary.GetRelation("dueDate")
+		require.NoError(t, err)
+		got := compose(t, anyblockjson.PropertyDefinition{
+			Key: "dueDate", Name: rel.Name, Format: rel.Format, Description: rel.Description,
+			// a date: the resolver, like the entry, states no max count,
+			// and the table's 1 is the format's own answer
+		}, "due_date")
+		assert.False(t, got.BundledDiverged, "one verdict: the identity predicate, reading past what the format fixes")
+	})
+	t.Run("a hidden bit the copy flipped is a divergence", func(t *testing.T) {
+		got := compose(t, anyblockjson.PropertyDefinition{Key: "dueDate", Name: "Due date", Format: model.RelationFormat_date, Hidden: true}, "due_date")
+		assert.True(t, got.BundledDiverged)
+		assert.True(t, got.Hidden)
+	})
+	t.Run("a space-minted key is never flagged", func(t *testing.T) {
+		const key = "67e31405450a5dcab2fa75aa"
+		got := compose(t, anyblockjson.PropertyDefinition{Key: key, Name: "Budget", Format: model.RelationFormat_number}, key)
+		assert.False(t, got.BundledDiverged)
 	})
 }

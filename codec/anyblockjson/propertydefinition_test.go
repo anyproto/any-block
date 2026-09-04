@@ -137,7 +137,7 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 	// layer of narrowings (`object_types` back to a real array) plus the
 	// home's own requirements, closed with unevaluatedProperties. Three
 	// members are the dictionary's OWN rather than narrowings:
-	// `uninstalled` (§15 #22), `hidden` (§15 #23) and `bundled_modified`
+	// `uninstalled` (§15 #22), `hidden` (§15 #23) and `bundled_diverged`
 	// (§15 #25), each of which means nothing on a type's declaration or a
 	// property document's settings, so they live on the entry's layer and
 	// NOT on the shared shape — which is what makes the other two homes
@@ -170,14 +170,14 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 		if string(raw) == "false" {
 			continue
 		}
-		assert.Truef(t, m == "object_types" || m == "uninstalled" || m == "hidden" || m == "bundled_modified",
+		assert.Truef(t, m == "object_types" || m == "uninstalled" || m == "hidden" || m == "bundled_diverged",
 			"dictionaryEntry restates %q — its layer holds the one narrowing and the three dictionary-owned members only", m)
 	}
 	var objSchema struct {
 		Defs map[string]schemaNode `json:"$defs"`
 	}
 	require.NoError(t, json.Unmarshal(schemaJSON, &objSchema))
-	for _, owned := range []string{"uninstalled", "hidden", "bundled_modified"} {
+	for _, owned := range []string{"uninstalled", "hidden", "bundled_diverged"} {
 		_, onEntry := entry.Properties[owned]
 		assert.Truef(t, onEntry, "`%s` is a member of the dictionary entry's own layer (§2f)", owned)
 		_, shared := objSchema.Defs["propertyDefinition"].Properties[owned]
@@ -254,22 +254,31 @@ func (r *capturingPropertyResolver) PropertyId(def PropertyDefinition) (string, 
 // How this can fail: shed one of the five members in TypeProperty.definition,
 // or rebuild the def by hand in one door and forget a member there.
 func TestPropertyDefinition_SharedMembersReachTheResolver(t *testing.T) {
+	// three properties, because no one format admits every member:
+	// include_time exists on a date, max_count on a multi-valued format
+	// (§2a), and the rest anywhere
 	doc := []byte(`{"formatVersion":"2.0","kind":"object_type","internal_key":"task",
-		"type_settings":{"property_definitions": [{"property":"budget","name":"Budget","format":"number",
-			"description":"Planned spend","include_time":false,"max_count":1,
-			"readonly":true,"default_value":100,"section":"featured"}]}}`)
+		"type_settings":{"property_definitions": [
+			{"property":"budget","name":"Budget","format":"number",
+			 "description":"Planned spend","readonly":true,"default_value":100,"section":"featured"},
+			{"property":"deadline","name":"Deadline","format":"date","include_time":false},
+			{"property":"attendees","name":"Attendees","format":"objects","max_count":1}]}}`)
 
 	check := func(t *testing.T, defs []PropertyDefinition) {
-		require.Len(t, defs, 1)
-		def := defs[0]
-		assert.Equal(t, domain.RelationKey("budget"), def.Key)
+		require.Len(t, defs, 3)
+		byKey := map[domain.RelationKey]PropertyDefinition{}
+		for _, def := range defs {
+			byKey[def.Key] = def
+		}
+		def := byKey["budget"]
 		assert.Equal(t, model.RelationFormat_number, def.Format)
 		assert.Equal(t, "Planned spend", def.Description)
-		require.NotNil(t, def.IncludeTime, "include_time false is a declaration, not an absence")
-		assert.False(t, *def.IncludeTime)
-		assert.Equal(t, int64(1), def.MaxCount)
 		assert.True(t, def.Readonly)
 		assert.Equal(t, float64(100), def.DefaultValue)
+		deadline := byKey["deadline"]
+		require.NotNil(t, deadline.IncludeTime, "include_time false is a declaration, not an absence")
+		assert.False(t, *deadline.IncludeTime)
+		assert.Equal(t, int64(1), byKey["attendees"].MaxCount)
 	}
 
 	t.Run("the document door", func(t *testing.T) {
@@ -297,14 +306,15 @@ func TestPropertyDefinition_SharedMembersReachTheResolver(t *testing.T) {
 // This is deliberately a type document rather than a dictionary: the type
 // renderer used to shed five fields that its dictionary sibling already wrote.
 func TestPropertyDefinition_TypeExportPreservesEverySharedMember(t *testing.T) {
-	includeTime := false
+	// a multi_select, so that options AND max_count apply; include_time is
+	// a date's member (§2a) and is pinned on the type door by
+	// TestPropertyDefinition_FormatFixedMembers instead
 	def := PropertyDefinition{
 		Key:          "budget",
 		Name:         "Budget",
-		Format:       model.RelationFormat_status,
+		Format:       model.RelationFormat_tag,
 		Options:      []OptionDefinition{{Name: "Planned", Color: "blue", InternalKey: "option-planned"}, {Name: "Spent"}},
 		Description:  "Planned spend",
-		IncludeTime:  &includeTime,
 		MaxCount:     1,
 		Readonly:     true,
 		DefaultValue: map[string]any{"amount": 100, "currency": "EUR"},
@@ -334,11 +344,8 @@ func TestPropertyDefinition_TypeExportPreservesEverySharedMember(t *testing.T) {
 	got := doc.TypeSettings.Definitions[0]
 	assert.Equal(t, "budget", got[memberInternalKey])
 	assert.Equal(t, "Budget", got["name"])
-	assert.Equal(t, "select", got["format"])
+	assert.Equal(t, "multi_select", got["format"])
 	assert.Equal(t, "Planned spend", got["description"])
-	value, present := got["include_time"]
-	assert.True(t, present, "an explicit false must not be omitted")
-	assert.Equal(t, false, value)
 	assert.Equal(t, float64(1), got["max_count"])
 	assert.Equal(t, true, got["readonly"])
 	assert.Equal(t, map[string]any{"amount": float64(100), "currency": "EUR"}, got["default_value"])
@@ -353,8 +360,6 @@ func TestPropertyDefinition_TypeExportPreservesEverySharedMember(t *testing.T) {
 	require.Len(t, resolver.defs, 1)
 	roundTripped := resolver.defs[0]
 	assert.Equal(t, def.Description, roundTripped.Description)
-	require.NotNil(t, roundTripped.IncludeTime)
-	assert.Equal(t, *def.IncludeTime, *roundTripped.IncludeTime)
 	assert.Equal(t, def.MaxCount, roundTripped.MaxCount)
 	assert.Equal(t, def.Readonly, roundTripped.Readonly)
 	assert.Equal(t, def.Options, roundTripped.Options)
@@ -468,4 +473,148 @@ func TestPropertyDefinition_TypeExportRejectsUnreadableDefinitions(t *testing.T)
 			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
+}
+
+// Two shared members exist only on the formats that leave room for them
+// (§2a, §15 #25): `include_time` on a date, `max_count` on a format that
+// can hold more than one value — multi_select, files, objects, properties.
+// On every other format the store may still carry a value (the app stamps
+// relationMaxCount 1 on a select; 8,375 production relations carry a false
+// includeTime against a non-date format), but the knob does not exist: the
+// format fixes the answer, so the writer omits the member whatever the
+// store holds and the reader ignores one it meets. On a date the
+// include_time tri-state is untouched — true, false and null are three
+// declarations, absent a fourth — and on a multi-valued format max_count
+// keeps its omit-zero canon. Both doors of the shape are pinned: the
+// dictionary entry and a type's property_definitions.
+//
+// How this can fail: write max_count from the store on a date (every
+// bundled date entry grows a `max_count: 1` that means nothing); write
+// include_time on a multi_select (`include_time: false` on every non-date
+// entry, which is where this was caught); read an authored max_count on a
+// text property into the resolver (the wiring stores a cap the format
+// cannot honour); or gate the date's tri-state along with the rest.
+func TestPropertyDefinition_FormatFixedMembers(t *testing.T) {
+	entry := func(t *testing.T, def PropertyDefinition) (map[string]any, PropertyDefinition) {
+		t.Helper()
+		data, err := MarshalPropertyDictionary(&PropertyDictionary{Properties: []PropertyDefinition{def}}, Options{})
+		require.NoError(t, err)
+		var doc struct {
+			Properties []map[string]any `json:"properties"`
+		}
+		require.NoError(t, json.Unmarshal(data, &doc))
+		require.Len(t, doc.Properties, 1)
+		back, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		require.Len(t, back.Properties, 1)
+		return doc.Properties[0], back.Properties[0]
+	}
+	yes, no := true, false
+	t.Run("a date keeps the include_time tri-state and drops max_count", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			def  PropertyDefinition
+			want any
+		}{
+			"true":  {PropertyDefinition{Key: "deadline", Format: model.RelationFormat_date, IncludeTime: &yes, MaxCount: 1}, true},
+			"false": {PropertyDefinition{Key: "deadline", Format: model.RelationFormat_date, IncludeTime: &no, MaxCount: 1}, false},
+			"null":  {PropertyDefinition{Key: "deadline", Format: model.RelationFormat_date, IncludeTimeSet: true, MaxCount: 1}, nil},
+		} {
+			t.Run(name, func(t *testing.T) {
+				got, back := entry(t, tc.def)
+				v, present := got["include_time"]
+				require.True(t, present, "a date's declaration travels, whichever of the three it is")
+				assert.Equal(t, tc.want, v)
+				assert.NotContains(t, got, "max_count", "a date holds one value; the count is the format's")
+				assert.Zero(t, back.MaxCount)
+				assert.True(t, back.IncludeTimeSet)
+				if tc.want == nil {
+					assert.Nil(t, back.IncludeTime)
+				} else {
+					require.NotNil(t, back.IncludeTime)
+					assert.Equal(t, tc.want, *back.IncludeTime)
+				}
+			})
+		}
+	})
+	t.Run("a single-valued format carries neither", func(t *testing.T) {
+		for _, format := range []model.RelationFormat{
+			model.RelationFormat_longtext, model.RelationFormat_shorttext, model.RelationFormat_number,
+			model.RelationFormat_status, model.RelationFormat_checkbox, model.RelationFormat_url,
+			model.RelationFormat_email, model.RelationFormat_phone, model.RelationFormat_emoji,
+			model.RelationFormat_map,
+		} {
+			got, back := entry(t, PropertyDefinition{Key: "k", Format: format, IncludeTime: &yes, MaxCount: 3})
+			assert.NotContains(t, got, "include_time", formatName(format))
+			assert.NotContains(t, got, "max_count", formatName(format))
+			assert.Nil(t, back.IncludeTime, formatName(format))
+			assert.False(t, back.IncludeTimeSet, formatName(format))
+			assert.Zero(t, back.MaxCount, formatName(format))
+		}
+	})
+	t.Run("a multi-valued format keeps max_count and drops include_time", func(t *testing.T) {
+		for _, format := range []model.RelationFormat{
+			model.RelationFormat_tag, model.RelationFormat_file, model.RelationFormat_object, model.RelationFormat_relations,
+		} {
+			got, back := entry(t, PropertyDefinition{Key: "k", Format: format, IncludeTime: &no, MaxCount: 2})
+			assert.Equal(t, float64(2), got["max_count"], formatName(format))
+			assert.NotContains(t, got, "include_time", formatName(format))
+			assert.Equal(t, int64(2), back.MaxCount, formatName(format))
+			assert.Nil(t, back.IncludeTime, formatName(format))
+		}
+		got, back := entry(t, PropertyDefinition{Key: "k", Format: model.RelationFormat_tag})
+		assert.NotContains(t, got, "max_count", "zero is unlimited, the absent form, where the member exists at all")
+		assert.Zero(t, back.MaxCount)
+	})
+	t.Run("the reader ignores what the format fixes", func(t *testing.T) {
+		back, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","properties":[
+			{"property":"Budget","format":"number","max_count":3,"include_time":true}]}`), Options{})
+		require.NoError(t, err)
+		require.Len(t, back.Properties, 1)
+		assert.Zero(t, back.Properties[0].MaxCount, "a number holds one value whatever the entry says")
+		assert.Nil(t, back.Properties[0].IncludeTime)
+		assert.False(t, back.Properties[0].IncludeTimeSet)
+	})
+	t.Run("the type door follows the same rule", func(t *testing.T) {
+		snapshot := &model.SmartBlockSnapshotBase{
+			Key: "event",
+			Details: fields(map[string]*types.Value{
+				"id":                           str("type-event"),
+				"recommendedFeaturedRelations": strList("property-when"),
+			}),
+			ObjectTypes: []string{"ot-objectType"},
+		}
+		for _, tc := range []struct {
+			name    string
+			def     PropertyDefinition
+			include bool
+			max     bool
+		}{
+			{"date", PropertyDefinition{Key: "when", Name: "When", Format: model.RelationFormat_date, IncludeTime: &no, MaxCount: 1}, true, false},
+			{"objects", PropertyDefinition{Key: "when", Name: "Who", Format: model.RelationFormat_object, IncludeTime: &no, MaxCount: 1}, false, true},
+			{"select", PropertyDefinition{Key: "when", Name: "Stage", Format: model.RelationFormat_status, IncludeTime: &no, MaxCount: 1}, false, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				data, err := Marshal(model.SmartBlockType_STType, snapshot, Options{
+					ResolveProperties: &staticPropertyResolver{def: tc.def},
+				})
+				require.NoError(t, err)
+				var doc struct {
+					TypeSettings struct {
+						Definitions []map[string]any `json:"property_definitions"`
+					} `json:"type_settings"`
+				}
+				require.NoError(t, json.Unmarshal(data, &doc))
+				require.Len(t, doc.TypeSettings.Definitions, 1)
+				got := doc.TypeSettings.Definitions[0]
+				_, hasInclude := got["include_time"]
+				_, hasMax := got["max_count"]
+				assert.Equal(t, tc.include, hasInclude, "include_time")
+				assert.Equal(t, tc.max, hasMax, "max_count")
+			})
+		}
+	})
+	t.Run("readonly false was already the absent form", func(t *testing.T) {
+		got, _ := entry(t, PropertyDefinition{Key: "k", Format: model.RelationFormat_longtext, Readonly: false})
+		assert.NotContains(t, got, "readonly")
+	})
 }

@@ -137,7 +137,7 @@ type Composer struct {
 	// definition, complete (observeRelation): for an installed copy the
 	// predicate proved identical to the bundled table that is the table's
 	// definition, for a divergent copy it is the user's, flagged
-	// `bundled_modified` (§15 #25); a removed copy contributes the same,
+	// `bundled_diverged` (§15 #25); a removed copy contributes the same,
 	// flagged `uninstalled` (§15 #22). Finish writes the entries something
 	// references and nothing else: there is no `installed` list and no
 	// exemption for a divergent copy (§15 #24).
@@ -302,10 +302,10 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 	// REMOVED — travels as a dictionary entry stating its STORED definition,
 	// complete, when something references the key (Finish's used-only
 	// question, as for every entry). There is one entry shape (§15 #25): an
-	// unmodified copy's stored definition IS the table's, so what a reader
+	// copy that has not diverged states the table's definition, so what a reader
 	// meets never depends on whether it ships Anytype's table. The identity
 	// predicate still decides two things — whether a bundled key's entry is
-	// flagged `bundled_modified`, and whether there is a reconstruction (the
+	// flagged `bundled_diverged`, and whether there is a reconstruction (the
 	// trip a table-shipping reader takes, key → its own table) to verify
 	// through the round-trip comparator — and observeRelation does both.
 	if anyblockjson.OmittedRelation(sbType) {
@@ -324,7 +324,7 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 //
 // The identity predicate's verdict does two things here and nothing else.
 // A copy it REFUSES on a key the shipped table names is flagged
-// `bundled_modified`: the copy diverged from the table at export time, a
+// `bundled_diverged`: the copy diverged from the table at export time, a
 // fact only the export can know — the table moves, and a later reader
 // cannot tell the user's rename from the table's — so a reader takes the
 // entry over its own table for that key. The verdict is the predicate's
@@ -356,7 +356,7 @@ func (c *Composer) observeRelation(sbType model.SmartBlockType, base *model.Smar
 	def := storedRelationDefinition(base, c.opts)
 	def.Uninstalled = anyblockjson.UninstalledRelation(base)
 	_, identical := anyblockjson.OmittedBundledRelation(sbType, base, c.opts)
-	def.BundledModified = !identical && vocabulary.HasRelation(domain.RelationKey(key))
+	def.BundledDiverged = !identical && vocabulary.HasRelation(domain.RelationKey(key))
 	c.entries[key] = def
 	if !identical {
 		if extra := anyblockjson.UnaccountedRelationDetails(base); len(extra) > 0 {
@@ -595,6 +595,7 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 			continue
 		}
 		if def, ok := resolvedDefinition(key, c.opts); ok {
+			def.BundledDiverged = c.resolvedDiverged(def)
 			entries[key] = def
 			continue
 		}
@@ -965,6 +966,64 @@ func storedRelationDefinition(base *model.SmartBlockSnapshotBase, opts anyblockj
 	return def
 }
 
+// resolvedDiverged answers `bundled_diverged` for a definition the RESOLVER
+// supplied — the space's copy of a used bundled key no snapshot in the
+// export described. The copy can have diverged like any other, and an
+// unflagged entry would have a reader install the table over the user's
+// rename, the one loss the flag exists to prevent (§15 #25). The verdict
+// is the same predicate the observed path asks, on the definition restated
+// as the stored details it came from (definitionDetails) — one verdict,
+// not a second opinion: a member the format fixes is read past here
+// exactly as there, so a resolver that hands back a date with no max
+// count is not flagged for it. A key the table does not name is never
+// flagged.
+func (c *Composer) resolvedDiverged(def anyblockjson.PropertyDefinition) bool {
+	if !vocabulary.HasRelation(def.Key) {
+		return false
+	}
+	base := &model.SmartBlockSnapshotBase{Details: definitionDetails(def)}
+	_, identical := anyblockjson.OmittedBundledRelation(model.SmartBlockType_STRelation, base, c.opts)
+	return !identical
+}
+
+// definitionDetails restates a definition as the stored details a relation
+// object carries — storedRelationDefinition run backwards, in the natural
+// kind of each member, so the identity predicate can read it the way it
+// reads a snapshot. Target types are written as keys: the predicate's
+// translation passes a bare key through verbatim and the table side speaks
+// keys, so the two compare position for position.
+func definitionDetails(def anyblockjson.PropertyDefinition) *types.Struct {
+	str := func(s string) *types.Value { return &types.Value{Kind: &types.Value_StringValue{StringValue: s}} }
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	boolean := func(b bool) *types.Value { return &types.Value{Kind: &types.Value_BoolValue{BoolValue: b}} }
+	fields := map[string]*types.Value{
+		"relationKey":           str(string(def.Key)),
+		"name":                  str(def.Name),
+		"description":           str(def.Description),
+		"relationFormat":        num(float64(def.Format)),
+		"relationMaxCount":      num(float64(def.MaxCount)),
+		"relationReadonlyValue": boolean(def.Readonly),
+		"isHidden":              boolean(def.Hidden),
+	}
+	if def.IncludeTime != nil {
+		fields["relationFormatIncludeTime"] = boolean(*def.IncludeTime)
+	} else if def.IncludeTimeSet {
+		fields["relationFormatIncludeTime"] = &types.Value{Kind: &types.Value_NullValue{}}
+	}
+	if def.DefaultValue != nil {
+		fields["relationDefaultValue"] = pbtypes.InterfaceToValue(def.DefaultValue)
+	}
+	targets := make([]*types.Value, 0, len(def.ObjectTypes))
+	for _, key := range def.ObjectTypes {
+		targets = append(targets, str(key))
+	}
+	fields["relationFormatObjectTypes"] = &types.Value{Kind: &types.Value_ListValue{ListValue: &types.ListValue{Values: targets}}}
+	if def.Uninstalled {
+		fields["isUninstalled"] = boolean(true)
+	}
+	return &types.Struct{Fields: fields}
+}
+
 // resolvedDefinition asks the space's resolver for a used key's definition —
 // the storeresolver path a live export runs on.
 func resolvedDefinition(key string, opts anyblockjson.Options) (anyblockjson.PropertyDefinition, bool) {
@@ -985,7 +1044,7 @@ func resolvedDefinition(key string, opts anyblockjson.Options) (anyblockjson.Pro
 // which Finish writes from the shipped table. It is read off the table's
 // RECONSTRUCTION (InstalledRelationDetails, the details a fresh install
 // writes) through the same reader every observed snapshot goes through, so
-// the entry is the one an observed unmodified copy produces, byte for
+// the entry is the one an observed copy that matches the table produces, byte for
 // byte: one shape (§15 #25), and one statement of what an installed copy
 // looks like. Complete, like every entry — description, max count,
 // readonly, include-time and hidden included — so a reader that does not

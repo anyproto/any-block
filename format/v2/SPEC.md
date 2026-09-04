@@ -488,8 +488,8 @@ style.
 | `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** whenever the option declares no color, the object form otherwise — the same rule cells follow in §6.1. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`. Declaring them lets the wiring create each one up front with an order id. The app's own vocabulary listing sorts `orderId` ascending, then `createdDate` descending, with no empty-placement — so an option carrying no order id lists FIRST, and since a new option is minted with the smallest order id of its siblings, ascending order ids and descending creation dates agree on newest-first. A bundle writes the array in that order (§2f). (Sorting objects by their tag COLUMN is a different feature with a different rule, `[orderId, name]` concatenated per record — `pkg/lib/database.BuildOrderMap`; it says nothing about how a vocabulary lists.) Names discovered from usage rather than declared are ordered after the declared ones. The object form takes a third member, `internal_key` — the option's STORED key, which the app mints and an author never writes; export states it where the store holds one, and it is what lets a bundle STATE a vocabulary rather than describe it (§2f, where the dictionary entry states a vocabulary in this same member — the dictionary's entry and a type's are the two homes of this shape that admit the member, since no option document carries it). Only meaningful on `select`/`multi_select`; duplicate names are a validation error in a TYPE's definition, across both forms — authoring resolves an option by its name and so cannot state one twice. The property dictionary is the exception: its entries carry explicit `internal_key`s, which tell same-named twins apart, and real spaces hold them (§2f). |
 | `object_types` | string[] | no | The **type document spellings** an `objects`/`files` property may point at, in priority order — canonically display names, and a type-key slot like the envelope `type`. It speaks the one key vocabulary (§3), claims its spellings through the same type term ledger and owes the same `type_internal_keys` legend; import inverts each entry through the legend first, and a term the chain does not know passes through verbatim. Legacy derived slugs remain accepted input only. Empty means any object — an untargeted property will happily accept a random page as a task's assignee. Listing the built-in `participant` alongside a bundle's own people type is what makes the current-user filter value usable on that property (§6.2) while still allowing the seeded people as values; the client only offers it when the relation's targets include Participant. The wiring resolves each key to an id the way it resolves properties: a type the batch defines by the id its own document carries, a bundled type by its bundled url (`_ot<key>`). Only meaningful on `objects`/`files`. |
 | `description` | string | no | The property's own description (its relation object's `description` detail). Same import rule as `name`: read when the property is created, inert on an existing one. |
-| `include_time` | bool \| null | no | Whether a date property's values carry a time of day. Same import rule as `name`; meaningful on `date` only. |
-| `max_count` | int | no | How many values the property holds; 0 (or absent) is unlimited, the stored default. Same import rule as `name`. |
+| `include_time` | bool \| null | no | Whether a date property's values carry a time of day. Same import rule as `name`. **A `date`'s member only**: on any other format the knob does not exist, so export writes none whatever the store holds (8,375 production relations carry a false one against a non-date format) and import reads none. On a date the three states are three declarations — `true`, `false`, `null` — and absent is a fourth. |
+| `max_count` | int | no | How many values the property holds. Same import rule as `name`. **Exists only on a format that can hold more than one value** — `multi_select`, `files`, `objects`, `properties` — where absent (or 0) means unlimited, the stored default. On a single-valued format (`text`, `number`, `select`, `date`, `checkbox`, `url`, `email`, `phone`, `emoji`, `map`) the member is not applicable: the format already fixes the count at one, so export writes none whatever the store holds (the app stamps `relationMaxCount: 1` on a select and nothing on a date), import reads none, and a reader assumes one. Its absence there states nothing, exactly as `include_time`'s absence off a date states nothing. Measured on the shipped table: 160 of its 194 relations store `maxCount: 1`, and the rule omits 143 of those and keeps the 17 `objects`/`files` properties capped at one link, where the cap is real (§15 #25). |
 | `readonly` | bool | no | Whether the property's value is user-writable. Same import rule as `name`. |
 | `default_value` | any | no | The value a new object receives for this property. Same import rule as `name`. |
 | `section` | string | no | `featured` \| `hidden` \| `file` — which list the property belongs to. Absent = a regular (sidebar) property. **The one field that belongs to the type rather than the property** (§2e): of 1,614 properties declared by 2+ types within one space, zero differ in anything else. |
@@ -1220,7 +1220,7 @@ homes**, and no fourth:
 
 | home | shape |
 |---|---|
-| a property-dictionary entry (§2f) | one `propertyDefinition` + `uninstalled` + `hidden` + `bundled_modified` |
+| a property-dictionary entry (§2f) | one `propertyDefinition` + `uninstalled` + `hidden` + `bundled_diverged` |
 | a type document's property-definition entry (§2a) | one `propertyDefinition` + `section` |
 | a property document's definition fields (§2d) | one `propertyDefinition` |
 
@@ -1242,7 +1242,7 @@ entry — and each is meaningless on the other homes, which refuse it:
 `section` on a type's entry says what THIS type does with the property
 (§2a); `uninstalled` on a dictionary entry says the user removed the
 property from the space (§2f, §15 #22), `hidden` that the store hides it
-from every listing (§15 #23), and `bundled_modified` that the space's copy
+from every listing (§15 #23), and `bundled_diverged` that the space's copy
 of a bundled property had diverged from the shipped table when the bundle
 was written (§15 #25) — facts about the property's presence and provenance
 in ONE space, which a type's declaration cannot act on, and which have no
@@ -1286,11 +1286,11 @@ belongs in the index because a manifest is what an index is).
       ] },
     { "property": "Creation date", "internal_key": "createdDate", "name": "Creation date", "format": "date",
       "description": "Date when the object was initially created", "include_time": true,
-      "max_count": 1, "readonly": true },
+      "readonly": true },
     { "property": "Due date", "internal_key": "dueDate", "name": "End Date", "format": "date",
-      "include_time": false, "max_count": 1, "bundled_modified": true },
+      "include_time": false, "bundled_diverged": true },
     { "property": "Tag", "internal_key": "tag", "name": "Tag", "format": "multi_select",
-      "include_time": false, "uninstalled": true }
+      "uninstalled": true }
   ]
 }
 ```
@@ -1336,18 +1336,20 @@ every key — and this format's discipline is that one fact has one source:
 a list or a flag would be a second statement of what the lookup already
 says. What the entry STATES does not depend on what the space's copy was:
 **every entry is the complete definition** — name, format, description,
-object types, include-time, max count, readonly, default value, options,
-`hidden`, `uninstalled` — whatever the property has, bundled or
-space-minted (§15 #25). There is no reduced entry for a bundled key that
+object types, include-time (on a date), max count (on a format that can
+hold more than one value), readonly, default value, options, `hidden`,
+`uninstalled` — whatever the property has and its format leaves room for
+(§2a), bundled or space-minted (§15 #25). There is no reduced entry for a bundled key that
 leaves the rest to the reader's table: an entry for a bundled key is as
 complete as one for a space-minted key, so a reader that has never seen
 Anytype's table reads both the same way. What the copy was decides one
-member, `bundled_modified`:
+member, `bundled_diverged`:
 
 - An installed copy **field-identical to the table** (98% of them) gets an
   entry stating its stored definition — which IS the table's, member for
   member — and no flag: the `Creation date` entry above, description,
-  include-time, max count and readonly included. The composer proves the
+  include-time and readonly included (and no `max_count`: a date holds one
+  value, and the format says so). The composer proves the
   identity before it leaves the flag off: the copy is compared against the
   table's reconstruction (`InstalledRelationDetails`) through the same
   comparator as every ordinary round trip (§11), and that verdict is what
@@ -1361,7 +1363,7 @@ member, `bundled_modified`:
 - An installed copy that **DIVERGES** from the table — a rename, a changed
   `is_hidden` (174 of 9,675 in the corpus: 132 by `is_hidden` alone, 8 real
   renames) — gets an entry stating the STORED definition, member for
-  member, **flagged `bundled_modified: true`** (the `Due date` entry above,
+  member, **flagged `bundled_diverged: true`** (the `Due date` entry above,
   renamed "End Date"). The entry carries the user's change; the flag says
   the change is the user's. It is written when something references the
   key and not otherwise, like every entry: the exemption a divergent copy
@@ -1371,7 +1373,7 @@ member, `bundled_modified`:
   tolerance the list needed for version skew is not needed by an entry,
   which states what it means.
 
-**`bundled_modified` records a verdict only the export could reach.** A
+**`bundled_diverged` records a verdict only the export could reach.** A
 reader could diff an unflagged entry against its own table today and get
 the same answer — but the table MOVES. Once Anytype renames `dueDate` from
 "Due date" to "Deadline", a later reader meeting an entry named "Deadline"
@@ -1383,11 +1385,11 @@ justification for a member that looks derivable. What a reader does with
 it: **a key in its table with no flag → install the fresh bundled property
 from the table, accepting any newer name the table has** (the entry
 restates the writer's table, and the reader's is at least as current); **a
-key in its table flagged `bundled_modified: true` → the user's version
+key in its table flagged `bundled_diverged: true` → the user's version
 wins, create or update the property from the entry**; **a key not in its
 table → create from the entry**, flag or no flag. The flag is not a
 `bundled` flag (§15 #24): absent means EITHER "not a bundled property" OR
-"bundled and unmodified", and the reader separates the two with the table
+"bundled and not diverged", and the reader separates the two with the table
 lookup it already runs — bundled-ness stays a lookup, and the flag adds
 the one fact a lookup cannot recover. The verdict is the identity
 predicate's fail-closed one, not a member diff: a copy
@@ -1405,7 +1407,7 @@ derived from the table — so removing one marks it `isUninstalled`, and
 every listing filters the mark out. A bundle carries the removal for backup
 fidelity, as an entry whose `uninstalled` member is `true` (§15 #22): the
 entry states the complete definition beside the flag (the `Tag` entry
-above), and a divergent copy carries `bundled_modified` beside
+above), and a divergent copy carries `bundled_diverged` beside
 `uninstalled` — removed and changed are two facts, and both travel. The
 flag is the whole statement of the removal
 (§15 #24): the dictionary keeps no list of installed keys for it to
@@ -1459,7 +1461,7 @@ hidden bit travels the same way: 141 of the shipped table's 194 relations
 are hidden, and their entries carry `hidden: true` like any other (§15
 #25) — a reader without the table has no other way to know — while a copy
 that differs from the table on the bit is a divergent one, flagged
-`bundled_modified`.
+`bundled_diverged`.
 
 **What an entry cannot state is reported.** Omitting a property document
 is unconditional — a kept one would put `properties/` back in the layout —
@@ -1600,14 +1602,14 @@ a type's `property_definitions`, and a property document's
 module's composition writes none, §15 #23). The order is:
 
 1. **The bundled table**, for a key it names whose entry is NOT flagged
-   `bundled_modified`. It ships with every reader and is the same in every
+   `bundled_diverged`. It ships with every reader and is the same in every
    space (§3); an unflagged entry for a bundled key restates the writer's
    table as of its version, so the reader takes its own — a newer name
    included — and the tools warn when the two disagree rather than
    accepting the entry in silence.
 2. **The dictionary entry**, for every other key: a space-minted one, a
    bundled key the reader's table cannot name, and a bundled key flagged
-   `bundled_modified`, where the entry is the user's version and outranks
+   `bundled_diverged`, where the entry is the user's version and outranks
    the table (§15 #25). It is the bundle-wide statement, and the one an
    author writes when there is no relation document at all.
 3. **A type's `property_definitions` entry**, which narrows nothing and adds
@@ -1657,9 +1659,10 @@ Self-sufficiency is the constraint that shapes the dictionary: a
 third-party reader must be able to interpret a backup WITHOUT shipping
 `codec/anyblockjson/vocabulary/relations.json` — tell a date from a string, an option name from
 free text — and since §15 #25 that holds for every member, not `format`
-alone: an entry for a bundled key states its description, max count,
-readonly, include-time and hidden bit as fully as a space-minted key's
-does, so the reader needs the table for nothing. Dropping bundled relation
+alone: an entry for a bundled key states its description, readonly and
+hidden bit — and its max count and include-time where the format admits
+them (§2a) — as fully as a space-minted key's does, so the reader needs
+the table for nothing. Dropping bundled relation
 documents with *no* dictionary was
 considered and rejected for exactly this reason; it is the same "stands
 alone" property that keeps a space id off the envelope.
@@ -1673,7 +1676,7 @@ narrows `object_types` back to a real array — only a relation's STORED
 value can hold a null (§2d), and a dictionary describes a property rather
 than mirroring a store slot. `section` is refused: it is the type-owned
 member, meaningless off a type document — and `uninstalled`, `hidden` and
-`bundled_modified` are admitted for the mirror-image reason, as the
+`bundled_diverged` are admitted for the mirror-image reason, as the
 entry's own (§2e). One key, one slot: a key stated
 twice in `properties` is refused on read and on write alike, with the
 first occurrence named.
@@ -4582,20 +4585,28 @@ definition member the copy never stored comes back as its explicit empty
 default, because an install states the whole definition; and (c) **a
 reinstall stamp — `isUninstalled` stored `false` — comes back ABSENT**,
 which every consumer of the key reads the same way, while the mark itself,
-stored `true`, travels on the entry and compares as ordinary state. All
-three movements are owned by exported predicates the comparator reads
-(`OmittedBundledRelation`, `UninstalledRelation`,
-`RelationInstallArtifactKey`, `InstallStampedDefault`,
-`OmittedUninstallStamp`) and all are scoped to snapshots the omission
-predicate itself admits, so the ordinary document round trip keeps its full
-sensitivity. The predicate is fail-closed on every axis — a divergent
+stored `true`, travels on the entry and compares as ordinary state; and
+(d) **a definition member the FORMAT fixes** — `relationMaxCount` on a
+single-valued format, `relationFormatIncludeTime` off a date (§2a) — is
+not a difference in any direction, because no entry carries it, a reader
+assumes the format's answer, and the identity predicate reads past it: a
+date copy the app created without the `relationMaxCount: 1` stamp is
+admitted as the table's and must not then be reported against the table's
+reconstruction (§15 #25). All four movements are owned by exported
+predicates the comparator reads (`OmittedBundledRelation`,
+`UninstalledRelation`, `RelationInstallArtifactKey`,
+`InstallStampedDefault`, `OmittedUninstallStamp`,
+`FormatFixedDefinitionMember`); the first three are scoped to snapshots
+the omission predicate itself admits, the fourth to relation snapshots —
+every one of which travels as an entry (§15 #23) — so the ordinary
+document round trip keeps its full sensitivity. The predicate is fail-closed on every axis — a divergent
 definition member, an unclassified detail key, an alien-kinded value, a
 block the format preserves (19 corpus relation documents carry a dataview
 or free text) each deny the identical verdict — because stating the table
 for a copy that differed would rewrite the user's definition silently,
 which is disqualifying for a backup format. What it denies falls to the
 second normalization: the verdict is the omission's proof, and a refusal
-on a key the table names is what flags the copy's entry `bundled_modified`
+on a key the table names is what flags the copy's entry `bundled_diverged`
 (§15 #25) — the entry states the stored definition either way. Each
 admitted artifact key
 passed the §15 #12 test individually against the 9,675 bundled-key
@@ -4611,7 +4622,7 @@ The second is unconditional, and has no reconstruction to verify: **no
 other relation document is written either** (§2f, §15 #23). A divergent
 installed copy and a space-minted property travel as a dictionary entry
 stating the stored definition — `hidden` and `uninstalled` included, and
-`bundled_modified` on the divergent copy (§15 #25) — when something
+`bundled_diverged` on the divergent copy (§15 #25) — when something
 references the key, and not at all when nothing does; an
 unreferenced property is not a loss and gets no Issue and no counter. The
 predicate is `OmittedRelation` (§13), the kind alone. What the entry cannot
@@ -5400,14 +5411,16 @@ The §2f composition predicates are exported beside them, for the wiring
 that composes a bundle and the comparator that verifies one:
 `OmittedBundledRelation` (does this installed copy still restate the
 shipped table — admitted, its reconstruction is verified; refused on a key
-the table names, its entry is flagged `bundled_modified`, §15 #25),
+the table names, its entry is flagged `bundled_diverged`, §15 #25),
 `UninstalledRelation` (does the omitted copy's entry carry `uninstalled`,
 §15 #22),
 `InstalledRelationDetails` and `UninstalledRelationDetails` (the
 reconstruction a reader builds from each), `RelationInstallArtifactKey`,
-`InstallStampedDefault` and `OmittedUninstallStamp` (the three movements
-the omission trip makes, which `snapshotdiff.Compare` reads rather than
-restates), `OmittedRelationOption` (this kind is never written as a document at all —
+`InstallStampedDefault`, `OmittedUninstallStamp` and
+`FormatFixedDefinitionMember` with `MultiValuedFormat` beside it (the four
+movements the omission trip makes, which `snapshotdiff.Compare` reads
+rather than restates — the last also read by the definition renderer and
+reader, §2a), `OmittedRelationOption` (this kind is never written as a document at all —
 the dictionary states its entry, §2f; it needs only the smartblock type,
 since the omission is unconditional), and its two relation-side twins
 since §15 #23: `OmittedRelation` (a relation document is never written
@@ -5793,7 +5806,7 @@ being true.
   its definition — format first, then name, description, object types,
   include-time, max count, readonly, default value, options — plus
   `uninstalled: true` if the user removed it (#22) and `hidden: true` if
-  the store hid it (and, since #25, `bundled_modified: true` if a bundled
+  the store hid it (and, since #25, `bundled_diverged: true` if a bundled
   key's copy had diverged from the table). Not referenced, it is **not
   exported at all**: no
   document, no entry, and
@@ -5812,7 +5825,7 @@ being true.
   no list, so no claim to correct and nothing to contradict.)
 
   Two things are new. `hidden` joins the entry as its second owned member
-  (#25 added a third, `bundled_modified`), on `uninstalled`'s footing
+  (#25 added a third, `bundled_diverged`), on `uninstalled`'s footing
   exactly: dictionary-owned, refused by a type's declaration, a property
   document's settings and the authoring subset, written `true` only (§2f). And what an entry cannot state is REPORTED
   rather than failed closed on, since the omission is unconditional —
@@ -5852,7 +5865,7 @@ being true.
   space-minted one by looking it up in its own shipped table, the §3 chain
   it runs for every key. **No `bundled` flag replaces the list**:
   bundled-ness is a table lookup, and this format's discipline is that one
-  fact has one source; a flag would be a second. (#25's `bundled_modified`
+  fact has one source; a flag would be a second. (#25's `bundled_diverged`
   is not that flag: it records a divergence, which no lookup can recover
   once the table moves, and its absence says nothing about bundled-ness.)
 
@@ -5884,7 +5897,7 @@ being true.
   copy, and an identical copy's entry written from the table is exactly
   the entry a referenced bundled key with no copy of its own already got.
   (#25 retired that second job: every entry states the stored definition,
-  complete, and the verdict flags `bundled_modified` instead.)
+  complete, and the verdict flags `bundled_diverged` instead.)
   `UnaccountedRelationDetails` and its Issue are untouched.
 
   The census that decided it, over three real v2 exports written before
@@ -5923,7 +5936,7 @@ being true.
 
 - **#25 The reduced entry** — settled: **every dictionary entry states the
   complete definition, and a bundled key whose copy diverged from the
-  shipped table is flagged `bundled_modified`** (§2f). An entry for a
+  shipped table is flagged `bundled_diverged`** (§2f). An entry for a
   bundled property used to be written in a REDUCED form — `{key, name,
   format, object_types}` — on the reasoning that a reader fills the rest
   from its own copy of the shipped table. Measured on a real export: the
@@ -5933,11 +5946,12 @@ being true.
   of different completeness in one file, and an external reader could not
   interpret the export without Anytype's table: exactly the dependence the
   `format` requirement exists to end, kept for every other member. The
-  duality goes. Name, format, description, object types, include-time, max
-  count, readonly, default value, options, `hidden`, `uninstalled` —
-  whatever the property has, on every entry, from either of its two
-  sources: an observed snapshot's stored definition, which for an
-  unmodified copy equals the table anyway, or — for a referenced bundled
+  duality goes. Name, format, description, object types, include-time (on
+  a date), max count (on a multi-valued format), readonly, default value,
+  options, `hidden`, `uninstalled` — whatever the property has and its
+  format leaves room for, on every entry, from either of its two
+  sources: an observed snapshot's stored definition, which for a copy
+  that has not diverged equals the table anyway, or — for a referenced bundled
   key with no copy in the space — the table's own reconstruction
   (`InstalledRelationDetails`), read through the same reader as a
   snapshot, so the two sources produce one entry byte for byte.
@@ -5948,7 +5962,7 @@ being true.
   gains nothing from the extra bytes; every other reader gains the file.
 
   The new member is the part that is NOT derivable, which is why it is
-  worth a member. `bundled_modified: true` is written when
+  worth a member. `bundled_diverged: true` is written when
   `OmittedBundledRelation` refuses a copy whose key the shipped table
   names — the space's copy had diverged from the table at export time.
   An importer could diff the entry against its own table today, but the
@@ -5959,7 +5973,7 @@ being true.
   install the fresh bundled property from the table, accepting any newer
   name; key in the table with the flag → the user's version wins, take the
   entry; key not in the table → create from the entry. Absent means either
-  "not a bundled property" or "bundled and unmodified", and the importer
+  "not a bundled property" or "bundled and not diverged", and the importer
   separates those with the table lookup it already performs — #24's rule
   that bundled-ness is a lookup and not a flag stands. The flag follows
   the predicate's fail-closed verdict rather than a member diff: a copy
@@ -5972,7 +5986,33 @@ being true.
   and it verifies the reconstruction against the copy through the
   round-trip comparator (§11) — the proof that a table-shipping reader's
   shortcut loses nothing. What its verdict no longer does is select an
-  entry shape, because there is no reduced shape to select.
+  entry shape, because there is no reduced shape to select. The flag
+  reaches the resolver path too: a used bundled key with no snapshot in
+  the export but a definition the space's resolver supplies is the
+  space's copy as much as an observed one, and Finish asks the same
+  predicate on it, restated as stored details — one verdict, not a
+  second opinion.
+
+  **Two members exist only where the format leaves room for them**, and
+  the complete entry made that visible: the first cut wrote
+  `include_time: false` on every non-date bundled entry and `max_count: 1`
+  on every date, because the install stamps both. `include_time` is a
+  date's member (§2a already said so, and §2d warns on a `true` elsewhere);
+  `max_count` exists on a format that can hold more than one value —
+  `multi_select`, `files`, `objects`, `properties` — and on a single-valued
+  one the knob does not exist: the format fixes the count at one, export
+  writes none whatever the store holds, import reads none, and a reader
+  assumes one. Measured on the shipped table: 160 of its 194 relations
+  store `maxCount: 1`, the rule omits 143 of those and keeps the 17
+  `objects`/`files` properties capped at one link, where the cap is real;
+  8 relations store `includeTime: true`, every one a date. The verdict is
+  one predicate (`FormatFixedDefinitionMember`) read by the renderer, the
+  reader, the identity check and the round-trip comparator alike — the
+  `InstallStampedDefault` discipline extended from "an empty default says
+  nothing" to "a member the format already answers says nothing" — so a
+  copy the app created without the stamp is the table's, and what an entry
+  omits by the format's rule can never come back as a false difference
+  (§11). `readonly` needed no work: `false` was already the absent form.
 
   The overturned position was #24's residue: "the verdict still decides
   which definition the copy's entry states — the table's for an identical

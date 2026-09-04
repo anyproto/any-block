@@ -13,7 +13,7 @@ package anyblockjson
 // reduced form for a bundled key (§15 #25) — flagged `uninstalled` when
 // the user removed it (§15 #22); the predicate's verdict adds two things
 // to that. A copy it refuses on a key the table names is flagged
-// `bundled_modified`: the copy diverged at export time, which only the
+// `bundled_diverged`: the copy diverged at export time, which only the
 // export can know, so a reader takes the entry over its own table. A copy
 // it admits has a reconstruction — key → the reader's own table — that the
 // composer verifies against the snapshot through the round-trip comparator,
@@ -32,7 +32,7 @@ package anyblockjson
 // it admits is an identity claim: a detail key it cannot classify, a stored
 // value of an alien kind, a block the format preserves, a definition member
 // that differs from the table — each DENIES the identical verdict, and the
-// property's entry is flagged `bundled_modified`. What the entry cannot
+// property's entry is flagged `bundled_diverged`. What the entry cannot
 // state is not failed closed on — there is no document left to keep — but
 // REPORTED: UnaccountedRelationDetails names it, the role
 // UnaccountedOptionDetails plays for an option, so the composer raises an
@@ -180,6 +180,43 @@ func InstallStampedDefault(key string, v *types.Value) bool {
 	return relationDefinitionKeys[key] && isEmptySystemValue(v)
 }
 
+// MultiValuedFormat reports a property format that can hold more than one
+// value — multi_select, files, objects, properties — the only formats on
+// which a `max_count` exists (§2a). Every other format holds exactly one:
+// the count is the format's answer, not the definition's, so a definition
+// states none, whatever the store happens to carry (the app stamps
+// `relationMaxCount: 1` on a select and nothing on a date).
+func MultiValuedFormat(format model.RelationFormat) bool {
+	switch format {
+	case model.RelationFormat_tag, model.RelationFormat_file, model.RelationFormat_object, model.RelationFormat_relations:
+		return true
+	}
+	return false
+}
+
+// FormatFixedDefinitionMember reports a definition member the property's
+// format leaves no room for: `relationMaxCount` on a single-valued format
+// (the format fixes the count at one) and `relationFormatIncludeTime` on
+// anything but a date (nothing reads a time-of-day flag elsewhere). Such a
+// member is not the definition's to state — a `max_count` exists on a
+// multi-valued format, an `include_time` on a date, and nowhere else (§2a)
+// — so the renderer omits it whatever the store holds, the reader ignores
+// one it meets, the identity check reads past it, and the round-trip
+// comparator does not report it in any direction: the same verdict on all
+// four, so what an entry omits by the format's rule can never come back
+// as a false difference (§11, §15 #25). The InstallStampedDefault
+// discipline, extended from "an empty default says nothing" to "a member
+// the format already answers says nothing".
+func FormatFixedDefinitionMember(format model.RelationFormat, key string) bool {
+	switch key {
+	case "relationMaxCount":
+		return !MultiValuedFormat(format)
+	case detailKeyRelationFormatIncludeTime:
+		return format != model.RelationFormat_date
+	}
+	return false
+}
+
 // OmittedBundledRelation reports whether a relation snapshot is an installed
 // copy whose definition is field-identical to the bundled table — the §2f
 // identity check. The verdict does two things and selects no entry shape:
@@ -188,7 +225,7 @@ func InstallStampedDefault(key string, v *types.Value) bool {
 // InstalledRelationDetails — that the composer verifies against the copy
 // through the round-trip comparator, the proof that a reader restoring the
 // key from its table loses nothing. A REFUSED copy on a key the table
-// names is flagged `bundled_modified` on its entry: the copy diverged from
+// names is flagged `bundled_diverged` on its entry: the copy diverged from
 // the table at export time, a fact a reader cannot recover once the table
 // has moved, so the entry outranks the reader's table for that key. The
 // verdict is fail-closed, so the flag follows it: a copy refused for an
@@ -279,7 +316,7 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 // complete, and a property nothing references is not exported at all. The
 // kind alone decides, as for OmittedRelationOption; what the entry cannot
 // state is UnaccountedRelationDetails' report, and whether a bundled key's
-// entry is flagged `bundled_modified` is OmittedBundledRelation's.
+// entry is flagged `bundled_diverged` is OmittedBundledRelation's.
 func OmittedRelation(sbType model.SmartBlockType) bool {
 	return isPropertySmartBlock(sbType)
 }
@@ -445,15 +482,25 @@ func bundledIdenticalDefinition(det map[string]*types.Value, rel *model.Relation
 		format < 0 || format > math.MaxInt32 || model.RelationFormat(int32(format)) != rel.Format {
 		return false
 	}
-	maxCount, ok := numberDetailOK(det, "relationMaxCount")
-	if !ok || int32(maxCount) != rel.MaxCount || float64(int32(maxCount)) != maxCount {
-		return false
+	// a member the format fixes is read past, not compared
+	// (FormatFixedDefinitionMember): the app stamps relationMaxCount 1 on
+	// a select and nothing on a date, and a false includeTime rides on
+	// thousands of non-date copies — none of it a person's choice, none of
+	// it carried on an entry, so none of it a divergence
+	if !FormatFixedDefinitionMember(rel.Format, "relationMaxCount") {
+		maxCount, ok := numberDetailOK(det, "relationMaxCount")
+		if !ok || int32(maxCount) != rel.MaxCount || float64(int32(maxCount)) != maxCount {
+			return false
+		}
 	}
 	for detailKey, table := range map[string]bool{
 		"isHidden":                         rel.Hidden,
 		"relationReadonlyValue":            rel.ReadOnly,
 		detailKeyRelationFormatIncludeTime: rel.IncludeTime,
 	} {
+		if FormatFixedDefinitionMember(rel.Format, detailKey) {
+			continue
+		}
 		b, ok := boolDetailOK(det, detailKey)
 		if !ok || b != table {
 			return false

@@ -52,15 +52,26 @@ func renderPropertyDefinitionMembers(m *omap, def PropertyDefinition, objectType
 	m.setNonEmpty("options", options)
 	m.setNonEmpty("object_types", stringsToAny(objectTypes))
 	m.setNonEmpty("description", def.Description)
-	if def.IncludeTime != nil {
-		// A pointer false is a declaration, not an absence.
-		m.set("include_time", *def.IncludeTime)
-	} else if def.IncludeTimeSet {
-		// A present nil is explicit JSON null. The presence bit is what keeps
-		// that declaration distinct from an omitted member.
-		m.set("include_time", nil)
+	// two members exist only where the format leaves room for them (§2a):
+	// include_time on a date, max_count on a format that can hold more than
+	// one value. Elsewhere the format fixes the answer, so the member is
+	// omitted whatever the definition holds — the same verdict the reader,
+	// the identity check and the round-trip comparator read
+	// (FormatFixedDefinitionMember), so nothing omitted here can come back
+	// as a difference there.
+	if !FormatFixedDefinitionMember(def.Format, detailKeyRelationFormatIncludeTime) {
+		if def.IncludeTime != nil {
+			// A pointer false is a declaration, not an absence.
+			m.set("include_time", *def.IncludeTime)
+		} else if def.IncludeTimeSet {
+			// A present nil is explicit JSON null. The presence bit is what
+			// keeps that declaration distinct from an omitted member.
+			m.set("include_time", nil)
+		}
 	}
-	m.setNonEmpty("max_count", def.MaxCount)
+	if !FormatFixedDefinitionMember(def.Format, "relationMaxCount") {
+		m.setNonEmpty("max_count", def.MaxCount)
+	}
 	m.setNonEmpty("readonly", def.Readonly)
 	if def.DefaultValue != nil || def.DefaultValueSet {
 		value, err := canonicalPropertyDefault(def.DefaultValue)
