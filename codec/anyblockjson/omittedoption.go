@@ -94,9 +94,12 @@ import (
 
 // OmittedRelationOption reports a relation option object, which a bundle
 // never writes as a document — the property dictionary states its
-// vocabulary entry instead (§2f, §15 #21).
-func OmittedRelationOption(sbType model.SmartBlockType) bool {
-	return sbType == model.SmartBlockType_STRelationOption
+// vocabulary entry instead (§2f, §15 #21). The smartblock type is the first
+// of the two places that say what a snapshot is, and the stored layout is
+// the second: PropertyOptionSnapshotBase carries the reasoning and the six
+// corpus objects that escaped when only the first was asked.
+func OmittedRelationOption(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) bool {
+	return PropertyOptionSnapshotBase(sbType, base)
 }
 
 // UnaccountedOptionDetails names the stored details of one option snapshot
@@ -133,6 +136,13 @@ func UnaccountedOptionDetails(base *model.SmartBlockSnapshotBase) []string {
 			out = append(out, key)
 		}
 	}
+	// and the blocks on the option's own page, through the same reader the
+	// property half uses (relationContentBlocks) so the two cannot drift.
+	// A page's blocks are the one thing a document could carry that nothing
+	// else can, which is why the property omission has always named them;
+	// the option omission did not, and the objects the stored-layout arm now
+	// routes here are exactly the ones that carry a dataview.
+	out = append(out, relationContentBlocks(base)...)
 	sort.Strings(out)
 	return out
 }

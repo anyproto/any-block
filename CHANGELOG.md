@@ -26,6 +26,15 @@
   of an order-less one; the store's own comparator answers the opposite,
   and following it emitted the options a user dragged to the top of a
   kanban at the bottom of the array.
+- The property and option omissions read the snapshot, not only its
+  smartblock type (§2f, §15 #21, #23): `OmittedRelation` and
+  `OmittedRelationOption` take the snapshot base and consult the stored
+  layout behind the type (`PropertySnapshotBase`,
+  `PropertyOptionSnapshotBase`). An option an importer wrote into a plain
+  tree used to be emitted as an ordinary document while its vocabulary went
+  missing from the dictionary, unreported. `UnaccountedOptionDetails` now
+  names the blocks on an option's page too, through the same reader the
+  property half uses.
 
 - Establish the versioned `format/v1` and `format/v2` layout.
 - Add the AnyBlock v2 specification, schemas, examples, and conformance data.

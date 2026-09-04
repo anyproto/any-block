@@ -157,7 +157,7 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 	// entry, §15 #23) and owned by the same predicate the renderer and the
 	// identity check read, the InstallStampedDefault discipline extended.
 	formatFixed := func(k string) bool {
-		if !anyblockjson.OmittedRelation(sbType) {
+		if !anyblockjson.OmittedRelation(sbType, orig) {
 			return false
 		}
 		format, ok := relationFormatOf(orig, got)

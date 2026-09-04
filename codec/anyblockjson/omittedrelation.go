@@ -245,7 +245,7 @@ func FormatFixedDefinitionMember(format model.RelationFormat, key string) bool {
 // which fails on every derived id — fewer omissions, never a wrong one, the
 // same degradation every resolver-less path in this format takes.
 func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase, opts Options) (string, bool) {
-	if !isPropertySmartBlock(sbType) || base == nil {
+	if base == nil || !PropertySnapshotBase(sbType, base) {
 		return "", false
 	}
 	det := base.GetDetails().GetFields()
@@ -314,11 +314,84 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 // OmittedRelation reports a relation document, which a bundle never writes
 // (§2f, §15 #23): the property dictionary states the stored definition,
 // complete, and a property nothing references is not exported at all. The
-// kind alone decides, as for OmittedRelationOption; what the entry cannot
-// state is UnaccountedRelationDetails' report, and whether a bundled key's
-// entry is flagged `bundled_diverged` is OmittedBundledRelation's.
-func OmittedRelation(sbType model.SmartBlockType) bool {
-	return isPropertySmartBlock(sbType)
+// KIND decides, as for OmittedRelationOption — but the kind is what the
+// snapshot IS, and the smartblock type is only the first of two places that
+// says so (PropertySnapshotBase). What the entry cannot state is
+// UnaccountedRelationDetails' report, and whether a bundled key's entry is
+// flagged `bundled_diverged` is OmittedBundledRelation's.
+func OmittedRelation(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) bool {
+	return PropertySnapshotBase(sbType, base)
+}
+
+// PropertySnapshotBase reports a snapshot that describes a PROPERTY object,
+// and PropertyOptionSnapshotBase one that describes an OPTION — the question
+// the two omissions ask, which is not quite the question
+// isPropertySmartBlock answers.
+//
+// The smartblock type is the first source and the stored layout is the
+// second, because a real account holds objects the type alone does not
+// classify: an option minted before the unique key existed, or one an
+// importer wrote into a plain tree, carries `resolvedLayout:
+// relationOption` and a `relationKey` under SmartBlockType_Page. Measured
+// over a 159-space corpus, six such option objects in two spaces were
+// written into `objects/` as ordinary documents with `"type": "Property
+// option"` — §15 #21 says a bundle carries no option document at all — and,
+// worse, never reached observeRelationOption, so one space's `status` entry
+// stated three of its six options and another's stated none of its three
+// while §2f claims the dictionary is a vocabulary's only home. Nothing
+// reported it, because everything that reports is downstream of the
+// predicate that never fired.
+//
+// isPropertySmartBlock is deliberately NOT widened to match. That list is
+// the snapshot-side half of a three-way agreement with isPropertyKind and
+// the schema's `if` about which DOCUMENT kinds carry `property_settings`;
+// widening it would have an ordinary object document acquire a §2d group
+// its own schema refuses. The kinds a document may be written as and the
+// snapshots an omission recognises are different questions, and this is the
+// one place they part company.
+func PropertySnapshotBase(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) bool {
+	if isPropertySmartBlock(sbType) {
+		return true
+	}
+	layout, ok := storedObjectLayout(base)
+	return ok && layout == model.ObjectType_relation
+}
+
+// PropertyOptionSnapshotBase is PropertySnapshotBase for an option (§15 #21).
+func PropertyOptionSnapshotBase(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) bool {
+	if sbType == model.SmartBlockType_STRelationOption {
+		return true
+	}
+	layout, ok := storedObjectLayout(base)
+	return ok && layout == model.ObjectType_relationOption
+}
+
+// storedObjectLayout reads the layout a snapshot's own details state:
+// `resolvedLayout`, the key heart derives from the object's type, and
+// `layout` behind it for a snapshot carrying only the older spelling — three
+// of the six corpus cases state the former alone. ok is false when neither
+// key is present, which is the ordinary case and must never read as layout
+// 0: a coercing getter would make every layout-less snapshot a `basic` one
+// and hand some kind a match it never claimed. A number is the only shape
+// either key has, and a value outside the enum's range states nothing.
+func storedObjectLayout(base *model.SmartBlockSnapshotBase) (model.ObjectTypeLayout, bool) {
+	det := base.GetDetails().GetFields()
+	for _, key := range []string{"resolvedLayout", "layout"} {
+		v, present := det[key]
+		if !present {
+			continue
+		}
+		n, isNumber := v.GetKind().(*types.Value_NumberValue)
+		if !isNumber {
+			continue
+		}
+		f := n.NumberValue
+		if math.IsNaN(f) || math.IsInf(f, 0) || f < math.MinInt32 || f > math.MaxInt32 || float64(int32(f)) != f {
+			continue
+		}
+		return model.ObjectTypeLayout(int32(f)), true
+	}
+	return 0, false
 }
 
 // UnaccountedRelationDetails names what omitting one relation document

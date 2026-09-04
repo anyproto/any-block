@@ -4817,7 +4817,9 @@ stating the stored definition — `hidden` and `uninstalled` included, and
 `bundled_diverged` on the divergent copy (§15 #25) — when something
 references the key, and not at all when nothing does; an
 unreferenced property is not a loss and gets no Issue and no counter. The
-predicate is `OmittedRelation` (§13), the kind alone. What the entry cannot
+predicate is `OmittedRelation` (§13), the kind — and the kind is what the
+snapshot IS, which the smartblock type states first and the stored layout
+states second (`PropertySnapshotBase`, below). What the entry cannot
 state is REPORTED (`UnaccountedRelationDetails`): the classification is
 the installed-copy omission's own, so install and import provenance,
 attribution and the internal set are accounted for; what it names is user
@@ -4830,6 +4832,28 @@ nothing else can. The census the ruling was measured on is details-only
 and cannot count those pages; the report is what says so, per export. A
 snapshot stating no key has no entry to travel on and is reported
 likewise.
+
+Both predicates read the snapshot, not only its smartblock type.
+`PropertySnapshotBase` and `PropertyOptionSnapshotBase` take the smartblock
+type first and the stored layout — `resolvedLayout`, then `layout` behind
+it — second, because a real account holds objects the type alone does not
+classify: an option minted before the unique key existed, or one an importer
+wrote into a plain tree, arrives under `Page` carrying
+`resolvedLayout: relationOption` and a `relationKey`. Measured over a
+159-space corpus, six such objects in two spaces were written into
+`objects/` as ordinary documents spelling `"type": "Property option"`, and
+their vocabularies never reached the dictionary — one space's `status` entry
+stated three of its six options and another's stated none of its three —
+with no issue raised and no counter moved, because everything that reports
+is downstream of the predicate. A snapshot stating no layout is not a
+property and not an option: absence must not read as layout `0`.
+
+This is the one place where the snapshots an omission recognises and the
+KINDS a document may be written as part company. `isPropertySmartBlock` is
+the snapshot-side half of a three-way agreement with `isPropertyKind` and
+the schema's `if` about which document kinds carry `property_settings`
+(§2d), and widening it would give an ordinary object document a group its
+own schema refuses.
 
 The third is unconditional too: **an
 option document is not written at all** (§2f, §15 #21). Its name, color and
@@ -4855,6 +4879,13 @@ failing closed would have bought. Every loss is stated rather than silent:
   accounted for and a key that set holds back — `isArchived` and
   `isFavorite` as user intent, and `isUninstalled`, which an option has no
   entry member to travel on — is named.
+- An option whose PAGE carries blocks that are not the editor's scaffolding
+  is omitted with an issue naming them, by id and kind, through the same
+  reader the property omission uses. An option page is not something the app
+  gives an editor for, so this is rare — but it is the one thing a document
+  can carry that no entry, no lift and no reconstruction can, and the
+  objects the stored-layout arm of the predicate recognises are exactly the
+  ones that carry a dataview.
 - An option of a property the dictionary does not carry is dropped by the
   used-only rule (§2f), its property named in `UnusedOptionKeys`; a property
   nothing can define is an orphan and its vocabulary goes with it, named in

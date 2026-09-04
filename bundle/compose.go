@@ -265,7 +265,7 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 	// is deliberately not carried, so unlike the widget omission there is
 	// no reconstruction to verify; the one loss worth reporting is an
 	// option the dictionary cannot carry at all.
-	if anyblockjson.OmittedRelationOption(sbType) {
+	if anyblockjson.OmittedRelationOption(sbType, base) {
 		return true, c.observeRelationOption(base)
 	}
 	// the sidebar's object: index.json states everything it holds (§2c) —
@@ -305,7 +305,7 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 	// flagged `bundled_diverged`, and whether there is a reconstruction (the
 	// trip a table-shipping reader takes, key → its own table) to verify
 	// through the round-trip comparator — and observeRelation does both.
-	if anyblockjson.OmittedRelation(sbType) {
+	if anyblockjson.OmittedRelation(sbType, base) {
 		return true, c.observeRelation(sbType, base)
 	}
 	return false, nil

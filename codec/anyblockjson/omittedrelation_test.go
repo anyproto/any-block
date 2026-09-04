@@ -7,6 +7,7 @@ package anyblockjson
 // for a backup format — so every widening here has to be red first.
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -108,10 +109,22 @@ func TestOmittedBundledRelation_FailClosed(t *testing.T) {
 			assert.False(t, omitted, "the document must be kept")
 		})
 	}
-	t.Run("a non-relation kind is never omitted", func(t *testing.T) {
+	t.Run("a snapshot that is a property in neither source is never omitted", func(t *testing.T) {
 		base := installedCopySnapshot(t, "dueDate", Options{})
+		delete(base.Details.Fields, "layout")
+		delete(base.Details.Fields, "resolvedLayout")
 		_, omitted := OmittedBundledRelation(model.SmartBlockType_Page, base, Options{})
 		assert.False(t, omitted)
+	})
+	t.Run("a foreign smartblock type does not exempt a copy the details classify", func(t *testing.T) {
+		// the escaped-kind case (PropertySnapshotBase): the identity
+		// predicate has to judge a copy the omission now recognises, or an
+		// installed copy that reaches the dictionary through the stored
+		// layout is flagged `bundled_diverged` for a reason that is not a
+		// divergence
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_Page, base, Options{})
+		assert.True(t, omitted)
 	})
 	t.Run("title and description scaffolding does not keep the document", func(t *testing.T) {
 		base := installedCopySnapshot(t, "dueDate", Options{})
@@ -238,10 +251,62 @@ func TestOmittedBundledRelation_UninstalledCopyOmits(t *testing.T) {
 // reconstruction when it does, flagged `bundled_diverged` when it does not
 // (§15 #25).
 func TestOmittedRelation(t *testing.T) {
-	assert.True(t, OmittedRelation(model.SmartBlockType_STRelation))
-	assert.True(t, OmittedRelation(model.SmartBlockType_BundledRelation))
-	assert.False(t, OmittedRelation(model.SmartBlockType_STRelationOption), "an option has its own predicate")
-	assert.False(t, OmittedRelation(model.SmartBlockType_Page))
+	none := &model.SmartBlockSnapshotBase{}
+	assert.True(t, OmittedRelation(model.SmartBlockType_STRelation, none))
+	assert.True(t, OmittedRelation(model.SmartBlockType_BundledRelation, none))
+	assert.False(t, OmittedRelation(model.SmartBlockType_STRelationOption, none), "an option has its own predicate")
+	assert.False(t, OmittedRelation(model.SmartBlockType_Page, none))
+}
+
+// The stored layout is the second place a snapshot says what it is, and the
+// smartblock type is not always the first to be right: an option minted
+// before the unique key existed, or one an importer wrote into a plain tree,
+// arrives under SmartBlockType_Page. Six such objects in a 159-space corpus
+// were written into `objects/` as ordinary documents while §15 #21 says a
+// bundle carries no option document, and their vocabularies never reached
+// the dictionary that claims to be a vocabulary's only home.
+//
+// How this can fail: read the layout with a coercing getter, so a snapshot
+// stating no layout reads as layout 0 (`basic`) and every layout-less
+// snapshot is compared against an enum value some kind owns; read `layout`
+// without `resolvedLayout`, or the other way round; let a NaN or an
+// out-of-range number through the int32 narrowing and land on a valid enum
+// value by wrapping.
+func TestOmittedRelation_TheStoredLayoutIsTheSecondSource(t *testing.T) {
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	str := func(s string) *types.Value { return &types.Value{Kind: &types.Value_StringValue{StringValue: s}} }
+	base := func(det map[string]*types.Value) *model.SmartBlockSnapshotBase {
+		return &model.SmartBlockSnapshotBase{Details: &types.Struct{Fields: det}}
+	}
+	for name, tc := range map[string]struct {
+		det              map[string]*types.Value
+		relation, option bool
+	}{
+		"resolved layout relation": {map[string]*types.Value{
+			"resolvedLayout": num(float64(model.ObjectType_relation))}, true, false},
+		"resolved layout option": {map[string]*types.Value{
+			"resolvedLayout": num(float64(model.ObjectType_relationOption))}, false, true},
+		"layout alone": {map[string]*types.Value{
+			"layout": num(float64(model.ObjectType_relationOption))}, false, true},
+		"resolved layout outranks layout": {map[string]*types.Value{
+			"resolvedLayout": num(float64(model.ObjectType_relationOption)),
+			"layout":         num(float64(model.ObjectType_basic))}, false, true},
+		"no layout at all":    {map[string]*types.Value{"id": str("bafyp")}, false, false},
+		"a page layout":       {map[string]*types.Value{"resolvedLayout": num(float64(model.ObjectType_basic))}, false, false},
+		"the deprecated list": {map[string]*types.Value{"resolvedLayout": num(float64(model.ObjectType_relationOptionsList))}, false, false},
+		"an alien kind":       {map[string]*types.Value{"resolvedLayout": str("relationOption")}, false, false},
+		"not an integer":      {map[string]*types.Value{"resolvedLayout": num(13.5)}, false, false},
+		"out of the int32 range": {map[string]*types.Value{
+			"resolvedLayout": num(4294967296 + float64(model.ObjectType_relationOption))}, false, false},
+		"nan": {map[string]*types.Value{"resolvedLayout": num(math.NaN())}, false, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.relation, OmittedRelation(model.SmartBlockType_Page, base(tc.det)))
+			assert.Equal(t, tc.option, OmittedRelationOption(model.SmartBlockType_Page, base(tc.det)))
+		})
+	}
+	assert.False(t, OmittedRelation(model.SmartBlockType_Page, nil), "a nil snapshot states no layout")
+	assert.False(t, OmittedRelationOption(model.SmartBlockType_Page, nil))
 }
 
 // mintedRelationSnapshot is a space-minted property as the app's create path
