@@ -410,20 +410,133 @@ func (o Options) unfoldParticipantRef(id string) string {
 	return domain.NewParticipantId(o.SpaceId, identity)
 }
 
+// typeRefKey classifies a type reference by its spelling: the canonical
+// `type-<internal_key>`, or — input compatibility, never written — the
+// platform's own `ot-<key>` unique-key form that older documents carry. The
+// key must pass the fold gate; a `type-` string whose tail does not is not
+// a derived id this format would have written and passes through as it
+// stands.
+func typeRefKey(ref string) (key string, ok bool) {
+	switch {
+	case strings.HasPrefix(ref, TypeRefPrefix):
+		key = ref[len(TypeRefPrefix):]
+	case strings.HasPrefix(ref, domain.ObjectTypeKeyToIdPrefix):
+		key = ref[len(domain.ObjectTypeKeyToIdPrefix):]
+	default:
+		return "", false
+	}
+	if !typeKeyFoldable(key) {
+		return "", false
+	}
+	return key, true
+}
+
+// typeRef spells a stored type key as its derived id, `type-<key>`, or
+// answers "" when the key fails the fold gate (typeKeyFoldable) — the
+// caller then keeps whatever spelling it had, the CID for a document id and
+// a reference, the vocabulary's spelling for a key slot. A CID is refused
+// outright: a type-key slot may hold an object id that no resolver could
+// translate (§2d passes it through verbatim, its own address), and an id
+// is not a key however well it fits the charset.
+func typeRef(key string) string {
+	if !typeKeyFoldable(key) || isObjectIdShaped(key) || strings.HasPrefix(key, "_") {
+		// a `_`-prefixed value is a platform address, never a key (§1):
+		// the `_missing_object` sentinel passes through a target list
+		// verbatim, and `type-_missing_object` would be a derived id of
+		// nothing
+		return ""
+	}
+	return TypeRefPrefix + key
+}
+
+// typeKeyFoldable is the fold gate on a stored type key (§9): `[A-Za-z0-9_]`,
+// 1 to 120 characters. Every population a store actually mints passes —
+// bundled camelCase keys, 24-hex bson ids, the bare words of legacy
+// accounts — and what it refuses is what could not be a filename stem or
+// could not be split back: a `-` (the unique-key separator, so no stored
+// type key contains one), a path separator, whitespace, a control
+// character, or a length that would push the id past the 128-character
+// bound an authored id has. A key that fails keeps its CID everywhere,
+// document and references alike, so the two never disagree.
+func typeKeyFoldable(key string) bool {
+	if len(key) == 0 || len(key) > 120 {
+		return false
+	}
+	for i := 0; i < len(key); i++ {
+		c := key[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// foldTypeRef is the export half of the type fold (§9): a type object's id
+// becomes `type-<internal_key>` wherever it is referenced, and on the type
+// document's own envelope. It needs the store's answer to "which key does
+// this id name" — the TypeResolver capability of Options.ResolveProperties
+// (§2d) — and with no resolver it folds NOTHING, so that a document folded
+// by one run never sits beside references a resolver-less run could not
+// fold. A key the fold gate refuses keeps the id.
+func (o Options) foldTypeRef(id string) string {
+	tr, ok := o.ResolveProperties.(TypeResolver)
+	if !ok || id == "" {
+		return id
+	}
+	key, ok := tr.TypeKeyById(id)
+	if !ok || key == "" {
+		return id
+	}
+	if ref := typeRef(key); ref != "" {
+		return ref
+	}
+	return id
+}
+
+// unfoldTypeRef is the import half: `type-<key>` (or the legacy `ot-<key>`)
+// rebuilds the type object id the target space serves for that key, through
+// the same capability. A key the space does not serve stays as written —
+// it is then a bundle-local id, exactly what an authored type document's id
+// is, and the import wiring relinks it as it relinks every other bundle
+// slug (§2c). No resolver, no unfold.
+func (o Options) unfoldTypeRef(ref string) string {
+	tr, ok := o.ResolveProperties.(TypeResolver)
+	if !ok {
+		return ref
+	}
+	key, ok := typeRefKey(ref)
+	if !ok {
+		return ref
+	}
+	if id, ok := tr.TypeIdByKey(key); ok && id != "" {
+		return id
+	}
+	return ref
+}
+
 // foldRef is the derived-id fold on one reference slot, with no caption
-// (§9): the participant fold. It is what every reference slot that takes
-// no `#name` suffix writes through — the icon and cover `file`, a callout's
+// (§9): the participant fold and the type fold, which cannot both apply to
+// one id. It is what every reference slot that takes no `#name` suffix
+// writes through — the envelope id, the icon and cover `file`, a callout's
 // icon, a view's `default_template_id`/`default_type_id`, mention and
 // object-link targets inside text, the index's own references — so that no
 // slot can keep an id the document's own envelope would fold.
 func (o Options) foldRef(id string) string {
-	return o.foldParticipantRef(id)
+	if folded := o.foldParticipantRef(id); folded != id {
+		return folded
+	}
+	return o.foldTypeRef(id)
 }
 
 // unfoldRef inverts foldRef: the import half for the same suffix-free
 // slots. No `#` is trimmed — those slots never carry a caption.
 func (o Options) unfoldRef(id string) string {
-	return o.unfoldParticipantRef(id)
+	if unfolded := o.unfoldParticipantRef(id); unfolded != id {
+		return unfolded
+	}
+	return o.unfoldTypeRef(id)
 }
 
 // objectRef renders one object reference for a document slot (§9): the
@@ -596,6 +709,20 @@ func (imp *importer) unfoldMarks(marks []*model.BlockContentTextMark) {
 // participant document's id, and every reference to it, is
 // `participant-<identity>`.
 const ParticipantRefPrefix = "participant-"
+
+// TypeRefPrefix is the derived-id prefix of a type (§9): a type document's
+// id, and every reference to it, is `type-<internal_key>`.
+const TypeRefPrefix = "type-"
+
+// FoldDocumentId is the derived-id fold on a document's own envelope id, for
+// callers that must agree with what Marshal writes WITHOUT marshalling —
+// the bundle's path plan names a file by its envelope id (bundle/DESIGN.md
+// §1.3). It runs the same gates as the reference fold, so the plan and the
+// envelope cannot disagree: no SpaceId, no participant fold; no
+// TypeResolver, no type fold.
+func FoldDocumentId(opts Options, id string) string {
+	return opts.foldRef(id)
+}
 
 // dateIdPrefix marks a virtual date object id (pkg/lib/localstore/addr).
 const dateIdPrefix = "_date_"

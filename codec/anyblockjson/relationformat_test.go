@@ -365,9 +365,10 @@ func TestRelationEnvelope_TargetTypesTranslateThroughTheResolver(t *testing.T) {
 	// given
 	opts := testOptions()
 	opts.ResolveProperties = newTypeIdVocabulary()
+	dangling := testCid("dangling")
 	snap := relationSnapshot(map[string]*types.Value{
 		"relationFormat":            num(100),
-		"relationFormatObjectTypes": strList("typeid-page", "bafyreidangling"),
+		"relationFormatObjectTypes": strList("typeid-page", dangling),
 	})
 
 	// when
@@ -377,9 +378,9 @@ func TestRelationEnvelope_TargetTypesTranslateThroughTheResolver(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	assert.Equal(t, []string{"Page", "bafyreidangling"}, docObjectTypes(t, data),
-		"a resolvable id spells its type's name; an unresolvable one passes through verbatim (§3)")
-	assert.Equal(t, strList("typeid-page", "bafyreidangling"),
+	assert.Equal(t, []string{"type-page", dangling}, docObjectTypes(t, data),
+		"a resolvable id spells its type's derived id (§9); an unresolvable one passes through verbatim (§3)")
+	assert.Equal(t, strList("typeid-page", dangling),
 		got.Details.Fields["relationFormatObjectTypes"],
 		"the translation must invert: ids in, ids out")
 }
@@ -392,9 +393,10 @@ func TestRelationEnvelope_TargetTypesTranslateThroughTheResolver(t *testing.T) {
 // meaning) and the ids vanish from the wire.
 func TestRelationEnvelope_TargetTypesPassThroughWithoutResolver(t *testing.T) {
 	// given
+	typeOne := testCid("typeone")
 	snap := relationSnapshot(map[string]*types.Value{
 		"relationFormat":            num(100),
-		"relationFormatObjectTypes": strList("bafyreitypeone", "wine"),
+		"relationFormatObjectTypes": strList(typeOne, "wine"),
 	})
 
 	// when
@@ -403,9 +405,9 @@ func TestRelationEnvelope_TargetTypesPassThroughWithoutResolver(t *testing.T) {
 	_, got, err := Unmarshal(data, testOptions())
 	require.NoError(t, err)
 
-	// then
-	assert.Equal(t, []string{"bafyreitypeone", "wine"}, docObjectTypes(t, data))
-	assert.Equal(t, strList("bafyreitypeone", "wine"),
+	// then — the id passes through as an id, the bare key as its derived id
+	assert.Equal(t, []string{typeOne, "type-wine"}, docObjectTypes(t, data))
+	assert.Equal(t, strList(typeOne, "wine"),
 		got.Details.Fields["relationFormatObjectTypes"])
 }
 
@@ -439,9 +441,10 @@ func TestRelationEnvelope_AResolverAnsweringEmptyIsNoAnswer(t *testing.T) {
 	// given
 	opts := testOptions()
 	opts.ResolveProperties = blankTypeResolver{newTestPropertyResolver()}
+	typeOne := testCid("typeone")
 	snap := relationSnapshot(map[string]*types.Value{
 		"relationFormat":            num(100),
-		"relationFormatObjectTypes": strList("bafyreitypeone"),
+		"relationFormatObjectTypes": strList(typeOne),
 	})
 
 	// when
@@ -451,9 +454,9 @@ func TestRelationEnvelope_AResolverAnsweringEmptyIsNoAnswer(t *testing.T) {
 	require.NoError(t, err)
 
 	// then
-	assert.Equal(t, []string{"bafyreitypeone"}, docObjectTypes(t, data),
+	assert.Equal(t, []string{typeOne}, docObjectTypes(t, data),
 		"export: ok-with-empty is no translation — the stored id is its own address (§3)")
-	assert.Equal(t, strList("bafyreitypeone"),
+	assert.Equal(t, strList(typeOne),
 		got.Details.Fields["relationFormatObjectTypes"],
 		"import: ok-with-empty is no translation — the key passes through verbatim")
 }
@@ -582,38 +585,65 @@ func TestRelationEnvelope_ADeniedKeySlugShadowedByTheVocabularyBacksOff(t *testi
 // its own address, so no other key's slug may take one as a spelling — the
 // same duty §2a's targets have carried since typeProperties shipped.
 //
-// How this can fail: drop the relationTargetKeys loop from
-// seedTypeTermLedger. A vocabulary that slugs the document's own TYPE onto a
-// target key's spelling then wins the term, the envelope `type` and a target
-// entry both spell "wine", and the legend binds the spelling to the wrong
-// key — a type substitution with no error anywhere.
-func TestRelationEnvelope_TargetKeysAreInTheTypeCensus(t *testing.T) {
-	// given a vocabulary spelling the relation's own type key as `wine`,
-	// while the relation targets the stored type key `wine`
-	snap := relationSnapshot(map[string]*types.Value{
-		"relationFormat":            num(100),
-		"relationFormatObjectTypes": strList("wine"),
-	})
-	snap.ObjectTypes = []string{"ot-custom123"}
-	opts := testOptions()
-	opts.Keys = typedSpaceVocabulary{typeSlugOf: map[string]string{"custom123": "wine"}}
-
-	// when
-	data, err := Marshal(model.SmartBlockType_STRelation, snap, opts)
-	require.NoError(t, err)
-
-	// then: the stored key `wine` kept its spelling, so the vocabulary's
-	// binding backed off to the verbatim key
-	var doc struct {
-		Type             string `json:"type"`
-		PropertySettings struct {
-			ObjectTypes []string `json:"object_types"`
-		} `json:"property_settings"`
+// A target key spelled as its derived id claims no term (§9): `type-wine`
+// is not the spelling `wine`, so the envelope `type` may still take that
+// spelling from the vocabulary, and the legend binds it — there is nothing
+// for the two slots to collide on. A target key the fold gate refuses still
+// reserves its spelling, verbatim-first (§3).
+//
+// How this can fail: reserve foldable target keys in seedTypeTermLedger
+// again, and the envelope backs off to its stored key for a spelling no slot
+// writes; drop the non-foldable arm, and a vocabulary's spelling can take a
+// verbatim target's term.
+func TestRelationEnvelope_TargetKeysReserveOnlyWhatTheySpell(t *testing.T) {
+	read := func(t *testing.T, data []byte) (string, []string, map[string]string) {
+		t.Helper()
+		var doc struct {
+			Type             string            `json:"type"`
+			TypeKeys         map[string]string `json:"type_internal_keys"`
+			PropertySettings struct {
+				ObjectTypes []string `json:"object_types"`
+			} `json:"property_settings"`
+		}
+		require.NoError(t, json.Unmarshal(data, &doc))
+		return doc.Type, doc.PropertySettings.ObjectTypes, doc.TypeKeys
 	}
-	require.NoError(t, json.Unmarshal(data, &doc))
-	assert.Equal(t, "custom123", doc.Type,
-		"the census reserved %q for the target, so the type spells its stored key", "wine")
-	assert.Equal(t, []string{"wine"}, doc.PropertySettings.ObjectTypes)
+
+	t.Run("a foldable target reserves nothing", func(t *testing.T) {
+		snap := relationSnapshot(map[string]*types.Value{
+			"relationFormat":            num(100),
+			"relationFormatObjectTypes": strList("wine"),
+		})
+		snap.ObjectTypes = []string{"ot-custom123"}
+		opts := testOptions()
+		opts.Keys = typedSpaceVocabulary{typeSlugOf: map[string]string{"custom123": "wine"}}
+
+		data, err := Marshal(model.SmartBlockType_STRelation, snap, opts)
+		require.NoError(t, err)
+
+		typ, targets, legend := read(t, data)
+		assert.Equal(t, "wine", typ, "the vocabulary's spelling is free: the target never spells it")
+		assert.Equal(t, []string{"type-wine"}, targets)
+		assert.Equal(t, map[string]string{"wine": "custom123"}, legend)
+	})
+
+	t.Run("a target the gate refuses keeps its verbatim term", func(t *testing.T) {
+		snap := relationSnapshot(map[string]*types.Value{
+			"relationFormat":            num(100),
+			"relationFormatObjectTypes": strList("wine region"),
+		})
+		snap.ObjectTypes = []string{"ot-custom123"}
+		opts := testOptions()
+		opts.Keys = typedSpaceVocabulary{typeSlugOf: map[string]string{"custom123": "wine region"}}
+
+		data, err := Marshal(model.SmartBlockType_STRelation, snap, opts)
+		require.NoError(t, err)
+
+		typ, targets, _ := read(t, data)
+		assert.Equal(t, "custom123", typ,
+			"the census reserved %q for the target, so the type spells its stored key", "wine region")
+		assert.Equal(t, []string{"wine region"}, targets)
+	})
 }
 
 // docObjectTypes reads the §2d target-type list out of a rendered document —
@@ -629,15 +659,13 @@ func docObjectTypes(t *testing.T, data []byte) []string {
 	return doc.PropertySettings.ObjectTypes
 }
 
-// A custom stored type key in `object_types` owes the type_internal_keys legend its
-// identity entry, exactly as the same key would in
-// type_properties[].object_types — the §2d slot is a type-key slot, not a
-// free string.
+// A custom stored type key in `object_types` is written as its derived id
+// and owes no legend entry: `type-wine` names the key outright, and no
+// reader's vocabulary is consulted for it (§9).
 //
-// How this can fail: write the entries raw instead of through typeSlugs and
-// the legend entry disappears — a reader whose vocabulary binds the spelling
-// elsewhere then resolves the target to a different type.
-func TestRelationEnvelope_TargetTypesOweTheTypeLegend(t *testing.T) {
+// How this can fail: write the entries through the term ledger again and a
+// legend line appears for a spelling no slot writes.
+func TestRelationEnvelope_TargetTypesOweNoLegend(t *testing.T) {
 	// given a custom stored key whose spelling the bundled table cannot invert
 	snap := relationSnapshot(map[string]*types.Value{
 		"relationFormat":            num(100),
@@ -653,8 +681,8 @@ func TestRelationEnvelope_TargetTypesOweTheTypeLegend(t *testing.T) {
 		TypeKeys map[string]string `json:"type_internal_keys"`
 	}
 	require.NoError(t, json.Unmarshal(data, &doc))
-	assert.Equal(t, "wine", doc.TypeKeys["wine"],
-		"a verbatim custom type key owes the identity entry (§3)")
+	assert.Equal(t, []string{"type-wine"}, docObjectTypes(t, data))
+	assert.NotContains(t, doc.TypeKeys, "wine", "a derived id inverts by itself")
 }
 
 // `include_time` against a non-date format and a non-empty `object_types`

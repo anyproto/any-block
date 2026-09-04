@@ -63,28 +63,32 @@ type Plan struct {
 	blobPaths map[string]string
 }
 
-// BuildPlan fixes every path before the first emit task starts, for the
-// given space. It refuses an id that cannot be a filename stem — empty,
-// path separators, a dot-only component — because such an id would escape
-// the bundle root; the corpus's two id populations (lowercase-base32 CIDs,
-// base58 participant identities) can never trip it, so a refusal here
-// means the store handed us something that is not an object id.
+// BuildPlan fixes every path before the first emit task starts, under the
+// same Options the emit runs with. It refuses an id that cannot be a
+// filename stem — empty, path separators, a dot-only component — because
+// such an id would escape the bundle root; the corpus's two id populations
+// (lowercase-base32 CIDs, base58 participant identities) can never trip it,
+// so a refusal here means the store handed us something that is not an
+// object id.
 //
-// The filename stem is the ENVELOPE id, which for a participant document
-// is not the store id: Marshal folds `_participant_<spaceId>_<identity>`
-// to `participant-<identity>` (§9), and a file named by the composite would break
-// the pure reference→path function §1.3 exists for — a reference carries
-// the FOLDED id — besides claiming a `_`-prefixed name in the platform's
-// reserved namespace (§1). The fold declines (foreign space, non-identity
-// tail) exactly when Marshal's does, so stem and envelope cannot disagree.
-// The Plan stays keyed by the STORE id, which is what the emit loop holds.
-func BuildPlan(spaceId string, docs []DocMeta) (*Plan, error) {
+// The filename stem is the ENVELOPE id, which for a participant or a type
+// document is not the store id: Marshal folds
+// `_participant_<spaceId>_<identity>` to `participant-<identity>` and a
+// type object's id to `type-<internal_key>` (SPEC §9), and a file named by
+// the store id would break the pure reference→path function §1.3 exists
+// for — a reference carries the FOLDED id. The fold runs through the same
+// function Marshal uses (FoldDocumentId) under the same Options, so it
+// declines exactly when Marshal's does — no SpaceId, a foreign space, no
+// TypeResolver, a key the fold gate refuses — and stem and envelope cannot
+// disagree. The Plan stays keyed by the STORE id, which is what the emit
+// loop holds.
+func BuildPlan(opts anyblockjson.Options, docs []DocMeta) (*Plan, error) {
 	p := &Plan{
 		docPaths:  make(map[string]string, len(docs)),
 		blobPaths: map[string]string{},
 	}
 	for _, d := range docs {
-		stem := anyblockjson.FoldParticipantId(spaceId, d.Id)
+		stem := anyblockjson.FoldDocumentId(opts, d.Id)
 		if err := checkIdSafe(stem); err != nil {
 			return nil, fmt.Errorf("plan document paths: %w", err)
 		}

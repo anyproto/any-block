@@ -105,10 +105,14 @@ key's fold class.
 
 The authoring profile follows the same rule for a bundle's custom types. A
 type document may retain `internal_key: "habit"` as its stored installation
-identity, but its `Name: "Habit"` is what ordinary objects write in `type`,
-templates write in `template_for`, and objects/files properties write in
-`object_types`. Bundle import binds that NFC display name to the stored key;
-canonical re-export writes the display name again.
+identity, but its `Name: "Habit"` is what ordinary objects write in `type`.
+The two slots that REFER to a type by key — `template_for`, and
+objects/files properties' `object_types` — take the display name from an
+author too, and canonicalise to the type's derived id, `type-habit` (SPEC
+§9): the one spelling every reference to a type carries, so a reader never
+resolves a type spelling there. Bundle import binds the NFC display name to
+the stored key; canonical re-export writes the display name in `type` and
+the derived id everywhere else.
 
 **Why.** An id is unguessable, so a model must fetch before it can write;
 a name is already in the user's request. Import creates missing options by

@@ -1011,23 +1011,39 @@ func (e *exporter) typeSlug(key string) string {
 	return term
 }
 
-// typeSlugs is the list form (a type property's object_types, §2a).
-func (e *exporter) typeSlugs(keys []string) []string {
+// typeKeyRef spells a stored type key in a TYPE-KEY slot — `template_for`,
+// every `object_types` — as its derived id, `type-<key>` (§9), so that a
+// reader meets one spelling of a type everywhere and never resolves a type
+// spelling. A key the fold gate refuses falls back to the vocabulary's
+// spelling through the term ledger, which is what the slot always did.
+func (e *exporter) typeKeyRef(key string) string {
+	if ref := typeRef(key); ref != "" {
+		return ref
+	}
+	return e.typeSlug(key)
+}
+
+// typeKeyRefs is the list form of typeKeyRef (`object_types`).
+func (e *exporter) typeKeyRefs(keys []string) []string {
 	if len(keys) == 0 {
 		return keys
 	}
 	out := make([]string, len(keys))
 	for i, key := range keys {
-		out[i] = e.typeSlug(key)
+		out[i] = e.typeKeyRef(key)
 	}
 	return out
 }
 
 // seedTypeTermLedger runs the type-key census: every stored type key any
-// slot of this document may name — the snapshot's object types (envelope
-// `type`/`template_for`) and the target types of the resolved type-property
-// definitions (§2a object_types). Verbatim-first (§3) makes each its own
-// address, so no other key's name may take one as a spelling.
+// slot of this document may SPELL — the snapshot's object types (the
+// envelope `type`, and `template_for` where its key fails the fold gate)
+// and the target types of the resolved type-property definitions (§2a
+// object_types) that fail it too. A key the gate admits is written as its
+// derived id, `type-<key>` (§9), and spells no name, so it reserves none:
+// reserving it anyway would back another key's display name off for a
+// spelling that is never written. Verbatim-first (§3) makes each reserved
+// key its own address, so no other key's name may take one as a spelling.
 func (e *exporter) seedTypeTermLedger() {
 	e.typeTermOwner = map[string]string{}
 	e.typeTermByKey = map[string]string{}
@@ -1046,7 +1062,7 @@ func (e *exporter) seedTypeTermLedger() {
 					continue
 				}
 				for _, key := range def.ObjectTypes {
-					if key != "" {
+					if key != "" && typeRef(key) == "" {
 						e.typeNamedKeys[key] = true
 					}
 				}
@@ -1059,7 +1075,7 @@ func (e *exporter) seedTypeTermLedger() {
 	// own address, so no other key's name may take one as a spelling
 	if e.isPropertyDoc() {
 		for _, key := range e.relationTargetKeys() {
-			if key != "" {
+			if key != "" && typeRef(key) == "" {
 				e.typeNamedKeys[key] = true
 			}
 		}
@@ -1586,43 +1602,6 @@ func (e *exporter) indexBlocks() {
 // typeKeyIdPrefix is the "ot-" prefix ObjectTypes entries carry.
 var typeKeyIdPrefix = domain.TypeKey("").URL()
 
-// envelopeTypeTerms are the spellings written for the snapshot's object
-// types — the `type`/`template_for` slots — each claimed through the type
-// term ledger so the legend it owes is recorded (§3).
-//
-// Two disciplines run here, and both are buildProperties' own:
-//
-//   - **A keyless entry is dropped WITH a warning, and the survivors close
-//     ranks.** A stored `ot-` (or a bare "") carries no type key: typeSlug
-//     answers "" for it and setNonEmpty then omits the slot, so a positional
-//     write lost that entry AND everything behind it. A template stored as
-//     ["ot-", "ot-task"] emitted no `type` at all, which made `template_for`
-//     inexpressible too — so the perfectly good `ot-task` vanished beside its
-//     bad neighbour, silently, and the document read back as no types at all.
-//     Filtering first is what lets the good sibling survive; the warning is
-//     what buildProperties already owes an unwritable *property* key, and
-//     what the import seam refuses outright and path-addressed.
-//   - **Only the slots actually WRITTEN claim a term.** typeSlug is the term
-//     ledger's claim step, so spelling an entry no slot emits still records
-//     the legend entry that spelling owes: a document then carried a
-//     `type_internal_keys` line naming a type it never mentions, publishing a space's
-//     spelling→key mapping for nothing. buildProperties cannot do this because
-//     it filters before it spells; the type side now does the same.
-//
-// The list still truncates to the positions §2 models — one type, plus the
-// target type on a template. That is the format's shape, not a defect, and
-// the census (seedTypeTermLedger) still reserves every stored type key the
-// snapshot names, so a dropped entry's key can never be taken as another
-// key's spelling.
-func (e *exporter) envelopeTypeTerms() []string {
-	keys := e.modelledTypeKeys(true)
-	terms := make([]string, 0, len(keys))
-	for _, key := range keys {
-		terms = append(terms, e.typeSlug(key))
-	}
-	return terms
-}
-
 // modelledTypeKeys reduces the snapshot's object types to the stored keys the
 // envelope will actually spell: keyless entries dropped, survivors closing
 // ranks, then the positions §2 models — one type, plus the target type on a
@@ -1692,10 +1671,10 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	doc.set("$schema", SchemaURL)
 	doc.set("formatVersion", FormatVersion)
 
-	typeTerms := e.envelopeTypeTerms()
+	typeKeys := e.modelledTypeKeys(true)
 	typeTerm := ""
-	if len(typeTerms) > 0 {
-		typeTerm = typeTerms[0]
+	if len(typeKeys) > 0 {
+		typeTerm = e.typeSlug(typeKeys[0])
 	}
 
 	// kind is omitted whenever derivable (§2), and only Page is
@@ -1736,8 +1715,11 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	// able to use verbatim as an address.
 	doc.setNonEmpty("id", e.opts.foldRef(e.objectId()))
 	doc.setNonEmpty("type", typeTerm)
-	if sbType == model.SmartBlockType_Template && len(typeTerms) > 1 {
-		doc.setNonEmpty("template_for", typeTerms[1])
+	if sbType == model.SmartBlockType_Template && len(typeKeys) > 1 {
+		// the target type is a reference by key (§9): `type-<key>`, the
+		// same spelling every id-valued slot folds to, so a template names
+		// its type the way a filter or a `Set of` value does
+		doc.setNonEmpty("template_for", e.typeKeyRef(typeKeys[1]))
 	}
 	doc.setNonEmpty(memberInternalKey, e.snapshot.Key)
 	// a relation document states its own definition next (§2d): `format`,

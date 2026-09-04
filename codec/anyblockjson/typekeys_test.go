@@ -187,7 +187,8 @@ func TestExport_IsAFixpointWhenTheCensusShrinks(t *testing.T) {
 
 		// then
 		assert.Equal(t, gen1, gen2, "the second generation must repeat the first")
-		assert.Contains(t, gen1, `"cust"`, "the dropped definition's target reserves nothing")
+		assert.Contains(t, gen1, `"type-custom1"`, "the surviving definition's target is its derived id")
+		assert.NotContains(t, gen1, `"cust"`, "the dropped definition's target reserves nothing, and the written one spells no name")
 	})
 }
 
@@ -273,10 +274,11 @@ func TestRoundTrip_TypeSlugIsInvertibleInAPackageOnlyReader(t *testing.T) {
 		"the document alone must invert its own spellings (§3)")
 }
 
-// type_properties[].object_types is a type-key slot like the envelope type,
-// and it owes (and reads) the same legend.
+// type_properties[].object_types is a type-key slot, written as the derived
+// id `type-<key>` (§9) — which owes no legend — and read through the legend
+// first when a spelling arrives instead.
 func TestTypeKeysLegendCoversObjectTypes(t *testing.T) {
-	t.Run("export records the entry", func(t *testing.T) {
+	t.Run("export spells the derived id and records no entry", func(t *testing.T) {
 		vocab := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "task"}}
 		snap := &model.SmartBlockSnapshotBase{
 			Blocks: []*model.Block{{Id: "t1",
@@ -299,9 +301,8 @@ func TestTypeKeysLegendCoversObjectTypes(t *testing.T) {
 
 		doc := decodeEnvelope(t, data)
 		require.Len(t, doc.TypeProps(), 1)
-		assert.Equal(t, []string{"task"}, doc.TypeProps()[0].ObjectTypes)
-		assert.Equal(t, map[string]string{"task": customTypeKey}, doc.TypeKeys,
-			"a slot that writes the slug without recording the entry inverts only by luck")
+		assert.Equal(t, []string{TypeRefPrefix + customTypeKey}, doc.TypeProps()[0].ObjectTypes)
+		assert.Empty(t, doc.TypeKeys, "a derived id names its key outright; nothing to invert")
 	})
 
 	t.Run("import reads the legend first", func(t *testing.T) {
@@ -355,11 +356,13 @@ func TestExportImport_PropertyAndTypeNamespacesShareATerm(t *testing.T) {
 // ladder — its key is a minted bson id, so it takes `<name> (<tail6>)`.
 func TestExport_TypeTermLedgerBacksACollidingSlugOff(t *testing.T) {
 	// the envelope names customTypeKey, whose vocabulary spelling is
-	// `wiki_person` — but the document ALSO names the stored key
-	// `wiki_person` in object_types, so the spelling is taken
-	// (verbatim-first) and the envelope claimant degrades to the suffixed
-	// form, deterministic off the name and the key's own tail.
-	vocab := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "wiki_person"}}
+	// `wiki person` — but the document ALSO names the stored key
+	// `wiki person` in object_types, a key the fold gate refuses (a space),
+	// so it is spelled verbatim and the spelling is taken (verbatim-first):
+	// the envelope claimant degrades to the suffixed form, deterministic
+	// off the name and the key's own tail. (A foldable target key spells
+	// `type-<key>` and reserves nothing — TestRelationEnvelope_TargetKeysReserveOnlyWhatTheySpell.)
+	vocab := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "wiki person"}}
 	snap := &model.SmartBlockSnapshotBase{
 		Blocks: []*model.Block{{Id: "t1",
 			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}}},
@@ -372,7 +375,7 @@ func TestExport_TypeTermLedgerBacksACollidingSlugOff(t *testing.T) {
 	}
 	resolver := &staticPropertyResolver{def: PropertyDefinition{
 		Key: "owner", Name: "Owner", Format: model.RelationFormat_object,
-		ObjectTypes: []string{"wiki_person"},
+		ObjectTypes: []string{"wiki person"},
 	}}
 
 	data, err := Marshal(model.SmartBlockType_STType, snap,
@@ -380,13 +383,13 @@ func TestExport_TypeTermLedgerBacksACollidingSlugOff(t *testing.T) {
 	require.NoError(t, err)
 
 	doc := decodeEnvelope(t, data)
-	assert.Equal(t, "wiki_person (2d1a7c)", doc.Type,
-		"the plain spelling belongs to the stored key wiki_person; the claimant takes the suffix")
+	assert.Equal(t, "wiki person (2d1a7c)", doc.Type,
+		"the plain spelling belongs to the stored key `wiki person`; the claimant takes the suffix")
 	require.Len(t, doc.TypeProps(), 1)
-	assert.Equal(t, []string{"wiki_person"}, doc.TypeProps()[0].ObjectTypes)
+	assert.Equal(t, []string{"wiki person"}, doc.TypeProps()[0].ObjectTypes)
 	assert.Equal(t, map[string]string{
-		"wiki_person":          "wiki_person",
-		"wiki_person (2d1a7c)": customTypeKey,
+		"wiki person":          "wiki person",
+		"wiki person (2d1a7c)": customTypeKey,
 	}, doc.TypeKeys,
 		"the bundled table is silent on both keys, but THIS vocabulary binds the "+
 			"spelling `wiki_person` to customTypeKey — so the stored key written verbatim "+
@@ -405,7 +408,7 @@ func TestExport_TypeTermLedgerBacksACollidingSlugOff(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"ot-" + customTypeKey}, snap3.ObjectTypes)
 	require.Len(t, r.defs, 1)
-	assert.Equal(t, []string{"wiki_person"}, r.defs[0].ObjectTypes,
+	assert.Equal(t, []string{"wiki person"}, r.defs[0].ObjectTypes,
 		"without the entry this reads back as customTypeKey — the target type re-pointed, silently")
 }
 
@@ -436,9 +439,9 @@ func TestExport_TemplateSpellingIsNoLongerReserved(t *testing.T) {
 		doc := decodeEnvelope(t, data)
 		assert.Equal(t, "tmpl", doc.Type, "the vocabulary's spelling is honoured now")
 		assert.Equal(t, "template", doc.Kind, "and the kind, not the spelling, says what this is")
-		assert.Equal(t, "task", doc.TemplateFor, "the target type survives")
-		assert.Equal(t, map[string]string{"tmpl": "template", "task": customTypeKey}, doc.TypeKeys,
-			"the legend is what makes the moved spelling invertible")
+		assert.Equal(t, TypeRefPrefix+customTypeKey, doc.TemplateFor, "the target type survives, as its derived id")
+		assert.Equal(t, map[string]string{"tmpl": "template"}, doc.TypeKeys,
+			"the legend is what makes the moved spelling invertible; the target owes none")
 		assert.Empty(t, warned, "nothing was refused, so there is nothing to report")
 
 		_, snap2, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
@@ -483,7 +486,7 @@ func TestExport_ATemplateNotLedByTheTemplateKeyKeepsItsTarget(t *testing.T) {
 	doc := decodeEnvelope(t, data)
 	assert.Equal(t, "template", doc.Kind)
 	assert.Equal(t, "Task", doc.Type)
-	assert.Equal(t, customTypeKey, doc.TemplateFor, "the target type used to be dropped here")
+	assert.Equal(t, TypeRefPrefix+customTypeKey, doc.TemplateFor, "the target type used to be dropped here")
 	assert.Empty(t, warned, "and the drop used to be the only thing said about it")
 
 	sbType, snap, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
@@ -690,7 +693,7 @@ func TestExport_AKeylessObjectTypeIsDroppedAndDoesNotTakeItsSiblings(t *testing.
 		doc, warned, back := marshal(t, model.SmartBlockType_Template, "ot-template", "ot-", "ot-"+customTypeKey)
 
 		assert.Equal(t, "Template", doc.Type)
-		assert.Equal(t, customTypeKey, doc.TemplateFor)
+		assert.Equal(t, TypeRefPrefix+customTypeKey, doc.TemplateFor)
 		assert.Equal(t, []string{"ot-template", "ot-" + customTypeKey}, back)
 		require.Len(t, warned, 1)
 	})
@@ -772,17 +775,16 @@ func TestExport_TypeLegendNamesOnlyTypesTheDocumentMentions(t *testing.T) {
 			"and the space's stored key does not appear anywhere")
 	})
 
-	// the control: when the second slot IS written, the line is owed and
-	// written — without this the test above would pass on a legend that never
-	// works at all
-	t.Run("a second type template_for writes keeps its legend line", func(t *testing.T) {
+	// the control: when the second slot IS written, the stored key appears
+	// — as the derived id, which needs no legend line (§9)
+	t.Run("a second type template_for writes spells its derived id", func(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_Template,
 			typedSnapshot("ot-template", "ot-"+customTypeKey), Options{Keys: vocab})
 		require.NoError(t, err)
 
 		doc := decodeEnvelope(t, data)
-		assert.Equal(t, "task", doc.TemplateFor)
-		assert.Equal(t, map[string]string{"task": customTypeKey}, doc.TypeKeys)
+		assert.Equal(t, TypeRefPrefix+customTypeKey, doc.TemplateFor)
+		assert.Empty(t, doc.TypeKeys, "a derived id inverts by itself")
 	})
 }
 
@@ -840,7 +842,7 @@ func TestImport_TheVocabularyMayMoveTheTemplateSpelling(t *testing.T) {
 		// a moved spelling cannot cost the target type any more
 		out, err := Marshal(sbType, snap, Options{})
 		require.NoError(t, err)
-		assert.Equal(t, "Task", decodeEnvelope(t, out).TemplateFor)
+		assert.Equal(t, "type-task", decodeEnvelope(t, out).TemplateFor)
 	})
 
 	t.Run("a spelling the vocabulary binds onto the template key is just a type", func(t *testing.T) {

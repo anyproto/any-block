@@ -195,7 +195,7 @@ func (e *exporter) buildPropertySettings(doc *omap) error {
 			// present even when empty — an empty list is a cleared target
 			// set, the same user-intent reading that kept
 			// relationFormatObjectTypes off the §15 #12 trim whitelist
-			group.set("object_types", stringsToAny(e.typeSlugs(e.relationTargetKeys())))
+			group.set("object_types", stringsToAny(e.typeKeyRefs(e.relationTargetKeys())))
 		case *types.Value_NullValue:
 			group.set("object_types", nil)
 		default:

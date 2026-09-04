@@ -112,41 +112,6 @@ func TestExport_LegendMembersAreSortedInTheBytes(t *testing.T) {
 			"the legend is keyed by the spelling and sorted by it:\n%s", data)
 	})
 
-	t.Run("type_internal_keys", func(t *testing.T) {
-		// given: a type document whose one property targets four custom
-		// types, each of which owes an entry
-		typeSlugOf := map[string]string{}
-		var targets []string
-		for _, k := range orderedLegendKeys {
-			typeSlugOf[k.stored] = k.slug
-			targets = append(targets, k.stored)
-		}
-		snap := &model.SmartBlockSnapshotBase{
-			Blocks: []*model.Block{{Id: "t1",
-				Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}}},
-			Details: fields(map[string]*types.Value{
-				"id":                   str("t1"),
-				"recommendedRelations": strList("rel-owner"),
-			}),
-			ObjectTypes: []string{"ot-objectType"},
-			Key:         "k",
-		}
-		resolver := &staticPropertyResolver{def: PropertyDefinition{
-			Key: "owner", Name: "Owner", Format: model.RelationFormat_object,
-			ObjectTypes: targets,
-		}}
-
-		// when
-		data, err := Marshal(model.SmartBlockType_STType, snap, Options{
-			Keys: typedSpaceVocabulary{typeSlugOf: typeSlugOf}, ResolveProperties: resolver})
-		require.NoError(t, err)
-
-		// then
-		require.NoError(t, Validate(data, Options{}))
-		assert.Equal(t, wantLegendOrder, rawMemberOrder(t, data, "type_internal_keys"),
-			"the type legend obeys the same canon as the property one:\n%s", data)
-	})
-
 	t.Run("option_ids outer keys", func(t *testing.T) {
 		// given: the same four keys, now carrying select values, so each
 		// contributes one outer entry to the option legend

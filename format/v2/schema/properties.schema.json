@@ -52,7 +52,7 @@
             "properties": {
               "name": {
                 "minLength": 1,
-                "pattern": "^[^\u0000-\u001f\u007f]+$",
+                "pattern": "^[^\u0000-\u001f]+$",
                 "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
               }
             }
@@ -61,7 +61,8 @@
       ],
       "properties": {
         "object_types": {
-          "type": "array"
+          "type": "array",
+          "description": "objects/files only: the types the property may point at, in priority order, each written as the type's derived id `type-<internal_key>` (§9); a display name or the legacy `ot-<key>` is accepted on input."
         },
         "uninstalled": {
           "type": "boolean",

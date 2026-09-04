@@ -123,13 +123,16 @@ func TestKeyVocabulary_ShadowingSlugBreaksInversion(t *testing.T) {
 	require.True(t, typeSlugShadowsBundled(shadowing, customTypeKey),
 		"the fixture has to break the precondition, or this test proves nothing")
 
-	snap := typedSnapshot("ot-template", "ot-task")
+	// the `type` slot is the one slot that still spells a NAME; every other
+	// type slot writes the derived id `type-<key>` (§9), which no vocabulary
+	// can re-point — the template arm at the end shows that
+	snap := typedSnapshot("ot-task")
 
 	t.Run("a shadowing READER re-points a document no writer could have warned it about", func(t *testing.T) {
 		// given — written by the package default: "Task" is the bundled
 		// table's own spelling of the bundled key, and no vocabulary this
 		// writer holds says otherwise
-		data, err := Marshal(model.SmartBlockType_Template, snap, Options{})
+		data, err := Marshal(model.SmartBlockType_Page, snap, Options{})
 		require.NoError(t, err)
 		assert.NotContains(t, string(data), "type_internal_keys",
 			"nothing here owes an entry — which is exactly why the reader is on its own")
@@ -139,13 +142,21 @@ func TestKeyVocabulary_ShadowingSlugBreaksInversion(t *testing.T) {
 
 		// then
 		require.NoError(t, err)
-		assert.Equal(t, []string{"ot-template", "ot-" + customTypeKey}, back.ObjectTypes,
-			"a shadowing vocabulary re-points the template's target type, silently — the failure the precondition forbids")
+		assert.Equal(t, []string{"ot-" + customTypeKey}, back.ObjectTypes,
+			"a shadowing vocabulary re-points the object's type, silently — the failure the precondition forbids")
+
+		// and the slot that spells a derived id is immune: a template's
+		// target is `type-task`, which says its key outright
+		tpl, err := Marshal(model.SmartBlockType_Template, typedSnapshot("ot-template", "ot-task"), Options{})
+		require.NoError(t, err)
+		_, backTpl, err := Unmarshal(tpl, Options{GenerateId: seqIds("t"), Keys: shadowing})
+		require.NoError(t, err)
+		assert.Equal(t, "ot-task", backTpl.ObjectTypes[1], "template_for is a derived id, and no vocabulary reads it")
 	})
 
 	t.Run("a shadowing WRITER says so in the legend, and its own reader is safe", func(t *testing.T) {
 		// when
-		data, err := Marshal(model.SmartBlockType_Template, snap, Options{Keys: shadowing})
+		data, err := Marshal(model.SmartBlockType_Page, snap, Options{Keys: shadowing})
 		require.NoError(t, err)
 
 		// then — the term "Task" is written for the stored key `task`, and
@@ -155,7 +166,7 @@ func TestKeyVocabulary_ShadowingSlugBreaksInversion(t *testing.T) {
 
 		_, back, err := Unmarshal(data, Options{GenerateId: seqIds("g"), Keys: shadowing})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"ot-template", "ot-task"}, back.ObjectTypes,
+		assert.Equal(t, []string{"ot-task"}, back.ObjectTypes,
 			"the legend is chain step 1, ahead of the reader's vocabulary")
 	})
 
@@ -163,12 +174,12 @@ func TestKeyVocabulary_ShadowingSlugBreaksInversion(t *testing.T) {
 		// the same document, the same shape of vocabulary, one conforming answer
 		conforming := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "tsk7"}}
 		require.False(t, typeSlugShadowsBundled(conforming, customTypeKey))
-		data, err := Marshal(model.SmartBlockType_Template, snap, Options{Keys: conforming})
+		data, err := Marshal(model.SmartBlockType_Page, snap, Options{Keys: conforming})
 		require.NoError(t, err)
 		assert.NotContains(t, string(data), "type_internal_keys")
 		_, back, err := Unmarshal(data, Options{GenerateId: seqIds("h"), Keys: conforming})
 		require.NoError(t, err)
-		assert.Equal(t, []string{"ot-template", "ot-task"}, back.ObjectTypes,
+		assert.Equal(t, []string{"ot-task"}, back.ObjectTypes,
 			"a conforming vocabulary round-trips the same document (§11.1, equivalent resolvers)")
 	})
 }
@@ -385,7 +396,7 @@ func TestObjectTypesIsAKeySlot(t *testing.T) {
 			"the legacy slug inverts through the fold; an unknown term passes through (chain step 5, verbatim)")
 	})
 
-	t.Run("export spells the display name", func(t *testing.T) {
+	t.Run("export spells the derived id", func(t *testing.T) {
 		snapshot := &model.SmartBlockSnapshotBase{
 			Details: &types.Struct{Fields: map[string]*types.Value{
 				"recommendedRelations": pbtypes.StringList([]string{"rel-owner"}),
@@ -407,7 +418,8 @@ func TestObjectTypesIsAKeySlot(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal(data, &doc))
 		require.Len(t, doc.TypeSettings.PropertyDefinitions, 1)
-		assert.Equal(t, []string{"Type", "wikiPerson"}, doc.TypeSettings.PropertyDefinitions[0].ObjectTypes)
+		assert.Equal(t, []string{"type-objectType", "type-wikiPerson"}, doc.TypeSettings.PropertyDefinitions[0].ObjectTypes,
+			"object_types names a type by its derived id (§9), bundled or minted")
 	})
 }
 

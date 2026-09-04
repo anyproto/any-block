@@ -253,26 +253,29 @@ func dictionaryKeySpelling(storedKey string) string {
 	return storedKey
 }
 
-// TypeKeySpelling renders a TARGET type key the way the dictionary
-// spells it: the display name for a bundled type ("Property" for the type
-// stored as `relation`), the stored key verbatim for anything else (§2f) —
-// the same rule the entry's own key follows, for the same reason.
+// TypeKeySpelling renders a TARGET type key the way every type-key slot
+// spells it: the derived id `type-<key>` (§9) — a pure function of the key
+// that names the key outright, so the dictionary, a type document's
+// `object_types` and a template's `template_for` say one thing and a
+// reader resolves no type spelling anywhere. A key the fold gate refuses
+// falls back to the dictionary's older pure function: the display name for
+// a bundled type, the stored key verbatim for anything else (§2f).
 //
-// A type document's `object_types` reaches the same answer by a different
-// road: it spells through the exporter's per-document ledger and binds the
-// term in that document's `type_internal_keys` legend. The dictionary has no legend,
-// so its spelling must be a PURE FUNCTION of the key, which is what makes
-// the bundled name table the right instrument and a ledger the wrong one.
-//
-// Measured before this rule existed: type documents spelled 5,377 of 5,377
-// target types as slugs, while dictionary entries spelled 232 of 803 in
-// camelCase — the same concept, two spellings, one vocabulary.
+// Measured before the derived id existed: type documents spelled 5,377 of
+// 5,377 target types as slugs, while dictionary entries spelled 232 of 803
+// in camelCase — the same concept, two spellings, one vocabulary.
 func TypeKeySpelling(typeKey string) string { return dictionaryTypeSpelling(typeKey) }
 
 // StoredTypeKey inverts TypeKeySpelling.
 func StoredTypeKey(spelling string) string { return dictionaryStoredTypeKey(spelling) }
 
 func dictionaryTypeSpelling(typeKey string) string {
+	// a type is referenced by its derived id everywhere (§9): `type-<key>`;
+	// a key the fold gate refuses keeps the pure-function spelling the
+	// dictionary always used
+	if ref := typeRef(typeKey); ref != "" {
+		return ref
+	}
 	if _, err := vocabulary.GetType(domain.TypeKey(typeKey)); err == nil {
 		return bundledTypeSpelling(typeKey)
 	}
@@ -286,6 +289,9 @@ func dictionaryTypeSpelling(typeKey string) string {
 // pinned: `relation` is a bundled type's stored key, so it still names that
 // type verbatim even though its wire spelling is the display name "Property".
 func dictionaryStoredTypeKey(spelling string) string {
+	if key, ok := typeRefKey(spelling); ok {
+		return key
+	}
 	if _, err := vocabulary.GetType(domain.TypeKey(spelling)); err == nil {
 		return spelling
 	}
@@ -487,8 +493,10 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	m.set(memberInternalKey, string(def.Key))
 	targets := make([]string, 0, len(def.ObjectTypes))
 	for _, key := range def.ObjectTypes {
+		// a type is named by its derived id wherever a key admits one (§9);
+		// a vocabulary's spelling is the fallback for a key the gate refuses
 		spelling := dictionaryTypeSpelling(key)
-		if opts.Keys != nil {
+		if opts.Keys != nil && typeRef(key) == "" {
 			candidate := opts.typeSlug(key)
 			if resolved, err := dictionaryStoredTypeKeyWithOptions(opts, candidate, ""); err == nil && resolved == key {
 				spelling = candidate

@@ -279,11 +279,9 @@ func (e *exporter) buildTypeProperties() ([]any, error) {
 			// alone)
 			m.set(memberProperty, e.propertySlug(string(def.Key)))
 			m.set(memberInternalKey, string(def.Key))
-			// object_types is a TYPE key slot (§3) — it names types, so it
-			// speaks the same vocabulary the envelope `type` does, claims its
-			// spellings through the same term ledger, and owes the same
-			// type_internal_keys legend (§3)
-			targets := e.typeSlugs(def.ObjectTypes)
+			// object_types names types by their derived ids (§9):
+			// `type-<key>`, the one spelling of a type every slot writes
+			targets := e.typeKeyRefs(def.ObjectTypes)
 			if err := renderPropertyDefinitionMembers(m, def, targets, true); err != nil {
 				// The shared renderer describes the fault inside one definition,
 				// but only this caller knows where that definition would have

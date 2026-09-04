@@ -187,7 +187,8 @@ func TestExport_TypeLegendRefusesAnEntryItCannotHold(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// given — one type on the object, plus a shadowed type key at a
-			// type property's object_types, which must still get its entry
+			// type property's object_types, which spells `type-<key>` and so
+			// owes no entry either way
 			snap := &model.SmartBlockSnapshotBase{
 				Blocks: []*model.Block{{Id: "t1",
 					Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}}},
@@ -224,8 +225,8 @@ func TestExport_TypeLegendRefusesAnEntryItCannotHold(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal(data, &doc))
 			assert.Equal(t, tc.key, doc.Type, "the term is still spelled verbatim")
-			assert.Equal(t, map[string]string{"shadowedType": "shadowedType"}, doc.TypeKeys,
-				"only the entry the legend can hold")
+			assert.Empty(t, doc.TypeKeys,
+				"the refused entry is not written, and the target type spells its derived id (§9), owing none")
 			require.NotEmpty(t, warnings)
 			assert.Contains(t, warningsAt(warnings, "/type_internal_keys"), tc.wantWarn)
 		})

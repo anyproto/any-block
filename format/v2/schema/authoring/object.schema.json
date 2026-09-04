@@ -33,7 +33,7 @@
     "template_for": {
       "type": "string",
       "minLength": 1,
-      "description": "Templates only: the target type's NFC display name — for example, \"Habit\" for a type document whose Name property is \"Habit\". Never copy its internal_key."
+      "description": "Templates only: the target type — its derived id `type-<internal_key>` (\"type-habit\" for a type document whose internal_key is \"habit\"), or its NFC display name (\"Habit\"). Export writes the derived id."
     },
     "internal_key": {
       "type": "string",
@@ -562,7 +562,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "objects/files only: the NFC display names of the types the property may point at, including the Name of a type this bundle declares. Never write internal_key here. Empty or absent = any object."
+          "description": "objects/files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\", \"type-task\") or its NFC display name (\"Habit\", \"Task\"). Export writes the derived id. Empty or absent = any object."
         },
         "include_time": {
           "type": "boolean",
@@ -602,7 +602,7 @@
             "properties": {
               "name": {
                 "minLength": 1,
-                "pattern": "^[^\u0000-\u001f\u007f]+$",
+                "pattern": "^[^\u0000-\u001f]+$",
                 "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
               }
             }

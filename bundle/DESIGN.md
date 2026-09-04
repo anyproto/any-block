@@ -261,7 +261,7 @@ convention" slot.
 
 ```
 objects/bafyreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.anyblock.json
-types/bafyreibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.anyblock.json
+types/type-task.anyblock.json
 files/bafyreicccccccccccccccccccccccccccccccccccccccccccccccccccc.anyblock.json
 participants/participant-A11111111111111111111111111111111111111111111111.anyblock.json
 ```
@@ -271,7 +271,8 @@ single repeated payload character, and the participant identity is one `A`
 plus 47 `1`s. They preserve the exact 59-/60-character filename shapes while
 remaining conspicuously unlike captured content or account addresses. A
 participant's stem is its derived id (SPEC §9): the `participant-` prefix
-plus the identity; a type's is `type-<internal_key>`.
+plus the identity; a type's is `type-<internal_key>` — `type-task` for the
+bundled Task type, `type-6a32d4856761631534b22f85` for a minted one.
 
 This is what the harness already writes (cmd/anyblockroundtrip/main.go:377).
 

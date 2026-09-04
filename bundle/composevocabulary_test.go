@@ -60,9 +60,10 @@ func TestComposerCanonicalizesCustomDictionaryTypeTargetsWithItsVocabulary(t *te
 	require.NoError(t, json.Unmarshal(properties, &wire))
 	require.Len(t, wire.Properties, 1)
 	assert.Equal(t, propertyKey, wire.Properties[0].InternalKey)
-	assert.Equal(t, []string{canonicalName}, wire.Properties[0].ObjectTypes,
-		"Composer must use the planned NFC display name, not the stored key or decomposed input")
+	assert.Equal(t, []string{"type-" + typeKey}, wire.Properties[0].ObjectTypes,
+		"a dictionary names a target type by its derived id (SPEC §9), whatever the vocabulary spells it")
 	assert.NotContains(t, string(properties), decomposedName)
+	assert.NotContains(t, string(properties), canonicalName)
 
 	reimported, err := anyblockjson.UnmarshalPropertyDictionary(properties, opts)
 	require.NoError(t, err)

@@ -6,6 +6,7 @@ package bundle
 // (DESIGN.md §1.1, §1.3).
 
 import (
+	"github.com/anyproto/any-block/codec/anyblockjson"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ import (
 // stops being a pure function of a reference.
 func TestBuildPlan_PathsAreAPureFunctionOfTheId(t *testing.T) {
 	// given
-	plan, err := BuildPlan("space1", []DocMeta{
+	plan, err := BuildPlan(anyblockjson.Options{SpaceId: "space1"}, []DocMeta{
 		{Id: "bafypage", SbType: model.SmartBlockType_Page},
 		{Id: "bafytype", SbType: model.SmartBlockType_STType},
 		{Id: "bafytmpl", SbType: model.SmartBlockType_Template},
@@ -108,7 +109,7 @@ func TestBlobExtension_SanitizesTheMeasuredDirt(t *testing.T) {
 // this; a refusal means the store handed us something that is not an id.
 func TestBuildPlan_RefusesAPathHostileId(t *testing.T) {
 	for _, id := range []string{"", ".", "..", "a/b", `a\b`} {
-		_, err := BuildPlan("space1", []DocMeta{{Id: id, SbType: model.SmartBlockType_Page}})
+		_, err := BuildPlan(anyblockjson.Options{SpaceId: "space1"}, []DocMeta{{Id: id, SbType: model.SmartBlockType_Page}})
 		assert.Error(t, err, "id %q", id)
 	}
 }
@@ -132,7 +133,7 @@ func TestBuildPlan_ParticipantStemIsTheFoldedIdentity(t *testing.T) {
 	own := domain.NewParticipantId(spaceId, identity)
 	foreign := domain.NewParticipantId("bafyreiother.zzz", identity)
 
-	plan, err := BuildPlan(spaceId, []DocMeta{
+	plan, err := BuildPlan(anyblockjson.Options{SpaceId: spaceId}, []DocMeta{
 		{Id: own, SbType: model.SmartBlockType_Participant},
 		{Id: foreign, SbType: model.SmartBlockType_Participant},
 	})
@@ -153,9 +154,63 @@ func TestBuildPlan_ParticipantStemIsTheFoldedIdentity(t *testing.T) {
 // extension is the one combination that would dress a blob as a document,
 // and BuildPlan refuses it instead of writing it.
 func TestBuildPlan_RefusesABlobWearingTheDocumentExtension(t *testing.T) {
-	_, err := BuildPlan("space1", []DocMeta{
+	_, err := BuildPlan(anyblockjson.Options{SpaceId: "space1"}, []DocMeta{
 		{Id: "evil.anyblock", SbType: model.SmartBlockType_FileObject, FileExt: "json"},
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "document extension")
+}
+
+// A type document's filename is its ENVELOPE id too — `type-<internal_key>`
+// under the §9 fold — and the plan computes it through the same gate Marshal
+// does: no TypeResolver, no fold, so a plan never names a file by an id the
+// document inside does not declare.
+func TestBuildPlan_TypeStemIsTheDerivedId(t *testing.T) {
+	resolver := planTypeResolver{keyById: map[string]string{"bafytask": "task", "bafyodd": "my type"}}
+	opts := anyblockjson.Options{ResolveProperties: resolver}
+
+	plan, err := BuildPlan(opts, []DocMeta{
+		{Id: "bafytask", SbType: model.SmartBlockType_STType},
+		{Id: "bafyodd", SbType: model.SmartBlockType_STType},
+		{Id: "bafypage", SbType: model.SmartBlockType_Page},
+	})
+	require.NoError(t, err)
+
+	got, ok := plan.DocPath("bafytask")
+	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds")
+	assert.Equal(t, "types/type-task.anyblock.json", got)
+
+	got, _ = plan.DocPath("bafyodd")
+	assert.Equal(t, "types/bafyodd.anyblock.json", got, "a key the fold gate refuses keeps the store id, as its envelope does")
+
+	got, _ = plan.DocPath("bafypage")
+	assert.Equal(t, "objects/bafypage.anyblock.json", got)
+
+	bare, err := BuildPlan(anyblockjson.Options{}, []DocMeta{{Id: "bafytask", SbType: model.SmartBlockType_STType}})
+	require.NoError(t, err)
+	got, _ = bare.DocPath("bafytask")
+	assert.Equal(t, "types/bafytask.anyblock.json", got, "no resolver, no fold")
+}
+
+// planTypeResolver is the TypeResolver capability alone, which is all the
+// plan consults.
+type planTypeResolver struct{ keyById map[string]string }
+
+func (r planTypeResolver) PropertyById(string) (anyblockjson.PropertyDefinition, bool) {
+	return anyblockjson.PropertyDefinition{}, false
+}
+func (r planTypeResolver) PropertyId(anyblockjson.PropertyDefinition) (string, bool) {
+	return "", false
+}
+func (r planTypeResolver) TypeKeyById(id string) (string, bool) {
+	key, ok := r.keyById[id]
+	return key, ok
+}
+func (r planTypeResolver) TypeIdByKey(key string) (string, bool) {
+	for id, k := range r.keyById {
+		if k == key {
+			return id, true
+		}
+	}
+	return "", false
 }

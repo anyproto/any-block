@@ -57,7 +57,8 @@
     },
     "template_for": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Templates only: the target type, written as its derived id `type-<internal_key>` (§9) — a reference by key, the same spelling every id-valued slot folds a type to. A display name or the legacy `ot-<key>` is accepted on input; canonical export writes the derived id."
     },
     "internal_key": {
       "description": "The STORED identity key of a definition document (a type, a property, a property option) — the uniqueKey's internal part, written verbatim. This is an id the app MINTS, not something an author writes: for a custom property or type it is a bson id like 6a83296f61fab2265263ae34, which no author can produce, and for a bundled one it is the bundled camelCase key (dueDate). Export writes it for fidelity; an authored definition document may omit it, and the import wiring then mints a fresh internal key exactly as the app does when a user creates one. It is deliberately NOT a spelling: unlike every key slot in §3 it is never translated through a legend or the bundled table, so it does not match the display-name spelling documents use (that spelling is the `property` member of a property definition). Charset is a deny rule, not an allowlist — a property option's stored key is built from its NAME, so keys like completion_status_Not Started are real stored keys.",
@@ -65,7 +66,7 @@
       "minLength": 1
     },
     "property_settings": {
-      "description": "Only on property documents (kind \"property\" or \"bundled_property\"), where it is REQUIRED: the definition of the property this document IS — one propertyDefinition (§2d, §2e). Three members travel today, each mirroring stored presence EXACTLY, value included: `format` (required — a §3 format NAME, the same vocabulary type_properties[].format speaks, never a raw enum number; stands for the stored relationFormat key, which `properties` refuses), `include_time` (present exactly when the stored relationFormatIncludeTime key is; meaningful on format \"date\" only, and a stored null travels as null), and `object_types` (present exactly when the stored relationFormatObjectTypes key is; the target type keys in priority order — a type-key slot exactly like type_properties[].object_types, inverted through the type_internal_keys legend, meaningful on \"objects\"/\"files\" only). The members refused with `false` have a home already: `internal_key` is the envelope's (and `property`, the spelling, is derived from it — a property document never states its own spelling), `name` and `description` are properties', `options` are a property-definition entry's — the dictionary's (\u00a72f) or a type's property_definitions declaration (\u00a72a); a bundle carries no option documents (\u00a715 #21), so no third surface states a select vocabulary — and max_count/readonly/default_value still travel in `properties` under their stored keys until the dictionary lifts them — admitting a second spelling of any of them here would be the §15 #14 disease this group exists to end.",
+      "description": "Only on property documents (kind \"property\" or \"bundled_property\"), where it is REQUIRED: the definition of the property this document IS — one propertyDefinition (§2d, §2e). Three members travel today, each mirroring stored presence EXACTLY, value included: `format` (required — a §3 format NAME, the same vocabulary type_properties[].format speaks, never a raw enum number; stands for the stored relationFormat key, which `properties` refuses), `include_time` (present exactly when the stored relationFormatIncludeTime key is; meaningful on format \"date\" only, and a stored null travels as null), and `object_types` (present exactly when the stored relationFormatObjectTypes key is; the target type keys in priority order — a type-key slot exactly like type_properties[].object_types, inverted through the type_internal_keys legend, meaningful on \"objects\"/\"files\" only). The members refused with `false` have a home already: `internal_key` is the envelope's (and `property`, the spelling, is derived from it — a property document never states its own spelling), `name` and `description` are properties', `options` are a property-definition entry's — the dictionary's (§2f) or a type's property_definitions declaration (§2a); a bundle carries no option documents (§15 #21), so no third surface states a select vocabulary — and max_count/readonly/default_value still travel in `properties` under their stored keys until the dictionary lifts them — admitting a second spelling of any of them here would be the §15 #14 disease this group exists to end.",
       "type": "object",
       "allOf": [
         {
@@ -1365,7 +1366,8 @@
           "items": {
             "type": "string",
             "minLength": 1
-          }
+          },
+          "description": "objects/files only: the types the property may point at, in priority order, each written as the type's derived id `type-<internal_key>` (§9). A display name (a bundled one, or the Name of a type this bundle declares) or the legacy `ot-<key>` is accepted on input; canonical export writes the derived id. Empty means any object."
         },
         "description": {
           "type": "string"
@@ -1415,7 +1417,7 @@
             "properties": {
               "name": {
                 "minLength": 1,
-                "pattern": "^[^\u0000-\u001f\u007f]+$",
+                "pattern": "^[^\u0000-\u001f]+$",
                 "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
               }
             }

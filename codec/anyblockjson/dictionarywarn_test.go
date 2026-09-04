@@ -247,13 +247,10 @@ func TestDictionaryKeys_TheBundledTypeTableStaysUnambiguous(t *testing.T) {
 	}
 }
 
-// One spelling for one concept, across the two slots that name a type outside
-// a document: a dictionary entry's target types and the bundle manifest.
-//
-// A type DOCUMENT reaches the same answer by a different road — it spells
-// through the exporter's per-document ledger and binds the term in that
-// document's own `type_internal_keys` legend. The dictionary and the manifest
-// have no legend, so their spelling has to be a pure function of the key.
+// One spelling for one concept: a dictionary entry's target types are the
+// types' derived ids, `type-<key>` (§9) — the same spelling every other slot
+// that names a type writes — and a display name, a legacy slug or a bare
+// stored key is still read.
 func TestDictionary_TargetTypesSpellLikeEverythingElse(t *testing.T) {
 	d, warns := readDict(t, `{`+dictHead+
 		`"properties":[{"property":"Assignee","name":"Assignee","format":"objects",`+
@@ -267,10 +264,10 @@ func TestDictionary_TargetTypesSpellLikeEverythingElse(t *testing.T) {
 
 	out, err := MarshalPropertyDictionary(d, Options{})
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `"Space member"`, "written back in the format's spelling")
-	assert.Contains(t, string(out), `"Type"`, "objectType's name")
-	assert.NotContains(t, string(out), `"objectType"`)
-	assert.Contains(t, string(out), `"6a83296f61fab2265263ae34"`, "and a minted key is never renamed")
+	assert.Contains(t, string(out), `"type-participant"`, "written back as the derived id")
+	assert.Contains(t, string(out), `"type-objectType"`, "objectType's derived id, not its name")
+	assert.NotContains(t, string(out), `"Space member"`)
+	assert.Contains(t, string(out), `"type-6a83296f61fab2265263ae34"`, "and a minted key is never renamed")
 }
 
 // bundledRelationKeys lists every relation key this build's bundled table

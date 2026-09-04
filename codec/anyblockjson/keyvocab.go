@@ -286,8 +286,12 @@ func (o Options) legendPropertyKey(slug string) string {
 	return o.propertyKey(slug)
 }
 
-// legendTypeKey is legendPropertyKey on the type namespace.
+// legendTypeKey is legendPropertyKey on the type namespace — with the
+// derived id in front of both (§9): `type-<key>` names its key outright.
 func (o Options) legendTypeKey(slug string) string {
+	if key, ok := typeRefKey(slug); ok {
+		return key
+	}
 	if key, ok := legendLookup(o.Legend.TypeKeys, slug); ok {
 		return key
 	}
@@ -361,6 +365,9 @@ func (o Options) typeSlug(key string) string {
 func (o Options) typeKey(slug string) string {
 	if slug == "" {
 		return slug
+	}
+	if key, ok := typeRefKey(slug); ok {
+		return key
 	}
 	// §3's canonical form, as in propertyKey above
 	key, _ := o.keys().TypeKey(nfcTerm(slug))

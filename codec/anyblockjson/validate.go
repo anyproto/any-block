@@ -2327,8 +2327,12 @@ func restatesBundledTargets(stated []any, rel *model.Relation) bool {
 	bundled := map[string]bool{}
 	for _, u := range rel.GetObjectTypes() {
 		if k, err := vocabulary.TypeKeyFromUrl(u); err == nil {
+			// every spelling the slot admits: the stored key, the derived id
+			// canonical export writes (§9), and the display name an author
+			// may write
 			bundled[string(k)] = true
 			bundled[TypeKeySpelling(string(k))] = true
+			bundled[bundledTypeSpelling(string(k))] = true
 		}
 	}
 	if len(bundled) == 0 {

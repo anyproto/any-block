@@ -44,7 +44,7 @@ func TestAuthoringTypePlannerAliasClosesEveryTypeSlot(t *testing.T) {
 			if test.wantPath == "/type" {
 				assert.Equal(t, name, envelope.Type)
 			} else {
-				assert.Equal(t, name, envelope.TemplateFor)
+				assert.Equal(t, TypeRefPrefix+key, envelope.TemplateFor, "the target is spelled by its derived id (§9)")
 			}
 		})
 	}
@@ -70,7 +70,8 @@ func TestAuthoringTypePlannerAliasClosesEveryTypeSlot(t *testing.T) {
 		} `json:"property_settings"`
 	}
 	require.NoError(t, jsonUnmarshal(propertyCanonical, &propertyEnvelope))
-	assert.Equal(t, []string{name, name, name}, propertyEnvelope.PropertySettings.ObjectTypes)
+	assert.Equal(t, []string{TypeRefPrefix + key, TypeRefPrefix + key, TypeRefPrefix + key},
+		propertyEnvelope.PropertySettings.ObjectTypes, "every target canonicalises to the derived id (§9)")
 
 	dictionary := []byte(`{"formatVersion":"2.0","properties":[{"property":"related","internal_key":"related","format":"objects","object_types":["cafe_ritual","Café Ritual","habit_record_v2"]}]}`)
 	dict, err := UnmarshalPropertyDictionary(dictionary, Options{Keys: vocab})
@@ -79,8 +80,8 @@ func TestAuthoringTypePlannerAliasClosesEveryTypeSlot(t *testing.T) {
 	assert.Equal(t, []string{key, key, key}, dict.Properties[0].ObjectTypes)
 	canonical, err := MarshalPropertyDictionary(dict, Options{Keys: vocab})
 	require.NoError(t, err)
-	assert.Equal(t, 3, countJSONStrings(t, canonical, name),
-		"dictionary output canonicalizes every target to the NFC display name")
+	assert.Equal(t, 3, countJSONStrings(t, canonical, TypeRefPrefix+key),
+		"dictionary output canonicalizes every target to the derived id (§9)")
 }
 
 func countJSONStrings(t *testing.T, data []byte, value string) int {

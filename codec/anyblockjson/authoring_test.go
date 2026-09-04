@@ -270,8 +270,8 @@ func TestAuthoringCustomTypeReferencesUseDeclaredDisplayName(t *testing.T) {
 	typeCanonical, err := Marshal(typeKind, typeSnapshot, Options{Keys: vocabulary, ResolveProperties: resolver})
 	require.NoError(t, err)
 	require.Len(t, decodeEnvelope(t, typeCanonical).TypeProps(), 1)
-	assert.Equal(t, []string{displayName}, decodeEnvelope(t, typeCanonical).TypeProps()[0].ObjectTypes,
-		"object_types canonical output uses the display name")
+	assert.Equal(t, []string{TypeRefPrefix + storedKey}, decodeEnvelope(t, typeCanonical).TypeProps()[0].ObjectTypes,
+		"object_types canonical output is the derived id (§9)")
 
 	ordinaryKind, ordinarySnapshot, err := Unmarshal(ordinary, opts)
 	require.NoError(t, err)
@@ -285,7 +285,8 @@ func TestAuthoringCustomTypeReferencesUseDeclaredDisplayName(t *testing.T) {
 	assert.Equal(t, []string{"ot-template", "ot-" + storedKey}, templateSnapshot.GetObjectTypes())
 	templateCanonical, err := Marshal(templateKind, templateSnapshot, Options{Keys: vocabulary})
 	require.NoError(t, err)
-	assert.Equal(t, displayName, decodeEnvelope(t, templateCanonical).TemplateFor)
+	assert.Equal(t, TypeRefPrefix+storedKey, decodeEnvelope(t, templateCanonical).TemplateFor,
+		"template_for canonical output is the derived id (§9)")
 
 	legacy := []byte(`{"formatVersion":"2.0","id":"legacy-ritual","type":"habit_record_v2"}`)
 	legacyKind, legacySnapshot, err := Unmarshal(legacy, opts)

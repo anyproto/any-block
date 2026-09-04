@@ -655,6 +655,11 @@ func (imp *importer) finalize(fragmentPath string) error {
 // three of them: the envelope `type`, `template_for`, and every
 // `type_settings.property_definitions[i].object_types[j]` (§2a).
 func (imp *importer) typeKey(slug, path string) string {
+	// a derived id names its key outright (§9): `type-<key>`, or the legacy
+	// `ot-<key>` on input — no legend, no vocabulary, nothing to resolve
+	if key, ok := typeRefKey(slug); ok {
+		return key
+	}
 	if key, ok := imp.typeLegend()[slug]; ok && key != "" {
 		return key
 	}
