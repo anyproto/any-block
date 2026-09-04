@@ -770,8 +770,12 @@ func IsDerivedTypeId(s string) bool {
 	if !ok {
 		return false
 	}
-	_, bundled := vocabulary.GetType(domain.TypeKey(key))
-	return bundled != nil
+	// GetType's second result is an ERROR, so an error means the shipped
+	// table does not carry the key — which is exactly the case this answers
+	// true for. Named, because `_, bundled := …; return bundled != nil`
+	// reads as the opposite of what it computes.
+	_, notInTable := vocabulary.GetType(domain.TypeKey(key))
+	return notInTable != nil
 }
 
 // FoldDocumentId is the derived-id fold on a document's OWN envelope id, for

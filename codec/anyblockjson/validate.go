@@ -956,7 +956,7 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 }
 
 // unknownPropertyMessage names a member no reading of the schema admits, and
-// carries a migration hint for the three names a document written against an
+// carries a migration hint for the four names a document written against an
 // older grammar brings. The hints exist because the bare verdict sends the
 // reader the wrong way, and the format's purpose is the generate → validate →
 // feed-back loop (§13):
@@ -976,6 +976,13 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 //     refuses genuine legacy drafts, but an author can still copy this member
 //     into a 2.0 document; the message is where that author is told what
 //     happened and how to repair it.
+//   - `type_internal_keys` is the type legend this format used to carry, until
+//     §15 #28 replaced it with the scalar `type_internal_key`: an object has
+//     exactly one type, so a map overstated the shape, and every other type
+//     reference became the derived id `type-<key>` (§9), which needs no legend
+//     at all. Told only that it is not allowed, the obvious repair is to
+//     delete it — which drops the one statement of the stored key the object's
+//     own spelling cannot supply.
 //
 // propertySettingsMemberHomes names, for each propertyDefinition member the
 // §2d group refuses, where the fact it spells already lives — the repair the
