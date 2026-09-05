@@ -5981,7 +5981,13 @@ type OptionResolver interface {
 // three homes, one struct (§2e). Options is the declared select vocabulary
 // in display order; ObjectTypes restricts which types an objects/files
 // property may point at, given as STORED type keys. The last four members
-// are the DICTIONARY's own, and the other two homes refuse them (§2f).
+// are the ones a home ADDS rather than shares, and they do not all have the
+// same homes. `ApiKey`, `Hidden` and `BundledDiverged` are the DICTIONARY's
+// own, and the shape's other two homes refuse them. `Uninstalled` is not on
+// that footing: a type's `property_definitions` entry states it too — that
+// entry is a complete standalone definition, and one presenting a removed
+// property as live is not complete — so only a property document's
+// `property_settings` refuses it (§2e, §2f).
 type PropertyDefinition struct {
     Key             domain.RelationKey
     KeyIsInternal   bool   // the document STATED this key as `internal_key`, rather than

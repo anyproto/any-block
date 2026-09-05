@@ -227,3 +227,140 @@ func TestSpecHomes_ProseCountsTheMembersEachHomeOwns(t *testing.T) {
 // here is one SPEC states in a spelling this test cannot check, which is a
 // failure and not a skip.
 var homeCountWord = map[int]string{0: "none", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+
+// §13 publishes the Go form of the shared shape, and its doc comment makes a
+// HOMES claim about the members at the end of the struct — the ones the homes
+// add rather than share. Nothing derived that claim either, and it drifted the
+// same way §2e's table did: it still reads "the last four members are the
+// DICTIONARY's own, and the other two homes refuse them", while `uninstalled`
+// sits among those four and a type's `property_definitions` entry states it.
+// A reader who takes §13 at its word writes a type document without the
+// removal and calls it complete.
+//
+// Derived, so it answers for the next member to move as well: the run at the
+// end of the struct is READ from the listing (fields whose schema member no
+// other home shares with the shared shape), its size is spelled from that
+// count, and the sentence may lump the run under one verb only while every
+// member of it really does have one home.
+func TestSpecGoSurface_StatesTheHomesOfTheStructsLastMembers(t *testing.T) {
+	doc, fields := specPropertyDefinitionListing(t)
+
+	shared := schemaMemberNames(t, schemaJSON, "$defs", "propertyDefinition")
+	homesOf := map[string][]string{}
+	for _, home := range propertyHomes {
+		for _, member := range home.ownedMembers(t) {
+			homesOf[member] = append(homesOf[member], home.row)
+		}
+	}
+
+	// the trailing run: the last fields of the struct that a home OWNS. The
+	// walk stops at the first field that is a shared member or no schema
+	// member at all (`DefaultValueSet`, a decode-side bit), which is what
+	// makes "the last N" a derivation rather than a remembered number.
+	var run []string
+	for i := len(fields) - 1; i >= 0; i-- {
+		member := schemaMemberName(fields[i])
+		if shared[member] || len(homesOf[member]) == 0 {
+			break
+		}
+		run = append([]string{fields[i]}, run...)
+	}
+	require.NotEmpty(t, run, "§13's PropertyDefinition listing ends in no member any home owns")
+
+	word, spelled := homeCountWord[len(run)]
+	require.Truef(t, spelled, "no spelling for a run of %d members", len(run))
+	assert.Containsf(t, doc, "The last "+word+" members",
+		"§13's doc comment must say how many members at the end of the struct the homes add (%d: %s)",
+		len(run), strings.Join(run, ", "))
+
+	// Whatever the sentences say, they must NAME every member of the run: a
+	// claim about homes that leaves a member unnamed is a claim the reader
+	// has to guess the scope of.
+	for _, field := range run {
+		assert.Containsf(t, doc, field,
+			"§13 makes a homes claim about the struct's last %d members and never names %s",
+			len(run), field)
+	}
+
+	// And a refusal claim must be scoped to the members it holds for. "The
+	// last four members are the DICTIONARY's own, and the other two homes
+	// refuse them" was true while the run was uniform; `uninstalled` broke
+	// that, so a sentence claiming the other two homes refuse must say WHICH
+	// members it speaks for, and none of them may be a member one of those
+	// homes states.
+	for _, sentence := range strings.Split(doc, ". ") {
+		if !strings.Contains(sentence, "other two homes refuse") {
+			continue
+		}
+		var named []string
+		for _, field := range run {
+			if !strings.Contains(sentence, field) {
+				continue
+			}
+			named = append(named, field)
+			homes := homesOf[schemaMemberName(field)]
+			assert.Lenf(t, homes, 1,
+				"§13 says the shape's other two homes refuse %s, and the schemas state it in %v",
+				field, homes)
+		}
+		assert.NotEmptyf(t, named,
+			"§13 claims the shape's other two homes refuse members it never names: %q", sentence)
+	}
+}
+
+// specPropertyDefinitionListing reads §13's published Go form of the shared
+// shape: the doc comment above `type PropertyDefinition struct` and the field
+// names inside it, in order.
+func specPropertyDefinitionListing(t *testing.T) (doc string, fields []string) {
+	t.Helper()
+	lines := strings.Split(specSource(t), "\n")
+	const header = "type PropertyDefinition struct {"
+	at := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == header {
+			require.Equalf(t, -1, at, "SPEC states %q more than once", header)
+			at = i
+		}
+	}
+	require.NotEqualf(t, -1, at, "SPEC §13 no longer publishes %q", header)
+
+	var comment []string
+	for i := at - 1; i >= 0 && strings.HasPrefix(strings.TrimSpace(lines[i]), "//"); i-- {
+		comment = append([]string{strings.TrimSpace(lines[i])}, comment...)
+	}
+	require.NotEmpty(t, comment, "§13's PropertyDefinition listing carries no doc comment")
+
+	for _, line := range lines[at+1:] {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "}" {
+			break
+		}
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		name, _, _ := strings.Cut(trimmed, " ")
+		if name != "" {
+			fields = append(fields, name)
+		}
+	}
+	require.NotEmpty(t, fields, "§13's PropertyDefinition listing states no fields")
+	return strings.Join(comment, " "), fields
+}
+
+// schemaMemberName spells a Go field the way the schemas name the member:
+// `BundledDiverged` is `bundled_diverged`. A field with no member of its own
+// (`DefaultValueSet`) simply matches nothing.
+func schemaMemberName(field string) string {
+	var b strings.Builder
+	for i, r := range field {
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 {
+				b.WriteByte('_')
+			}
+			b.WriteRune(r - 'A' + 'a')
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
