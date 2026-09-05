@@ -829,17 +829,19 @@ var importTypeVocabulary = vocabularyOf(importTypeNames, "import type")
 //
 // This is the fourth of the five 2026-08 bare-integer enums to be named, and
 // it is named on the same measured ground the others were left as numbers:
-// imageKind occurs on 4,079 file objects across the 77-space corpus — 4,053
-// automatically_added, 23 icon, 3 basic-or-cover — where widgetLayout is on
-// 13 documents and headerRelationsLayout on 51. A reader of an export saw a
-// bare 3 and had no way to learn what it meant.
+// imageKind occurs on 4,094 file objects across the 79-bundle,
+// 24,889-document corpus — 4,066 automatically_added, 24 icon, 4 cover and
+// not one basic — where widgetLayout is on 13 documents and
+// headerRelationsLayout on 62. A reader of an export saw a bare 3 and had no
+// way to learn what it meant.
 //
 // The two small ones were once recorded as 13 and ZERO, and the zero was
-// wrong: headerRelationsLayout is on 51 documents and holds two distinct
-// values (44 ones, 7 zeros), which is what typesettings.go already says
-// about it. The decision to leave it bare therefore rests on VOLUME alone
-// now, not on "nothing writes it" — 51 documents against imageKind's 4,079
-// — and it is the weakest of the five verdicts on that account.
+// wrong: headerRelationsLayout is on 62 documents and holds two distinct
+// values (55 ones, 7 zeros) — a real per-type editor setting, which is the
+// verdict typesettings.go records for it. The decision to leave it bare
+// therefore rests on VOLUME alone now, not on "nothing writes it" — 62
+// documents against imageKind's 4,094 — and it is the weakest of the five
+// verdicts on that account.
 //
 // Note the enum's ZERO is `basic`, and the app never STORES it:
 // makeInitialDetails returns early for Basic, so the key is absent rather
@@ -944,8 +946,8 @@ var viewTypeVocabulary = vocabularyOf(viewTypeNames, "view type")
 // ObjectTypeLayout. The remaining layout-ish bundled keys are left as
 // numbers deliberately: layoutWidth is a fraction, not an enum, and
 // widgetLayout/headerRelationsLayout hold enums almost nothing writes — 13
-// and 51 occurrences across 28,831 real exported documents, against
-// imageKind's 4,079.
+// and 62 occurrences across the 24,889 real exported documents of the
+// 79-bundle corpus, against imageKind's 4,094.
 var namedEnumProperties = map[string]propertyVocabulary{
 	"recommendedLayout": layoutVocabulary,
 	"layout":            layoutVocabulary,
@@ -967,13 +969,13 @@ var namedEnumProperties = map[string]propertyVocabulary{
 	// TYPE documents as install provenance precisely because "on ordinary
 	// objects origin is real provenance and stays", and §2f drops both only
 	// on bundled-identical property documents. The corpus agrees it is real:
-	// all TEN origin values occur across 15,943 documents (import 6,463 ·
-	// bookmark 2,444 · api 2,293 · webclipper 2,080 · usecase 1,110 ·
-	// clipboard 449 · none 425 · builtin 333 · drag_and_drop 301 ·
-	// sharing_extension 45) — a reader can tell an object a person clipped
-	// from one a pipeline made, which is not the class of syncStatus but the
-	// class of createdDate (which the import pipeline deliberately preserves
-	// as OriginalCreatedTimestamp) and creator (written as attribution).
+	// all TEN origin values occur across 12,463 documents (import 4,024 ·
+	// bookmark 2,462 · webclipper 2,080 · api 1,995 · usecase 651 ·
+	// clipboard 456 · none 440 · drag_and_drop 302 · sharing_extension 45 ·
+	// builtin 8) — a reader can tell an object a person clipped from one a
+	// pipeline made, which is not the class of syncStatus but the class of
+	// createdDate (which the import pipeline deliberately preserves as
+	// OriginalCreatedTimestamp) and creator (written as attribution).
 	//
 	// Deprecation was weighed: heart's own import pipeline re-stamps both on
 	// every snapshot (objectcreator.injectImportDetails), so nothing
@@ -992,8 +994,8 @@ var namedEnumProperties = map[string]propertyVocabulary{
 	//
 	// Deprecation was weighed and is still arguable. The behaviour a client
 	// actually runs on is `isHiddenDiscovery`, which travels independently
-	// and is in perfect lockstep with the automatically_added member — 4,053
-	// of 4,053 in the corpus — so the one live consumer (the client's
+	// and is in perfect lockstep with the automatically_added member — 4,066
+	// of 4,066 in the corpus — so the one live consumer (the client's
 	// subscription filter, which hides auto-added images) survives without
 	// this key. The two anytype-ts filters that DO read imageKind, in the
 	// icon and cover pickers, are both commented out. What would be lost is
@@ -1002,7 +1004,7 @@ var namedEnumProperties = map[string]propertyVocabulary{
 	// the image through icon_image or cover_id.
 	//
 	// It stays because naming costs one entry and drops nothing, while
-	// dropping 4,079 documents' worth of a stored, user-visible-in-principle
+	// dropping 4,094 documents' worth of a stored, user-visible-in-principle
 	// fact is a decision the freeze does not need to take.
 	"imageKind": imageKindVocabulary, // a space member's permissions and status — 2,519 slots each across the
 	// 79-bundle corpus, both bare integers before this entry and together
@@ -1047,7 +1049,7 @@ func namedEnumProperty(key string) (propertyVocabulary, bool) {
 // its own values, and READING.md's rule — read `format` together with
 // `value_names` — holds only while they agree. Nothing in the corpus reaches
 // it (79 of 5,385 dictionary entries are bundled_diverged, none of them one
-// of the 500 entries for these nine keys), and the entry is a read contract
+// of the 658 entries for these nine keys), and the entry is a read contract
 // a reader cannot check the space's history against.
 func namedEnumValueNames(key string, format model.RelationFormat) ([]string, bool) {
 	v, named := namedEnumProperties[key]
