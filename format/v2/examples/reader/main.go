@@ -227,10 +227,19 @@ func (b *bundle) firstReadableID() string {
 
 // ----------------------------------------------------- resolving a property
 
-// resolve answers what a property spelling in a document means. The document's
-// own legend binds a spelling to a stored key; the dictionary answers for
-// stored keys. A spelling with no legend line is a key or a bundled display
-// name already, so it is looked up directly.
+// resolve answers what a property spelling in a document means, taking the
+// first rung that answers (SPEC §3):
+//
+//  1. the document's own legend — the only statement the DOCUMENT makes about
+//     its own spellings, so it is consulted before any table;
+//  2. the spelling verbatim, as a stored key. Verbatim-first: a term that IS a
+//     key is that key, and no name table applies to it;
+//  3. the name this bundle binds — the entry whose `property` is the spelling.
+//
+// Rungs 2 and 3 disagree only when one spelling is one entry's `internal_key`
+// and another entry's `property`. No bundle in the measured corpus does that,
+// which is exactly why the order has to be pinned by a test rather than by
+// output that looks right.
 func (b *bundle) resolve(d *document, spelling string) (*definition, string) {
 	if key, ok := d.Legend[spelling]; ok {
 		if def, ok := b.byKey[key]; ok {
@@ -238,10 +247,10 @@ func (b *bundle) resolve(d *document, spelling string) (*definition, string) {
 		}
 		return nil, key
 	}
-	if def, ok := b.bySpelling[spelling]; ok {
+	if def, ok := b.byKey[spelling]; ok {
 		return def, def.Key
 	}
-	if def, ok := b.byKey[spelling]; ok {
+	if def, ok := b.bySpelling[spelling]; ok {
 		return def, def.Key
 	}
 	return nil, spelling

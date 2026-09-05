@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/properties.schema.json",
+  "formatVersion": "2.0",
+  "properties": [
+    {
+      "property": "Name",
+      "internal_key": "name",
+      "name": "Name",
+      "format": "text"
+    },
+    {
+      "property": "Tags",
+      "internal_key": "tag",
+      "name": "Tags",
+      "format": "multi_select",
+      "options": [
+        { "name": "Fieldwork", "color": "blue", "internal_key": "6a2a6d92d2ccdabef19aaffb" }
+      ]
+    },
+    {
+      "property": "tag",
+      "internal_key": "0f1e2d3c4b5a69788796a5b4",
+      "name": "Tag count",
+      "format": "number"
+    }
+  ]
+}

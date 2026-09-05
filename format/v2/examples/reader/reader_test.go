@@ -111,3 +111,38 @@ func TestValuesWidensAScalar(t *testing.T) {
 		t.Fatalf("scalar %v and list %v must read alike", scalar, list)
 	}
 }
+
+// SPEC §3 is normative and bold: "Verbatim-first: a term that IS a key is that
+// key, and no name table applies to it." The two rungs only disagree when one
+// spelling is one entry's `internal_key` and another entry's `property`, and no
+// bundle in the 79-bundle corpus collides that way (measured: 0 collisions over
+// 334,292 property slots), so nothing but this fixture can hold the rule.
+//
+// The assertion is the ENTRY CHOSEN, not the line printed: a rendering that
+// happens to read plausibly is not evidence that the right definition answered.
+func TestAKeyBeatsANameTable(t *testing.T) {
+	b, err := open(filepath.Join("testdata", "collision"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyEntry, nameEntry := b.byKey["tag"], b.bySpelling["tag"]
+	if keyEntry == nil || nameEntry == nil || keyEntry == nameEntry {
+		t.Fatalf("the fixture no longer collides: `tag` must be one entry's internal_key (%v) and a different entry's property (%v)", keyEntry, nameEntry)
+	}
+	doc, ok := b.docs["bafyreicollision"]
+	if !ok {
+		t.Fatal("fixture lost bafyreicollision")
+	}
+	if _, legend := doc.Legend["tag"]; legend {
+		t.Fatal("the fixture must leave `tag` off the legend: rung 1 would settle it and the order under test would never run")
+	}
+
+	def, key := b.resolve(doc, "tag")
+	if def != keyEntry {
+		t.Errorf("resolve(%q) chose the entry named %q [%s]; verbatim-first requires the entry whose internal_key is `tag`, named %q [%s]",
+			"tag", def.Name, def.Format, keyEntry.Name, keyEntry.Format)
+	}
+	if key != "tag" {
+		t.Errorf("resolve(%q) reported stored key %q; the spelling IS the key", "tag", key)
+	}
+}

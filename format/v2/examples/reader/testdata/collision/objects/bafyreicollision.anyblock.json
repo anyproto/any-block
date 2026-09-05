@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreicollision",
+  "type": "Field note",
+  "properties": {
+    "Name": "The one spelling two entries answer for",
+    "tag": ["Fieldwork"]
+  }
+}
