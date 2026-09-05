@@ -864,12 +864,13 @@ var imageKindVocabulary = vocabularyOf(imageKindNames, "image kind")
 // rather than argued. Across the 79-bundle, 24,889-document corpus,
 // participantPermissions and participantStatus each fill 2,519 property
 // slots — every one of them a bare integer, on `participant` documents, in
-// all 79 bundles. Against that, the bundled number-format keys whose stored
-// value is a proto enum and that this format still leaves numeric total 81
-// slots (headerRelationsLayout 62, widgetLayout 13, templateNamePrefillType
-// 6), so the two keys here are 5,038 of 5,119 unnamed enum slots. The
-// values in use span the enum: Writer 1,888 · NoPermissions 566 · Owner 48
-// · Reader 13 · Admin 4, all five members present.
+// all 79 bundles. Against that, every other bundled number-format key that
+// holds an enum totals 81 slots — widgetLayout 13 and
+// templateNamePrefillType 6, both proto enums, and headerRelationsLayout 62,
+// a client-side one this repo has no _name table for — so the two keys here
+// are 5,038 of 5,119 unnamed enum slots. The values in use span the enum:
+// Writer 1,888 · NoPermissions 566 · Owner 48 · Reader 13 · Admin 4, all
+// five members present.
 //
 // A reader could not look the meaning up. The stored description is
 // "Participant permissions. Possible values: models.ParticipantPermissions"
@@ -987,7 +988,7 @@ var namedEnumProperties = map[string]propertyVocabulary{
 	// subscription filter, which hides auto-added images) survives without
 	// this key. The two anytype-ts filters that DO read imageKind, in the
 	// icon and cover pickers, are both commented out. What would be lost is
-	// the 26 documents where the key says icon or cover and nothing else
+	// the 28 documents where the key says icon or cover and nothing else
 	// does, and even those are recoverable from whichever object references
 	// the image through icon_image or cover_id.
 	//

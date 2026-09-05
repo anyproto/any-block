@@ -221,14 +221,14 @@ func TestNamedEnum_VocabulariesTotalOverModelEnums(t *testing.T) {
 // A file object's `image_kind` says what an image was uploaded FOR. It used
 // to travel as the proto's bare integer, so a reader of an export saw `3`
 // beside a named `origin` and had no way to learn it meant the image was
-// added by a pipeline rather than by a person — on 4,079 documents across
-// the 77-space corpus, which is the measured standard the bare-integer keys
-// beside it (widgetLayout at 13, headerRelationsLayout at 51) were left on.
+// added by a pipeline rather than by a person — on 4,094 documents across
+// the 79-bundle corpus, which is the measured standard the bare-integer keys
+// beside it (widgetLayout at 13, headerRelationsLayout at 62) were left on.
 //
 // Naming it changes nothing a client depends on: the filter that hides
 // auto-added images reads `isHiddenDiscovery`, which travels on its own and
-// is in lockstep with this key's automatically_added member (4,053 of
-// 4,053). This is a change to the READ surface.
+// is in lockstep with this key's automatically_added member (4,066 of
+// 4,066). This is a change to the READ surface.
 //
 // How this can fail: name it on the way out and not back in, and every
 // import of an exported file object silently loses the kind; leave the enum
@@ -357,10 +357,11 @@ func TestNamedEnum_ANameableNumberIsRefusedInTypeSettings(t *testing.T) {
 // member documents carry, and the largest unnamed-enum gap the format had.
 // Measured on the 79-bundle corpus (24,889 documents): 2,519 slots each,
 // every one a bare integer, all on `participant` documents, in all 79
-// bundles; against them the bundled number-format keys whose stored value is
-// a proto enum and that this format still leaves numeric total 81
-// (headerRelationsLayout 62, widgetLayout 13, templateNamePrefillType 6), so
-// the pair is 5,038 of 5,119 unnamed enum slots.
+// bundles; against them every other bundled number-format key that holds an
+// enum totals 81 slots — widgetLayout 13 and templateNamePrefillType 6, both
+// proto enums, and headerRelationsLayout 62, a client-side one with no
+// _name table in this repo to draw from — so the pair is 5,038 of 5,119
+// unnamed enum slots.
 //
 // Both values in use span the enums: permissions Writer 1,888 · NoPermissions
 // 566 · Owner 48 · Reader 13 · Admin 4 (all five members), status Active
