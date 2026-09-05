@@ -631,17 +631,29 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 }
 
 // undefinedPropertyEntryOmap renders the entry for a key NOTHING could define
-// (§2f): identity, a name where the export had one, and the `unknown`
-// sentinel. Nothing else, and an entry asked to carry anything else is an
-// ERROR rather than a silent trim — the caller building it has a definition
-// in hand and a member it set is a member it meant, so dropping one would
-// publish less than the composer believed it had published, which is the
-// class of silent loss this file exists to end.
+// (§2f): identity and the `unknown` sentinel. Nothing else, and an entry
+// asked to carry anything else is an ERROR rather than a silent trim — the
+// caller building it has a definition in hand and a member it set is a
+// member it meant, so dropping one would publish less than the composer
+// believed it had published, which is the class of silent loss this file
+// exists to end.
+//
+// `name` is refused with the rest, and it used to be written. The member
+// was documented as carrying a name "where the export had one to give (a
+// legend line, a type's declaration)" and no writer ever gave one: the
+// composer sets the key and the sentinel and nothing else. Both of the
+// named sources now land elsewhere or nowhere — a type's declaration states
+// a format beside its name, so it produces a REAL entry a rung earlier
+// (bundle.declaredDefinition), and a legend line binds a spelling to a
+// stored key and carries no name at all. An unreachable member is a promise
+// the format cannot keep, and a name beside `unknown` would describe a
+// definition the entry has just said it does not have.
 func undefinedPropertyEntryOmap(m *omap, def PropertyDefinition) (*omap, error) {
 	for _, stated := range []struct {
 		member string
 		set    bool
 	}{
+		{"name", def.Name != ""},
 		{"options", len(def.Options) > 0},
 		{"object_types", len(def.ObjectTypes) > 0},
 		{"description", def.Description != ""},
@@ -660,7 +672,6 @@ func undefinedPropertyEntryOmap(m *omap, def PropertyDefinition) (*omap, error) 
 				"property really has", def.Key, propertyFormatUnknown, stated.member)
 		}
 	}
-	m.setNonEmpty("name", def.Name)
 	m.set("format", propertyFormatUnknown)
 	return m, nil
 }

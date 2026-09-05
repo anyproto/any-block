@@ -62,8 +62,20 @@ func TestUnknownFormat_AnEntryForAKeyNothingCanDefine(t *testing.T) {
 // The claim's whole content is that nothing could be said, so an entry that
 // states it may state nothing else. Both doors refuse the same thing (§11
 // I1's shape at the bundle level).
+//
+// `name` is in the list, and it is the one that had to be argued. The
+// member used to be admitted here, documented as carrying a name "where the
+// export had one to give (a legend line, a type's declaration)" — and no
+// writer ever gave one: the only writer sets the key and the sentinel, and
+// a type's declaration reaches a REAL entry now (bundle.declaredDefinition)
+// because a declaration states a format beside its name and an entry with a
+// format is not this shape. A legend line binds a spelling to a stored key
+// and carries no name at all. So the member was unreachable prose, and an
+// entry carrying a name beside `unknown` would be describing a definition
+// it has just said it does not have.
 func TestUnknownFormat_StatesNothingElse(t *testing.T) {
 	for _, member := range []string{
+		`"name":"Release Date"`,
 		`"description":"a guess"`,
 		`"options":["one"]`,
 		`"object_types":["type-page"]`,
@@ -102,6 +114,13 @@ func TestUnknownFormat_TheWriterRefusesADefinitionThatSaysMore(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "description")
 	assert.Contains(t, err.Error(), "unknown")
+
+	named := &PropertyDictionary{Properties: []PropertyDefinition{{
+		Key: "66602dc5e5672d06c0e19245", FormatUnknown: true, Name: "Release Date",
+	}}}
+	_, err = MarshalPropertyDictionary(named, Options{})
+	require.Error(t, err, "a name is a definition member like any other")
+	assert.Contains(t, err.Error(), "name")
 }
 
 // "unknown" is not a property FORMAT: it is the dictionary's way of saying

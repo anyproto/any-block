@@ -215,8 +215,10 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 	for m := range undefined.Properties {
 		stated[m] = true
 	}
-	assert.Equal(t, map[string]bool{"property": true, "internal_key": true, "name": true, "format": true},
-		stated, "identity and the sentinel; there is nothing else to say")
+	assert.Equal(t, map[string]bool{"property": true, "internal_key": true, "format": true},
+		stated, "identity and the sentinel; there is nothing else to say — `name` was in this "+
+			"set with no writer to reach it, and a name beside `unknown` describes a definition "+
+			"the entry has just said it does not have")
 	assert.ElementsMatch(t, []string{"format"}, undefined.Required)
 	for m, raw := range entry.Properties {
 		if string(raw) == "false" {
