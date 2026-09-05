@@ -820,7 +820,8 @@
         },
         "fields": {
           "type": "object",
-          "x-output-only": true
+          "x-output-only": true,
+          "description": "Verbatim internal per-block data, minus the keys lifted into first-class props: a `code` block's `lang` becomes `language` (§5.1), and a TABLE column's `width` becomes that column entry's `width` in pixels (§6.1). Output-only (§4a) — export writes what was stored, import stores it back, and no member here is interpreted, defaulted or refused.\nIt is a known inventory rather than an open world. A sweep of 24,889 exported documents found these keys and no others: `width` — on a `column` the layout column's share of its row as a fraction, and on an `image`, `video` or `embed` the same fraction of the text column (597 occurrences, and the only place a layout column's width is written at all); `isUnwrapped` on a `code` block and `isRtlDetected` on a paragraph — editor display flags; `type` on an `embed` — the diagram language a `kroki` processor renders, e.g. `blockdiag`; `lang` on a block that is not `code`, where nothing lifted it; `_link_migrated` — a migration marker the app stamped; and a `link` block's `cardStyle`, `iconSize`, `description` and `relations`, the pre-2.0 numeric spelling of the `card_style`, `icon_size`, `description` and `properties` beside them. Those four are stale — real exports carry `cardStyle: 0` next to `card_style: \"card\"`, which disagree. The first-class prop is the value; the bag keeps the old numbers only so the round trip loses nothing."
         }
       },
       "allOf": [
@@ -1143,6 +1144,33 @@
                   "line",
                   "dots"
                 ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "row",
+                  "column"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "description": "A `row` and a `column` carry no attributes of their own — their children are the content — with one exception, and it lives in the output-only bag: a layout column's width. That one fact is why these two types have a branch at all.",
+                "properties": {
+                  "width": {
+                    "description": "A layout column's share of its row, as a FRACTION — measured from 0 to just over 1 across 405 corpus columns, where 0 means unset. This is the only place it is written: a TABLE column's `width` is lifted to a first-class prop and is in pixels (§6.1), while a layout column's stays in the verbatim bag. Deliberately left untyped — the bag is written back exactly as stored, so a schema demanding a number here would refuse a document export itself produced (§11)."
+                  }
+                }
               }
             }
           }

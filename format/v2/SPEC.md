@@ -2977,7 +2977,7 @@ fails schema validation). Every block is an object:
 | `align` | `left · center · right · justify` | no | Omit when default (`left`). |
 | `vertical_align` | `top · middle · bottom` | no | Omit when default (`top`). |
 | `background_color` | string | no | Anytype color name. Omit when empty. |
-| `fields` | object | no | Verbatim internal per-block key-value data **minus** keys lifted into first-class props (e.g. `lang` §5.1, `width` §6.1). Output-only escape hatch (§4a) that keeps unknown data lossless. |
+| `fields` | object | no | Verbatim internal per-block key-value data **minus** keys lifted into first-class props (`lang` §5.1, a **table** column's `width` §6.1). Output-only escape hatch (§4a) that keeps unknown data lossless. What is inside it is a measured inventory, not an open world — **§5.3**, which is also where a layout column's width lives. |
 
 ### Nesting
 
@@ -3070,9 +3070,9 @@ mapping:
 | `toggle_heading_1` … `toggle_heading_3` | Text/ToggleHeader1..3 | `color`, `text` |
 | `file` `image` `video` `audio` `pdf` | File (Type enum promoted; `Type_None` → `file` with no `object_id`) | `object_id` (target file object), `name`, `mime_type`, `size` (bytes), `style` (`auto · link · embed`), `added_at` (RFC 3339; omitted with a warning when the stored timestamp is outside the representable years, §3 — unlike a property value there is no number form to fall back to). Legacy `hash` accepted on input. On export, a block with only the legacy `hash` set writes it as `object_id` (the hash migrates on round-trip, §11); when both are set, `object_id` wins and the hash is dropped. `state` is not serialized: import sets `Done` when `object_id`/`hash` is present, `Empty` otherwise. File blocks are leaves in the editor, but legacy data can nest real blocks under them — indented descendants are allowed and round-trip verbatim |
 | `bookmark` | Bookmark | `url`, `object_id` (target bookmark object). `state` handled like file blocks. Deprecated preview fields and `type` (derivable) are dropped — preview data lives on the target object |
-| `link` | Link | `object_id` (target object), `card_style` (`text · card · inline`), `icon_size` (`none · small · medium`), `description` (`none · manual · content`), `properties` (string array: property keys shown on the card). Deprecated `style` and legacy `fields` are dropped |
+| `link` | Link | `object_id` (target object), `card_style` (`text · card · inline`), `icon_size` (`none · small · medium`), `description` (`none · manual · content`), `properties` (string array: property keys shown on the card). Deprecated `style` is dropped. The legacy `fields` copies of four of these — `cardStyle`, `iconSize`, `description`, `relations` — are **not** dropped: they stay in the output-only bag, where they can be stale (§5.3) |
 | `divider` | Div | `style` (`line · dots`, default `line`) |
-| `row` / `column` | Layout/Row, Layout/Column | — (descendants carry content; a `row` contains only `column`s — §4 containment, read on the lifted tree, §7a) |
+| `row` / `column` | Layout/Row, Layout/Column | — none first-class; descendants carry the content, and a `row` contains only `column`s (§4 containment, read on the lifted tree, §7a). A **column**'s width is the one thing these blocks carry of their own, and it is in `fields` (§5.3) |
 | `group` | Layout/Div (legacy) | — **accepted on input only; lifted** (§7a). No export ever writes one |
 | `table` | Table (+ structural children) | `columns`, `rows` — see §6.1 |
 | `embed` | Latex | `processor`, `text` (**literal**, §8.4) — see §5.2 |
@@ -3123,6 +3123,54 @@ accepts the URL under a `url` key as an input alias.
 Standalone math is `{ "type": "embed", "processor": "latex", "text": "…" }`;
 import accepts `equation` as a type alias for it (what Notion-trained
 generators will write).
+
+### 5.3 The `fields` bag
+
+Every block may carry `fields`: verbatim internal key-value data the format
+does not interpret. It is output-only (§4a) — export writes what was stored,
+import writes it back, nothing reads it — and a generator should never
+produce one.
+
+It is nonetheless a **known inventory**, and saying so is the point of this
+section: a bag published as `{"type": "object"}` and nothing else leaves a
+reader unable to tell whether it holds anything they need. It does. A sweep of
+the 24,889 documents in the 79-bundle export corpus found these keys inside a
+block's `fields`, and no others:
+
+| Key | Occurrences | On | What it is |
+|---|---|---|---|
+| `width` | 597 | `column` 405, `image` 172, `video` 14, `embed` 6 | A **fraction**: a layout column's share of its row, or a media block's share of the text column. Measured 0 → 1.05 over the 405 columns; `0` means unset |
+| `isUnwrapped` | 24 | `code` | Editor display flag |
+| `cardStyle` | 17 | `link` | Legacy numeric copy of `card_style` |
+| `description` | 17 | `link` | Legacy numeric copy of `description` |
+| `iconSize` | 17 | `link` | Legacy numeric copy of `icon_size` |
+| `relations` | 17 | `link` | Legacy copy of `properties` |
+| `_link_migrated` | 7 | `link` | Migration marker the app stamped |
+| `isRtlDetected` | 4 | `paragraph` | Editor display flag |
+| `type` | 2 | `embed` | The diagram language a `kroki` processor renders (`blockdiag`) |
+| `lang` | 1 | `bulleted_list_item` | A stray: `lang` is lifted to `language` on `code` blocks only (§5.1), so on any other type it stays put |
+
+`root.fields`, the document-level bag (§2), carries two: `isLocked` (128) and
+`width` (45, the page width, a fraction — and once a literal `null`).
+
+Two consequences a reader has to know:
+
+- **A layout column's width has no other home.** A *table* column's `width`
+  is lifted to a first-class prop and is in **pixels** (§6.1); a *layout*
+  column's stays in the bag and is a **fraction**. Same key name, two units,
+  two homes. A reader that skips `fields` loses the column proportions of
+  every multi-column page, and nothing else in the document says what they
+  were. This is why `row`/`column` have a branch in `$defs/blockCore` at all
+  — there is nothing else to say about those two types.
+- **The four legacy `link` keys are stale.** Real exports carry
+  `"cardStyle": 0` (the `text` style) beside `"card_style": "card"`, and
+  `"relations": []` beside a populated `properties`. The first-class prop is
+  the value; the bag holds a pre-2.0 number that the app stopped updating.
+
+Nothing in the bag is typed by the schema, deliberately. Export writes the
+stored value exactly as stored, so a schema that demanded (say) a number for
+`width` would refuse a document export itself produced, which §11 forbids.
+The published schema documents the keys and constrains none of them.
 
 ## 6. Complex blocks
 
