@@ -68,16 +68,20 @@ type Stats struct {
 	IndexBytes            int
 	OmittedDocs           int
 	// OrphanUsedKeys are referenced property keys with no definition
-	// anywhere — no relation object, not bundled — so the dictionary cannot
-	// state a format for them (§2f names every property it CAN).
+	// anywhere — no relation object, not bundled — so no format can be
+	// stated for them. Each still gets a dictionary entry, carrying the
+	// `unknown` sentinel and nothing else (§2f): the key resolves, and what
+	// it resolves to is the statement that nothing could define it. Sorted.
+	// One of the losses §11 states rather than hides.
 	OrphanUsedKeys []string
 	// OptionsLifted counts the option documents the emit omitted whose
 	// vocabulary the dictionary now states inline (§2f); OptionsDropped
 	// counts the ones it does not — their property has no dictionary entry
-	// to travel on, either because no document references it (the used-only
-	// rule; its keys are UnusedPropertyKeys), because nothing can define it
-	// (its key is in OrphanUsedKeys), or because the entry cannot state a
-	// vocabulary at all (RefusedOptions).
+	// a vocabulary can travel on, either because no document references it
+	// (the used-only rule; its keys are UnusedPropertyKeys), because nothing
+	// can define it (its key is in OrphanUsedKeys, and an entry that says
+	// nothing could define the property states nothing else), or because the
+	// entry cannot state a vocabulary at all (RefusedOptions).
 	OptionsLifted  int
 	OptionsDropped int
 	// OptionsUnliftable counts option snapshots the composer could not lift
@@ -750,6 +754,42 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		def.Options = opts
 		entries[key] = def
 		stats.OptionsLifted += len(opts)
+	}
+	// A key the documents REFERENCE and nothing could define still gets an
+	// entry, stating the one thing there is to state about it: that nothing
+	// could define it (§2f, `format: "unknown"`). The composer has known
+	// these keys all along — it computed them to report them and then wrote
+	// nothing about them, so the key resolved to NOTHING in the dictionary a
+	// reader opens, and a reader could not tell "the writer had nothing to
+	// say" from "I failed to look". Measured on the audited 3,286-document
+	// space: 238 keys over the whole reference census, 155 of them in a
+	// document's top-level `properties` map across 324 documents (640 value
+	// occurrences); over the 79-bundle corpus, 361 entries naming 265
+	// distinct keys.
+	//
+	// Written AFTER the vocabulary loop above, which is not cosmetic: an
+	// orphan key may still own observed options, and that loop drops them
+	// (OptionsDropped) for the honest reason — there is no entry for a
+	// vocabulary to travel on. An entry present too early is found by the
+	// loop, and CarryablePropertyOptions refuses it on the format an
+	// undefined entry does not have: the run then reports `options is only
+	// meaningful on select/multi_select, not "text"` in RefusedOptions,
+	// naming a format nobody knows this property to have, for a property
+	// the same run has just said nothing can define. The entry states
+	// identity and the sentinel and nothing else, which is the whole
+	// content of the claim.
+	//
+	// Nothing is inferred to fill the hole. A name guessed from a dataview
+	// column or a type's declaration would be a definition the space does
+	// not have, and the value stays what it was —
+	// `"68cda76ee9223c9dc7ce5e92": 1755471600` could be a date, a count or
+	// an id, and the entry says so by saying nothing.
+	for _, key := range orphans {
+		entries[key] = anyblockjson.PropertyDefinition{
+			Key:           domain.RelationKey(key),
+			KeyIsInternal: true,
+			FormatUnknown: true,
+		}
 	}
 	unusedPropertyKeys := make([]string, 0, len(unusedProperties))
 	for key := range unusedProperties {
