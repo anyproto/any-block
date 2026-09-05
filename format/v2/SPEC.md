@@ -4333,6 +4333,50 @@ way to enumerate a relation's options. That is a gap in the resolver
 interface, recorded here rather than papered over with a signal that is right
 by accident.
 
+### Every reference spelling, in one table
+
+A reader meets more than a dozen shapes in slots that hold a reference, and
+each is ruled on somewhere below or in another section. This is the inventory: what
+the shape is, where it turns up, how to resolve it, and — the question a
+reader actually gets stuck on — what it means when it resolves to nothing.
+Counts are from the audited 3,286-document space unless the row says
+otherwise; they are there to say which shapes a real export puts in front of
+a reader, not to bound what is legal.
+
+**Resolving anything at all takes three steps**, once, before the table
+matters: index every document in the bundle by its envelope `id`; take a
+reference's id half (split at the first `#`); look it up. There is no path
+convention to follow and no name matching anywhere in it — a document is
+found by its id and by nothing else (§2c).
+
+| Form | Where it occurs | How to resolve it | When it resolves to nothing |
+|---|---|---|---|
+| `bafyrei…` — a bare object id (a CID, lowercase base32; older spaces also hold 24-hex bson ids) | every reference slot: object/file property values, `items`, block `object_id`s, filter values, sort `custom_order`, `object_orders`, icon/cover `file`, index `entrypoint`/`homepage`/widget `target` | the document whose envelope `id` is that string | the object exists in its space and did not travel, or the space deleted it — **the bundle cannot tell you which**, and neither can a reader. Measured: 1,265 of 10,053 reference occurrences in a deliberately narrow census (property values, `items`, block targets, icon/cover) name no document here, over 723 distinct ids. For the ids `index.json` itself names, the export says so: `unresolved.targets` (§2c) |
+| `type-<internal_key>` — a type, by its stored key (§9 *Derived ids*) | a type document's own `id`; `template_for`; every `object_types`; the `Set of`, `Template's Type` and `Default type id` values; a view's `default_type_id`; a filter `value`; a link or dataview block's `object_id`; a widget `target` | the document whose `id` is that string. The key is the text after the prefix, so the reference says WHICH type without any lookup at all | a **bundled** key (`type-page`) needs no document — every reader has it in the shipped table, and `bundle.Validate` exempts it. A minted key (`type-68c2…`) that finds no document is a real dangling reference. Measured: 354 occurrences across nine slots; 92 typed documents (29 distinct keys) name a `type-<key>` no document here carries |
+| `participant-<identity>` — a space member, by account identity (§9 *The participant fold*) | a participant document's own `id`, the two attribution properties, and any slot whose VALUE passes the identity's checksum — the classifier is the value's shape, never the property's name | the participant document with that id. An importer rebuilds the store's composite `_participant_<spaceId>_<identity>` against its own `Options.SpaceId` | a reader that sets no `SpaceId` stores the folded id, which addresses nobody; it is told so once per document (§13). Measured: 6,569 occurrences |
+| `id#caption` — any object reference MAY carry an informative name after a `#` | wherever a resolver supplied a name. Measured: 4,510 here, all on `Created by`/`Last modified by`, whose suffix rides the participant resolver; corpus-wide 44,828, every one a participant, because the ordinary suffix rides `Options.RefNames` and that defaults OFF | **split at the FIRST `#` and use the left half.** The right half is informative: nothing resolves it, nothing requires it, two objects may share it. No id this format writes contains a `#` | a bare id is exactly as valid and imports identically. A degenerate `#name` with no id half addresses nothing, is stored as written, and is warned about where the format is visible (§9 below) |
+| `_missing_object` — the space's own sentinel for a reference it could not serve | singular slots only: a block `object_id`, a `<mention>` target. A list slot drops the entry instead of writing the sentinel | it does not resolve — **it is the answer.** The link or mention existed and its target does not | already nothing: which object it was is gone. Measured: 12 |
+| `_anytype_profile` — the platform's own profile object | `Created by`, on all 1,880 of this space's participant documents and nowhere else | a platform address, not a bundle id | no bundle carries a document for it and none is missing |
+| `_participant_<spaceId>_<identity>` — an unfolded participant composite | a value naming a member of a DIFFERENT space, which passes through whole in both directions rather than being re-homed | read the identity out of it; it is not this space's member | it names another space's member, so this bundle owes no document. Measured: no reference slot in the 79-bundle corpus holds one — the eight textual occurrences sit inside prose in a `text` member, which nothing resolves |
+| `_date_<YYYY-MM-DD>` — a virtual date object | mention targets, and a link block's `object_id`. Measured corpus-wide: 104 (103 mentions, 1 block target) | the date is IN the id; the platform mints the object on demand | nothing is missing: no space stores a row for it, and no export can |
+| `_ot<key>` / `_br<key>` — the platform's ids for a bundled type / bundled property | stored values that predate the derived-id fold; `ot-<key>` is also accepted as INPUT in a type-KEY slot (never in a reference slot, where `ot-wine` is an ordinary bundle-local slug) | against the shipped bundled tables | never a bundle's to carry. Measured: no value in the 79-bundle corpus is one |
+| `_favorite` · `_recent` · `_recent_open` · `_set` · `_collection` · `_all_objects` · `_chat` · `_bin` (widget `target`), `_widgets` · `_graph` (`homepage`) | `index.json` only (§2c) | they name a built-in screen, not an object; the client's own listing. A bundle-local id may never begin with `_` (§1), so the two kinds can never be confused | never unresolved, never listed in `unresolved.targets`. Measured: 2 of this space's 23 widget targets |
+| `_filter_template_<n>_` — a dynamic filter value (§6.2) | a view filter's `value` | **not an object id.** The CLIENT substitutes one before issuing the query: `_filter_template_2_` is the current user, `_filter_template_1_` the object hosting an inline dataview | opaque to the middleware — a query evaluated server-side compares against the literal string and matches nothing |
+| `<mention object_id="…">text</mention>` — an inline reference inside `text` (§8.1) | any text-bearing block, and table cells | the attribute holds a bare id in any of the forms above (folded like every other reference); the element's text is the caption and carries no `#` suffix | the target may be `_missing_object`: the mention's text stays and only its address is gone. Measured: 13 |
+| `[text](anytype://object?objectId=<id>)` — an inline object link (§8.1) | any text-bearing block | percent-decode the single `objectId` parameter. The form is exact — any other `anytype://` destination is a plain link, preserved verbatim | the same as a bare id. Measured: 7 |
+| `option_ids` values (§9a) | the envelope's option legend, beside select/multi_select values | an option's OBJECT id, and a **hint** rather than a reference: honored only where the reading space still serves it as a live option of that relation, then the name, then the value unchanged | it never resolves inside a bundle and is not meant to — a bundle carries no option documents at all (§15 #21), and the option's whole meaning is already inline on the dictionary entry (§2f) |
+| a bundle-local slug (`page-wiki-home`, `type-habit`) | an authored bundle's own ids and every reference to them (§2c) | exactly like any other id: the document whose `id` is that string | the import wiring relinks bundle-local ids on install; one that names no document in the bundle is a cross-document refusal (§12) |
+
+**Two things the table cannot tell you, and where they are said instead.**
+Whether an id is missing from the SPACE or merely missing from this EXPORT
+is a distinction the bundle does not carry per reference — export rewrites
+or drops only what the space itself could not serve, and only when a
+capability is wired to ask (below) — but for the ids `index.json` names,
+the writer states the answer at bundle level in `unresolved.targets`, and
+for property keys nothing could define, in `unresolved.properties` (§2c,
+§2f). And whether a file document's BYTES travelled is `manifest.files`'s
+question, not a reference's: the document is present either way (§2c).
+
 ### Object references: `id`, optionally `id#name`
 
 An object reference is a full id, and it MAY carry an informative name after
