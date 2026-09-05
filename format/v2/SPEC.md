@@ -4870,14 +4870,20 @@ it, elsewhere in this document, and not only here:
   cross-document check (§2c) derives `type-<type_internal_key>` from every
   typed document and requires a document carrying it, a bundled key
   excepted. A mode-on bundle carries none, so every document naming a
-  space-minted type is reported. Measured over the corpus: 4,373 of its
-  24,889 documents state a non-bundled `type_internal_key`, over 169
-  distinct minted keys. The check is written on the default shape and has
-  not been widened for the mode, so what the mode produces is a valid set of
-  DOCUMENTS that the bundle validator, as it stands, rejects. A run that
-  wants both is asking for a check that reaches a type document by its
-  `internal_key` when the bundle carries no `type-<key>` id, which nothing
-  has been asked to build.
+  space-minted type is reported. Measured over the corpus, and the split is
+  the point: 4,373 of its 24,889 documents state a non-bundled
+  `type_internal_key` over 169 distinct minted keys, but 118 of them (45
+  keys) name a type document their bundle does not carry and are refused
+  today already. What the mode ADDS is the other 4,255 — 124 keys across 26
+  of the 79 bundles — every one of them an export that validates clean now
+  and would not. The check is written on the default shape and has not been
+  widened, so what the mode produces is a valid set of DOCUMENTS that the
+  bundle validator, as it stands, rejects. Two readings are open and this
+  section takes neither: either the mode is not for bundle output and
+  something must say so, or the check needs a second road from
+  `type_internal_key` to a type document — the document's own
+  `internal_key`, which is right there in the bytes. A test pins the refusal
+  so that settling it either way is a visible change.
 
 **Which mode produced an export is not reliably determinable from the
 bytes.** A reader holding one has only circumstantial evidence, and it is

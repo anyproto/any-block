@@ -48,11 +48,19 @@ original order.
   the path an authored document's `template_for` already takes (§2g). And
   `bundle.Validate` REFUSES a mode-on bundle: its type cross-document check
   derives `type-<type_internal_key>` from every typed document and finds no
-  document carrying it, which over the 79-bundle corpus is 4,373 of 24,889
-  documents naming 169 distinct minted keys. That was established by running
-  `Validate` over a bundle in each shape rather than by reading the check,
-  and the check has not been widened — what the mode produces is a valid set
-  of DOCUMENTS that the bundle validator, as it stands, rejects.
+  document carrying it. Over the 79-bundle corpus, 4,373 of 24,889 documents
+  state a non-bundled `type_internal_key` over 169 minted keys; 118 of those
+  (45 keys) already fail today because their type document is absent, so
+  what the mode ADDS is the other 4,255 — 124 keys across 26 of the 79
+  bundles — each an export that validates clean now and would not. That was
+  established by running `Validate` over a bundle in each shape rather than
+  by reading the check, and the check has not been widened: what the mode
+  produces is a valid set of DOCUMENTS that the bundle validator, as it
+  stands, rejects. Two readings stay open — the mode is not for bundle
+  output and something must say so, or the check needs a second road from
+  `type_internal_key` to a type document, the document's own `internal_key`
+  — and `TestComposeNoDerivedTypeIds_TheComposedBundleDoesNotValidate` pins
+  the refusal so that settling it either way is a visible change.
 
   Which mode produced an export is judged and answered NO, with the limits
   named rather than a signal offered. Absence of `type-` is conclusive in
