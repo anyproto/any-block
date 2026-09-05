@@ -4,7 +4,7 @@
   "name": "A property whose values are properties",
   "homepage": "bafyreipropertylist",
   "manifest": {
-    "properties": "properties.json",
+    "properties": "dictionary/props.json",
     "files": {}
   }
 }

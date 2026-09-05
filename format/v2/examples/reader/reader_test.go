@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,6 +103,17 @@ func TestReferenceDropsTheCaption(t *testing.T) {
 	}
 	if id, caption := reference("bafyreinote"); id != "bafyreinote" || caption != "" {
 		t.Fatalf("a bare id must stay whole: %q, %q", id, caption)
+	}
+	// SPEC §13 is normative about WHICH `#`: split at the FIRST one and use the
+	// left half. A caption is prose and may hold as many as it likes.
+	if id, caption := reference("bafyreinote#Ridge #2#end"); id != "bafyreinote" || caption != "Ridge #2#end" {
+		t.Fatalf("the split is at the first #, and the rest is caption: %q, %q", id, caption)
+	}
+	// A degenerate `#name` with no id half addresses nothing and is stored as
+	// written (§13), so the whole string is the id — there is no left half to
+	// take, and a reader that took one would address a different object.
+	if id, caption := reference("#Ridge_End"); id != "#Ridge_End" || caption != "" {
+		t.Fatalf("a leading # is not a caption marker: %q, %q", id, caption)
 	}
 }
 
@@ -267,12 +281,22 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 		{"a type document hosting its own listing without naming itself", "type-walk", []string{
 			`records: every object of type "Walk" — a live query, and no bundle answers it (§6.2)`,
 		}},
-		{"the same four sources, named from another document", "bafyreiportal", []string{
+		{"a set that spells `Set of` some other way, read through its legend", "bafyreisetbylegend", []string{
+			"records: every object matching this document's `Set of` (type-fieldnote, type-walk) — a set is a live query, and no bundle answers it (§6.2)",
+		}},
+		{"a `Set of` that lists nothing is not a stated query", "bafyreiemptyset", []string{
+			"records: this document's own `Set of`, which it does not state — a set is a live query, and no bundle answers it (§6.2)",
+		}},
+		{"a set that states no `Set of` at all", "bafyreinosetof", []string{
+			"records: this document's own `Set of`, which it does not state — a set is a live query, and no bundle answers it (§6.2)",
+		}},
+		{"the same six sources, named from another document", "bafyreiportal", []string{
 			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
 			"records: the 3 ids bafyreicollection lists in `items` (objects/bafyreicollection.anyblock.json)",
 			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,
 			"records: every object matching bafyreiset's `Set of` (type-fieldnote) — a set is a live query, and no bundle answers it (§6.2)",
 			"records: from bafyreighost (not in this bundle), so this block does not say where they come from",
+			"records: bafyreimemberone (objects/bafyreimemberone.anyblock.json) states neither `items` nor `Set of`, so nothing here says where they come from",
 			"records: from _missing_object (the space's own sentinel for a reference it could not serve — it does not resolve, it IS the answer), so this block does not say where they come from",
 			"records: a legacy detached inline set over source [ot-task] — a live query, and no bundle answers it (§6.2)",
 		}},
@@ -375,6 +399,491 @@ func TestAPropertiesValueIsAListOfKeys(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := b.renderValue(def, tc.value); got != tc.want {
 				t.Errorf("renderValue\n got %s\nwant %s", got, tc.want)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// The statements below were unguarded until a mutation sweep said so: break the
+// line each one names and this file, and only this file, goes red.
+// ---------------------------------------------------------------------------
+
+// The command itself. README documents an interface — a bundle directory, an
+// optional object id, and what happens when either is wrong — and until this
+// test nothing executed `main` at all: every check ran the functions under it.
+func TestTheCommandItself(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "reader")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("building the example: %v\n%s", err, out)
+	}
+	run := func(args ...string) (string, string, int) {
+		cmd := exec.Command(bin, args...)
+		var out, errOut strings.Builder
+		cmd.Stdout, cmd.Stderr = &out, &errOut
+		if err := cmd.Run(); err != nil {
+			var exit *exec.ExitError
+			if errors.As(err, &exit) {
+				return out.String(), errOut.String(), exit.ExitCode()
+			}
+			t.Fatalf("running the example: %v (%s)", err, errOut.String())
+		}
+		return out.String(), errOut.String(), 0
+	}
+	t.Run("no arguments is a usage error", func(t *testing.T) {
+		_, errOut, code := run()
+		if code != 2 || !strings.Contains(errOut, "usage: reader <bundle-dir> [object-id]") {
+			t.Errorf("exit %d, stderr %q", code, errOut)
+		}
+	})
+	t.Run("a third argument is a usage error too", func(t *testing.T) {
+		_, _, code := run(fixture, "bafyreiridgenote", "extra")
+		if code != 2 {
+			t.Errorf("exit %d; a fourth word on the line is not an object id", code)
+		}
+	})
+	t.Run("a directory that is not a bundle says which member is missing", func(t *testing.T) {
+		_, errOut, code := run(t.TempDir())
+		if code != 1 || !strings.Contains(errOut, "this is not a bundle (no index.json)") {
+			t.Errorf("exit %d, stderr %q", code, errOut)
+		}
+	})
+	t.Run("the named object is the one printed", func(t *testing.T) {
+		out, _, code := run(fixture, "bafyreinotebook")
+		if code != 0 || !strings.Contains(out, "# Notebook") {
+			t.Errorf("exit %d, stdout %q", code, out)
+		}
+	})
+	t.Run("with no id the bundle's homepage is printed", func(t *testing.T) {
+		out, _, code := run(fixture)
+		if code != 0 || !strings.Contains(out, "# Notebook") {
+			t.Errorf("exit %d, stdout %q", code, out)
+		}
+	})
+	t.Run("an id the bundle does not carry still describes the bundle", func(t *testing.T) {
+		out, errOut, code := run(fixture, "bafyreinosuchthing")
+		if code != 1 || !strings.Contains(errOut, `no document with id "bafyreinosuchthing"`) {
+			t.Errorf("exit %d, stderr %q", code, errOut)
+		}
+		if !strings.Contains(out, "docs    4") {
+			t.Errorf("the bundle summary is worth printing even when the document is not there:\n%s", out)
+		}
+	})
+}
+
+// Which document a reader is shown when the command names none. README states
+// the order and 12 of the 79 measured exports need its last rung, so the order
+// is a promise rather than an implementation detail.
+func TestTheDocumentShownWhenNoneIsNamed(t *testing.T) {
+	docs := func(ids ...string) map[string]*document {
+		m := map[string]*document{}
+		for _, id := range ids {
+			d := &document{ID: id}
+			if strings.HasPrefix(id, "type-") {
+				d.Kind = "object_type"
+			}
+			m[id] = d
+		}
+		return m
+	}
+	for _, tc := range []struct {
+		name, want string
+		b          *bundle
+	}{
+		{"the homepage wins", "home", &bundle{
+			index: index{Homepage: "home", Entrypoint: "entry"},
+			docs:  docs("home", "entry", "aaa")}},
+		{"the entrypoint answers when the homepage is not carried", "entry", &bundle{
+			index: index{Homepage: "absent", Entrypoint: "entry"},
+			docs:  docs("entry", "aaa")}},
+		{"then the first ordinary object, by id — even where a type sorts ahead of it", "zzz", &bundle{
+			index: index{Homepage: "absent"},
+			docs:  docs("zzz", "type-a")}},
+		{"a bundle of nothing but types still shows something", "type-a", &bundle{
+			docs: docs("type-b", "type-a")}},
+		{"a bundle with no documents shows nothing", "", &bundle{docs: docs()}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.b.firstReadableID(); got != tc.want {
+				t.Errorf("firstReadableID() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// What `open` refuses, and what it quietly steps over. The refusals are the
+// three files a bundle is made of; the step-over is any other JSON in the tree,
+// which a bundle is free to carry and a reader must not mistake for a document.
+func TestWhatOpenRefusesAndWhatItStepsOver(t *testing.T) {
+	write := func(t *testing.T, files map[string]string) string {
+		dir := t.TempDir()
+		for name, body := range files {
+			path := filepath.Join(dir, filepath.FromSlash(name))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return dir
+	}
+	const index = `{"formatVersion":"2.0","manifest":{"properties":"properties.json"}}`
+	const dict = `{"properties":[{"property":"Name","internal_key":"name","name":"Name","format":"text"}]}`
+
+	t.Run("a directory with no index.json is not a bundle", func(t *testing.T) {
+		_, err := open(write(t, map[string]string{"properties.json": dict}))
+		if err == nil || !strings.Contains(err.Error(), "this is not a bundle (no index.json)") {
+			t.Errorf("err = %v", err)
+		}
+	})
+	t.Run("an index.json that is not JSON", func(t *testing.T) {
+		_, err := open(write(t, map[string]string{"index.json": "{oh no"}))
+		if err == nil || !strings.Contains(err.Error(), "index.json:") {
+			t.Errorf("err = %v", err)
+		}
+	})
+	t.Run("a dictionary that is not JSON names the file the index named", func(t *testing.T) {
+		_, err := open(write(t, map[string]string{"index.json": index, "properties.json": "{oh no"}))
+		if err == nil || !strings.Contains(err.Error(), "properties.json:") {
+			t.Errorf("err = %v", err)
+		}
+	})
+	t.Run("a document that is not JSON names its path", func(t *testing.T) {
+		_, err := open(write(t, map[string]string{"index.json": index, "properties.json": dict, "objects/broken.json": "{oh no"}))
+		if err == nil || !strings.Contains(err.Error(), "broken.json:") {
+			t.Errorf("err = %v", err)
+		}
+	})
+	t.Run("JSON with no id is not a document", func(t *testing.T) {
+		b, err := open(write(t, map[string]string{"index.json": index, "properties.json": dict, "notes/scratch.json": `{"note":"not a document"}`}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(b.docs) != 0 {
+			t.Errorf("a document is found by its id, so a file without one is not one: %v", b.docs)
+		}
+	})
+}
+
+// The dictionary is where the index says it is. Every one of the 79 measured
+// exports names it — none omits the member — so the default is for bundles
+// written by hand, and both halves need holding: `propertylist` puts the file
+// somewhere the default would never look, and `collision` names none.
+func TestTheDictionaryIsWhereTheIndexSaysItIs(t *testing.T) {
+	named, err := open(filepath.Join("testdata", "propertylist"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if named.index.Manifest.Properties != "dictionary/props.json" {
+		t.Fatalf("the fixture must name a path the default would not find, got %q", named.index.Manifest.Properties)
+	}
+	if named.entries != 3 {
+		t.Errorf("the index named dictionary/props.json and the reader read %d entries, not 3", named.entries)
+	}
+	def, ok := named.byKey["dueDate"]
+	if !ok || def.Name != "Due date" {
+		t.Errorf("the entries came from somewhere else: %v", def)
+	}
+
+	byDefault, err := open(filepath.Join("testdata", "collision"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byDefault.index.Manifest.Properties != "" {
+		t.Fatalf("the fixture must name no dictionary at all, got %q", byDefault.index.Manifest.Properties)
+	}
+	if byDefault.entries == 0 {
+		t.Error("a bundle that names no dictionary is read from properties.json")
+	}
+}
+
+// What a spelling resolves to when nothing defines it. The reader reports the
+// STORED KEY, which is the whole reason the legend is consulted first: a
+// spelling nothing defines says nothing, and the key it stands for is the thing
+// an `unresolved.properties` entry (§2f) can be matched against.
+func TestAnUnresolvedSpellingStillReportsItsStoredKey(t *testing.T) {
+	b := &bundle{
+		docs:       map[string]*document{},
+		bySpelling: map[string]*definition{},
+		byKey:      map[string]*definition{},
+	}
+	d := &document{
+		ID:         "bafyreiunresolved",
+		Legend:     map[string]string{"Priority": "6a32d4856761631534b22f85"},
+		Properties: map[string]any{"Priority": "high", "Mood": "calm"},
+	}
+	if def, key := b.resolve(d, "Priority"); def != nil || key != "6a32d4856761631534b22f85" {
+		t.Errorf("a legend key no entry answers for is still the key: got %v, %q", def, key)
+	}
+	if def, key := b.resolve(d, "Mood"); def != nil || key != "Mood" {
+		t.Errorf("a spelling with no legend and no entry stands for itself: got %v, %q", def, key)
+	}
+
+	out := &strings.Builder{}
+	b.describeDocument(out, d)
+	for _, want := range []string{
+		"no dictionary entry for stored key 6a32d4856761631534b22f85",
+		"no dictionary entry for stored key Mood",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("a key with no entry at all must say so\n want %s\n---- got ----\n%s", want, out.String())
+		}
+	}
+}
+
+// What a property is called on screen, and what happens to a name too long for
+// the column. Every spelling in the worked example is already its own name, so
+// neither half of this was held by anything.
+func TestAPropertyIsLabelledByItsDictionaryName(t *testing.T) {
+	long := "Where the reading was taken from"
+	b := &bundle{
+		docs:       map[string]*document{},
+		bySpelling: map[string]*definition{"loc": {Property: "loc", Key: "loc", Name: long, Format: "text"}},
+		byKey:      map[string]*definition{"loc": {Property: "loc", Key: "loc", Name: long, Format: "text"}},
+	}
+	if got := label(b.byKey["loc"], "loc"); got != long {
+		t.Errorf("label() = %q, want the dictionary's name %q", got, long)
+	}
+	if got := label(nil, "loc"); got != "loc" {
+		t.Errorf("with no entry the spelling is the label, got %q", got)
+	}
+	if got := label(&definition{Key: "loc"}, "loc"); got != "loc" {
+		t.Errorf("an entry with an empty name is not a label, got %q", got)
+	}
+
+	out := &strings.Builder{}
+	b.describeDocument(out, &document{ID: "bafyreilabel", Properties: map[string]any{"loc": "ridge"}})
+	if want := "  Where the reading was t…"; !strings.Contains(out.String(), want) {
+		t.Errorf("a name longer than the column is truncated to it, ellipsis included\n want %q\n---- got ----\n%s", want, out.String())
+	}
+	if got := truncate("exactly twenty-four chars", 24); got != "exactly twenty-four cha…" {
+		t.Errorf("truncate() = %q (%d runes of budget, one spent on the ellipsis)", got, 24)
+	}
+	if got := truncate("short", 24); got != "short" {
+		t.Errorf("truncate() = %q; under the cap nothing changes", got)
+	}
+}
+
+// A document's title, and the id it falls back to. 24,889 corpus documents
+// include plenty with no `Name` at all, and a reader that printed the empty
+// string for them would say less than nothing.
+func TestADocumentWithoutANameIsTitledByItsID(t *testing.T) {
+	b := &bundle{docs: map[string]*document{}}
+	for _, tc := range []struct {
+		name, want string
+		d          *document
+	}{
+		{"a Name is the title", "Ridge, first thaw", &document{ID: "bafyreia", path: "objects/a.json", Properties: map[string]any{"Name": "Ridge, first thaw"}}},
+		{"an empty Name is not a title", "bafyreib", &document{ID: "bafyreib", path: "objects/b.json", Properties: map[string]any{"Name": ""}}},
+		{"no Name at all", "bafyreic", &document{ID: "bafyreic", path: "objects/c.json"}},
+		{"a Name that is not a string", "bafyreid", &document{ID: "bafyreid", path: "objects/d.json", Properties: map[string]any{"Name": 7.0}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := b.title(tc.d); got != tc.want {
+				t.Errorf("title() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// The three states of `manifest.files`, and the two of `unresolved`. All 79
+// measured exports sit in the states nothing here used to cover: none of them
+// writes a `files` member at all, and none writes `unresolved`, so the two most
+// common lines this program prints were the two least guarded.
+func TestTheBundleSummarySaysWhichSilenceItIs(t *testing.T) {
+	summary := func(idx index) string {
+		b := &bundle{dir: "somewhere", index: idx, docs: map[string]*document{}}
+		out := &strings.Builder{}
+		b.describe(out)
+		return out.String()
+	}
+	empty := map[string]string{}
+	bound := map[string]string{"bafyreiphoto": "files/ridge.png"}
+	var absent index
+	withEmpty, withBlobs := absent, absent
+	withEmpty.Manifest.Files = &empty
+	withBlobs.Manifest.Files = &bound
+	lost := absent
+	lost.Unresolved.Targets = []string{"bafyreigone", "bafyreialsogone"}
+
+	for _, tc := range []struct {
+		name, want string
+		idx        index
+	}{
+		{"no files member says nothing about blobs", "files   manifest.files absent: this export says nothing about blobs", absent},
+		{"an empty files member is a statement", "files   manifest.files is {}: this export carried no blobs on purpose", withEmpty},
+		{"a populated files member is a count", "files   1 blobs bound to file documents", withBlobs},
+		{"an index that lists no losses is not a clean bill", "lost    index.json reports nothing (which is not a claim that nothing is missing)", absent},
+		{"the ids the index itself could not serve", "lost    2 ids this index names and the bundle does not carry", lost},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := summary(tc.idx); !strings.Contains(got, tc.want) {
+				t.Errorf("\n want %s\n---- got ----\n%s", tc.want, got)
+			}
+		})
+	}
+
+	// The same two members, read out of a file rather than a literal, because a
+	// struct tag is a statement too: the dataview fixture's index names a widget
+	// target the bundle does not carry and says so in `unresolved.targets`.
+	t.Run("read from an index.json rather than a literal", func(t *testing.T) {
+		b, err := open(filepath.Join("testdata", "dataview"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := &strings.Builder{}
+		b.describe(out)
+		if want := "lost    1 ids this index names and the bundle does not carry"; !strings.Contains(out.String(), want) {
+			t.Errorf("\n want %s\n---- got ----\n%s", want, out.String())
+		}
+	})
+}
+
+// The two index members that choose what a reader is shown, read out of a real
+// index.json. The order between them only shows where they disagree, so the
+// fixture is one where every fallback would answer differently.
+func TestTheIndexChoosesTheDocumentShownFirst(t *testing.T) {
+	b, err := open(filepath.Join("testdata", "dataview"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := b.firstReadableID(); got != "bafyreiportal" {
+		t.Errorf("the homepage names bafyreiportal and the reader opened %q", got)
+	}
+	b.index.Homepage = ""
+	if got := b.firstReadableID(); got != "bafyreiset" {
+		t.Errorf("with no homepage the entrypoint answers; the reader opened %q", got)
+	}
+	b.index.Entrypoint = ""
+	if got := b.firstReadableID(); got != "bafyreicollection" {
+		t.Errorf("with neither, the first ordinary object by id; the reader opened %q", got)
+	}
+}
+
+// The parts of a rendered document that the worked example does not contain: a
+// type whose document did not travel (92 of the audited space's 3,286
+// documents), a document with no blocks at all, and an `embed` block, which
+// §8.4 exempts from markup parsing exactly as it exempts `code`.
+func TestTheDocumentShapesTheWorkedExampleDoesNotHave(t *testing.T) {
+	b := &bundle{docs: map[string]*document{}, byKey: map[string]*definition{}, bySpelling: map[string]*definition{}}
+	render := func(d *document) string {
+		out := &strings.Builder{}
+		b.describeDocument(out, d)
+		return out.String()
+	}
+	t.Run("a type whose document did not travel", func(t *testing.T) {
+		got := render(&document{ID: "bafyreia", Type: "Field note", TypeKey: "fieldnote"})
+		if want := "-> type-fieldnote (no type document in this bundle)"; !strings.Contains(got, want) {
+			t.Errorf("\n want %s\n---- got ----\n%s", want, got)
+		}
+	})
+	t.Run("a document with no blocks has no block section", func(t *testing.T) {
+		if got := render(&document{ID: "bafyreib"}); strings.Contains(got, "blocks") {
+			t.Errorf("an empty heading is a heading:\n%s", got)
+		}
+	})
+	t.Run("an embed block is never parsed for markup", func(t *testing.T) {
+		got := render(&document{ID: "bafyreic", Blocks: []block{{Type: "embed", Text: `<u>x</u>`}}})
+		if want := "| <u>x</u>"; !strings.Contains(got, want) {
+			t.Errorf("§8.4 exempts embed as it exempts code\n want %s\n---- got ----\n%s", want, got)
+		}
+	})
+}
+
+// The value arms the worked example does not reach. `files` shares the object
+// arm; a list on a single-valued format is a list and is printed as one; and
+// the two ways a named-enum value can fail to be a published name are the whole
+// reason `value_names` travels at all (§3).
+func TestTheValueArmsTheWorkedExampleDoesNotReach(t *testing.T) {
+	b := &bundle{docs: map[string]*document{"bafyreiphoto": {ID: "bafyreiphoto", path: "files/photo.json", Properties: map[string]any{"Name": "ridge.png"}}}}
+	layout := &definition{Key: "resolvedLayout", Format: "number", ValueNames: []string{"basic", "profile"}}
+	for _, tc := range []struct {
+		name, want string
+		def        *definition
+		value      any
+	}{
+		{"a file reference is followed like any other", `bafyreiphoto -> "ridge.png" in files/photo.json`,
+			&definition{Format: "files"}, "bafyreiphoto"},
+		{"an empty reference list says so", "(empty)", &definition{Format: "objects"}, []any{}},
+		{"a reference that is not a string is still shown", "7", &definition{Format: "objects"}, []any{float64(7)}},
+		{"a named-enum value that is not a string at all", `7   <- NOT a published name; the names are basic, profile`, layout, float64(7)},
+		{"a string that is not one of the published names", `"todo"   <- not one of the published names basic, profile`, layout, "todo"},
+		{"a string that is one of them", `"basic"   (one of 2 published names)`, layout, "basic"},
+		{"a number with no published names at all", "7", &definition{Format: "number"}, float64(7)},
+		{"a list on a single-valued format stays a list, on one line", `["a","b"]`, &definition{Format: "text"}, []any{"a", "b"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := b.renderValue(tc.def, tc.value); got != tc.want {
+				t.Errorf("renderValue\n got %s\nwant %s", got, tc.want)
+			}
+		})
+	}
+	var uncoloured definition
+	if err := json.Unmarshal([]byte(`{"format":"select","options":[{"name":"Rain"}]}`), &uncoloured); err != nil {
+		t.Fatal(err)
+	}
+	if got := b.renderValue(&uncoloured, "Rain"); got != "Rain" {
+		t.Errorf("an option with no colour is just its name, got %q", got)
+	}
+}
+
+// A collection longer than the reader prints. The largest measured collection
+// lists 257 ids and the fixtures list three, so the cap and the count of what
+// it hid were carried by nothing.
+func TestALongCollectionIsCappedAndSaysHowMuchItHid(t *testing.T) {
+	b := &bundle{docs: map[string]*document{}}
+	ids := []string{"a1", "a2", "a3", "a4", "a5", "a6", "a7"}
+	lines := b.listMembers("records: seven", ids)
+	if len(lines) != 1+membersListed+1 {
+		t.Fatalf("got %d lines, want a head, %d members and one summary:\n%s", len(lines), membersListed, strings.Join(lines, "\n"))
+	}
+	if last := lines[len(lines)-1]; last != "… and 2 more" {
+		t.Errorf("the tail is counted, not merely elided: %q", last)
+	}
+	if short := b.listMembers("records: three", ids[:3]); len(short) != 4 {
+		t.Errorf("a collection under the cap is printed whole, got %d lines", len(short))
+	}
+}
+
+// The flattener is not a validator: it renders malformed markup instead of
+// refusing it, which is right for reading and wrong for importing (README).
+// Every row here is a shape a real document can hold and the four-rule table
+// above cannot show, because each one is a rule NOT firing.
+func TestPlainTextRendersMalformedMarkupRatherThanRefusingIt(t *testing.T) {
+	for _, tc := range []struct{ name, in, want string }{
+		{"a backslash before a letter escapes nothing", `a\b`, `a\b`},
+		{"an unclosed code fence is not a span, and the markup after it is markup",
+			"a `<u>x</u>", "a `x"},
+		// CommonMark closes a span on a backtick run of exactly the opening
+		// length. The only run after this fence is longer, so it closes nothing:
+		// there is no span here at all, and what looked like its contents is
+		// markup. Found by differentially fuzzing this function against a copy
+		// with the longer-run rule removed — 1,194 of 300,000 random strings
+		// tell the two apart, and this is the shortest of them.
+		{"a longer backtick run is not this fence, so nothing is a span",
+			"`<u>x</u>``", "`x``"},
+		{"an unclosed tag is not a mark", `<u>x`, `<u>x`},
+		{"a tag this dialect does not know is prose", `<div>x</div>`, `<div>x</div>`},
+		{"a mark's own text is markup too", `<u>a <font color="red">b</font></u>`, "a b"},
+		{"a hand-written mention may quote its target with single quotes",
+			`<mention object_id='bafyreix'>A</mention>`, "A [@bafyreix]"},
+		{"a mention with no target at all still keeps its text",
+			`<mention>A</mention>`, "A [@]"},
+		{"a bracket that opens no link is prose", `[not a link] here`, `[not a link] here`},
+		{"an unclosed destination is not a link", `[a](b`, `[a](b`},
+		{"brackets nest inside a label", `[a [b] c](u)`, "a [b] c [→u]"},
+		{"an escaped bracket does not close the label", `[a\]b](u)`, "a]b [→u]"},
+		{"another scheme is an ordinary link",
+			`[n](other://object?objectId=bafyreinote)`, "n [→other://object?objectId=bafyreinote]"},
+		{"another anytype destination is an ordinary link",
+			`[n](anytype://space?objectId=bafyreinote)`, "n [→anytype://space?objectId=bafyreinote]"},
+		{"an objectId with no value addresses nothing",
+			`[n](anytype://object?objectId=)`, "n [→anytype://object?objectId=]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := plainText(tc.in); got != tc.want {
+				t.Errorf("plainText(%q)\n got %q\nwant %q", tc.in, got, tc.want)
 			}
 		})
 	}

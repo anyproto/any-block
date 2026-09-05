@@ -3,8 +3,15 @@
   "formatVersion": "2.0",
   "name": "Where a dataview's records come from",
   "homepage": "bafyreiportal",
+  "entrypoint": "bafyreiset",
+  "widgets": [
+    { "target": "bafyreighost" }
+  ],
   "manifest": {
     "properties": "properties.json",
     "files": {}
+  },
+  "unresolved": {
+    "targets": ["bafyreighost"]
   }
 }

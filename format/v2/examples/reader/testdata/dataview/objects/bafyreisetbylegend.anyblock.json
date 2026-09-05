@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreisetbylegend",
+  "type": "Set",
+  "type_internal_key": "set",
+  "property_internal_keys": {
+    "so": "setOf"
+  },
+  "properties": {
+    "Name": "A set that does not spell `Set of` that way",
+    "so": ["type-fieldnote#Field notes", 7, "type-walk"]
+  },
+  "blocks": [
+    {
+      "id": "dataview",
+      "type": "dataview",
+      "views": [{ "id": "v1", "name": "All" }]
+    }
+  ]
+}

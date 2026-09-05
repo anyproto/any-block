@@ -73,6 +73,17 @@
     {
       "id": "b7",
       "type": "dataview",
+      "object_id": "bafyreimemberone",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    },
+    {
+      "id": "b8",
+      "type": "dataview",
       "object_id": "_missing_object",
       "views": [
         {

@@ -41,13 +41,18 @@ cannot show and a measured corpus does not contain often enough to rely on:
 - `collision/` — one spelling that is one dictionary entry's `internal_key`
   and a different entry's `property`. No bundle in the 79-bundle corpus
   collides that way, so nothing but this fixture can hold the rule that a
-  stored key wins.
+  stored key wins. It also names no dictionary at all, which is what makes the
+  default path `properties.json` a rule rather than a coincidence.
 - `optionids/` — select values that name no option: an export run without an
   option resolver lets them through as ids, 74 times over the corpus.
-- `dataview/` — all seven ways SPEC §6.2 says a dataview names its source,
-  including the two that cannot be answered from a bundle at all.
+- `dataview/` — every way SPEC §6.2 says a dataview names its source, including
+  the ones that cannot be answered from a bundle at all, and a set that spells
+  `Set of` under a name of its own so nothing here can read the source by
+  trusting a spelling. Its `index.json` is also the one that names an
+  entrypoint and an unresolved widget target.
 - `reserved/` — the `_`-prefixed ids, which are not one thing: SPEC §13
   answers each form separately, and `exported_space` holds none of them.
 - `propertylist/` — the `properties` format, whose values are property keys.
   Not one dictionary entry in the corpus declares it, so it is the one
-  list-valued format no export could catch a reader mishandling.
+  list-valued format no export could catch a reader mishandling. Its dictionary
+  sits at `dictionary/props.json`, where only the index's own pointer finds it.
