@@ -209,8 +209,12 @@ func open(dir string) (*bundle, error) {
 // firstReadableID picks something to show when the caller named nothing: the
 // page the space opens on, else the first ordinary object, else the first
 // document of any kind. The last fallback is not academic — 12 of 79 measured
-// exports carry no ordinary object AND name a homepage the bundle does not
-// carry, so there is nothing but types and participants to show.
+// exports carry no ordinary object at all, and none of the 12 can show its
+// homepage either: 11 name one the bundle does not carry, and the twelfth
+// names `_widgets`, a reserved id that is never a document (READING.md step
+// 6). So all 12 reach here with nothing but types and participants to show.
+// READING.md states this census; do not restate a count here that drifts
+// from it.
 func (b *bundle) firstReadableID() string {
 	for _, id := range []string{b.index.Homepage, b.index.Entrypoint} {
 		if _, ok := b.docs[id]; ok {

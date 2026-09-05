@@ -291,7 +291,7 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 		{"a set that states no `Set of` at all", "bafyreinosetof", []string{
 			"records: this document's own `Set of`, which it does not state — a set is a live query, and no bundle answers it (§6.2)",
 		}},
-		{"the same six sources, named from another document", "bafyreiportal", []string{
+		{"the same seven sources, named from another document", "bafyreiportal", []string{
 			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
 			"records: the 3 ids bafyreicollection lists in `items` (objects/bafyreicollection.anyblock.json)",
 			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,

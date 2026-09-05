@@ -39,10 +39,14 @@ import (
 // integer. Their per-key counts are what the tail is the sum of.
 var tailKeys = []string{"widgetLayout", "templateNamePrefillType", "headerRelationsLayout"}
 
-// The three spellings the homes use for one number each: "widgetLayout 13"
-// (json.go, namedenum_test.go) and "widgetLayout's 13" (CHANGELOG).
+// The spellings the homes use for one number each: "widgetLayout 13"
+// (json.go, namedenum_test.go), "widgetLayout's 13" (CHANGELOG), and the
+// prose forms json.go writes in its own paragraphs — "headerRelationsLayout
+// on 62", "headerRelationsLayout is on 62 documents". The connectives are
+// part of the pattern because leaving them out is what let four of json.go's
+// five statements of this census go unread while the fifth was pinned.
 func tailKeyCount(key string) *regexp.Regexp {
-	return regexp.MustCompile(key + `(?:'s)? ([\d,]+)`)
+	return regexp.MustCompile(key + `(?:'s)?(?: is)?(?: on)? ([\d,]+)`)
 }
 
 var (
@@ -79,11 +83,21 @@ func TestUnnamedEnumTail_EveryHomesSumsAddUp(t *testing.T) {
 	for _, name := range names {
 		found := map[string]int{}
 		for _, key := range tailKeys {
-			m := tailKeyCount(key).FindStringSubmatch(homes[name])
-			if m == nil {
+			// ALL occurrences, not the first: a home that states the census
+			// more than once must agree with itself. Reading only the first
+			// match is how json.go once carried four sentences at one vintage
+			// and a fifth at another while this test stayed green — the exact
+			// drift the header says it exists to make impossible.
+			ms := tailKeyCount(key).FindAllStringSubmatch(homes[name], -1)
+			if ms == nil {
 				continue
 			}
-			found[key] = figure(t, m[1])
+			n := figure(t, ms[0][1])
+			for _, m := range ms[1:] {
+				require.Equalf(t, n, figure(t, m[1]),
+					"%s states %s's count more than once and disagrees with itself", name, key)
+			}
+			found[key] = n
 		}
 		if len(found) == 0 {
 			continue

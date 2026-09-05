@@ -103,8 +103,9 @@ Do not assume there is an ordinary object to show. Across 79 measured exports,
 not — and **11 of those 12** also name a `homepage` the bundle does not carry.
 The twelfth names `_widgets`, which is a reserved id and therefore never a
 document at all (step 6): its homepage is not missing, it is a built-in
-screen. So the fallback a reader needs is "show something, anything", and the
-count of exports where the homepage cannot be shown is 11, not 12.
+screen. So the fallback a reader needs is "show something, anything", and it
+is needed in all 12 — a reserved homepage is no more showable than a missing
+one. What is 11, not 12, is the count whose homepage *document* is absent.
 
 ## 3. Read the dictionary the index points at
 
