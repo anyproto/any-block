@@ -359,7 +359,7 @@ func (b *bundle) describeReference(raw string) string {
 	id, caption := reference(raw)
 	switch {
 	case strings.HasPrefix(id, "_"):
-		return fmt.Sprintf("%s (a reserved id — a built-in screen or a date, not a document)", id)
+		return id + " " + reservedID(id)
 	case b.docs[id] != nil:
 		return fmt.Sprintf("%s -> %q in %s", id, b.title(b.docs[id]), b.docs[id].path)
 	case caption != "":
@@ -367,6 +367,32 @@ func (b *bundle) describeReference(raw string) string {
 	default:
 		return fmt.Sprintf("%s (not in this bundle)", id)
 	}
+}
+
+// reservedID says what ONE `_`-prefixed id is. The leading underscore is the
+// only thing every reserved id has in common: a bundle-local id may never begin
+// with one (§1), so none of them is this bundle's to carry and none of them is
+// missing. Past that they are not one thing, and §13 answers each form
+// separately — a sentinel that IS the answer, a platform address, and a date
+// the platform mints are three different facts, and a reader told one sentence
+// for all three has been told the wrong one twice.
+//
+// The eight built-in listings (`_favorite`, `_bin`, …) are absent on purpose
+// rather than forgotten: §13 puts them in `index.json` only — widget targets
+// and `homepage` — and this reader's index struct carries no widgets member, so
+// none of them can reach this function. The last arm is for a reserved form
+// this program does not know, which is honest about knowing nothing more than
+// §1.
+func reservedID(id string) string {
+	switch {
+	case id == "_missing_object":
+		return "(the space's own sentinel for a reference it could not serve — it does not resolve, it IS the answer)"
+	case id == "_anytype_profile":
+		return "(the platform's own profile object — a platform address, not a bundle id)"
+	case strings.HasPrefix(id, "_date_"):
+		return "(a virtual date object — the date is in the id, and the platform mints the object on demand)"
+	}
+	return "(a reserved id this reader has no answer for — a bundle-local id may never begin with an underscore, so no bundle carries it)"
 }
 
 // describeOption says what one select value is. A value that matches an option

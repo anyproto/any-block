@@ -273,7 +273,7 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,
 			"records: every object matching bafyreiset's `Set of` (type-fieldnote) — a set is a live query, and no bundle answers it (§6.2)",
 			"records: from bafyreighost (not in this bundle), so this block does not say where they come from",
-			"records: from _participants (a reserved id — a built-in screen or a date, not a document), so this block does not say where they come from",
+			"records: from _missing_object (the space's own sentinel for a reference it could not serve — it does not resolve, it IS the answer), so this block does not say where they come from",
 			"records: a legacy detached inline set over source [ot-task] — a live query, and no bundle answers it (§6.2)",
 		}},
 	} {
@@ -290,5 +290,45 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// One sentence used to answer for every `_`-prefixed id: "a reserved id — a
+// built-in screen or a date, not a document". Rendering all 24,889 documents of
+// the 79-bundle corpus emits that sentence 2,727 times, for exactly three ids —
+// `_anytype_profile` 2,647, `_missing_object` 79, `_date_2025-02-14` 1 — so it
+// was true once and false 2,726 times. SPEC §13 answers each form separately,
+// and the built-in-screen half it names is unreachable here by construction:
+// those ids live in `index.json` widget targets and `homepage` only, and this
+// reader's index struct has no widgets member, so no `_favorite`/`_bin`/`_chat`
+// ever reaches describeReference. The fixture holds each form in a slot §13
+// says it occurs in: `_anytype_profile` on `Created by`, `_missing_object` and
+// `_date_…` in singular block `object_id`s, and the unfolded participant
+// composite — legal in a reference slot, held by no reference slot in the
+// corpus — for the arm that answers when this reader knows no better.
+func TestEachReservedIDSaysWhatItIs(t *testing.T) {
+	b, err := open(filepath.Join("testdata", "reserved"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, ok := b.docs["bafyreireserved"]
+	if !ok {
+		t.Fatal("fixture lost bafyreireserved")
+	}
+	out := &strings.Builder{}
+	b.describeDocument(out, doc)
+	got := out.String()
+	for _, want := range []string{
+		"_anytype_profile (the platform's own profile object — a platform address, not a bundle id)",
+		"_missing_object (the space's own sentinel for a reference it could not serve — it does not resolve, it IS the answer)",
+		"_date_2026-04-02 (a virtual date object — the date is in the id, and the platform mints the object on demand)",
+		"_participant_bafyreiotherspace_A11111111111111111111111111111111111111111111111 (a reserved id this reader has no answer for — a bundle-local id may never begin with an underscore, so no bundle carries it)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing the answer for one reserved form\n want %s\n---- got ----\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "built-in screen") {
+		t.Errorf("a built-in screen id cannot reach describeReference, so no reserved id may be described as one:\n%s", got)
 	}
 }
