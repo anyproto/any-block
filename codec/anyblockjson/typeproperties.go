@@ -115,9 +115,15 @@ type PropertyDefinition struct {
 	// because something references the key (§2f), so those values are the
 	// normal case rather than the corner.
 	//
-	// A member of the dictionary home only (§2f): on a type's declaration
-	// or a property document's settings it would say nothing, and both
-	// refuse it, the way the dictionary refuses `section`.
+	// Two of the shape's three homes state it (§2f, §15 #22): a dictionary
+	// entry, and a type's property_definitions entry, each of which is a
+	// COMPLETE standalone definition — a type read on its own would
+	// otherwise present a removed property as a live one. The third refuses
+	// it: a property document's settings mirror stored presence member for
+	// member (§2d), and the removal is not one of the three that travel
+	// there. It is off the shared shape for exactly that reason, which is
+	// also why ApiKey, Hidden and BundledDiverged below stay the
+	// dictionary's alone — those say nothing a type's declaration says.
 	Uninstalled bool
 	// ApiKey is the property's public API key (stored `apiObjectKey`) — the
 	// spelling callers address it by on the API surface, which is NOT a slug
@@ -132,18 +138,20 @@ type PropertyDefinition struct {
 	// place the stored value can travel; without it the API addresses a
 	// restored property by something its callers never wrote.
 	//
-	// Dictionary-owned, like the flags above: a type's declaration says how
-	// THAT type uses a property, and the property's public address is not
-	// one of the things it says.
+	// Dictionary-owned, unlike Uninstalled above: a type's declaration says
+	// how THAT type uses a property, and the property's public address is
+	// not one of the things it says.
 	ApiKey string
 	// Hidden records that the store hides this property from every listing
 	// (stored `isHidden` true). With no property document in a bundle
 	// (§15 #23) the dictionary entry is the only place the fact can travel,
-	// so it is the entry's own member exactly as Uninstalled is — refused
-	// on the shape's other two homes and by the authoring subset, written
-	// `true` only. It is distinct from a type declaration's Section, which
-	// says where a property sits on ONE type; Hidden says whether the
-	// property is shown at all.
+	// so it is the entry's own member — refused on the shape's other two
+	// homes and by the authoring subset, written `true` only. Uninstalled
+	// travels on a type's declaration as well and this does not, for the
+	// reason the distinction from a type declaration's Section makes plain:
+	// Section says where a property sits on ONE type, and Hidden says
+	// whether the property is shown at all, which is a fact about the
+	// store's listings rather than about any type's definition of it.
 	Hidden bool
 	// BundledDiverged records that the space's copy of a BUNDLED property
 	// — a key the shipped table names — had DIVERGED from the table when
@@ -156,9 +164,10 @@ type PropertyDefinition struct {
 	// member and not a derivation. Absent says "not a bundled property, or
 	// bundled and not diverged"; the table lookup a reader already runs (§15
 	// #24) tells those apart, so this is NOT a `bundled` flag. The last of
-	// the four dictionary-owned members (§2f, §15 #25), on Uninstalled's
-	// footing: refused on the shape's other two homes and by the authoring
-	// subset, written `true` only.
+	// the three dictionary-owned members (§2f, §15 #25): refused on the
+	// shape's other two homes and by the authoring subset, written `true`
+	// only. A type's declaration never states it — a type saw no space and
+	// no shipped table, so it holds no verdict about either.
 	BundledDiverged bool
 }
 
