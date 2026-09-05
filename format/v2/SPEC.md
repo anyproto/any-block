@@ -1845,8 +1845,8 @@ a property document, and both other homes refuse them.
   declare `format: "number"` and export a NAME (§3) — `layout`,
   `resolvedLayout`, `layoutAlign`, `origin`, `importType`, `imageKind`,
   `participantPermissions`, `participantStatus`, with `recommendedLayout` a
-  ninth key in the same table, carried by a type
-  document as `type_settings.layout`. Their entries state the complete list
+  ninth key in the same table, carried by a type document as
+  `type_settings.layout`. Their entries state the complete list
   of admissible names, sorted. The member exists because on exactly these
   keys `format` is a lie of omission and the entry's own `description` is
   worse than silence: `layout`'s reads "Anytype layout ID(from pb enum)" —
@@ -1854,27 +1854,27 @@ a property document, and both other homes refuse them.
   shipped table — and a reader that believes it writes `"Layout": 1`;
   `participantPermissions`' reads "Participant permissions. Possible values:
   models.ParticipantPermissions", which points at a Go symbol in a repository
-  the bundle does not ship. Read
-  `format` with `value_names`, never with `description`: a description is
+  the bundle does not ship. Read `format` with `value_names`, never with
+  `description`: a description is
   free text a user may have edited, this list is the encoder's. Measured over
   the 79-bundle corpus: of the 101,600 property slots whose entry says
   `format: "number"`, 62,340 hold a string, 39,237 a number and 23 a JSON
-  `null` — the string
-  form is the **majority** — and 62,325 of those strings sit on six of these
-  keys, in which not one value is a number. The participant pair dates that
-  corpus rather than contradicting it: those two were named after it was
-  taken, so its 5,038 participant slots (2,519 each, in all 79 bundles) still
-  hold the bare integers the names replace. Nothing else in a bundle could tell a
-  reader the members: `object.schema.json` publishes each enum vocabulary to
-  the slots that constrain it and never to a property value, and
+  `null` — the string form is the **majority** — and 62,325 of those strings
+  sit on six of these keys, in which not one value is a number. The
+  participant pair dates that corpus rather than contradicting it: those two
+  were named after it was taken, so its 5,038 participant slots (2,519 each,
+  in all 79 bundles) still hold the bare integers the names replace. Nothing
+  else in a bundle could tell a reader the members: `object.schema.json`
+  publishes each enum vocabulary to the slots that constrain it and never to
+  a property value, and
   `$defs/propertyMap` accepts anything at all. The list is DERIVED from the
   encoder's own table (`namedEnumProperties`), never maintained beside it, so
   it cannot publish a name export has stopped writing. It is READ-facing:
-  all nine keys are hidden, readonly or both in the shipped table — seven carry
-  `isHidden`, and the two that do not, `origin` and `importType`, carry a
-  readonly value — so the member says what a value MEANS,
-  never what a caller may choose — an author never writes one, the authoring
-  subset refuses it, and a hand-written list is answered with a warning
+  all nine keys are hidden, readonly or both in the shipped table — seven
+  carry `isHidden`, and the two that do not, `origin` and `importType`, carry
+  a readonly value — so the member says what a value MEANS, never what a
+  caller may choose — an author never writes one, the authoring subset
+  refuses it, and a hand-written list is answered with a warning
   rather than obeyed, in both directions (a key with no vocabulary, and a
   list that disagrees), because these vocabularies are total over their proto
   enums and a newer app's added member must not become an older reader's hard
@@ -1917,8 +1917,8 @@ a property document, and both other homes refuse them.
   value. What is left after all three is a key like the audited space's
   `"66602dc5e5672d06c0e19245": 1717538400` — no entry, no declaration, no
   format cached on a dataview column, and one legend line spelling the key
-  as itself — which could be a date, a count or an id,
-  and the entry says so by saying nothing. A reader MUST NOT create a
+  as itself — which could be a date, a count or an id, and the entry says so
+  by saying nothing. A reader MUST NOT create a
   property from one; what it may do is read the values under the key as the
   raw JSON they are, and say so. How MANY keys a bundle lost, and which, is
   not counted here but stated in `index.json` (§2c): an entry answers *what
@@ -2743,17 +2743,16 @@ makes that so. `type_settings.layout` is the same stored key
 its own path. What that costs is measured rather than waved away. On the six
 keys already named when the 79-bundle corpus was taken — `layout`,
 `resolvedLayout`, `layoutAlign`, `origin`, `importType`, `imageKind` — all
-62,325 values in it are strings and not one is a number, so it refuses
-nothing there. The
-participant pair was named after that corpus was taken, and an export made
-before a key is named holds the bare integer: all 2,519 of the corpus's
-participant documents carry `Participant permissions` and `Participant
-status` as numbers a vocabulary can now name, and this validation refuses
-every one of them — 1,880 of them in the audited space — naming the value
-the number stands for. That is the one-time cost of closing a naming gap on
-a key real data already carries, paid by exports that predate the name; a
-document re-exported by this version writes `writer` where the old one wrote
-1. And the refusal is the second line of defence, not the first —
+62,325 values in it are strings and not one is a number, so nothing there is
+refused. The participant pair was named after that corpus was taken, and an
+export made before a key is named holds the bare integer: all 2,519 of the
+corpus's participant documents carry `Participant permissions` and
+`Participant status` as numbers a vocabulary can now name, and validation
+refuses every one of them — 1,880 in the audited space alone — naming the
+value the number stands for. That is the one-time cost of closing a naming
+gap on a key real data already carries, paid by the exports that predate the
+name; a document re-exported by this version writes `writer` where the old
+one wrote 1. And the refusal is the second line of defence, not the first —
 the first is that a bundle PUBLISHES the admissible names on the property's
 dictionary entry (`value_names`, §2f), derived from the same table this
 section lists, so a reader learns the vocabulary instead of guessing at it.
@@ -3145,19 +3144,19 @@ Checked against the raw spelling instead, all three were dead for exactly
 the documents this format produces: `unique_key` walked past the rule that
 `uniqueKey` tripped, and a `property_internal_keys` entry could rebind any harmless
 spelling onto any internal key — including `id` itself, which overwrote the
-envelope id from inside `properties`. `Validate` is handed one document's bytes and
-no bundle, so of §3a's five rungs it can run three: the document's own
-legend (1), the name table the reader holds (4), and verbatim (5). The rung
-a bundle answers nearly everything on — a **dictionary entry**, rung 3 — is
-not there to consult, and rung 2 asks whether the spelling is itself a key
-the reader can SEE, which a byte-only caller holding no store and no
-dictionary can only learn from the identity legend entries export owes. It
-takes no resolver (§13).
-`bundle.Validate` closes that gap in a second pass rather than in this one:
-each document is checked through this same dictionary-less call, and the
-bundle's dictionary then feeds a vocabulary the whole bundle is re-read
-through (`PlanAuthoringTypeVocabulary`), which is the *resolves further*
-case below, not an exception to it. A reader whose vocabulary resolves *further* — a
+envelope id from inside `properties`. `Validate` is handed one document's
+bytes and no bundle, so of §3a's five rungs it can run three: the document's
+own legend (1), the name table the reader holds (4), and verbatim (5). The
+rung a bundle answers nearly everything on — a **dictionary entry**, rung 3
+— is not there to consult, and rung 2 asks whether the spelling is itself a
+key the reader can SEE, which a byte-only caller holding no store and no
+dictionary can learn only from the identity legend entries export owes. It
+takes no resolver (§13). `bundle.Validate` does not close that gap in this
+call either: it checks each document through this same dictionary-less
+`Validate`, and then re-reads the whole bundle through a vocabulary the
+dictionary feeds (`PlanAuthoringTypeVocabulary`), which is the *resolves
+further* case rather than an exception to it. A reader whose vocabulary
+resolves *further* — a
 node-backed caller whose space maps a spelling to a stored key the bundled
 table never knew — must re-run admission on **its** final resolved key,
 which import does at the seam where details are written (`importer.build`).
@@ -3272,14 +3271,14 @@ Rungs never compete: the first that answers wins, and the order is the
 order above. Within rung 3, an entry's `property` outranks an entry's
 `name`, because two entries may share a `name` and may not share a
 `property` — measured over the 79-bundle corpus, 27 (bundle, name) pairs are
-ambiguous: 23 distinct display names, each claimed inside one bundle by two
-entries, and once by four. No `property` spelling is claimed twice inside a
-bundle, and one key may occupy only one entry (§2f). The counts are stated
-per bundle because a reader holds one bundle; pooled over the corpus, 58
-names are claimed by more than one key and still no `property` spelling is,
-which is what makes the ordering a rule rather than a coincidence of this
-sample. An ambiguity that survives all
-five rungs is never guessed: it is the type-scoped resolution or the loud
+ambiguous: 23 distinct display names, each claimed by two entries of one
+bundle, and in a single case by four. No `property` spelling is claimed
+twice inside a bundle, and one key may occupy only one entry (§2f). The
+counts are per bundle because a reader holds one bundle; pooled across all
+79, 58 names are claimed by more than one key and still no `property`
+spelling is, which is what makes the ordering a rule rather than a
+coincidence of this sample. An ambiguity that survives all five rungs is
+never guessed: it is the type-scoped resolution or the loud
 error of §3, naming the term and asking for the legend entry that would
 settle it.
 
@@ -3318,9 +3317,9 @@ keep them apart, because they are four different facts:
   neither and the three counts sum to 156 rather than to 155. Those 2 are no
   longer undefined at all — the composer defines them from the declaration —
   which takes the same space's undefined set to 153 keys, 313 documents and
-  628 values: 59 with a hint and the same 94 with nothing at all, the two
-  that leave being the declared pair and the hint they take with them the
-  one key that was in both sets.
+  628 values, of which 59 keep a hint and the same 94 have nothing at all:
+  the two keys that leave are the declared pair, and one of them is the key
+  that was in both sets.
 - **No entry for the key at all.** The bundle was not written by a composer
   that states the undefined ones — every bundle produced before that rule
   is in this state — so the silence means nothing in particular. Treat it
