@@ -423,6 +423,54 @@ func TestComposeNoDerivedTypeIds_IndexTargetsResolveInBothModes(t *testing.T) {
 	}
 }
 
+// The other half of the index question: what a target that resolves to
+// NOTHING is called. `unresolved.targets` and bundle.Validate must name the
+// missing type the same way the rest of the bundle would have named it, or
+// an export reports a loss under a spelling nobody can look up. Both sides
+// fold through the run's own Options, so the mode decides the spelling
+// consistently: `type-bug` with it off, the store id with it on.
+//
+// How this can fail: report the raw store id while the index writes the
+// derived one (the two disagree in the default mode, which is every export
+// shipped so far).
+func TestComposeNoDerivedTypeIds_AnUnresolvedTypeTargetIsNamedInTheModesOwnSpelling(t *testing.T) {
+	for _, mode := range []bool{false, true} {
+		widget, err := anyblockjson.WidgetsSnapshot(&anyblockjson.Index{
+			Widgets: []anyblockjson.Widget{{Target: noDerivedTypeStoreId}},
+		})
+		require.NoError(t, err)
+
+		c := NewComposer(noDerivedOptions(mode), "Corpus")
+		omitted, issues := c.Observe(model.SmartBlockType_Widget, widget)
+		require.True(t, omitted)
+		require.Empty(t, issues)
+		// and no type document is written, so the widget names nothing
+
+		indexData, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+
+		want := "type-bug"
+		if mode {
+			want = noDerivedTypeStoreId
+		}
+		assert.Equal(t, []string{want}, stats.UnresolvedTargets, "mode=%v", mode)
+
+		idx, err := anyblockjson.UnmarshalIndex(indexData, anyblockjson.Options{})
+		require.NoError(t, err)
+		require.NotNil(t, idx.Unresolved, "mode=%v", mode)
+		assert.Equal(t, []string{want}, idx.Unresolved.Targets, "mode=%v", mode)
+
+		// Validate reads the same file and reaches the same id
+		err = Validate(fstest.MapFS{
+			anyblockjson.IndexFileName:      {Data: indexData},
+			anyblockjson.PropertiesFileName: {Data: dictData},
+		})
+		require.Error(t, err, "mode=%v", mode)
+		assert.Contains(t, err.Error(),
+			`widgets[0].target references object "`+want+`"`, "mode=%v", mode)
+	}
+}
+
 // REPORTED, not desired. The property dictionary's `object_types` is
 // written by MarshalPropertyDictionary through dictionaryTypeSpelling,
 // which does not consult the mode — so with the mode ON one type is spelled
