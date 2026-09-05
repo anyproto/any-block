@@ -1514,10 +1514,13 @@ predicate's fail-closed one, not a member diff: a copy
 `OmittedBundledRelation` refuses for an unclassified detail on its page,
 or a block, is flagged too, and its entry then equals the table, which
 costs the reader nothing.
-Written `true` only, false being the absent form; an author never writes
-it, there being no space whose copy could have diverged (§2g); a member of
-the dictionary entry only, refused by the shape's other two homes as
-`uninstalled` and `hidden` are (§2e).
+Written `true` only, false being the absent form; an author never writes it,
+there being no space whose copy could have diverged (§2g); a member of the
+dictionary entry only, refused by the shape's other two homes as `hidden`,
+`api_key` and `value_names` are (§2e). `uninstalled` is not on that footing
+and has not been since a type's declaration began stating it too — a removal
+is a fact about the property, and a divergence is a verdict about a space no
+type document saw.
 
 **A property the user REMOVED travels as a flag, not as a document.** The
 app cannot delete an installed copy of a bundled property — the copy is
@@ -1555,11 +1558,18 @@ values are the normal case rather than the corner.
 omission against (§11) — the export proving it dropped nothing — not a
 shape a reader is being told to build.
 
-The entry answers for the key whichever way the reader chose: a value
-stored under it means what the entry says. `uninstalled` is the dictionary's own member, as `section`
-is the type declaration's (§2e) — on the shape's other homes it would
-describe nothing, and both refuse it — and an author never writes it,
-because a bundle that has not been installed has nothing to uninstall
+The entry answers for the key whichever way the reader chose: a value stored
+under it means what the entry says. `uninstalled` is the one member of the
+shape TWO homes state (§2e): a type's `property_definitions` entry carries
+it as well, because that entry is a complete standalone definition too and
+one presenting a removed property as live is not complete (§2a). So it is
+not the dictionary's own the way `hidden`, `api_key`, `bundled_diverged` and
+`value_names` are, nor the type's own the way `section` is; what both of its
+homes have in common is that each states a whole definition on its own. The
+shape's THIRD home refuses it as it refuses all five of the others — a
+property document's `property_settings` mirrors stored presence member for
+member (§2d), and the removal is not one of the three that travel there. An author never writes
+it, because a bundle that has not been installed has nothing to uninstall
 (§2g). False is the absent form; export writes `true` only. The reinstall
 stamp — the flag stored `false` on a copy the user removed and installed
 again — is absent-equivalent to every consumer of the key and omits as an
@@ -1581,14 +1591,16 @@ flag on the entry is the only statement.
 `isHidden` on a relation object keeps the property out of every listing;
 with no property document in a bundle, the dictionary entry is the only
 place the fact can live, so it carries `hidden: true` (§15 #23). The member
-mirrors `uninstalled` exactly: the dictionary's own, refused by the shape's
-other two homes and by the authoring subset (§2g — an author declares a
-property to use it, and hiding one is a store fact the export records, like
-`internal_key`), written `true` only, false being the absent form. A reader
-that recreates the property sets the mark; a reader that only interprets
-values ignores it. It is distinct from a type declaration's `section`,
-which says where a property sits on ONE type: `hidden` says whether the
-property is shown at all. In the same 40-space census, 20 of the 379
+is the dictionary's OWN: refused by the shape's other two homes and by the
+authoring subset (§2g — an author declares a property to use it, and hiding
+one is a store fact the export records, like `internal_key`), written `true`
+only, false being the absent form. That is where it parts from
+`uninstalled`, which it otherwise resembles: a type's declaration states a
+removal, and states nothing about the store's listings. A reader that
+recreates the property sets the mark; a reader that only interprets values
+ignores it. It is distinct from a type declaration's `section`, which says
+where a property sits on ONE type: `hidden` says whether the property is
+shown at all. In the same 40-space census, 20 of the 379
 space-minted relation documents carry `isHidden: true` (131 carry it
 false) — the fact that would otherwise have gone nowhere. A bundled key's
 hidden bit travels the same way: 141 of the shipped table's 194 relations
@@ -1773,9 +1785,16 @@ module's composition writes none, §15 #23). The order is:
    `bundled_diverged`, where the entry is the user's version and outranks
    the table (§15 #25). It is the bundle-wide statement, and the one an
    author writes when there is no relation document at all.
-3. **A type's `property_definitions` entry**, which narrows nothing and adds
-   only `section` — what THIS type does with the property, not what the
-   property is.
+3. **A type's `property_definitions` entry**, which narrows the shared
+   shape (`format` to the authorable vocabulary, `object_types` to a real
+   array) and adds two members of its own: `section` — what THIS type does
+   with the property, not what the property is — and `uninstalled`, which
+   is a fact about the PROPERTY, stated here because the entry is a
+   complete standalone definition and one presenting a removed property as
+   live is not complete (§2a, §2e). In a real export the two homes state
+   the removal off the same copy of the property and cannot disagree; where
+   a hand-written bundle makes them, this list is the answer and the
+   dictionary outranks the declaration.
 4. **A property document's `property_settings`**, where a bundle carries
    one — the same `propertyDefinition`, and it should agree by construction;
    where it does not, the dictionary is the bundle's answer.
@@ -1943,9 +1962,11 @@ references `plainIcon`, and closed with `unevaluatedProperties`. Its layer
 narrows `object_types` back to a real array — only a relation's STORED
 value can hold a null (§2d), and a dictionary describes a property rather
 than mirroring a store slot. `section` is refused: it is the type-owned
-member, meaningless off a type document — and `uninstalled`, `hidden` and
-`bundled_diverged` are admitted for the mirror-image reason, as the
-entry's own (§2e). One key, one slot: a key stated
+member, meaningless off a type document. `hidden`, `api_key`,
+`bundled_diverged` and `value_names` are admitted for the mirror-image
+reason, as the entry's own, and `uninstalled` for a different one — a type's
+declaration states that one too, both homes being complete standalone
+definitions (§2e). One key, one slot: a key stated
 twice in `properties` is refused on read and on write alike, with the
 first occurrence named.
 
