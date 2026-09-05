@@ -77,13 +77,13 @@ func TestUnknownFormat_StatesNothingElse(t *testing.T) {
 		t.Run(member, func(t *testing.T) {
 			data := []byte(`{"formatVersion":"2.0","properties":[` +
 				`{"internal_key":"68cda76ee9223c9dc7ce5e92","format":"unknown",` + member + `}]}`)
-			err := UnmarshalPropertyDictionaryErr(data)
+			err := unmarshalDictionaryErr(data)
 			require.Error(t, err, "an entry that could say this had a definition to state")
 		})
 	}
 }
 
-func UnmarshalPropertyDictionaryErr(data []byte) error {
+func unmarshalDictionaryErr(data []byte) error {
 	_, err := UnmarshalPropertyDictionary(data, Options{})
 	return err
 }
