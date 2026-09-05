@@ -256,12 +256,19 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 		{"a type document's own listing", "type-fieldnote", []string{
 			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
 		}},
+		{"one member is one id, not one ids", "bafyreionemember", []string{
+			"records: the 1 id this document lists in `items` — a collection is answered from this bundle alone (§6.2)",
+		}},
+		{"a type document hosting its own listing without naming itself", "type-walk", []string{
+			`records: every object of type "Walk" — a live query, and no bundle answers it (§6.2)`,
+		}},
 		{"the same four sources, named from another document", "bafyreiportal", []string{
 			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
 			"records: the 3 ids bafyreicollection lists in `items` (objects/bafyreicollection.anyblock.json)",
 			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,
 			"records: every object matching bafyreiset's `Set of` (type-fieldnote) — a set is a live query, and no bundle answers it (§6.2)",
 			"records: from bafyreighost (not in this bundle), so this block does not say where they come from",
+			"records: from _participants (a reserved id — a built-in screen or a date, not a document), so this block does not say where they come from",
 			"records: a legacy detached inline set over source [ot-task] — a live query, and no bundle answers it (§6.2)",
 		}},
 	} {

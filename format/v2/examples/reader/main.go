@@ -553,12 +553,14 @@ func (b *bundle) dataviewSource(host *document, blk block) []string {
 		target, ok := b.docs[id]
 		switch {
 		case !ok:
-			return []string{fmt.Sprintf("records: from %s (not in this bundle), so this block does not say where they come from", id)}
+			// Follow it the way every other reference is followed, so a
+			// reserved id says it is reserved rather than merely absent.
+			return []string{fmt.Sprintf("records: from %s, so this block does not say where they come from", b.describeReference(blk.ObjectID))}
 		case target.Kind == "object_type":
 			return []string{fmt.Sprintf("records: every object of type %q (%s in %s) — a live query, and no bundle answers it (§6.2)",
 				b.title(target), target.ID, target.path)}
 		case len(target.Items) > 0:
-			return b.listMembers(fmt.Sprintf("records: the %d ids %s lists in `items` (%s)", len(target.Items), id, target.path), target.Items)
+			return b.listMembers(fmt.Sprintf("records: the %s %s lists in `items` (%s)", countIDs(len(target.Items)), id, target.path), target.Items)
 		}
 		if query, stated := b.setOf(target); stated {
 			return []string{fmt.Sprintf("records: every object matching %s's `Set of` (%s) — a set is a live query, and no bundle answers it (§6.2)", id, query)}
@@ -571,9 +573,13 @@ func (b *bundle) dataviewSource(host *document, blk block) []string {
 		if len(host.Items) == 0 {
 			return []string{"records: this document's own `items`, which lists none — an empty collection (§6.2)"}
 		}
-		return b.listMembers(fmt.Sprintf("records: the %d ids this document lists in `items` — a collection is answered from this bundle alone (§6.2)", len(host.Items)), host.Items)
+		return b.listMembers(fmt.Sprintf("records: the %s this document lists in `items` — a collection is answered from this bundle alone (§6.2)", countIDs(len(host.Items))), host.Items)
 	case len(blk.Source) > 0:
 		return []string{fmt.Sprintf("records: a legacy detached inline set over source [%s] — a live query, and no bundle answers it (§6.2)", strings.Join(blk.Source, ", "))}
+	case host.Kind == "object_type":
+		// A type document's own listing, written without the self-reference
+		// that 1,776 of the measured blocks spell out.
+		return []string{fmt.Sprintf("records: every object of type %q — a live query, and no bundle answers it (§6.2)", b.title(host))}
 	}
 	if query, stated := b.setOf(host); stated {
 		return []string{fmt.Sprintf("records: every object matching this document's `Set of` (%s) — a set is a live query, and no bundle answers it (§6.2)", query)}
@@ -609,6 +615,15 @@ func (b *bundle) setOf(d *document) (string, bool) {
 		return strings.Join(targets, ", "), true
 	}
 	return "", false
+}
+
+// countIDs keeps a teaching program from saying "1 ids". 28 of the measured
+// collections list exactly one member.
+func countIDs(n int) string {
+	if n == 1 {
+		return "1 id"
+	}
+	return fmt.Sprintf("%d ids", n)
 }
 
 // listMembers prints a collection's membership: these are ids, so each one is
