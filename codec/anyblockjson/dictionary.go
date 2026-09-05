@@ -26,6 +26,7 @@ package anyblockjson
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -161,6 +162,12 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 	if err := jsonUnmarshal(data, &jd); err != nil {
 		return nil, fmt.Errorf("decode property dictionary: %w", err)
 	}
+	// `value_names` is DERIVED, so no field decodes it: the reader answers a
+	// written list rather than carrying it, and the writer re-derives, which
+	// is what makes Unmarshal ∘ Marshal a fixpoint with no second list to
+	// drift. The raw entries travel alongside the decoded ones for that one
+	// question; the two slices are the same array, so index i is index i.
+	rawEntries, _ := doc["properties"].([]any)
 	d := &PropertyDictionary{}
 	for i, tp := range jd.Properties {
 		// an entry's `internal_key` IS the stored key and skips the chain —
@@ -186,6 +193,9 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 		storedKey := term
 		if !isInternal {
 			storedKey = dictionaryEntryKey(i, term, warn)
+		}
+		if i < len(rawEntries) {
+			dictionaryValueNamesWarning(storedKey, rawEntries[i], i, warn)
 		}
 		// entries speak STORED keys in every key slot — the entry identity
 		// and `object_types` alike — so there is no legend to run and no
@@ -373,6 +383,52 @@ func dictionaryEntryKey(i int, spelling string, warn func(Issue)) string {
 	return stored
 }
 
+// dictionaryValueNamesWarning answers a WRITTEN `value_names`. Export derives
+// the member from the encoder's own table, so a list in a hand-written
+// dictionary is a claim rather than a declaration, and the reader says so
+// instead of acting on it.
+//
+// A WARNING and not an error, in both directions. The vocabularies are total
+// over their proto enums, so a member added to the model gains a name here —
+// and a bundle written by a newer app would then state a list an older reader
+// does not have. Refusing it would turn a compatible addition into a hard
+// failure over a member that describes rather than constrains; the format has
+// nothing but `formatVersion` to negotiate that with, and this is not a
+// version change.
+func dictionaryValueNamesWarning(storedKey string, raw any, i int, warn func(Issue)) {
+	entry, _ := raw.(map[string]any)
+	if entry == nil {
+		return
+	}
+	stated, present := entry[memberValueNames]
+	if !present {
+		return
+	}
+	path := fmt.Sprintf("/properties/%d/%s", i, memberValueNames)
+	vocab, named := namedEnumProperty(storedKey)
+	if !named {
+		warnIssue(warn, path,
+			"%q has no named vocabulary in this format, so this states a closed set of values "+
+				"that nothing enforces — the member is written for the keys whose stored NUMBER "+
+				"this format writes as a NAME, and only for those",
+			storedKey)
+		return
+	}
+	list, _ := stated.([]any)
+	got := make([]string, 0, len(list))
+	for _, v := range list {
+		s, _ := v.(string)
+		got = append(got, s)
+	}
+	if !slices.Equal(got, vocab.names()) {
+		warnIssue(warn, path,
+			"the names stated here do not match the vocabulary this format writes for %q "+
+				"(one of %s) — the member is derived from the encoder's own table, so a written "+
+				"list is read as a claim and the export's own list is what a reader gets",
+			storedKey, vocab.quotedNames())
+	}
+}
+
 func mapStrings(in []string, f func(string) string) []string {
 	if len(in) == 0 {
 		return in
@@ -522,6 +578,21 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	if err := renderPropertyDefinitionMembers(m, def, targets, false); err != nil {
 		return nil, err
 	}
+	// the admissible values of a name-over-number key (§3), for the keys
+	// that have them. Written here rather than by the shared renderer for
+	// the reason every dictionary-owned member is: the entry is the only
+	// home that has to make a bundle self-sufficient, and a type's
+	// declaration saying which names a property's value can take would be
+	// the second copy of a vocabulary the encoder already owns.
+	//
+	// As close to `format` as a dictionary-owned member can sit, because
+	// that is the pair a reader reads: format "number" and a list of names
+	// is the whole statement, and the entry's `description` — the store's
+	// own text, and for `layout` the sentence "Anytype layout ID(from pb
+	// enum)" that sends a reader to write the ordinal — is not part of it.
+	if names, named := namedEnumValueNames(string(def.Key)); named {
+		m.set(memberValueNames, stringsToAny(names))
+	}
 	// the dictionary's own members, written here rather than by the shared
 	// renderer so that the shape's other two homes cannot emit them: on a
 	// type's declaration each would describe nothing (§2f). True only — a
@@ -533,6 +604,15 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	m.setNonEmpty(memberBundledDiverged, def.BundledDiverged)
 	return m, nil
 }
+
+// memberValueNames is the dictionary entry's published vocabulary (§2f, §3):
+// every name a value of this property can be, for the keys whose stored
+// NUMBER this format writes as a name. READ-facing, and deliberately not an
+// authoring surface — five of the six keys are hidden or readonly in the
+// shipped table, and the sixth (layoutAlign) is set by the alignment UI, so
+// the member says what a value MEANS, never what a caller may choose. The
+// authoring subset refuses it along with every other export-written member.
+const memberValueNames = "value_names"
 
 // memberUninstalled is the dictionary entry's removal flag (§2f).
 const memberUninstalled = "uninstalled"

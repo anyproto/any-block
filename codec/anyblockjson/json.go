@@ -919,6 +919,27 @@ func namedEnumProperty(key string) (propertyVocabulary, bool) {
 	return v, ok
 }
 
+// namedEnumValueNames is the vocabulary a stored key's exported value can
+// hold, sorted, or nil for a key this format does not name — the dictionary
+// entry's `value_names` (§2f), read straight out of the table above.
+//
+// It exists so the PUBLISHED list and the WRITTEN value have one source. The
+// six keys concerned declare format "number" and export a string, and a
+// reader holding only the bundle cannot learn the members from anywhere
+// else: object.schema.json's enum vocabularies are $ref'd from the slots that
+// use them and not from a property value, and $defs/propertyMap accepts any
+// value at all. A second list maintained beside this table would answer that
+// reader with names export had stopped writing, which is worse than the
+// silence it replaced — so there is no second list, not even a field on
+// PropertyDefinition: the writer derives, the reader re-derives.
+func namedEnumValueNames(key string) ([]string, bool) {
+	v, named := namedEnumProperties[key]
+	if !named {
+		return nil, false
+	}
+	return v.names(), true
+}
+
 // formatName is the export-side name of a stored format: the canonical name
 // from formatNames, with legacy shorttext folded into "text" (§3).
 func formatName(f model.RelationFormat) string {

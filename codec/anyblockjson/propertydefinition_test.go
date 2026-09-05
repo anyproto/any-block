@@ -171,8 +171,8 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 			continue
 		}
 		assert.Truef(t, m == "object_types" || m == "uninstalled" || m == "hidden" ||
-			m == "bundled_diverged" || m == "api_key",
-			"dictionaryEntry restates %q — its layer holds the one narrowing and the four dictionary-owned members only", m)
+			m == "bundled_diverged" || m == "api_key" || m == "value_names",
+			"dictionaryEntry restates %q — its layer holds the one narrowing and the five dictionary-owned members only", m)
 	}
 	var objSchema struct {
 		Defs map[string]schemaNode `json:"$defs"`
@@ -182,7 +182,12 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 	// says how THAT type uses a property, and the property's public API
 	// address is not one of the things it says. It is the entry's only
 	// carrier since §15 #23 left no property document to hold it.
-	for _, owned := range []string{"uninstalled", "hidden", "bundled_diverged", "api_key"} {
+	// value_names joins them for the same reason and a sharper one: it is the
+	// entry's answer to what a name-over-number property's value can BE, and
+	// it is derived from the encoder's table rather than stated by an author,
+	// so a type's declaration carrying it would be a second copy of a
+	// vocabulary the encoder already owns — the §15 #14 disease.
+	for _, owned := range []string{"uninstalled", "hidden", "bundled_diverged", "api_key", "value_names"} {
 		_, onEntry := entry.Properties[owned]
 		assert.Truef(t, onEntry, "`%s` is a member of the dictionary entry's own layer (§2f)", owned)
 		_, shared := objSchema.Defs["propertyDefinition"].Properties[owned]
