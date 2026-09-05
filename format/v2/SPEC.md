@@ -2556,6 +2556,21 @@ Values are encoded by the property's format:
 | `objects`, `files` | array of object ids (strings). A resolver-wired export drops an entry the SPACE does not hold — the stored `_missing_object` sentinel included — and the emptied list stays `[]`, because the key's presence is meaningful; a package-only export drops nothing (§9) |
 | unresolvable format | value passes through verbatim in both directions |
 
+**A value may be written as a scalar or as a one-element array holding it,
+and where the format holds a LIST the two are the same value.**
+`"Assignee": "bafyrei…"` and `"Assignee": ["bafyrei…"]` both store one list
+and both re-export as the array, on every list-valued format —
+`objects`, `files`, `select`, `multi_select`, `properties`. The shape a
+document happens to use therefore carries nothing a reader can get wrong,
+which is why nothing in this format states a cardinality for a reader to
+check a value against. The equivalence runs in **that direction only**: on a
+single-valued format an array is not unwrapped, so `["hi"]` on a text
+property is a list of strings and stays one, and `["profile"]` on a
+named-enum key is a different stored value from `"profile"` — a list of
+strings sitting on a number-format key, which nothing reads as a layout.
+`max_count` is the only thing a definition says about how many values fit,
+and it is written only where the format leaves room for more than one (§2a).
+
 **Enum-valued properties are named, not numbered.** Seven stored keys hold
 numbers whose meaning is a proto enum (their bundled relations have format
 `number`), and the format writes the enum **name** — a bare integer would
@@ -2587,11 +2602,32 @@ vocabulary, one table per concept (`namedEnumProperties`):
   documents; named for the same reason as the rest, since a bare integer
   would be an opaque enum in a self-describing format.
 
-Import maps a name to its number and still accepts a raw number, so older
-documents keep working; export always writes the name for an in-vocabulary
-number and the raw number for anything else — a stored value outside the
-vocabulary round-trips as its number rather than being lost. An
-unrecognized NAME is a validation error stating the vocabulary, because
+Import maps a name to its number; export always writes the name for an
+in-vocabulary number and the raw number for anything else — a stored value
+outside the vocabulary round-trips as its number rather than being lost.
+
+**A NUMBER a vocabulary can name is refused, and one it cannot is not.**
+`{"Layout": 1}` used to validate, import as the stored 1 and export back as
+`"profile"` — a wrong answer rather than an error, and nothing contradicted
+the write: the property declares `format: "number"` and its shipped
+description reads "Anytype layout ID(from pb enum)". Validation now answers
+it by naming the value the number stands for and the vocabulary to choose
+from — `layout 1 is the stored number for "profile" … write "profile"` —
+the way a retired member is refused with its repair named (§10, §12). A number
+the vocabulary CANNOT name still passes in both directions, because export
+writes one, so the set validation refuses is exactly the set `Marshal` never
+emits (§11 I1): the two are complements by construction rather than by care.
+The rule is stated on nameability and not on the JSON type, which is what
+makes that so. `type_settings.layout` is the same stored key
+(`recommendedLayout`) lifted into the §2a group and carries the same rule at
+its own path. Nothing real is refused: across the 79-bundle corpus all
+62,325 values in the six named-enum property slots are strings, and not one
+is a number. And the refusal is the second line of defence, not the first —
+the first is that a bundle PUBLISHES the admissible names on the property's
+dictionary entry (`value_names`, §2f), derived from the same table this
+section lists, so a reader learns the vocabulary instead of guessing at it.
+
+An unrecognized NAME is a validation error stating the vocabulary, because
 the silent alternative was measured and bad: the string imported onto the
 number-format detail and every consumer reading it with an int getter saw
 the enum's zero. The property slots' vocabularies are enforced by the
