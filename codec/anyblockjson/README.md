@@ -3,6 +3,14 @@
 This package converts between AnyBlock v1 snapshot models and AnyBlock v2
 documents. It has no dependency on Anytype Heart.
 
+**You do not need this package to read an export.** An AnyBlock v2 bundle
+explains itself, and reading one takes a JSON parser and nothing else —
+[`format/v2/READING.md`](../../format/v2/READING.md) walks it in nine steps,
+and [`format/v2/examples/reader`](../../format/v2/examples/reader) is a working
+reader that imports no part of this module. Come here when you hold v1
+snapshots: this package is the conversion between the two generations, and the
+one place that knows about both.
+
 Some implementation comments retain `storeresolver` as the name of Anytype's
 store-backed implementation of the codec's resolver interfaces. Those are
 integration references, not a package dependency.

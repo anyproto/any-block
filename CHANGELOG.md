@@ -5,6 +5,28 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- The documentation now starts where an external consumer does.
+  `format/v2/READING.md` is the guide that did not exist — "read an export
+  without Anytype", nine ordered steps from a directory of JSON to titles,
+  property values, references and page text, every one verified against a
+  real 3,286-document export and no step needing a table the bundle does not
+  ship. `format/v2/INLINE_MARKUP.md` gives `text` the same treatment:
+  AnyBlock inline markup named as a dialect, its complete grammar, and three
+  tables of what a CommonMark parser gets wrong — an image parsing to `!alt`
+  plus a link mark, no autolinks, no block syntax, case-sensitive tag names,
+  the exact one-parameter deep link, and the three malformed-tag inputs that
+  are refusals rather than text. Every row is executed against
+  `ParseInlineText`/`RenderInlineText` by `readingguide_test.go`, so a
+  sentence in either document that the codec does not honour fails the
+  build. `format/v2/examples/reader` is a runnable version of the nine steps
+  that imports only the standard library — asserted, because the claim being
+  demonstrated is that a bundle explains itself — and it runs on
+  `format/v2/examples/exported_space`, a synthetic EXPORT-shaped bundle
+  (stored keys, a document legend, published `value_names`, an `unknown`
+  entry, a reference that resolves and one that does not) beside the
+  authoring bundle that was the only example before. The three READMEs route
+  to it: the root and `format/v2` READMEs now open with where to go, and the
+  codec README says that reading an export does not need the codec.
 - index.json states what the bundle NAMES and cannot answer for (§2c):
   `Index.Unresolved`, an optional member holding two sorted lists —
   `properties`, the stored keys nothing could define, and `targets`, the ids

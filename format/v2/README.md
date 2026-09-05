@@ -1,11 +1,24 @@
-# AnyBlock v2 — what it is and why it looks like this
+# AnyBlock v2
 
-A readable, strictly-validatable JSON representation of an Anytype object.
-It replaces `.pb.json` (jsonpb of `SnapshotWithType`) as the export/import
-format, and it is the document shape API v2 serves and accepts.
+A readable, strictly-validatable JSON representation of an Anytype object, and
+the format Anytype exports to, imports from, and serves over API v2.
 
-`SPEC.md` is normative and long. This is the short version: the decisions
-that shaped it, why each one was made, and what they look like.
+**If you have an export in front of you, this is not the page you want.**
+
+| | |
+|---|---|
+| [`READING.md`](READING.md) | **read an export without Anytype** — nine ordered steps, verified against a real 3,286-document export |
+| [`INLINE_MARKUP.md`](INLINE_MARKUP.md) | the text dialect, for anyone writing a parser: what it does that CommonMark does not |
+| [`examples/reader`](examples/reader) | those nine steps, runnable, standard library only |
+| [`examples/exported_space`](examples/exported_space) | a tiny export-shaped bundle to run them on |
+| [`examples/habit_tracker`](examples/habit_tracker) | an authoring bundle — what a person writes by hand |
+| [`SPEC.md`](SPEC.md) | normative and complete |
+| [`PRINCIPLES.md`](PRINCIPLES.md) | the ten rules the format answers to |
+
+The rest of this page is **why the format looks like this**: the decisions that
+shaped it, what each one cost, and what was measured to settle it. It is
+background, not instructions. `SPEC.md` is the normative text; this is the
+short version of the argument behind it.
 
 The audience assumption behind almost every decision: **the reader and
 writer is often a language model.** That is not a nice-to-have framing —
@@ -295,8 +308,11 @@ reason not to read a pass rate as a proof of it.
 
 | | |
 |---|---|
+| `READING.md` | read an export without Anytype — nine steps, and a runnable reader |
+| `INLINE_MARKUP.md` | the text dialect: what it does that CommonMark does not |
 | `PRINCIPLES.md` | the ten rules the format answers to, and the order they yield in; TL;DR at the top |
 | `SPEC.md` | normative, complete, §14 has a full worked example |
+| `examples/` | one authoring bundle, one export-shaped bundle, and the reader |
 | `../../bundle/DESIGN.md` | the native bundle exporter: pipeline, layout, corpus verification |
 | `../../cmd/anyblock` | validation and v1/v2 conversion CLI |
 | `schema/*.json` | the hand-authored JSON Schema (2020-12) |
