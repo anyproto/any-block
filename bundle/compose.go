@@ -162,6 +162,10 @@ type Composer struct {
 	entries map[string]anyblockjson.PropertyDefinition
 
 	filePaths map[string]string
+	// metadataOnly is the caller's statement that this export carries no
+	// blob bytes at all (DeclareMetadataOnly). It is the one thing about the
+	// manifest's `files` map the composer cannot observe.
+	metadataOnly bool
 	// optionsByKey is the select vocabulary each property actually has in
 	// this space, gathered from the omitted option snapshots — a bundle
 	// carries no option documents (§2f, §15 #21) — so the dictionary can
@@ -544,6 +548,34 @@ func (c *Composer) ObserveFileBlob(objectId, path string) {
 	c.filePaths[objectId] = path
 }
 
+// DeclareMetadataOnly states that this export carries no blob bytes at all
+// — the metadata-only mode SPEC §2c tolerates — so index.json writes
+// `"files": {}` rather than omitting the member.
+//
+// It is a DECLARATION and not an observation, because the composer cannot
+// observe it. A composition that wrote file documents and saw no blob is in
+// one of two states, and they are the same state from in here: the export
+// meant to carry no bytes, or every stream it meant to make failed. Only the
+// caller knows which — it is the caller who decided the mode — and an
+// exporter that guessed would publish an intent the run never had. The
+// audited space is exactly this shape: 666 file documents, zero blobs.
+//
+// It is a statement ABOUT a bundle, so it does not make one: a composition
+// with nothing else to state writes no index at all, and a bundle with no
+// documents owes no account of the blobs it did not carry.
+//
+// Declaring the mode and then delivering a blob is a contradiction Finish
+// refuses rather than resolves, for the reason it refuses space settings
+// whose observations disagree: choosing a winner would publish half a claim
+// as if it were whole. Not calling this is not a claim — an undeclared
+// composition writes no `files` member, which is what every caller written
+// before this method did and what an authored bundle does.
+func (c *Composer) DeclareMetadataOnly() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.metadataOnly = true
+}
+
 // Finish composes the bundle's two files and re-reads both through the
 // package's own Unmarshal — the bundle-level twin of the I1 discipline: a
 // file this composer writes that the package refuses is a bug here, found
@@ -823,9 +855,30 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	if idx.Name == "" {
 		idx.Name = c.spaceName
 	}
+	files := copyNonEmpty(c.filePaths)
+	if c.metadataOnly {
+		if files != nil {
+			// the declaration and the observations disagree, and the bundle
+			// may publish neither half alone: `files: {}` would deny a blob
+			// that travelled, and the map alone would drop a mode the caller
+			// stated. Refused whole, like conflicting space settings.
+			observed := make([]string, 0, len(files))
+			for id := range files {
+				observed = append(observed, id)
+			}
+			sort.Strings(observed)
+			return nil, nil, stats, fmt.Errorf(
+				"declared metadata-only but observed %d file blob(s) (%s): "+
+					"an export either carries bytes or states that it carries none",
+				len(observed), strings.Join(observed, ", "))
+		}
+		// non-nil and empty: the mode STATED. MarshalIndex writes `{}` for
+		// this and omits the member for nil (Manifest.Files).
+		files = map[string]string{}
+	}
 	idx.Manifest = &anyblockjson.Manifest{
 		Properties: anyblockjson.PropertiesFileName,
-		Files:      copyNonEmpty(c.filePaths),
+		Files:      files,
 	}
 	idxData, err := anyblockjson.MarshalIndex(&idx, c.opts)
 	if err != nil {

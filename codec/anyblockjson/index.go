@@ -320,14 +320,35 @@ type Widget struct {
 // layout convention riding on top; the map is the only binding a reader may
 // rely on (§2c).
 type Manifest struct {
-	Properties string            `json:"properties"`
-	Files      map[string]string `json:"files"`
+	Properties string `json:"properties"`
+	// Files binds a file document's id to its blob's path, and has THREE
+	// states, not two. A populated map is the binding. A nil map states
+	// nothing, which SPEC §2c reads as a metadata-only export: the mode
+	// inferred, and also what an authored bundle and every exporter written
+	// before the map existed produce. A non-nil EMPTY map is the export
+	// saying it — this run enumerated its file documents and carried the
+	// bytes of none of them.
+	//
+	// The third state exists because the second could not be trusted. The
+	// audited space has 666 file documents and no blobs at all, 68 of the
+	// corpus's 79 bundles are in the same state, and a reader meeting one of
+	// them cannot tell an export that chose the mode from one whose manifest
+	// never got written — the absence spells both. It is the writer's job to
+	// say which, and only the writer can: nothing downstream can recover the
+	// intent.
+	Files map[string]string `json:"files"`
 }
 
-// empty reports whether the manifest locates nothing — the shape setNonEmpty
-// cannot judge for a struct.
+// empty reports whether the manifest is worth writing — the shape
+// setNonEmpty cannot judge for a struct.
+//
+// It asks whether the manifest SAYS anything, which is not the same as
+// whether it locates anything: a non-nil empty `files` locates nothing and
+// states the file mode, so a manifest holding only that is written. The
+// question used to be `len(m.Files) == 0`, and under it the enclosing
+// member dropped the statement before the inner one could make it.
 func (m *Manifest) empty() bool {
-	return m == nil || (m.Properties == "" && len(m.Files) == 0)
+	return m == nil || (m.Properties == "" && m.Files == nil)
 }
 
 // Index is a bundle's index.json (§2c).
@@ -776,8 +797,15 @@ func MarshalIndex(idx *Index, opts Options) ([]byte, error) {
 		m.setNonEmpty("properties", idx.Manifest.Properties)
 		// file blob bindings are keyed by object id VERBATIM (§2c): an id is
 		// its own spelling, so there is nothing to re-key — only the
-		// canonical sort
-		m.setNonEmpty("files", sortedStringOmap(idx.Manifest.Files))
+		// canonical sort. An empty map is written as `{}` rather than
+		// omitted: it is the export STATING that no blob travelled
+		// (Manifest.Files), and §4's omit-empty canon governs a member with
+		// nothing to say, not one whose emptiness is the thing said.
+		if idx.Manifest.Files != nil && len(idx.Manifest.Files) == 0 {
+			m.set("files", &omap{})
+		} else {
+			m.setNonEmpty("files", sortedStringOmap(idx.Manifest.Files))
+		}
 		doc.setNonEmpty("manifest", m)
 	}
 	return marshalCanonical(doc)
