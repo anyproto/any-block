@@ -1133,6 +1133,33 @@ func (imp *importer) propertyValue(key, slug string, v any) *types.Value {
 	case model.RelationFormat_object, model.RelationFormat_file:
 		return wrapToList(mapJSONStrings(v, imp.objectRef))
 	}
+	// Every OTHER format that holds more than one value is stored as a list
+	// too, and the predicate is read rather than its membership restated,
+	// because the cases above are not the fact — they are four spellings of
+	// it plus a per-format mapping. `relations` (the `properties` format) had
+	// no case and no mapping to want: its values are property keys, which
+	// travel verbatim in both directions, so it fell through to
+	// jsonToProtoValue and a document's bare `"MyProps": "tag"` stored a
+	// StringValue where `["tag"]` stored a ListValue — two stored values for
+	// one meaning, on the one format nobody had a document to notice it on (0
+	// of the 79-bundle corpus declares it). Deriving the wrap from
+	// MultiValuedFormat (omittedrelation.go) is what stops the next format
+	// added there from repeating it.
+	//
+	// The two lists are NOT the same set and the derivation runs one way
+	// only. List-SHAPED is the wider notion: `status` is stored as a list of
+	// one option id, and it is in the switch above while MultiValuedFormat
+	// calls it single-valued — rightly, since that predicate answers whether
+	// a `max_count` exists (§2a), and on a select it does not. So every
+	// multi-valued format is list-shaped; not every list-shaped format is
+	// multi-valued.
+	//
+	// Export needs no matching case: a stored list of plain strings renders
+	// as the JSON array through protoValueToJSON's fall-through, which is the
+	// value's own shape, so the round trip closes on the list this produces.
+	if MultiValuedFormat(format) {
+		return wrapToList(jsonToProtoValue(v))
+	}
 	return jsonToProtoValue(v)
 }
 

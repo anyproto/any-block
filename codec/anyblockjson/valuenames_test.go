@@ -257,10 +257,11 @@ func TestValueNames_TheInwardDescriptionIsTheShippedTablesToFix(t *testing.T) {
 // distinct stored values are one); or stop wrapping a scalar on a
 // list-valued one (the first half breaks and cardinality becomes real).
 func TestCardinality_ScalarAndOneElementArrayAgreeOnlyWhereTheFormatHoldsAList(t *testing.T) {
-	stored := func(doc, key string) *types.Value {
+	stored := func(doc, key string, opts Options) *types.Value {
 		t.Helper()
-		require.NoError(t, Validate([]byte(doc), Options{}))
-		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+		require.NoError(t, Validate([]byte(doc), opts))
+		opts.GenerateId = seqIds("g")
+		_, snap, err := Unmarshal([]byte(doc), opts)
 		require.NoError(t, err)
 		return snap.Details.Fields[key]
 	}
@@ -272,7 +273,7 @@ func TestCardinality_ScalarAndOneElementArrayAgreeOnlyWhereTheFormatHoldsAList(t
 		{"tag", head + `"Tag":"red"}}`, head + `"Tag":["red"]}}`},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
-			one, many := stored(tc.scalar, tc.key), stored(tc.array, tc.key)
+			one, many := stored(tc.scalar, tc.key, Options{}), stored(tc.array, tc.key, Options{})
 			require.NotNil(t, one)
 			assert.Equal(t, many.String(), one.String(),
 				"a scalar is normalised to the one-element list, so the two writings are one value")
@@ -281,13 +282,81 @@ func TestCardinality_ScalarAndOneElementArrayAgreeOnlyWhereTheFormatHoldsAList(t
 		})
 	}
 
+	// the third list-valued format, `properties` (stored `relations`). No
+	// bundled property declares it — 0 of the 79-bundle corpus carries the
+	// format, measured over every `format` member of all 24,889 documents —
+	// so it reaches the importer the only way it can, through a space's own
+	// resolver. That is exactly why it went missing from the switch while the
+	// other three were written down, and why the sentence above was false on
+	// it: `{"MyProps":"tag"}` stored a bare StringValue and re-exported
+	// `"tag"` where `{"MyProps":["tag"]}` stored a ListValue.
+	t.Run("properties", func(t *testing.T) {
+		opts := Options{ResolveFormat: func(key domain.RelationKey) (model.RelationFormat, bool) {
+			return model.RelationFormat_relations, key == "MyProps"
+		}}
+		one := stored(head+`"MyProps":"assignee"}}`, "MyProps", opts)
+		many := stored(head+`"MyProps":["assignee"]}}`, "MyProps", opts)
+		require.NotNil(t, one)
+		assert.Equal(t, many.String(), one.String(),
+			"a scalar is normalised to the one-element list, so the two writings are one value")
+		_, isList := one.GetKind().(*types.Value_ListValue)
+		assert.True(t, isList)
+
+		// and the reader sees it: the scalar writing re-exports as the array,
+		// so the two documents converge on one instead of staying two.
+		reexport := func(doc string) any {
+			t.Helper()
+			o := opts
+			o.GenerateId = seqIds("g")
+			_, snap, err := Unmarshal([]byte(doc), o)
+			require.NoError(t, err)
+			out, err := Marshal(model.SmartBlockType_Page, snap, o)
+			require.NoError(t, err)
+			var back map[string]any
+			require.NoError(t, json.Unmarshal(out, &back))
+			return back["properties"].(map[string]any)["MyProps"]
+		}
+		assert.Equal(t, []any{"assignee"}, reexport(head+`"MyProps":"assignee"}}`))
+		assert.Equal(t, []any{"assignee"}, reexport(head+`"MyProps":["assignee"]}}`))
+	})
+
+	// and the whole of it, so the next format added to MultiValuedFormat
+	// cannot repeat `relations`: the predicate names the formats that hold
+	// more than one value, and a format that holds more than one value is
+	// stored as a list. One fact, so the importer reads the predicate rather
+	// than restating its membership in a `case` list a reader must remember
+	// to extend.
+	//
+	// The converse does NOT hold and is not asserted: `select` is stored as a
+	// list too (a list of one option id) while MultiValuedFormat calls it
+	// single-valued, because `max_count` is meaningless on it. List-SHAPED is
+	// the wider set; multi-VALUED is the subset with a count to state.
+	t.Run("every multi-valued format holds a list", func(t *testing.T) {
+		for raw, enumName := range model.RelationFormat_name {
+			format := model.RelationFormat(raw)
+			if !MultiValuedFormat(format) {
+				continue
+			}
+			opts := Options{ResolveFormat: func(key domain.RelationKey) (model.RelationFormat, bool) {
+				return format, key == "MyProp"
+			}}
+			one := stored(head+`"MyProp":"v"}}`, "MyProp", opts)
+			many := stored(head+`"MyProp":["v"]}}`, "MyProp", opts)
+			require.NotNil(t, one, enumName)
+			assert.Equal(t, many.String(), one.String(),
+				"%s holds more than one value, so a scalar on it is the one-element list", enumName)
+			_, isList := one.GetKind().(*types.Value_ListValue)
+			assert.True(t, isList, enumName)
+		}
+	})
+
 	// single-valued formats: the array is NOT unwrapped
 	for _, tc := range []struct{ key, scalar, array string }{
 		{"description", head + `"Description":"hi"}}`, head + `"Description":["hi"]}}`},
 		{"layout", head + `"Layout":"profile"}}`, head + `"Layout":["profile"]}}`},
 	} {
 		t.Run(tc.key+" (single-valued)", func(t *testing.T) {
-			one, many := stored(tc.scalar, tc.key), stored(tc.array, tc.key)
+			one, many := stored(tc.scalar, tc.key, Options{}), stored(tc.array, tc.key, Options{})
 			assert.NotEqual(t, many.String(), one.String(),
 				"an array on a single-valued format stays an array — the two are different values")
 			_, isList := many.GetKind().(*types.Value_ListValue)
