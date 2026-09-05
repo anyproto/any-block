@@ -460,8 +460,9 @@ type TypeProperty struct {
 	Uninstalled bool `json:"uninstalled"`
 	// ApiKey is the first of the dictionary's three owned members (§2f): the property's
 	// stored `apiObjectKey`, which no restore re-derives
-	// (PropertyDefinition.ApiKey). The only one of the four that is not a
-	// flag.
+	// (PropertyDefinition.ApiKey). The only one of the four members this
+	// struct carries beyond `section` that is not a flag — the three here
+	// and Uninstalled above.
 	ApiKey string `json:"api_key"`
 	// Hidden is the dictionary's second owned member (§2f, §15 #23): the
 	// store's own listing bit, which a type's declaration does not speak
