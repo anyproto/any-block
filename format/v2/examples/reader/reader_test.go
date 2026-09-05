@@ -162,8 +162,8 @@ func TestAnUnresolvedOptionIDIsNotPrintedAsAName(t *testing.T) {
 		t.Fatal("fixture lost bafyreioptionids")
 	}
 	const (
-		tagID    = "bafyreigox77xlzzmqav6qibh5wup35c2awstdx3pfqecoktinjebnlleie"
-		statusID = "bafyreidbbug6xjazjvk23g5eh7vlvrou5dsr5536rvlcn6pdjlwb3imdaq"
+		tagID    = "bafyreitagoptionidnotinthisentry"
+		statusID = "bafyreistatusoptionidwithnooptions"
 	)
 	for _, tc := range []struct{ name, spelling, want string }{
 		{"a name is a name, and keeps its colour",
@@ -198,7 +198,7 @@ func TestAnOptionIDAndANonStringStillSayWhatTheyAre(t *testing.T) {
 	if def == nil {
 		t.Fatal("fixture: no dictionary entry answers for Tag")
 	}
-	if got, want := b.renderValue(def, "65cca4101cac639011dcab8c"), `65cca4101cac639011dcab8c (an option id; this entry names it "archive")`; got != want {
+	if got, want := b.renderValue(def, "0f1e2d3c4b5a69788796a5b7"), `0f1e2d3c4b5a69788796a5b7 (an option id; this entry names it "archive")`; got != want {
 		t.Errorf("an option's own id\n got %s\nwant %s", got, want)
 	}
 	if got, want := b.renderValue(def, []any{float64(3)}), "3"; got != want {

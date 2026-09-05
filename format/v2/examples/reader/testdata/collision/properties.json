@@ -14,7 +14,7 @@
       "name": "Tags",
       "format": "multi_select",
       "options": [
-        { "name": "Fieldwork", "color": "blue", "internal_key": "6a2a6d92d2ccdabef19aaffb" }
+        { "name": "Fieldwork", "color": "blue", "internal_key": "1a2b3c4d5e6f708192a3b4c6" }
       ]
     },
     {
