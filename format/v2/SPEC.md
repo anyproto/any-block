@@ -1015,7 +1015,7 @@ the one file that describes the bundle as a whole:
 
 ```json
 { "unresolved": {
-    "properties": ["68cda76ee9223c9dc7ce5e92"],
+    "properties": ["66602dc5e5672d06c0e19245"],
     "targets":    ["bafyrei…"] } }
 ```
 
@@ -1024,14 +1024,21 @@ each earning its place differently.
 
 - **`properties`** — the stored property keys the documents reference and
   nothing could define, written verbatim (a key nothing defines has no
-  spelling but itself, §2f). This RESTATES what `properties.json` already
-  says per key — an entry whose `format` is the `unknown` sentinel — and the
-  restatement is the point: the entry answers *what is this key*, one key at
-  a time, in another file; this answers *did this export lose definitions,
-  and which* — a set, and a property of the export rather than of any key.
-  In the audited space the validator names 238 such keys against a
-  dictionary of 118 defined entries, which is not a question to answer by
-  opening that file and filtering it.
+  spelling but itself, §2f). A key a type document DECLARES is not one of
+  these: a declaration states a name and a format, so the composer takes
+  them and the key gets a real entry a rung earlier (§2f). The one above
+  is from the audited space and reaches nothing: one document names it,
+  its value is `1717538400`, its one legend line spells the key as itself,
+  and there is no entry, no declaration and no dataview column caching a
+  format — so `1717538400` could be a date, a count or an id, and this is
+  the file that says the export knows it too. This RESTATES what
+  `properties.json` already says per key — an entry whose `format` is the
+  `unknown` sentinel — and the restatement is the point: the entry answers
+  *what is this key*, one key at a time, in another file; this answers
+  *did this export lose definitions, and which* — a set, and a property of
+  the export rather than of any key. In the audited space that is 236 such
+  keys against the 120 the dictionary defines, which is not a question to
+  answer by opening that file and filtering it.
 - **`targets`** — the ids THIS FILE names that no document in the bundle
   carries: an `entrypoint`, a `homepage`, a widget `target`, an image icon.
   It has no other home at all, because whether an id resolves is a
