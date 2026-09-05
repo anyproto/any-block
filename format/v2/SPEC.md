@@ -6701,19 +6701,35 @@ being true.
   for the one option that does not work.
 
   The overturned position was the §2f keep-rule's: `isUninstalled` was one
-  of three keys the omission predicate deliberately refused to classify, on
-  the reading that the document was the only place the removal could live.
-  It was the only place — and a kept document was still listed under
-  `installed`, because the composition then listed every bundled key it met
-  whether or not the copy was removed, so the backup of a removed,
+  of three keys the omission predicate deliberately refused to classify,
+  on the reading that the document was the only place the removal could
+  live. It was the only place — and a kept document was still listed under
+  `installed`, because the composition then listed every bundled key it
+  met whether or not the copy was removed, so the backup of a removed,
   divergent copy reinstalled it. That was a property of the composition
   itself rather than a corpus finding: a bundled-key relation document
-  earned its `installed` entry the moment the composer observed it. The entry is where the fact belongs: a
-  removal is a statement about the property's presence in the space, which
-  is what the dictionary is for, and a flag a reader meets before it opens
-  a document. It is the dictionary's own member, as `section` is the type
-  declaration's (§2e), and the authoring subset does not admit it (§2g): a
-  bundle that has not been installed has nothing to uninstall.
+  earned its `installed` entry the moment the composer observed it. The
+  entry is where the fact belongs: a removal is a statement about the
+  property's presence in the space, which is what the dictionary is for,
+  and a flag a reader meets before it opens a document. The authoring
+  subset does not admit it (§2g): a bundle that has not been installed has
+  nothing to uninstall.
+
+  The home half was amended too, and later. The entry was settled here as
+  the member's ONE home — the dictionary's own, the way `section` is the
+  type declaration's — and a type's `property_definitions` entry states it
+  as well now, because that entry is a COMPLETE standalone definition
+  (§2e) and one presenting a removed property as live is not complete: a
+  reader that opens one type document and builds its property list from it
+  would otherwise reinstate what the user deleted. Two homes, one member,
+  and the same reader rule in both — never install it as a live property,
+  never write the mark into the restored store. The shape's third home
+  still refuses it: a property document's `property_settings` mirrors
+  stored presence member for member (§2d), and the removal is not one of
+  the three that travel there. What did not move is that this is the WHOLE
+  statement of the removal (#24): there is no list for it to contradict,
+  and no second member beside it — the object stays and is hidden, so
+  there is no `deleted` to state.
 
   The census that decided how much this changes is the part worth
   recording. Over 40 spaces' object stores — 5,284 relation documents,
@@ -6772,15 +6788,16 @@ being true.
   overturned the first and the third, and the refusal with them: there is
   no list, so no claim to correct and nothing to contradict.)
 
-  Two things are new. `hidden` joins the entry as its second owned member
-  (#25 added a third, `bundled_diverged`), on `uninstalled`'s footing
-  exactly: dictionary-owned, refused by a type's declaration, a property
-  document's settings and the authoring subset, written `true` only (§2f). And what an entry cannot state is REPORTED
-  rather than failed closed on, since the omission is unconditional —
-  `UnaccountedRelationDetails` (§11, §13), the role
-  `UnaccountedOptionDetails` plays for an option, reading the same
-  classification; blocks on a property page are named, because they are
-  the one thing a document could carry that nothing else can.
+  Two things are new. `hidden` joins the entry as an owned member (#25
+  added `bundled_diverged` beside it), written `true` only and refused by
+  the authoring subset — and refused by BOTH the shape's other homes,
+  which is where it parts from `uninstalled`: a type's declaration states
+  a removal, and says nothing about the store's listings (§2f, §2e). And
+  what an entry cannot state is REPORTED rather than failed closed on,
+  since the omission is unconditional — `UnaccountedRelationDetails` (§11,
+  §13), the role `UnaccountedOptionDetails` plays for an option, reading
+  the same classification; blocks on a property page are named, because
+  they are the one thing a document could carry that nothing else can.
 
   The overturned position was #22's residue: a divergent installed copy
   and a space-minted property still kept a document in `properties/`, and
@@ -6927,8 +6944,9 @@ being true.
   the predicate's fail-closed verdict rather than a member diff: a copy
   refused for an unclassified detail or a page block is flagged too, and
   its entry then equals the table. `true` only, dictionary-owned, refused
-  by the shape's other two homes and by the authoring subset, on
-  `uninstalled`'s footing exactly (§2e).
+  by the shape's other two homes and by the authoring subset — on
+  `hidden`'s footing exactly, and NOT on `uninstalled`'s, which a type's
+  declaration states as well (§2e).
 
   `OmittedBundledRelation` keeps both remaining jobs: it sets the flag,
   and it verifies the reconstruction against the copy through the
