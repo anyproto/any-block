@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/type.schema.json",
+  "formatVersion": "2.0",
+  "id": "type-fieldnote",
+  "kind": "object_type",
+  "internal_key": "fieldnote",
+  "properties": { "Name": "Field note" },
+  "blocks": [
+    {
+      "id": "dataview",
+      "type": "dataview",
+      "object_id": "type-fieldnote",
+      "views": [{ "id": "v1", "name": "All" }]
+    }
+  ]
+}

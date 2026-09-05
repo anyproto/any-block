@@ -72,6 +72,10 @@ type document struct {
 	Properties map[string]any    `json:"properties"`
 	Legend     map[string]string `json:"property_internal_keys"`
 	Blocks     []block           `json:"blocks"`
+	// Items is a collection's membership: the ids it lists, in order. It is a
+	// top-level member and not a property, and it is the only place a
+	// collection's records are written (§2, §6.2).
+	Items []string `json:"items"`
 
 	path string
 }
@@ -85,6 +89,11 @@ type block struct {
 	ObjectID string `json:"object_id"`
 	Language string `json:"language"`
 	Checked  bool   `json:"checked"`
+
+	// The three members of a dataview block that decide where its records come
+	// from. None of them looks like a source, which is why §6.2 has to say so.
+	IsCollection bool     `json:"is_collection"`
+	Source       []string `json:"source"`
 }
 
 // definition is one entry of the bundle's property dictionary. `Format` is the
@@ -513,11 +522,107 @@ func (b *bundle) describeDocument(out *strings.Builder, d *document) {
 		if blk.ObjectID != "" {
 			text = b.describeReference(blk.ObjectID)
 		}
+		if blk.Type == "dataview" {
+			text = strings.Join(b.dataviewSource(d, blk), gutter)
+		}
 		if blk.Type == "checkbox" {
 			head = "checkbox" + map[bool]string{true: " [x]", false: " [ ]"}[blk.Checked]
 		}
 		fmt.Fprintf(out, "%s%-*s%s\n", pad, blockColumn, head, text)
 	}
+}
+
+// --------------------------------------------------- where the records are
+
+// membersListed caps the ids a collection prints before it starts counting.
+// The largest collection measured in the corpus lists 257.
+const membersListed = 5
+
+// dataviewSource answers the one question a dataview block does not look like
+// it answers: where its records come from. The block carries a view DEFINITION
+// — properties, columns, sorts, filters — and never rows, and none of the
+// members that name the source look like a source (SPEC §6.2).
+//
+// The distinction worth printing is not which member answered but what the
+// answer costs: a COLLECTION's records are ids a document in this bundle
+// lists, so a reader renders it from the bundle alone; a SET's records are
+// whatever its query matches when it runs, so no bundle can answer it and a
+// reader that promises to is lying.
+func (b *bundle) dataviewSource(host *document, blk block) []string {
+	if id, _ := reference(blk.ObjectID); id != "" {
+		target, ok := b.docs[id]
+		switch {
+		case !ok:
+			return []string{fmt.Sprintf("records: from %s (not in this bundle), so this block does not say where they come from", id)}
+		case target.Kind == "object_type":
+			return []string{fmt.Sprintf("records: every object of type %q (%s in %s) — a live query, and no bundle answers it (§6.2)",
+				b.title(target), target.ID, target.path)}
+		case len(target.Items) > 0:
+			return b.listMembers(fmt.Sprintf("records: the %d ids %s lists in `items` (%s)", len(target.Items), id, target.path), target.Items)
+		}
+		if query, stated := b.setOf(target); stated {
+			return []string{fmt.Sprintf("records: every object matching %s's `Set of` (%s) — a set is a live query, and no bundle answers it (§6.2)", id, query)}
+		}
+		return []string{fmt.Sprintf("records: %s (%s) states neither `items` nor `Set of`, so nothing here says where they come from", id, target.path)}
+	}
+
+	switch {
+	case blk.IsCollection:
+		if len(host.Items) == 0 {
+			return []string{"records: this document's own `items`, which lists none — an empty collection (§6.2)"}
+		}
+		return b.listMembers(fmt.Sprintf("records: the %d ids this document lists in `items` — a collection is answered from this bundle alone (§6.2)", len(host.Items)), host.Items)
+	case len(blk.Source) > 0:
+		return []string{fmt.Sprintf("records: a legacy detached inline set over source [%s] — a live query, and no bundle answers it (§6.2)", strings.Join(blk.Source, ", "))}
+	}
+	if query, stated := b.setOf(host); stated {
+		return []string{fmt.Sprintf("records: every object matching this document's `Set of` (%s) — a set is a live query, and no bundle answers it (§6.2)", query)}
+	}
+	return []string{"records: this document's own `Set of`, which it does not state — a set is a live query, and no bundle answers it (§6.2)"}
+}
+
+// setOf reads the query a set ranges over. It is an ordinary property — the
+// bundled key `setOf` — so it is found the way any property is found, by
+// resolving the document's own spellings, and never by trusting one spelling.
+func (b *bundle) setOf(d *document) (string, bool) {
+	spellings := make([]string, 0, len(d.Properties))
+	for k := range d.Properties {
+		spellings = append(spellings, k)
+	}
+	sort.Strings(spellings)
+	for _, spelling := range spellings {
+		if _, key := b.resolve(d, spelling); key != "setOf" {
+			continue
+		}
+		targets := make([]string, 0, 2)
+		for _, item := range values(d.Properties[spelling]) {
+			s, ok := item.(string)
+			if !ok {
+				continue
+			}
+			id, _ := reference(s)
+			targets = append(targets, id)
+		}
+		if len(targets) == 0 {
+			return "", false
+		}
+		return strings.Join(targets, ", "), true
+	}
+	return "", false
+}
+
+// listMembers prints a collection's membership: these are ids, so each one is
+// followed the way every other reference is followed.
+func (b *bundle) listMembers(head string, ids []string) []string {
+	lines := append(make([]string, 0, len(ids)+2), head)
+	for i, raw := range ids {
+		if i >= membersListed {
+			lines = append(lines, fmt.Sprintf("… and %d more", len(ids)-membersListed))
+			break
+		}
+		lines = append(lines, b.describeReference(raw))
+	}
+	return lines
 }
 
 // The two output columns, named so the wrapped continuation of a value lines

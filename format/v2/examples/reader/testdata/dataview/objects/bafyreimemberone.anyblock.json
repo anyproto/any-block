@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreimemberone",
+  "type": "Field note",
+  "type_internal_key": "fieldnote",
+  "properties": { "Name": "Ridge, first thaw" }
+}

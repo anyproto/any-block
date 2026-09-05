@@ -218,3 +218,65 @@ func TestAnUnresolvedOptionReadsLikeAnAbsentReference(t *testing.T) {
 		t.Errorf("an id that names no option must be annotated the way an absent reference is; got %s", got)
 	}
 }
+
+// Step 7 has a dataview half, and the reader used to print the bare word
+// `dataview` and stop — the one thing in the block a reader cannot guess is
+// where its records come from, because none of the members that describe the
+// source look like one (SPEC §6.2). A collection's members are ids a document
+// in this bundle lists, so the bundle answers it; a set's records are whatever
+// its query matches when it runs, so no bundle can. That distinction is the
+// difference between "run the query" and "you cannot".
+func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
+	b, err := open(filepath.Join("testdata", "dataview"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	render := func(id string) string {
+		doc, ok := b.docs[id]
+		if !ok {
+			t.Fatalf("fixture lost %s", id)
+		}
+		out := &strings.Builder{}
+		b.describeDocument(out, doc)
+		return out.String()
+	}
+	for _, tc := range []struct {
+		name, doc string
+		want      []string
+	}{
+		{"a collection is answered from the bundle: its own items", "bafyreicollection", []string{
+			"records: the 3 ids this document lists in `items` — a collection is answered from this bundle alone (§6.2)",
+			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,
+			`bafyreimembertwo -> "Beck in spate" in objects/bafyreimembertwo.anyblock.json`,
+			"bafyreighost (not in this bundle)",
+		}},
+		{"a set is a live query no bundle can answer", "bafyreiset", []string{
+			"records: every object matching this document's `Set of` (type-fieldnote) — a set is a live query, and no bundle answers it (§6.2)",
+		}},
+		{"a type document's own listing", "type-fieldnote", []string{
+			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
+		}},
+		{"the same four sources, named from another document", "bafyreiportal", []string{
+			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
+			"records: the 3 ids bafyreicollection lists in `items` (objects/bafyreicollection.anyblock.json)",
+			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,
+			"records: every object matching bafyreiset's `Set of` (type-fieldnote) — a set is a live query, and no bundle answers it (§6.2)",
+			"records: from bafyreighost (not in this bundle), so this block does not say where they come from",
+			"records: a legacy detached inline set over source [ot-task] — a live query, and no bundle answers it (§6.2)",
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := render(tc.doc)
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("%s is missing a source line\n want %s\n---- got ----\n%s", tc.doc, want, got)
+				}
+			}
+			for _, line := range strings.Split(got, "\n") {
+				if strings.TrimSpace(line) == "dataview" {
+					t.Errorf("%s still prints a dataview block with no source at all", tc.doc)
+				}
+			}
+		})
+	}
+}

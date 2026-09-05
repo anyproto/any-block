@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/index.schema.json",
+  "formatVersion": "2.0",
+  "name": "Where a dataview's records come from",
+  "homepage": "bafyreiportal",
+  "manifest": {
+    "properties": "properties.json",
+    "files": {}
+  }
+}
