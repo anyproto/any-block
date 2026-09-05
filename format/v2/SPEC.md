@@ -1319,7 +1319,7 @@ homes**, and no fourth:
 | home | shape |
 |---|---|
 | a property-dictionary entry (§2f) | one `propertyDefinition` + `uninstalled` + `hidden` + `bundled_diverged` + `api_key` + `value_names` — or, where the format is the `unknown` sentinel, identity and that word alone (§2f) |
-| a type document's property-definition entry (§2a) | one `propertyDefinition` + `section` |
+| a type document's property-definition entry (§2a) | one `propertyDefinition` + `section` + `uninstalled` |
 | a property document's definition fields (§2d) | one `propertyDefinition` |
 
 The shape's eleven members: `property`, `internal_key`, `name`, `format`,
@@ -1334,25 +1334,31 @@ with `unevaluatedProperties: false`. A home may **narrow** a shared member
 (an authored home pins `format` to `authorableFormat`; a type's
 `object_types` is a real array, since only a relation's stored value can
 hold a null) but never restate its shape: two statements of one member
-agree today and drift tomorrow (§15 #14). Two homes carry **members of
-their own** beside the shape — one on a type's entry, five on a dictionary
-entry — and each is meaningless on the other homes, which refuse it:
-`section` on a type's entry says what THIS type does with the property
-(§2a); `uninstalled` on a dictionary entry says the user removed the
-property from the space (§2f, §15 #22), `hidden` that the store hides it
-from every listing (§15 #23), `bundled_diverged` that the space's copy
-of a bundled property had diverged from the shipped table when the bundle
-was written (§15 #25), and `api_key` the property's public API key, which no
-restore mints again (§15 #21) — facts about the property's presence and
-provenance in ONE space, which a type's declaration cannot act on, and which
-have no other place to travel now that a bundle carries no property
-document. The fifth, `value_names`, is not such a fact but the answer to a
-question only a bundle has to survive alone with: what a value of a
-name-over-number property can be (§2f, §3). And the dictionary's home has a
-second SHAPE, which is not a narrowing of the first: `format: "unknown"`
-says no definition could be found for the key at all, so it REPLACES the
-shared shape rather than layering over it — there is no definition left for
-the shape to describe (§2f).
+agree today and drift tomorrow (§15 #14). Two homes carry **members of their
+own** beside the shape — two on a type's entry, five on a dictionary entry,
+and one of them sits on both. `section` is the type's alone: it says what
+THIS type does with the property (§2a), and on either other home it would
+describe nothing. Four are the dictionary's alone — `hidden`, that the store
+hides the property from every listing (§15 #23); `bundled_diverged`, that
+the space's copy of a bundled property had diverged from the shipped table
+when the bundle was written (§15 #25); and `api_key`, the property's public
+API key, which no restore mints again (§15 #21) — facts about the property's
+presence and provenance in ONE space, which a type's declaration cannot act
+on, and which have no other place to travel now that a bundle carries no
+property document. The fourth, `value_names`, is not such a fact but the
+answer to a question only a bundle has to survive alone with: what a value
+of a name-over-number property can be (§2f, §3). `uninstalled` is the member
+two homes state: the user REMOVED the property from the space (§2f, §15
+#22), and a dictionary entry and a type's declaration are each a COMPLETE
+standalone definition, so a type read on its own would otherwise build a
+removed property as a live one. The third home refuses it with the other
+four — a property document's `property_settings` mirrors stored presence
+member for member (§2d), and the removal is not one of the three that travel
+there. And the dictionary's home has a second SHAPE, which is not a
+narrowing of the first: `format: "unknown"` says no definition could be
+found for the key at all, so it REPLACES the shared shape rather than
+layering over it — there is no definition left for the shape to describe
+(§2f).
 
 The rule is test-pinned the way the format vocabulary is: the homes are
 asserted to REFERENCE `$defs/propertyDefinition`, the way
