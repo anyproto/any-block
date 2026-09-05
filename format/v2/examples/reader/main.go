@@ -57,17 +57,18 @@ func main() {
 
 // ---------------------------------------------------------------- the bundle
 
-// document is the part of an object document this reader reads. Everything
-// else in the envelope is left in the file; a reader takes what it needs.
+// document is the part of an object document this reader reads. Everything else
+// in the envelope is left in the file; a reader takes what it needs — and a
+// member declared here and never read is not something it needs, it is a
+// statement no test can hold, which is how `internal_key`, a block's `id` and
+// `language`, an entry's `max_count` and an icon's `format` came out again.
 type document struct {
-	ID       string `json:"id"`
-	Kind     string `json:"kind"`
-	Type     string `json:"type"`
-	TypeKey  string `json:"type_internal_key"`
-	Internal string `json:"internal_key"`
-	Icon     struct {
-		Format string `json:"format"`
-		Emoji  string `json:"emoji"`
+	ID      string `json:"id"`
+	Kind    string `json:"kind"`
+	Type    string `json:"type"`
+	TypeKey string `json:"type_internal_key"`
+	Icon    struct {
+		Emoji string `json:"emoji"`
 	} `json:"icon"`
 	Properties map[string]any    `json:"properties"`
 	Legend     map[string]string `json:"property_internal_keys"`
@@ -82,12 +83,10 @@ type document struct {
 
 type block struct {
 	Indent   int    `json:"indent"`
-	ID       string `json:"id"`
 	Type     string `json:"type"`
 	Text     string `json:"text"`
 	Property string `json:"property"`
 	ObjectID string `json:"object_id"`
-	Language string `json:"language"`
 	Checked  bool   `json:"checked"`
 
 	// The three members of a dataview block that decide where its records come
@@ -106,7 +105,6 @@ type definition struct {
 	Name       string   `json:"name"`
 	Format     string   `json:"format"`
 	ValueNames []string `json:"value_names"`
-	MaxCount   int      `json:"max_count"`
 	Options    []struct {
 		Name  string `json:"name"`
 		Color string `json:"color"`
