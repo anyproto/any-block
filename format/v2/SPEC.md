@@ -493,16 +493,22 @@ style.
 | `max_count` | int | no | How many values the property holds. Same import rule as `name`. **Exists only on a format that can hold more than one value** — `multi_select`, `files`, `objects`, `properties` — where absent (or 0) means unlimited, the stored default. On every other format (`text`, `number`, `select`, `date`, `checkbox`, `url`, `email`, `phone`, `emoji`, `map`) a document states none: export writes none whatever the store holds (the app stamps `relationMaxCount: 1` on a select and nothing on a date), import reads none, and a reader assumes one. On most of them the format itself fixes the count at one and there is no knob to state. **`text` is the one to say plainly, because there the store's knob is not a count**: heart holds a text property's `maxLength` under `relationMaxCount`. v2 models a SINGLE `text` format — `shorttext` folds into it (§3) — and has no length concept at all, and nothing in the app enforces such a cap, so the value is DELIBERATELY not exported rather than absent for want of a slot; either way no behaviour changes. Its absence states nothing, exactly as `include_time`'s absence off a date states nothing. Measured on the shipped table: 160 of its 194 relations store `maxCount: 1`, and the rule omits 143 of those and keeps the 17 `objects`/`files` properties capped at one link, where the cap is real (§15 #25). |
 | `readonly` | bool | no | Whether the property's value is user-writable. Same import rule as `name`. |
 | `default_value` | any | no | The value a new object receives for this property. Same import rule as `name`. |
+| `uninstalled` | bool | no | The user **REMOVED** this property from the space (stored `isUninstalled`), and the bundle carries it for backup fidelity (§15 #22). The object stays and is hidden — uninstalling a custom property is the same act as uninstalling a bundled one — so there is no `deleted` member beside this one. Export writes `true` only; absent is the same statement as `false`; the authoring subset refuses it, because an author declaring a property has nothing to uninstall (§2g). **Not a fact about this type's use of the property**, unlike `section` beside it: it is here because THIS entry is a complete standalone definition (§2e), and a reader that opens one type document and builds its property list from it would otherwise build a removed property as a live one. The dictionary entry states it too (§2f) — the one member of the shape two homes carry — while `hidden`, `api_key`, `bundled_diverged` and `value_names` stay the dictionary's alone: a type's declaration says how THAT type uses a property, and none of those is a thing it says. What a reader MUST NOT do, in either home, is install it as a live property, or write the removal mark into the restored store (§2f says what that breaks). The flag joins the declaration a composer compares, so two types that name a property alike and disagree about whether it was removed define nothing between them, like any other disagreement — the emit schedule may not decide whether a deleted property comes back (§2f). |
 | `section` | string | no | `featured` \| `hidden` \| `file` — which list the property belongs to. Absent = a regular (sidebar) property. **The one field that belongs to the type rather than the property** (§2e): of 1,614 properties declared by 2+ types within one space, zero differ in anything else. |
 
-An entry is the one `propertyDefinition` shape plus `section` (§2e): the
-schema expresses it as a reference to `$defs/propertyDefinition` with a
-layer of narrowings (`format` to the authorable vocabulary, `object_types`
-to a real array), never as a restatement. The five members after
-`object_types` follow the `name` rule — read when the property must be
-created, inert on an existing one — and the codec hands the WHOLE decoded
-definition to the resolver's create path, so a member the schema admits is
-never shed at the seam.
+An entry is the one `propertyDefinition` shape plus `uninstalled` and
+`section` (§2e): the schema expresses it as a reference to
+`$defs/propertyDefinition` with a layer of narrowings (`format` to the
+authorable vocabulary, `object_types` to a real array), never as a
+restatement. The five members after `object_types` follow the `name` rule —
+read when the property must be created, inert on an existing one — and the
+codec hands the WHOLE decoded definition to the resolver's create path, so a
+member the schema admits is never shed at the seam. The two after them do
+not follow it: `uninstalled` is a fact about the property rather than about
+the type's use of it, written by export alone, and a reader acts on it the
+way §2f says — never by reproducing the mark; `section` says what THIS type
+does with the property, and is read on every import, since the four id lists
+are rebuilt from the array.
 
 Export emits entries in section order featured → regular → file → hidden,
 preserving order within each list, and drops ids that no longer resolve to a
