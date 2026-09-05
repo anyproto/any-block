@@ -332,3 +332,50 @@ func TestEachReservedIDSaysWhatItIs(t *testing.T) {
 		t.Errorf("a built-in screen id cannot reach describeReference, so no reserved id may be described as one:\n%s", got)
 	}
 }
+
+// `properties` is one of the five list-valued formats (§3), so a bare value and
+// a one-element array holding it are the SAME value and a reader that prints
+// them differently is inventing a distinction the format does not carry. It is
+// the one of the five no export could have caught: not one dictionary entry,
+// type declaration or dataview column in the 79-bundle, 24,889-document corpus
+// states that format (re-derived: 0 occurrences of `"format": "properties"`),
+// which is why nothing but a fixture can hold it.
+//
+// Its values are property KEYS, and the dictionary answers for a stored key
+// directly — there is no legend rung here, because the value already IS the key
+// a legend maps a spelling to.
+func TestAPropertiesValueIsAListOfKeys(t *testing.T) {
+	b, err := open(filepath.Join("testdata", "propertylist"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, ok := b.docs["bafyreipropertylist"]
+	if !ok {
+		t.Fatal("fixture lost bafyreipropertylist")
+	}
+	def, _ := b.resolve(doc, "Columns to show")
+	if def == nil || def.Format != "properties" {
+		t.Fatalf("fixture: `Columns to show` must carry format properties, got %v", def)
+	}
+
+	if scalar, list := b.renderValue(def, "dueDate"), b.renderValue(def, []any{"dueDate"}); scalar != list {
+		t.Errorf("a bare value and a one-element array are the same value on a list-valued format\n scalar %s\n   list %s", scalar, list)
+	}
+	for _, tc := range []struct {
+		name, want string
+		value      any
+	}{
+		{"a key the dictionary defines is named", `dueDate -> "Due date" [date]`, "dueDate"},
+		{"a key it does not is said to be undefined, not printed bare",
+			`noSuchKey (no dictionary entry defines this key)`, "noSuchKey"},
+		{"the document's own value, both kinds at once",
+			`dueDate -> "Due date" [date], noSuchKey (no dictionary entry defines this key)`, doc.Properties["Columns to show"]},
+		{"an empty list says so, the way an empty reference list does", "(empty)", []any{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := b.renderValue(def, tc.value); got != tc.want {
+				t.Errorf("renderValue\n got %s\nwant %s", got, tc.want)
+			}
+		})
+	}
+}

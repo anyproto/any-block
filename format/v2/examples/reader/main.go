@@ -334,6 +334,24 @@ func (b *bundle) renderValue(def *definition, v any) string {
 			return "(empty)"
 		}
 		return strings.Join(parts, ", ")
+	case "properties":
+		// The fifth list-valued format, and the one whose values are property
+		// KEYS rather than object ids (§3). The dictionary answers for a stored
+		// key directly: there is no legend rung here, because the value already
+		// IS the key a legend maps a spelling to.
+		parts := make([]string, 0, 4)
+		for _, item := range values(v) {
+			key, ok := item.(string)
+			if !ok {
+				parts = append(parts, compact(item))
+				continue
+			}
+			parts = append(parts, b.describePropertyKey(key))
+		}
+		if len(parts) == 0 {
+			return "(empty)"
+		}
+		return strings.Join(parts, ", ")
 	case "unknown":
 		return fmt.Sprintf("%s   <- no definition travelled with this export", compact(v))
 	case "number":
@@ -351,6 +369,19 @@ func (b *bundle) renderValue(def *definition, v any) string {
 	default:
 		return compact(v)
 	}
+}
+
+// describePropertyKey follows one value of a `properties`-format property. The
+// value is a stored key, so it is looked up the way `describeReference` looks up
+// an id — and a key nothing defines is said to be undefined rather than printed
+// bare, for the reason an absent reference is: printed bare it is
+// indistinguishable from a key that resolved.
+func (b *bundle) describePropertyKey(key string) string {
+	def, ok := b.byKey[key]
+	if !ok {
+		return fmt.Sprintf("%s (no dictionary entry defines this key)", key)
+	}
+	return fmt.Sprintf("%s -> %q [%s]", key, def.Name, def.Format)
 }
 
 // describeReference is the whole of "follow a reference": take the caption off,

@@ -35,7 +35,7 @@ Its golden output over [`../exported_space`](../exported_space) is checked on
 every `go test ./...`. Regenerate it with `UPDATE_GOLDEN=1 go test
 ./format/v2/examples/reader`.
 
-`testdata/` carries four more bundles, each one a case the worked example
+`testdata/` carries five more bundles, each one a case the worked example
 cannot show and a measured corpus does not contain often enough to rely on:
 
 - `collision/` — one spelling that is one dictionary entry's `internal_key`
@@ -48,3 +48,6 @@ cannot show and a measured corpus does not contain often enough to rely on:
   including the two that cannot be answered from a bundle at all.
 - `reserved/` — the `_`-prefixed ids, which are not one thing: SPEC §13
   answers each form separately, and `exported_space` holds none of them.
+- `propertylist/` — the `properties` format, whose values are property keys.
+  Not one dictionary entry in the corpus declares it, so it is the one
+  list-valued format no export could catch a reader mishandling.
