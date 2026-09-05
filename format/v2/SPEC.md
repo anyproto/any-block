@@ -1248,7 +1248,7 @@ homes**, and no fourth:
 
 | home | shape |
 |---|---|
-| a property-dictionary entry (§2f) | one `propertyDefinition` + `uninstalled` + `hidden` + `bundled_diverged` |
+| a property-dictionary entry (§2f) | one `propertyDefinition` + `uninstalled` + `hidden` + `bundled_diverged` + `api_key` + `value_names` — or, where the format is the `unknown` sentinel, identity and that word alone (§2f) |
 | a type document's property-definition entry (§2a) | one `propertyDefinition` + `section` |
 | a property document's definition fields (§2d) | one `propertyDefinition` |
 
@@ -1265,16 +1265,24 @@ with `unevaluatedProperties: false`. A home may **narrow** a shared member
 `object_types` is a real array, since only a relation's stored value can
 hold a null) but never restate its shape: two statements of one member
 agree today and drift tomorrow (§15 #14). Two homes carry **members of
-their own** beside the shape — one on a type's entry, three on a dictionary
+their own** beside the shape — one on a type's entry, five on a dictionary
 entry — and each is meaningless on the other homes, which refuse it:
 `section` on a type's entry says what THIS type does with the property
 (§2a); `uninstalled` on a dictionary entry says the user removed the
 property from the space (§2f, §15 #22), `hidden` that the store hides it
-from every listing (§15 #23), and `bundled_diverged` that the space's copy
+from every listing (§15 #23), `bundled_diverged` that the space's copy
 of a bundled property had diverged from the shipped table when the bundle
-was written (§15 #25) — facts about the property's presence and provenance
-in ONE space, which a type's declaration cannot act on, and which have no
-other place to travel now that a bundle carries no property document.
+was written (§15 #25), and `api_key` the property's public API key, which no
+restore mints again (§15 #21) — facts about the property's presence and
+provenance in ONE space, which a type's declaration cannot act on, and which
+have no other place to travel now that a bundle carries no property
+document. The fifth, `value_names`, is not such a fact but the answer to a
+question only a bundle has to survive alone with: what a value of a
+name-over-number property can be (§2f, §3). And the dictionary's home has a
+second SHAPE, which is not a narrowing of the first: `format: "unknown"`
+says no definition could be found for the key at all, so it REPLACES the
+shared shape rather than layering over it — there is no definition left for
+the shape to describe (§2f).
 
 The rule is test-pinned the way the format vocabulary is: the homes are
 asserted to REFERENCE `$defs/propertyDefinition`, the way
@@ -1710,20 +1718,34 @@ below. An author states any one identity — `property`, `internal_key`, or a
 `name` — and a custom property with no `internal_key` gets a fresh minted
 one from the import wiring, like everywhere else in the format (§2a).
 
-**The reader flow, in full, and the step that is easy to miss.** A spelling
-resolves in this order — the document's own `property_internal_keys`
-legend; then a verbatim match against a dictionary key; then **the shipped
-name table over the dictionary's own keys** (the same table every §3 slot
-resolves through), with the forgiving fold behind it for near-misses and
-legacy derived-slug spellings. That third step is not optional
-garnish: §3's exhaustive rule writes a legend line only for a spelling the
-bundled table does not bind, so a bundled property's spelling never gets
-one — measured before the re-spell, over a produced 77-space export of
-503,919 property value slots, 69.4% of slots resolved only through the
-shipped table's step.
+**The reader flow is written out once, in §3a.** A spelling reaches a
+stored key through one ladder — the document's own `property_internal_keys`
+legend, then this file, then the shipped name table, then the forgiving
+fold, then the term itself — and §3a states it end to end: what each rung
+answers, in what order, and what a reader does when a rung answers nothing.
+What this section owes that ladder is the one fact about an ENTRY the middle
+rung rests on.
+
+**An entry carries both halves of the identity, so the dictionary IS the
+part of the shipped name table this bundle needs.** `{"property": "Due
+date", "internal_key": "dueDate"}` is that table's row for `dueDate`,
+written into the bundle because the bundle uses the key — and the entry for
+a space-minted key states the same pair, its spelling being the stored key
+itself. That is what lets a reader shipping no table resolve a produced
+export anyway. Measured over the 79-bundle corpus, 334,292 top-level
+property slots: 295,522 resolve on an entry's own `property` spelling,
+33,741 on a legend line, 30 on a term that is an entry's `internal_key`
+outright, and 4,999 on nothing at all — and of those 4,999 the shipped table
+could name **not one**. So for the keys a bundle NAMES, the table adds no
+answer this file has not already given. The 295,522 are why the shipped
+table's step is not optional for a reader OUTSIDE a bundle: §3's exhaustive
+rule writes a legend line only for a spelling the bundled table does not
+bind, so a bundled property's spelling never gets one, and a document read
+on its own has nothing but the table to resolve it with.
 **Look up, never transform** — the name and the key say different words
 ("Creation date" / `createdDate`), so no derivation in either direction
-exists; a reader holds the shipped table and asks it.
+exists, and a reader holding neither the table nor an entry has no third way
+across.
 
 **Every entry carries its `format`, and the schema requires it.**
 Self-sufficiency is the constraint that shapes the dictionary: a
@@ -1732,13 +1754,78 @@ third-party reader must be able to interpret a backup WITHOUT shipping
 free text — and since §15 #25 that holds for every member, not `format`
 alone: an entry for a bundled key states its description, readonly and
 hidden bit — and its max count and include-time where the format admits
-them (§2a) — as fully as a space-minted key's does, so the reader needs
-the table for nothing. Dropping bundled relation
+them (§2a) — as fully as a space-minted key's does, so a reader holding
+this file needs the shipped table for nothing the bundle NAMES. **That is a
+claim about the keys a bundle states, and no wider**: a spelling no entry
+answers for still resolves through the table or not at all — a document read
+outside its bundle, an authored one, a legacy derived slug — which is why
+§3's chain keeps the table's step and this file does not replace it (§3a).
+Dropping bundled relation
 documents with *no* dictionary was
 considered and rejected for exactly this reason; it is the same "stands
 alone" property that keeps a space id off the envelope.
 `format` resolves per key exactly as everywhere else (§3): `"text"` on a
 bundled short-text key stays short text.
+
+**Two statements a `format` alone could not make**, and both are the
+dictionary entry's own — neither has any meaning on a type's declaration or
+a property document, and both other homes refuse them.
+
+- **`value_names`: what a value of this property can BE.** Six stored keys
+  declare `format: "number"` and export a NAME (§3) — `layout`,
+  `resolvedLayout`, `layoutAlign`, `origin`, `importType`, `imageKind`, with
+  `recommendedLayout` a seventh key in the same table, carried by a type
+  document as `type_settings.layout`. Their entries state the complete list
+  of admissible names, sorted. The member exists because on exactly these
+  keys `format` is a lie of omission and the entry's own `description` is
+  worse than silence: `layout`'s reads "Anytype layout ID(from pb enum)" —
+  the STORE's text about the stored number, installed verbatim from the app's
+  shipped table — and a reader that believes it writes `"Layout": 1`. Read
+  `format` with `value_names`, never with `description`: a description is
+  free text a user may have edited, this list is the encoder's. Measured over
+  the 79-bundle corpus: of the 101,600 property slots whose entry says
+  `format: "number"`, 62,340 hold a string and 39,237 a number — the string
+  form is the **majority** — and 62,325 of those strings are these six keys,
+  in which not one value is a number. Nothing else in a bundle could tell a
+  reader the members: `object.schema.json` publishes each enum vocabulary to
+  the slots that constrain it and never to a property value, and
+  `$defs/propertyMap` accepts anything at all. The list is DERIVED from the
+  encoder's own table (`namedEnumProperties`), never maintained beside it, so
+  it cannot publish a name export has stopped writing. It is READ-facing:
+  five of the six keys are hidden or readonly in the shipped table and the
+  sixth is set by the alignment UI, so the member says what a value MEANS,
+  never what a caller may choose — an author never writes one, the authoring
+  subset refuses it, and a hand-written list is answered with a warning
+  rather than obeyed, in both directions (a key with no vocabulary, and a
+  list that disagrees), because these vocabularies are total over their proto
+  enums and a newer app's added member must not become an older reader's hard
+  failure. Absence says the property has no named vocabulary — most do
+  not — never that the writer omitted one.
+- **`format: "unknown"`: that NOTHING could define this property.** A bundle
+  references keys the space no longer defines, almost always a relation the
+  user deleted, whose definition went with it. Such a key still gets an
+  entry, carrying its identity, the sentinel, and nothing else — no
+  description, no options, no target types, no flags, not even a
+  `value_names` — because there is nothing else, and an entry stating more
+  would be describing a definition it has just said it does not have. Both
+  doors refuse one that says more. `unknown` is **not a property format**: it
+  is absent from `$defs/propertyFormat`, so every other slot that names a
+  format refuses it (a declaration says how a property is USED, and an absent
+  definition is not a use), absent from `formatNames`, and absent from the
+  authoring subset, because an author declaring a property always knows what
+  it holds. On the shape's schema the sentinel REPLACES the shared
+  `propertyDefinition` reference rather than layering over it (§2e), there
+  being no definition for the shape to describe. What the word buys is the
+  one distinction a reader could not otherwise make: *the writer had nothing
+  to say* against *I failed to look*. Nothing is inferred to fill the hole —
+  no name lifted from a dataview column, no format guessed from a value.
+  `"68cda76ee9223c9dc7ce5e92": 1755471600` could be a date, a count or an id,
+  and the entry says so by saying nothing. A reader MUST NOT create a
+  property from one; what it may do is read the values under the key as the
+  raw JSON they are, and say so. How MANY keys a bundle lost, and which, is
+  not counted here but stated in `index.json` (§2c): an entry answers *what
+  is this key*, one key at a time; the index answers *did this export lose
+  definitions* — a set, and a property of the export rather than of any key.
 
 A dictionary entry is the **third home** of `$defs/propertyDefinition`
 (§2e), referenced across files by the published URL the way the index
