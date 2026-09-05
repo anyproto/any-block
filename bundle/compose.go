@@ -1347,13 +1347,14 @@ func resolvedDefinition(key string, opts anyblockjson.Options) (anyblockjson.Pro
 // It takes the two members that are facts about the PROPERTY — its name
 // and its format — and no others. `section` is the type's own member and
 // says nothing about the property; the rest of the shape's members are
-// admissible on a declaration but no exported one was observed to state
-// them (over the corpus every declaration reached here states name and
-// format and nothing else), so promoting them would build a definition out
-// of members the format has never seen a writer put there. The select
-// vocabulary is the pointed case: an entry the space's OWN option
-// snapshots fill is the one the vocabulary loop below writes, and a
-// declared copy would either duplicate it or contradict it.
+// admissible on a declaration but no exported one reached here was
+// observed to state them — over the corpus the four state identity, a
+// name, a format and, on two of them, a section, and nothing more — so
+// promoting them would build a definition out of members the format has
+// never seen a writer put there. The select vocabulary is the pointed
+// case: an entry the space's OWN option snapshots fill is the one the
+// vocabulary loop below writes, and a declared copy would either duplicate
+// it or contradict it.
 //
 // A key two type documents declare DIFFERENTLY gets nothing, and stays a
 // key nothing could define. There is no way to pick between them that is

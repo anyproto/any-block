@@ -845,11 +845,11 @@ func (imp *importer) applyTypeProperties(details *types.Struct) error {
 // It carries those two and no more on purpose. `section` says where the
 // property sits on THIS type and is not a fact about the property; an
 // entry's `options`, `object_types`, `description` and the rest are members
-// the shared shape admits but which no exported declaration was observed to
-// state (over the 79-bundle corpus every declaration of a key nothing else
-// defines states name and format and nothing else), so promoting them would
-// be building a definition out of members the format has never seen a
-// writer put there.
+// the shared shape admits but which no exported declaration of such a key
+// was observed to state — over the 79-bundle corpus the four that matter
+// state identity, `name`, `format`, and on two of them a `section`, and
+// nothing more — so promoting them would be building a definition out of
+// members the format has never seen a writer put there.
 type TypeDeclaredProperty struct {
 	// Term is the entry's identity as the document states it, with the
 	// entry's own precedence (TypeProperty.authoredIdentity): its
