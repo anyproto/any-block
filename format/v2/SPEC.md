@@ -2954,6 +2954,144 @@ values). Strict per-type validation against a schema generated one-way from a
 type document — the planned `GenerateSchema` artifacts (§2a, §13) — is a
 possible future layer; 2.0 does not provide this.
 
+### 3a. The lookup, end to end
+
+Everything above states one rule at a time. Here it is as one algorithm: what
+a reader does with a property spelling it has just read out of a document,
+from the spelling to the stored key to what the value means. It has **two
+halves**, and reading them as one is where most confusion about this format
+has come from. Half one asks *which property is this*, and answers with a
+stored key. Half two asks *what does that key mean*, and answers with a
+definition. Different rungs, different sources — and a reader that finishes
+the first may still get nothing from the second, which is a fact about the
+export rather than about the reader.
+
+**Half one — spelling to stored key.** Given a spelling `S` out of any
+property slot (a `properties` member name, a block's `property`, a column, a
+filter, a sort, a `group_by`, a `cover_property`, a definition entry — §3
+governs them identically), take the FIRST rung that answers:
+
+1. **The document's own legend.** `property_internal_keys[S]`, if the
+   document has that entry. Authoritative, consulted before any table or
+   vocabulary the reader holds — it is the only statement the *document*
+   makes about its own spellings — and deliberately not liveness-checked
+   (§3, §9a).
+2. **A stored key, verbatim.** If `S` is itself a key the reader can see —
+   a dictionary entry's `internal_key`, or a stored key in a space-backed
+   reader's store — then `S` names that key. Verbatim-first: a term that IS
+   a key is that key, and no name table applies to it.
+3. **A name this bundle binds.** The dictionary entry whose `property` is
+   `S`, byte for byte, names its `internal_key`; failing that, the entry
+   whose `name` is `S`, where exactly one entry answers. This is the rung a
+   reader outside Anytype resolves nearly everything on, and it works
+   because an entry states BOTH halves of the identity: for a bundled key
+   the entry's `property` is the display name out of the shipped table
+   (`"Due date"` / `dueDate`), so the dictionary is that table's rows for
+   the keys this bundle actually uses (§2f). The `name` half of the rung is
+   for a document that carries no legend — an authored one (§2g) — and a
+   canonical export never reaches it: of the 4,999 slots the 79-bundle
+   corpus leaves unresolved after the rungs above, an entry's `name` would
+   answer for exactly zero. With no dictionary in hand — a document read on
+   its own — the whole rung is empty.
+4. **The name tables the READER holds.** The shipped bundled table, which
+   travels with every reader, and, for a space-backed reader, that space's
+   own names, where exactly one live entity answers to `S`. Then the
+   forgiving fold behind them — NFC, casefold, trim, strip
+   default-ignorables, drop `_`, `-` and spaces — which is also the whole of
+   legacy continuity, so a pre-2.0 `created_date` lands in `createdDate`'s
+   fold class with no compatibility table (§3).
+5. **Verbatim.** `S` *is* the stored key. This is what keeps a package-only
+   reader lossless on custom keys; a reader with a space-backed vocabulary
+   warns here, because a term no live entity answers to is the
+   stale-or-guessed name every name-addressed scheme has (§12).
+
+Rungs never compete: the first that answers wins, and the order is the
+order above. Within rung 3, an entry's `property` outranks an entry's
+`name`, because two entries may share a `name` and may not share a
+`property` — measured over the 79-bundle corpus, 27 display names are
+claimed by more than one entry and no `property` spelling is claimed twice,
+and one key may occupy only one entry (§2f). An ambiguity that survives all
+five rungs is never guessed: it is the type-scoped resolution or the loud
+error of §3, naming the term and asking for the legend entry that would
+settle it.
+
+The TYPE namespace runs no such ladder and needs none: an object's type key
+is stated outright beside the spelling in `type_internal_key`, and every
+other reference to a type is the derived id `type-<key>` (§2, §9), which
+carries the key in its own text.
+
+**Half two — stored key to definition.** One lookup: the dictionary entry
+whose `internal_key` is that key (§2f). The entry is the whole answer and is
+as complete for a bundled key as for a space-minted one — `format`, `name`,
+`description`, `options` (a select vocabulary inline: each option's name,
+color and stored key), `object_types`, `max_count`, `include_time`,
+`readonly`, `default_value`, `api_key`, the space-scoped flags, and
+`value_names` where the property's exported value is a NAME over a stored
+number (§3). A bundle states an entry for every key its documents
+reference, so there is no second place to look and no reconstruction to
+attempt.
+
+**When a rung answers nothing.** Four terminal states, and a reader must
+keep them apart, because they are four different facts:
+
+- **The entry says `format: "unknown"`.** Nothing could define this property
+  — almost always a relation the user deleted, whose definition went with it
+  (§2f). The key resolved; the definition does not exist. Read the values as
+  the raw JSON they are, preserve them, and report them as undefined. Do NOT
+  create a property from such an entry, and do not reconstruct one from
+  elsewhere in the bundle: a format cached on a dataview's `properties[]`
+  entry says how that view treats the key and is not a definition — it
+  carries no name and no vocabulary — and the writer deliberately promotes
+  none. In the audited 3,286-document space, 60 of the 155 undefined keys
+  reachable from a `properties` map have such a hint, 2 appear in a type's
+  declaration, and 94 have neither.
+- **No entry for the key at all.** The bundle was not written by a composer
+  that states the undefined ones — every bundle produced before that rule
+  is in this state — so the silence means nothing in particular. Treat it
+  exactly as `unknown`, and expect `index.json` to say nothing about it
+  either.
+- **The spelling reached no key** — rung 5 answered, and the term is being
+  taken as a stored key it may not be. That is the guessed-or-stale name
+  hole (§3), a warning where a vocabulary is in force and silence where none
+  is.
+- **The value is a reference that resolves to no document.** A different
+  question with its own answer: §9's reference table, and `index.json`'s
+  `unresolved.targets` for the ids the index itself names (§2c).
+
+**A worked, runnable version of all of this** — for a reader that ships
+nothing at all, over a real export, with the counts it produces — is
+`format/v2/READING.md` and the standard-library program beside it,
+`format/v2/examples/reader`. This section is the normative statement; that
+one is the walkthrough.
+
+**Measured, so it can be reproduced.** On the audited 3,286-document space —
+118 dictionary entries, 37,336 top-level property slots — the ladder above,
+run with **no Anytype vocabulary of any kind**, resolves 36,696 slots:
+36,562 at rung 3 on an entry's own `property` spelling, 134 at rung 1 on a
+legend line, none needing rung 2, and 640 reaching nothing at all — 155
+distinct keys across 324 documents, whose values (`"68cda76ee9223c9dc7ce5e92":
+1755471600`) are uninterpretable and are meant to be reported as such. Over
+the whole 79-bundle corpus, 334,292 slots: 295,522 at rung 3, 33,741 at
+rung 1, 30 at rung 2, and 4,999 at nothing — and of those 4,999 the shipped
+bundled table could name **not one**, which is the measurement behind the
+claim that for a bundle rung 4 adds no answer rung 3 has not already given.
+
+**What a complete portable artifact is.** A **bundle** — `index.json`,
+`properties.json` and the documents (§2c) — is self-sufficient: half one
+never needs a rung past 3 for a key the bundle names, and half two always
+answers, with `unknown` where the answer is that there is none. A **single
+document** is self-sufficient for its structure, its block tree, its inline
+markup and its own spellings — it carries the legend that binds each
+spelling to a stored key — but not for definitions: a custom property's
+format and a select property's option vocabulary live in the dictionary, so
+a lone document resolves a bundled spelling through the shipped table (rung
+4) and a space-minted one through its legend to a key it can name and cannot
+describe. That gap is stated as a tracked non-goal, not an accepted silence
+(`PRINCIPLES.md` rule 7, *A document stands alone*). Which is why the answer
+to "what do I need to read this" has exactly two shapes, and neither is "the
+shipped table": a bundle, or a document plus the acceptance that its custom
+definitions did not travel.
+
 ## 4. Blocks — common structure
 
 `blocks` is a **flat array in pre-order**: a parent precedes its descendants
