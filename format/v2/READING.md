@@ -45,17 +45,25 @@ Four things to take from it and one to be careful about.
 - **`formatVersion`** gates the grammar. `$schema` is decorative — do not
   branch on it.
 - **`manifest.properties`** names the property dictionary. That file is step 3.
-- **`manifest.files`** has three states and they mean different things. Absent:
-  the export says nothing about blobs. `{}`: the export enumerated its file
-  documents and carried the bytes of none of them — a metadata-only export,
-  stated. A populated map: file-object id → path of the blob, relative to
-  `index.json`. The Community export has **no `files` member at all**, and 666
-  `file_object` documents; opening one leads to metadata, not to pixels.
-- **`homepage`, `entrypoint`, `widgets[].target`** are object ids, and they are
-  the ids most likely to point at nothing. In this export, of the homepage plus
-  23 widget targets: 5 resolve to a document in the bundle, 2 are reserved ids
-  (`_all_objects`, `_chat` — built-in screens, not documents), and **17 name
-  documents the bundle does not carry**.
+- **`manifest.files`** has three states and they mean different things.
+  **Absent**: the export says nothing about blobs, which this format reads as
+  a metadata-only export — the mode *inferred*. **`{}`**: the export
+  enumerated its file documents and carried the bytes of none of them — the
+  same mode, *stated*. **A populated map**: file-object id → path of the blob,
+  relative to `index.json`. The Community export has **no `files` member at
+  all**, and 666 `file_object` documents; opening one leads to metadata, not
+  to pixels.
+- **`homepage`, `entrypoint`, `widgets[].target` and `auto_widget_targets`**
+  are object ids, and they are the ids most likely to point at nothing. In this
+  export, of the homepage plus 23 widget targets: 5 resolve to a document in
+  the bundle, 2 are reserved ids (`_all_objects`, `_chat` — built-in screens,
+  not documents), and **17 name documents the bundle does not carry**.
+  `auto_widget_targets` is the client's ledger of targets it has already
+  auto-added a widget for (SPEC §2c), so by design it names things that are
+  mostly *not* in the sidebar: 10 ids here — 2 reserved, 6 naming a type
+  document this bundle carries, **2 naming nothing**. It is machine state:
+  render nothing from it, and if you follow it at all, follow it the way step 6
+  follows any other id.
 - **`unresolved`**, when present, is the export telling you what it knows it
   could not answer for: `unresolved.properties` lists stored property keys
   nothing could define, `unresolved.targets` lists ids this index names and the
@@ -90,14 +98,29 @@ these five — `object.schema.json` lists every member — so branch on the valu
 you handle and pass the rest through.
 
 Do not assume there is an ordinary object to show. Across 79 measured exports,
-12 carry none at all *and* name a `homepage` the bundle does not carry: types
-and participants travelled, the pages did not.
+**12 carry none at all** — types and participants travelled, the pages did
+not — and **11 of those 12** also name a `homepage` the bundle does not carry.
+The twelfth names `_widgets`, which is a reserved id and therefore never a
+document at all (step 6): its homepage is not missing, it is a built-in
+screen. So the fallback a reader needs is "show something, anything", and the
+count of exports where the homepage cannot be shown is 11, not 12.
 
 ## 3. Read the dictionary, `properties.json`
 
 One file, one entry per property the bundle's objects actually use. It exists
-so you never have to ship an Anytype table: everything you need to interpret a
-value is in the bundle. Community's has 118 entries.
+so you never have to ship an Anytype table: an entry is the **complete**
+definition — name, format, and a select property's option vocabulary inline —
+and a bundle written under the current rule states one for **every** property
+key its documents reference, using `format: "unknown"` where the definition
+itself is gone. Community's has 118 entries.
+
+That is a claim about *definitions*, and it is the only one this guide makes.
+It is not a promise that nothing was lost, and three steps below retract
+different pieces of it: an `unknown` entry is a definition that no longer
+exists (step 9); this export predates the rule above, so 155 of the keys its
+documents reference have no entry at all (step 4); and a reference whose
+target did not travel is a third thing again (step 6). Each of the three is
+stated where you meet it rather than promised away here.
 
 ```json
 {
@@ -152,7 +175,14 @@ answers `name: "Space"`, `format: "objects"`.
 
 The other **640 values, across 324 documents, naming 155 distinct stored keys,
 resolve to nothing** — mostly properties the user deleted, whose definition
-went with them. See step 9.
+went with them. That is **this export's state, not the format's**: it was
+written before the rule that a bundle states an entry for every key its
+documents reference, so here a lost definition arrives as silence. Written
+today the same space answers all 155, most of them with an `unknown` entry —
+and two of them with a real one, because a type document in this same bundle
+declares `68cdaa41e9223c9dc7ce5f30` as "Tag" (`multi_select`) and
+`68cda76ee9223c9dc7ce5e92` as "Release Date" (`date`), and a declaration beats
+the sentinel. See step 9.
 
 ## 5. Read the value
 
@@ -165,7 +195,7 @@ went with them. See step 9.
 | `date` | RFC 3339 UTC string | a year outside 0000–9999 is written as the raw number instead; accept both |
 | `checkbox` | boolean | |
 | `url`, `email`, `phone`, `emoji` | string | |
-| `select`, `multi_select` | option **names**, not ids | |
+| `select`, `multi_select` | option **names** — usually; check, see below | |
 | `objects`, `files` | object references — step 6 | |
 | `properties`, `map` | verbatim | declared by the vocabulary, absent from all 79 measured bundles |
 | `unknown` | verbatim | not a format: the export saying it could not define this key |
@@ -183,11 +213,13 @@ Community, 6,392 of the values in `objects`/`files` slots are bare strings and
 only: on a single-valued format an array is *not* unwrapped, so `["hi"]` on a
 `text` property is a list of strings.
 
-**Six properties declare `format: "number"` and export a string.** `Layout`,
-`Resolved layout`, `Layout align`, `Origin`, `Import Type` and `Image kind`
-store an app enum as a number and write its **name**. In Community, all 8,695
-values in those six slots are strings and not one is a number. The entry
-publishes the admissible names in **`value_names`**:
+**Nine stored keys declare `format: "number"` and export a string.** Eight are
+properties on an object — `Layout`, `Resolved layout`, `Layout align`,
+`Origin`, `Import Type`, `Image kind`, `Participant permissions` and
+`Participant status` — and the ninth is the same thing in another slot: a type
+document's `type_settings.layout` is `recommendedLayout`, which takes the same
+28 names as `Layout`. Each stores an app enum as a number and writes its
+**name**. The entry publishes the admissible names in **`value_names`**:
 
 ```json
 {
@@ -201,18 +233,36 @@ Read `format` together with `value_names`, and **never read the
 `description`**: `Layout`'s says "Anytype layout ID(from pb enum)", which
 describes the stored number and will lead you to write `"Layout": 1` — a value
 this format refuses. `value_names` is derived from the encoder's own table, so
-it cannot drift from what export writes. The Community export predates the
-member and does not carry it; every value in it is nonetheless one of the
-published names.
+it cannot drift from what export writes.
 
-A seventh key is the same thing in a different slot: a type document's
-`type_settings.layout` is `recommendedLayout`, and takes the same 28 names.
+The Community export predates the member and does not carry it, and it
+predates the last two keys to join the list. Read it with that in mind: all
+**8,695** of its values in the first six slots are already names and not one
+is a number, while its **3,760** `Participant permissions` and `Participant
+status` values are still bare integers — `2` where the rule now writes
+`"owner"`. A number in a slot the vocabulary can name is refused today, so
+those documents do not re-import unchanged; the changelog states what that
+break costs.
 
-**`select` and `multi_select` values are option names.** The colour and the
-option's stored id are in the dictionary entry's `options`. A document may also
-carry `option_ids` — `{property spelling: {option name: option id}}` — which is
-a *hint* for an importer re-binding to a live space, not a lookup table for
-anything in the bundle.
+**`select` and `multi_select` values are option names — but look them up
+rather than assuming.** The colour and the option's stored id are in the
+dictionary entry's `options`, so a value that is one of those names is an
+option and renders as one. A value that is **not** one of them is a raw option
+id the export could not name, and printing it as though it were a name is the
+mistake this rule invites. In the audited space that is **12 of the 31
+`select`/`multi_select` values (39%), across 11 documents** — eight distinct
+ids, not one of them an option in its own entry, a document in the bundle, or
+an option of any other entry. Nothing in the bundle can name them. It is rarer
+across the corpus and never absent: **74 of 22,019 values, in 9 of the 79
+bundles**.
+
+So: match the value against the entry's `options` first, and where it matches
+nothing, show it as the unresolved id it is — the same courtesy step 6 pays a
+reference the bundle does not carry. A document may also carry `option_ids` —
+`{property spelling: {option name: option id}}` — which is a *hint* for an
+importer re-binding to a live space, not a lookup table for anything in the
+bundle, and it does not answer this: it maps names to ids, and here it is the
+id you are holding.
 
 **Presence is meaningful.** `false`, `0`, `""`, `[]` and `null` are values a
 person set, written verbatim. Absent means absent. (Block attributes are the
@@ -242,10 +292,19 @@ Four kinds of id you will meet:
   `_missing_object`, `_date_2026-04-02`, `_anytype_profile`. These name
   built-in screens, sentinels and dates; they are never documents, and a
   bundle is not missing anything by not carrying them.
-- **An id the bundle does not carry.** Community: of 7,781 reference values in
-  `objects`/`files` slots, 5,247 resolve locally, 1,880 are reserved, and 654
-  (171 distinct ids) are absent. Separately, 92 of the 3,286 documents name a
-  `type_internal_key` whose type document is not in the bundle.
+- **An id the bundle does not carry.** Counted over the slots this step is
+  about — `objects`/`files` property values — Community has 7,781 of them:
+  5,247 resolve locally, 1,880 are reserved, and **654 (171 distinct ids) are
+  absent**. Separately, 92 of the 3,286 documents name a `type_internal_key`
+  whose type document is not in the bundle.
+
+**Say which slots a census counted, always.** That 654 is one scope, not the
+export's total. Widen it to `items`, block `object_id`s and the icon/cover
+`file` — the census SPEC §9 publishes — and the same export reads **1,265 of
+10,053 occurrences, over 723 distinct ids**. The two disagree about nothing:
+the extra 611 are 5 collection members, 108 block targets and **498 icons and
+covers**, and the icons dominate because this export carries no blobs at all.
+Quote either figure; quote its scope with it.
 
 An absent target does not mean the object never existed — it means this export
 did not carry it. Only `index.json`'s `unresolved` (step 1) can tell you the
@@ -326,15 +385,23 @@ Three separate silences, and each has a different meaning:
 | you see | it means |
 |---|---|
 | a property key with a dictionary entry whose `format` is `"unknown"` | the export looked and found no definition. The values under that key are raw JSON and stay raw. |
-| a property key with **no entry at all** | an export that did not say. Community is this case for 155 keys — its `"68cda76ee9223c9dc7ce5e92": 1755471600` could be a date, a count or an id, and nothing in the bundle can tell you. |
+| a property key with **no entry at all** | an export that did not *say* — which is every bundle written before the rule in step 3, Community included, for 155 keys. Its `"66602dc5e5672d06c0e19245": 1717538400` could be a date, a count or an id: no entry, no declaration on any type, no format cached on a dataview column, and one legend line spelling the key as itself. Treat it exactly as `unknown`, and expect `index.json` to say nothing about it either. |
 | a reference that resolves to nothing | see step 6. `index.json`'s `unresolved.targets` is the only place a writer can say it meant to. |
 
-Two more places where the bundle stops short of a meaning: participant
-documents carry `Participant permissions` and `Participant status` as bare
-numbers with no published vocabulary, and a handful of other stored enums stay
-numeric. `value_names` marks exactly the properties whose names *are*
-published; its absence on an entry means the property has no named vocabulary,
-not that the writer forgot one.
+One more place where the bundle can stop short of a meaning — and it just got
+much smaller. A participant document's `Participant permissions` and
+`Participant status` used to travel as bare numbers under a description
+pointing at a Go symbol no bundle ships; they are written as names now
+(`owner`, `active`), and their entries publish the vocabulary like the other
+seven of the nine. What is left numeric is a short tail: **81 slots across the
+whole 79-bundle corpus**, against 5,038 for those two alone.
+
+Read an absent `value_names` narrowly. It says that **this entry** publishes
+no vocabulary — usually because the property has none, which is true of most
+properties, and sometimes because the entry states a `format` other than
+`number`, where a number's names are not that entry's to publish. It never
+means the writer had a list and omitted it. And on a bundle old enough, such
+as this one, it means only that the export predates the member.
 
 ---
 
