@@ -753,6 +753,7 @@ object. That is `index.json`, one file at the bundle root, validated against
 | `icon` | the space's icon, in exactly the shape an object's icon has (§2b), restricted to the two variants a bundle can hold: `{"format": "emoji", "emoji": "📚"}`, or `{"format": "file", "file": "<object id of an image in the bundle>"}`. The image variant needs the image object *and* its file in the archive, so a generated bundle uses an emoji. It is one `$ref` into the object schema, not a copy — an index and an object cannot disagree about what an icon is. |
 | `homepage` | what opens on entering the space: an object id, or the reserved `_widgets` (the sidebar dashboard, the default) or `_graph` |
 | `widgets` | sidebar widgets, in order. **The first one is what the install opens**, so the entry point goes first |
+| `unresolved` | what this bundle NAMES and cannot answer for — the property keys nothing could define, and the ids this file points at that no document here carries (below). Optional, and its absence is not a completeness claim |
 
 `formatVersion` is the same format version, with the same rules, that object
 documents carry (§10): one `major.minor` string, one namespace, bumped together. A reader
@@ -904,8 +905,23 @@ document (the dictionary) and the bytes a file document stands for.
   path — is a cross-document REFUSAL; a file document a present map does
   not bind is a WARNING (its bytes did not travel — the exporter writes
   the document and omits the binding when a blob cannot be streamed, and
-  counts it, so a partial export is loud at both ends); a bundle with no
-  map at all is a metadata-only export, tolerated as a mode.
+  counts it, so a partial export is loud at both ends).
+
+  **The member has three states, and the third is the one a reader kept
+  asking for.** A populated map is the binding. An ABSENT `files` states
+  nothing, which this format reads as a metadata-only export — the mode
+  *inferred*, and also what an authored bundle and every exporter written
+  before the map existed produce. An EMPTY object, `"files": {}`, is the
+  export *saying* it: this run enumerated its file documents and carried the
+  bytes of none of them. Two bytes settle a real ambiguity — the audited
+  space holds 666 `file_object` documents and not one blob, 68 of the
+  corpus's 79 bundles are in the same state, and an absent member alone
+  cannot tell an export that CHOSE metadata-only from one whose manifest
+  never got written. Only the writer knows which, so only the writer can say
+  it: the mode is declared by the caller (a composition cannot observe the
+  difference between "no bytes were meant to travel" and "every stream
+  failed"), a reader must not infer intent from the absence, and it must not
+  read `{}` as an error.
   The bundle is FAT (§15 #20): the bytes travel, nothing
   else — no variant keys, no encryption keys, and the thin bundle's future
   marker slot stays untouched.
@@ -981,6 +997,60 @@ that inside itself, because an undeclared lookup table is one no reader
 opens. Whether its paths resolve is the same cross-document question every
 other id in the index poses, answered by the tooling, not this package
 (§13).
+
+### What the bundle names and cannot answer for
+
+Two losses used to reach a reader the same way: **nothing happened.** A
+property key nothing could define resolved to no dictionary row, and an id
+the index names that no document carries leads nowhere. In both cases the
+reader's next question is whether the export is incomplete or the read was
+wrong, and only the writer can answer it. `unresolved` is that answer, in
+the one file that describes the bundle as a whole:
+
+```json
+{ "unresolved": {
+    "properties": ["68cda76ee9223c9dc7ce5e92"],
+    "targets":    ["bafyrei…"] } }
+```
+
+Two sorted lists, each present only when it has something to report, and
+each earning its place differently.
+
+- **`properties`** — the stored property keys the documents reference and
+  nothing could define, written verbatim (a key nothing defines has no
+  spelling but itself, §2f). This RESTATES what `properties.json` already
+  says per key — an entry whose `format` is the `unknown` sentinel — and the
+  restatement is the point: the entry answers *what is this key*, one key at
+  a time, in another file; this answers *did this export lose definitions,
+  and which* — a set, and a property of the export rather than of any key.
+  In the audited space the validator names 238 such keys against a
+  dictionary of 118 defined entries, which is not a question to answer by
+  opening that file and filtering it.
+- **`targets`** — the ids THIS FILE names that no document in the bundle
+  carries: an `entrypoint`, a `homepage`, a widget `target`, an image icon.
+  It has no other home at all, because whether an id resolves is a
+  cross-document fact no single document holds and only the writer has both
+  halves. Spelled exactly as the slot spells it, the derived-id fold
+  included (§9), so the report and the slot it reports on name the same
+  thing. A reserved listing never appears — those name built-in screens and
+  resolve everywhere — and neither does the auto-widget ledger, where a
+  missing document is the normal state rather than a loss. Measured on the
+  audited space: its homepage and 16 of its 23 widget targets, 17 in all,
+  which is exactly what `bundle.Validate` reports for those slots.
+
+**Stating a target does not make it legal.** `bundle.Validate` still refuses
+a bundle whose index points at a document it does not carry. What the
+statement buys is the distinction the refusal cannot make: an export that
+KNEW what it could not carry, against one that shipped a dangling reference
+without noticing.
+
+**An absent `unresolved` is not a completeness claim**, and the empty object
+is refused rather than allowed to become one. What a writer checks here is
+bounded — the index's own reference slots, and the keys the dictionary could
+not define — so an index with no `unresolved` member says that it reports
+nothing, never that every reference in every document resolves. The
+references a document makes to another document are a different question,
+and §9's table is where a reader takes it.
 
 ### How it reaches the space
 
