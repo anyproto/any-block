@@ -798,3 +798,118 @@ func (imp *importer) applyTypeProperties(details *types.Struct) error {
 	}
 	return nil
 }
+
+//
+// ---- what a type document DECLARES, read back from its bytes ----
+//
+
+// TypeDeclaredProperty is one §2a declaration read back out of a written
+// document: the property the entry names, and the two things the entry says
+// about the PROPERTY itself rather than about the type's use of it — its
+// name and its format.
+//
+// It carries those two and no more on purpose. `section` says where the
+// property sits on THIS type and is not a fact about the property; an
+// entry's `options`, `object_types`, `description` and the rest are members
+// the shared shape admits but which no exported declaration was observed to
+// state (over the 79-bundle corpus every declaration of a key nothing else
+// defines states name and format and nothing else), so promoting them would
+// be building a definition out of members the format has never seen a
+// writer put there.
+type TypeDeclaredProperty struct {
+	// Term is the entry's identity as the document states it, with the
+	// entry's own precedence (TypeProperty.authoredIdentity): its
+	// `property` spelling, else its `internal_key`, else the `name` the
+	// spelling derives from.
+	Term string
+	// TermIsStoredKey says Term came from `internal_key` and IS the stored
+	// key, so it resolves verbatim: a stored id is always its own address
+	// (§3). A Term from either other source is a SPELLING, and the caller
+	// runs it through the §3 chain — the document's own legend below, then
+	// the bundled table — exactly as it does for every other property term.
+	TermIsStoredKey bool
+	Name            string
+	// Format is the declared format, already resolved from its §3 name. An
+	// entry that states no name in the vocabulary is not reported at all: a
+	// definition says what the property HOLDS, and a declaration that
+	// cannot say that declares nothing this shape can carry.
+	Format model.RelationFormat
+}
+
+// TypeDeclarations is what one document's bytes say about the properties a
+// type declares (§2a): the entries, plus the document's own property legend
+// so a caller resolves their spellings through the SAME §3 chain it runs
+// over every other property term. The shape mirrors PropertyTerms
+// deliberately — the codec reads what the document states, the caller binds
+// the spellings — so a declaration and a reference cannot disagree about
+// which stored key one spelling names.
+type TypeDeclarations struct {
+	Declared []TypeDeclaredProperty
+	Legend   map[string]string
+}
+
+// TypeDeclarationsOf reads the §2a property declarations out of one
+// document's bytes. A document that is not a type document declares
+// nothing and comes back empty.
+//
+// It exists because a type document's declaration is a SOURCE of a property
+// definition that only the written bytes hold: an exporter's property
+// resolver can answer "what is the property with this object id" for a key
+// it can no longer answer "which property has this stored key" about, and
+// when it does, the name and format reach the type document and reach
+// nothing else. Over the 79-bundle corpus that is 4 keys — the whole of
+// what this reader adds — and for each of them the bundle would otherwise
+// publish `format: "unknown"` beside a type document stating the answer
+// (bundle.Composer.Finish).
+//
+// Shape-tolerant for PropertyTermsOf's reason, and with the same one error:
+// bytes that are not JSON at all. A legend that is not spelling→key binds
+// nothing, and an entry the shape cannot decode declares nothing; neither
+// is this reader's to refuse, because Validate has already run or is about
+// to.
+func TypeDeclarationsOf(doc []byte) (TypeDeclarations, error) {
+	var envelope struct {
+		Legend       json.RawMessage `json:"property_internal_keys"`
+		TypeSettings json.RawMessage `json:"type_settings"`
+	}
+	if err := json.Unmarshal(doc, &envelope); err != nil {
+		return TypeDeclarations{}, err
+	}
+	out := TypeDeclarations{}
+	if len(envelope.Legend) > 0 {
+		var legend map[string]string
+		if json.Unmarshal(envelope.Legend, &legend) == nil {
+			out.Legend = legend
+		}
+	}
+	if len(envelope.TypeSettings) == 0 {
+		return out, nil
+	}
+	var settings struct {
+		PropertyDefinitions []json.RawMessage `json:"property_definitions"`
+	}
+	if json.Unmarshal(envelope.TypeSettings, &settings) != nil {
+		return out, nil
+	}
+	for _, raw := range settings.PropertyDefinitions {
+		var tp TypeProperty
+		if json.Unmarshal(raw, &tp) != nil {
+			continue
+		}
+		term, source := tp.authoredIdentity()
+		if term == "" {
+			continue
+		}
+		format, named := FormatByName(tp.Format)
+		if !named {
+			continue
+		}
+		out.Declared = append(out.Declared, TypeDeclaredProperty{
+			Term:            term,
+			TermIsStoredKey: source == propertyIdentityInternalKey,
+			Name:            tp.Name,
+			Format:          format,
+		})
+	}
+	return out, nil
+}
