@@ -253,9 +253,9 @@ id the export could not name, and printing it as though it were a name is the
 mistake this rule invites. In the audited space that is **12 of the 31
 `select`/`multi_select` values (39%), across 11 documents** — eight distinct
 ids, not one of them an option in its own entry, a document in the bundle, or
-an option of any other entry. Nothing in the bundle can name them. It is rarer
-across the corpus and never absent: **74 of 22,019 values, in 9 of the 79
-bundles**.
+an option of any other entry. Nothing in the bundle can name them. It is not
+one export's accident either, only rarer elsewhere: **74 of 22,019 values,
+in 9 of the 79 bundles**.
 
 So: match the value against the entry's `options` first, and where it matches
 nothing, show it as the unresolved id it is — the same courtesy step 6 pays a
@@ -451,7 +451,7 @@ as this one, it means only that the export predates the member.
 |---|---|
 | [`INLINE_MARKUP.md`](INLINE_MARKUP.md) | the text dialect, for anyone writing a parser |
 | [`examples/reader`](examples/reader) | these nine steps, executable, standard library only |
-| [`examples/exported_space`](examples/exported_space) | a tiny export-shaped bundle the reader runs on |
+| [`examples/exported_space`](examples/exported_space) | a tiny export-shaped bundle the reader runs on — stored keys, a legend, published enum names, a key nothing could define, a reference that resolves and one that does not, and a file document bound to a real blob |
 | [`SPEC.md`](SPEC.md) | normative and complete; §2c index, §2f dictionary, §3 properties, §4–7 blocks, §8 text, §9 ids |
 | [`README.md`](README.md) | why the format is shaped this way |
 | `../../cmd/anyblock` | `validate` a bundle, convert one document to and from v1 |
