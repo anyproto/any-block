@@ -129,9 +129,10 @@ func TestComposer_ADeclarationIsTheLastRungNotTheFirst(t *testing.T) {
 	assert.Equal(t, model.RelationFormat_date, dict.Properties[0].Format)
 }
 
-// Two type documents may declare the same property, and 1,614 properties in
-// one corpus space are declared by 2+ types with nothing differing between
-// them. Where they DO differ the composer has no way to choose, and choosing
+// Two type documents may declare the same property: over the 79-bundle
+// corpus 1,651 (bundle, key) pairs are, at most 33 within any one space,
+// and not one states two declarations differing in anything but `section`.
+// Where they DO differ the composer has no way to choose, and choosing
 // by observation order would make a user-visible dictionary entry depend on
 // the emit schedule — the one thing this composer's contract forbids. So a
 // disagreement defines nothing, and the key goes back to being one nothing

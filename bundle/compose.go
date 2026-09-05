@@ -215,9 +215,12 @@ type Composer struct {
 	// the SET of distinct declarations observed for it.
 	//
 	// A set rather than a winner, the spaceSettings rule again: two types
-	// may declare one property — 1,614 properties in one corpus space are
-	// declared by 2+ types — and where two declarations differ there is no
-	// way to choose between them that is not the emit schedule. A key with
+	// may declare one property — over the 79-bundle corpus 1,651 (bundle,
+	// key) pairs are declared by two or more type documents, no more than
+	// 33 in any one space, and not one of them states two declarations that
+	// differ in anything but `section` — and where two declarations DO
+	// differ there is no way to choose between them that is not the emit
+	// schedule. A key with
 	// one distinct declaration takes it; a key with two takes neither and
 	// stays a key nothing could define, which is the honest answer (no
 	// single definition could be established) and the only one that does
