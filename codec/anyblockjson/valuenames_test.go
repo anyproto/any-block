@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
+	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
@@ -181,4 +182,57 @@ func TestValueNames_AHandWrittenClaimIsAnsweredNotObeyed(t *testing.T) {
 			assert.Contains(t, strings.Join(joined, "\n"), tc.want)
 		})
 	}
+}
+
+// Where the misleading description belongs, established by execution.
+//
+// `layout`'s entry says "Anytype layout ID(from pb enum)" — the exact
+// sentence that makes a reader believe the wire value is a protobuf ordinal
+// and write `"Layout": 1`. That text is NOT this format's. It is the store's
+// own `description` detail, installed verbatim from the app's shipped
+// bundled-property table, of which vocabulary/relations.json is a snapshot;
+// export copies what the space holds. Across the 79-bundle corpus all 500
+// entries for the seven named-enum keys carry the shipped text byte for byte
+// and none is flagged `bundled_diverged`.
+//
+// So the wording is fixable only upstream, in the app's own table — and NOT
+// by editing the snapshot here, which is what this test demonstrates: the
+// snapshot is one side of the identity check that decides whether a space's
+// copy has DIVERGED from the shipped table. Change the text on this side and
+// every real space's copy stops matching, so all 500 entries would be
+// published as the user's own edited version of a property no user touched,
+// and their property documents would stop being omitted.
+//
+// What this format can do instead, and does: publish `value_names` on the
+// same entry, so the vocabulary contradicts the description where a reader
+// will see both, and refuse the `"Layout": 1` the description invites.
+//
+// How this can fail: the app fixes the sentence (this test goes red and the
+// note above is out of date — a good failure); or someone edits the snapshot
+// here to fix the prose, which is the change the second half refuses.
+func TestValueNames_TheInwardDescriptionIsTheShippedTablesToFix(t *testing.T) {
+	rel, err := vocabulary.GetRelation("layout")
+	require.NoError(t, err)
+	assert.Equal(t, "Anytype layout ID(from pb enum)", rel.Description,
+		"the sentence a reader believes; if the app has fixed it, update the note above")
+
+	// the space's copy of a bundled property is compared against this
+	// snapshot, description included
+	installed, ok := InstalledRelationDetails("layout", Options{})
+	require.True(t, ok)
+	snap := &model.SmartBlockSnapshotBase{
+		Key: "layout", Details: installed,
+		Blocks: []*model.Block{{Id: "relObjectId",
+			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}}},
+	}
+	snap.Details.Fields["id"] = str("relObjectId")
+	_, identical := OmittedBundledRelation(model.SmartBlockType_STRelation, snap, Options{})
+	require.True(t, identical, "a space's untouched copy matches the shipped table")
+
+	// and one byte of prose is all it takes to stop matching
+	snap.Details.Fields["description"] = str("The object's layout, written as a name")
+	_, identical = OmittedBundledRelation(model.SmartBlockType_STRelation, snap, Options{})
+	assert.False(t, identical,
+		"rewriting the description on either side makes every real copy read as the USER's "+
+			"edit — which is why the prose fix belongs in the app's table, not in this snapshot")
 }

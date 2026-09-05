@@ -603,9 +603,18 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	//
 	// As close to `format` as a dictionary-owned member can sit, because
 	// that is the pair a reader reads: format "number" and a list of names
-	// is the whole statement, and the entry's `description` — the store's
-	// own text, and for `layout` the sentence "Anytype layout ID(from pb
-	// enum)" that sends a reader to write the ordinal — is not part of it.
+	// is the whole statement, and the entry's `description` is not part of
+	// it. The description is the STORE's own text, installed verbatim from
+	// the app's shipped property table — for `layout` it reads "Anytype
+	// layout ID(from pb enum)", which is the sentence that sends a reader to
+	// write the ordinal. The prose fix belongs in that table, upstream, and
+	// NOT in vocabulary/relations.json: the snapshot here is one side of the
+	// identity check that decides whether a space's copy has diverged from
+	// the shipped table, so rewriting it would publish all 500 corpus
+	// entries for these keys as a user edit no user made
+	// (TestValueNames_TheInwardDescriptionIsTheShippedTablesToFix). What this
+	// format can do is state the vocabulary beside the description, and
+	// refuse the number the description invites.
 	if names, named := namedEnumValueNames(string(def.Key)); named {
 		m.set(memberValueNames, stringsToAny(names))
 	}
