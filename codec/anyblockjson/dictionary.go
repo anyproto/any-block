@@ -610,11 +610,16 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	// it. The description is the STORE's own text, installed verbatim from
 	// the app's shipped property table — for `layout` it reads "Anytype
 	// layout ID(from pb enum)", which is the sentence that sends a reader to
-	// write the ordinal. The prose fix belongs in that table, upstream, and
-	// NOT in vocabulary/relations.json: the snapshot here is one side of the
+	// write the ordinal, and for the participant pair it reads "Possible
+	// values: models.ParticipantPermissions", a pointer to a Go symbol the
+	// bundle does not ship. Both are unusable in the same way and neither is
+	// fixable here: the prose fix belongs in that table, upstream, and NOT
+	// in vocabulary/relations.json, whose snapshot is one side of the
 	// identity check that decides whether a space's copy has diverged from
-	// the shipped table, so rewriting it would publish all 500 corpus
-	// entries for these keys as a user edit no user made
+	// the shipped table. Rewriting it would publish all 658 corpus entries
+	// for these nine keys as a user edit no user made — every one of them
+	// carries the shipped text byte for byte today, and none is flagged
+	// bundled_diverged
 	// (TestValueNames_TheInwardDescriptionIsTheShippedTablesToFix). What this
 	// format can do is state the vocabulary beside the description, and
 	// refuse the number the description invites.
@@ -687,11 +692,15 @@ func undefinedPropertyEntryOmap(m *omap, def PropertyDefinition) (*omap, error) 
 
 // memberValueNames is the dictionary entry's published vocabulary (§2f, §3):
 // every name a value of this property can be, for the keys whose stored
-// NUMBER this format writes as a name. READ-facing, and deliberately not an
-// authoring surface — five of the six keys are hidden or readonly in the
-// shipped table, and the sixth (layoutAlign) is set by the alignment UI, so
-// the member says what a value MEANS, never what a caller may choose. The
-// authoring subset refuses it along with every other export-written member.
+// NUMBER this format writes as a name, and only where the entry itself
+// states format "number" — a diverged copy of such a key states its own
+// format, and the pair a reader is told to read together must agree.
+//
+// READ-facing, and deliberately not an authoring surface — all nine named
+// keys are hidden, readonly or both in the shipped table (seven hidden, five readonly, the union all of them:
+// TestValueNames_EveryNamedKeyIsANumberTheUserDoesNotType), so the member
+// says what a value MEANS, never what a caller may choose. The authoring
+// subset refuses it along with every other export-written member.
 const memberValueNames = "value_names"
 
 // memberUninstalled is the dictionary entry's removal flag (§2f).

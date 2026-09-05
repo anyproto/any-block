@@ -4,16 +4,22 @@ package anyblockjson
 // bundle could not answer about its own bytes: WHICH strings a named-enum
 // property's value can be.
 //
-// Six bundled properties declare format "number" and export a STRING —
-// layout, resolvedLayout, layoutAlign, origin, importType, imageKind, with
-// recommendedLayout a seventh key in the same table, lifted into
+// Nine bundled properties declare format "number" and export a STRING —
+// layout, resolvedLayout, layoutAlign, origin, importType, imageKind and the
+// participant pair, with recommendedLayout in the same table, lifted into
 // type_settings on a type document. Across the 79-bundle corpus all 62,325
-// values in those property slots are strings; not one is a number. A reader
-// holding only the bundle had no way to learn the vocabulary: three of the
-// enum vocabularies published in object.schema.json are $ref'd from nowhere,
-// $defs/propertyMap accepts any value, and the entry's own description
-// ("Anytype layout ID(from pb enum)") points the reader at a protobuf
-// ordinal that the wire never carries.
+// values in the six ordinary object slots are strings; not one is a number.
+// The participant pair is the exception that dates the corpus rather than
+// the rule: its 5,038 slots are bare integers in every bundle, because that
+// corpus was exported before this format named them.
+//
+// A reader holding only the bundle had no way to learn the vocabulary: three
+// of the enum vocabularies published in object.schema.json are $ref'd from
+// nowhere, $defs/propertyMap accepts any value, and the entry's own
+// description points the reader somewhere useless — at a protobuf ordinal
+// the wire never carries ("Anytype layout ID(from pb enum)"), or at a Go
+// symbol the bundle does not ship ("Possible values:
+// models.ParticipantPermissions").
 
 import (
 	"encoding/json"
@@ -146,10 +152,10 @@ func TestValueNames_AreDerivedAndSoRoundTripWithoutBeingCarried(t *testing.T) {
 	assert.Equal(t, string(first), string(second))
 }
 
-// The member is READ-facing, not an authoring surface: five of these keys
-// are hidden or readonly in the shipped table and the sixth is set by the
-// alignment UI, so the entry states what a value MEANS, never what a caller
-// may choose. Two hand-written claims are answered with a warning — an
+// The member is READ-facing, not an authoring surface: all nine of these
+// keys are hidden, readonly or both in the shipped table
+// (TestValueNames_EveryNamedKeyIsANumberTheUserDoesNotType), so the entry
+// states what a value MEANS, never what a caller may choose. Two hand-written claims are answered with a warning — an
 // error would turn a newer writer's added enum member into a hard failure
 // for an older reader, and the format has no version to negotiate that with.
 func TestValueNames_AHandWrittenClaimIsAnsweredNotObeyed(t *testing.T) {
@@ -191,15 +197,15 @@ func TestValueNames_AHandWrittenClaimIsAnsweredNotObeyed(t *testing.T) {
 // and write `"Layout": 1`. That text is NOT this format's. It is the store's
 // own `description` detail, installed verbatim from the app's shipped
 // bundled-property table, of which vocabulary/relations.json is a snapshot;
-// export copies what the space holds. Across the 79-bundle corpus all 500
-// entries for the seven named-enum keys carry the shipped text byte for byte
+// export copies what the space holds. Across the 79-bundle corpus all 658
+// entries for the nine named-enum keys carry the shipped text byte for byte
 // and none is flagged `bundled_diverged`.
 //
 // So the wording is fixable only upstream, in the app's own table — and NOT
 // by editing the snapshot here, which is what this test demonstrates: the
 // snapshot is one side of the identity check that decides whether a space's
 // copy has DIVERGED from the shipped table. Change the text on this side and
-// every real space's copy stops matching, so all 500 entries would be
+// every real space's copy stops matching, so all 658 entries would be
 // published as the user's own edited version of a property no user touched,
 // and their property documents would stop being omitted.
 //
@@ -380,7 +386,7 @@ func TestCardinality_ScalarAndOneElementArrayAgreeOnlyWhereTheFormatHoldsAList(t
 //
 // Nothing in the corpus reaches this today: across 79 bundles, 79 of 5,385
 // dictionary entries are `bundled_diverged` and none of them is one of the
-// 500 entries for the nine named-enum keys. The gate is here because the
+// 658 entries for the nine named-enum keys. The gate is here because the
 // entry is a READ contract and a reader cannot check the space's history.
 //
 // How this can fail: gate on the stored key alone (a diverged select
@@ -410,4 +416,40 @@ func TestValueNames_AreNotPublishedWhereTheEntryDoesNotSayNumber(t *testing.T) {
 	require.Equal(t, "number", untouched["format"])
 	_, published = untouched[memberValueNames]
 	assert.True(t, published, "a diverged entry that still says number still states the vocabulary")
+}
+
+// The claim the member's own documentation rests on, checked against the
+// shipped table rather than restated: every key this format names declares
+// format "number" there, and every one of them is `hidden`, `readonly` or
+// both — seven hidden, five readonly, the union all nine. That is what makes
+// `value_names` a READ-facing statement about what a value MEANS rather than
+// an authoring surface offering a caller a choice, and it is why the entry's
+// gate is the format: a key whose bundled format is a number is the only
+// kind of key whose names these are.
+//
+// How this can fail: name a key the table gives some other format (the entry
+// would publish a number's names beside a `format` that is not a number, the
+// contradiction the gate exists to prevent); name a key a user picks values
+// for by hand (the member would read as a menu, and the format enforces no
+// vocabulary it does not write).
+func TestValueNames_EveryNamedKeyIsANumberTheUserDoesNotType(t *testing.T) {
+	var hidden, readonly int
+	for key := range namedEnumProperties {
+		rel, err := vocabulary.GetRelation(domain.RelationKey(key))
+		require.NoErrorf(t, err, "%s must be a bundled property: the vocabulary is the store's", key)
+		assert.Equalf(t, model.RelationFormat_number, rel.Format,
+			"%s must declare format number — these names are a number's names", key)
+		assert.Truef(t, rel.Hidden || rel.ReadOnly,
+			"%s is neither hidden nor readonly in the shipped table, so a user picks its value "+
+				"and this member would read as a menu of choices rather than a legend", key)
+		if rel.Hidden {
+			hidden++
+		}
+		if rel.ReadOnly {
+			readonly++
+		}
+	}
+	assert.Equal(t, 9, len(namedEnumProperties), "the count the documentation states")
+	assert.Equal(t, 7, hidden, "hidden: every key but origin and importType")
+	assert.Equal(t, 5, readonly, "readonly: resolvedLayout, origin, importType and the participant pair")
 }
