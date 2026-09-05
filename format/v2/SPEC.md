@@ -3139,10 +3139,19 @@ Checked against the raw spelling instead, all three were dead for exactly
 the documents this format produces: `unique_key` walked past the rule that
 `uniqueKey` tripped, and a `property_internal_keys` entry could rebind any harmless
 spelling onto any internal key — including `id` itself, which overwrote the
-envelope id from inside `properties`. `Validate` resolves with the chain
-steps it has — legend, bundled table, verbatim; it holds no store, so chain
-step 2 reaches it only through the identity entries export owes, and it
-takes no resolver (§13). A reader whose vocabulary resolves *further* — a
+envelope id from inside `properties`. `Validate` is handed one document's bytes and
+no bundle, so of §3a's five rungs it can run three: the document's own
+legend (1), the name table the reader holds (4), and verbatim (5). The rung
+a bundle answers nearly everything on — a **dictionary entry**, rung 3 — is
+not there to consult, and rung 2 asks whether the spelling is itself a key
+the reader can SEE, which a byte-only caller holding no store and no
+dictionary can only learn from the identity legend entries export owes. It
+takes no resolver (§13).
+`bundle.Validate` closes that gap in a second pass rather than in this one:
+each document is checked through this same dictionary-less call, and the
+bundle's dictionary then feeds a vocabulary the whole bundle is re-read
+through (`PlanAuthoringTypeVocabulary`), which is the *resolves further*
+case below, not an exception to it. A reader whose vocabulary resolves *further* — a
 node-backed caller whose space maps a spelling to a stored key the bundled
 table never knew — must re-run admission on **its** final resolved key,
 which import does at the seam where details are written (`importer.build`).
@@ -3256,9 +3265,14 @@ governs them identically), take the FIRST rung that answers:
 Rungs never compete: the first that answers wins, and the order is the
 order above. Within rung 3, an entry's `property` outranks an entry's
 `name`, because two entries may share a `name` and may not share a
-`property` — measured over the 79-bundle corpus, 27 display names are
-claimed by more than one entry and no `property` spelling is claimed twice,
-and one key may occupy only one entry (§2f). An ambiguity that survives all
+`property` — measured over the 79-bundle corpus, 27 (bundle, name) pairs are
+ambiguous: 23 distinct display names, each claimed inside one bundle by two
+entries, and once by four. No `property` spelling is claimed twice inside a
+bundle, and one key may occupy only one entry (§2f). The counts are stated
+per bundle because a reader holds one bundle; pooled over the corpus, 58
+names are claimed by more than one key and still no `property` spelling is,
+which is what makes the ordering a rule rather than a coincidence of this
+sample. An ambiguity that survives all
 five rungs is never guessed: it is the type-scoped resolution or the loud
 error of §3, naming the term and asking for the legend entry that would
 settle it.
@@ -3290,9 +3304,17 @@ keep them apart, because they are four different facts:
   elsewhere in the bundle: a format cached on a dataview's `properties[]`
   entry says how that view treats the key and is not a definition — it
   carries no name and no vocabulary — and the writer deliberately promotes
-  none. In the audited 3,286-document space, 60 of the 155 undefined keys
-  reachable from a `properties` map have such a hint, 2 appear in a type's
-  declaration, and 94 have neither.
+  none. A type's `property_definitions` entry is the exception the writer
+  DOES read, because it states a name and a format (§2f), and it is a
+  statement rather than a cache. In the audited 3,286-document space, of the
+  155 undefined keys reachable from a `properties` map 60 carry such a hint
+  and 2 appear in a type's declaration; **one key does both**, so 94 have
+  neither and the three counts sum to 156 rather than to 155. Those 2 are no
+  longer undefined at all — the composer defines them from the declaration —
+  which takes the same space's undefined set to 153 keys, 313 documents and
+  628 values: 59 with a hint and the same 94 with nothing at all, the two
+  that leave being the declared pair and the hint they take with them the
+  one key that was in both sets.
 - **No entry for the key at all.** The bundle was not written by a composer
   that states the undefined ones — every bundle produced before that rule
   is in this state — so the silence means nothing in particular. Treat it
@@ -3317,8 +3339,11 @@ one is the walkthrough.
 run with **no Anytype vocabulary of any kind**, resolves 36,696 slots:
 36,562 at rung 3 on an entry's own `property` spelling, 134 at rung 1 on a
 legend line, none needing rung 2, and 640 reaching nothing at all — 155
-distinct keys across 324 documents, whose values (`"68cda76ee9223c9dc7ce5e92":
-1755471600`) are uninterpretable and are meant to be reported as such. Over
+distinct keys across 324 documents, whose values (`"66602dc5e5672d06c0e19245":
+1717538400`) are uninterpretable and are meant to be reported as such. That
+export predates the declaration rung (§2f): 2 of the 155 are keys a type
+document in it declares, so a composer of this version leaves 153 keys, 313
+documents and 628 values here rather than 155, 324 and 640. Over
 the whole 79-bundle corpus, 334,292 slots: 295,522 at rung 3, 33,741 at
 rung 1, 30 at rung 2, and 4,999 at nothing — and of those 4,999 the shipped
 bundled table could name **not one**, which is the measurement behind the
