@@ -109,6 +109,29 @@ type Options struct {
 	// minimal and stable under renames of referenced objects — and opted
 	// into by read shapes, the way CompactBlockLabels is.
 	RefNames bool
+	// NoDerivedTypeIds turns off the TYPE half of the derived-id fold (§9)
+	// on export. Off by default, so the fold stands wherever nothing asks
+	// otherwise; the participant half is gated on SpaceId alone and is not
+	// affected either way.
+	//
+	// It exists for a consumer that addresses a type by two different
+	// handles on two different axes — a controlled key in its own
+	// vocabulary, an object id in its object endpoint — and for which
+	// `type-<stored_key>` is neither. With it set, the two families of slot
+	// move in OPPOSITE directions, which is the point:
+	//
+	//   - type-KEY slots (`template_for`, every `object_types`) fall back to
+	//     the VOCABULARY spelling, the same one the envelope `type` already
+	//     writes, so one type is one word across the whole document;
+	//   - reference slots (`set_of`, `default_type_id`, mention and link
+	//     targets) and the type document's own envelope id keep the STORE
+	//     id, which is what an object endpoint resolves.
+	//
+	// EXPORT only. Import is untouched, because declining to write a derived
+	// id is not declining to read one: every document already carrying
+	// `type-<key>` still resolves, the same posture participantRefIdentity
+	// takes toward the pre-prefix bare identity.
+	NoDerivedTypeIds bool
 	// TableColumnHeaders annotates each table column with the header row's
 	// rendered cell text. It is export-only and off by default so backup
 	// output remains minimal; API read surfaces enable it to link a human
@@ -993,6 +1016,15 @@ func (e *exporter) typeSlug(key string) string {
 // in the type namespace, the stored key is the only spelling of it every
 // reader lands on the same key from (§3, verbatim-first).
 func (e *exporter) typeKeyRef(key string) string {
+	// NoDerivedTypeIds sends a KEY slot to the vocabulary rather than to the
+	// store id its reference-slot sibling keeps: this slot names a KIND, and
+	// a kind's portable handle is its key. Routing it through the same
+	// writableTypeSlug the envelope `type` uses is what makes one type one
+	// word across the document — the raw-key fallback below would spell it a
+	// second way for any key the vocabulary renames.
+	if e.opts.NoDerivedTypeIds {
+		return e.writableTypeSlug(key)
+	}
 	if ref := typeRef(key); ref != "" {
 		return ref
 	}
