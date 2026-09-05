@@ -2658,7 +2658,13 @@ Values are encoded by the property's format:
 and where the format holds a LIST the two are the same value.**
 `"Assignee": "bafyrei…"` and `"Assignee": ["bafyrei…"]` both store one list
 and both re-export as the array, on every list-valued format —
-`objects`, `files`, `select`, `multi_select`, `properties`. The shape a
+`objects`, `files`, `select`, `multi_select`, `properties`. `properties` is
+the one of the five no export could have caught the rule failing on: not one
+dictionary entry, type declaration or dataview column in the 79-bundle,
+24,889-document corpus states that format, and the importer wrapped the
+other four by name while this one fell through to the value's own shape. The
+wrap is derived from the multi-valued predicate now rather than restated, so
+a format added there cannot go missing here again. The shape a
 document happens to use therefore carries nothing a reader can get wrong,
 which is why nothing in this format states a cardinality for a reader to
 check a value against. The equivalence runs in **that direction only**: on a
