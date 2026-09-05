@@ -225,14 +225,14 @@ runs one way only: on a single-valued format an array is *not* unwrapped, so
 `properties` is the fifth of those, and the only one no export can show you:
 **not one dictionary entry, type declaration or dataview column in the 79
 measured bundles states that format** — zero over every `format` member of all
-24,889 documents and all 5,385 dictionary entries. So it is the one place a
-reader is on its own, and the two things to know about it are both here. Its
-values are stored property **keys**, so you resolve one straight against the
-dictionary's `internal_key` lookup from step 3. And step 4's legend has no rung
-here: the value already *is* the key a legend maps a spelling to, which is why
-one document can name a property by its spelling where it sets a value
-(`"Due date": "2026-04-02T00:00:00Z"`) and name the same property by its stored
-key where it lists one (`"Columns to show": ["dueDate"]`).
+24,889 documents and all 5,385 dictionary entries. So no file you can open will
+teach you the two rules it carries, and they are both here. Its values are
+stored property **keys**, so you resolve one straight against the dictionary's
+`internal_key` lookup from step 3. And step 4's legend has no rung here: the
+value already *is* the key a legend maps a spelling to, which is why one
+document can name a property by its spelling where it sets a value (`"Due
+date": "2026-04-02T00:00:00Z"`) and by its stored key where it lists one
+(`"Columns to show": ["dueDate"]`).
 
 **Nine stored keys declare `format: "number"` and export a string.** Eight are
 properties on an object — `Layout`, `Resolved layout`, `Layout align`,
