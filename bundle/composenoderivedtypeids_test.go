@@ -249,7 +249,9 @@ func composeNoDerivedSpace(t *testing.T, mode bool) composedSpace {
 // Measured over the 79-bundle, 24,889-document corpus: 4,255 documents in 26
 // of the 79 bundles state a `type_internal_key` whose type is space-minted
 // AND whose type document the bundle carries — 124 distinct keys, min 1 /
-// median 4 / max 27 per affected bundle. Each is one refusal line this mode
+// median 3.5 / max 27 per affected bundle (26 bundles, so the median is the
+// midpoint of the 13th and 14th, which are 3 and 4). Each is one refusal
+// line this mode
 // would add to an export that validates clean today. A further 118 documents
 // name a space-minted type whose document their bundle does not carry at
 // all: already a refusal today, and not the mode's to add.
