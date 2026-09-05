@@ -3,6 +3,7 @@ package anyblockjson
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -121,4 +122,68 @@ func TestReadingGuideDoesNotCallANamedEnumUnnamed(t *testing.T) {
 	// published vocabulary.
 	assert.NotContains(t, guide, "as bare numbers with no published vocabulary",
 		"READING.md still says the participant enums have no vocabulary; the codec publishes both")
+}
+
+// The review asked for one complete path from an image block to bytes and there
+// was none, in prose or in a bundle. This runs the walk the guide now teaches,
+// over the bundle the guide walks: block -> file document -> manifest.files ->
+// a file that exists.
+func TestReaderExampleWalksAnImageBlockToBytes(t *testing.T) {
+	root := readerGuidePath("examples", "exported_space")
+
+	var index struct {
+		Manifest struct {
+			Files map[string]string `json:"files"`
+		} `json:"manifest"`
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "index.json"))
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, &index))
+	require.NotEmpty(t, index.Manifest.Files, "the example must bind at least one blob, or the walk has no last hop")
+
+	type doc struct {
+		ID     string `json:"id"`
+		Kind   string `json:"kind"`
+		Blocks []struct {
+			Type     string `json:"type"`
+			ObjectID string `json:"object_id"`
+		} `json:"blocks"`
+	}
+	docs := map[string]doc{}
+	require.NoError(t, filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || filepath.Ext(path) != ".json" {
+			return err
+		}
+		body, err := os.ReadFile(path)
+		require.NoError(t, err)
+		var d doc
+		require.NoError(t, json.Unmarshal(body, &d))
+		if d.ID != "" {
+			docs[d.ID] = d
+		}
+		return nil
+	}))
+
+	walked := 0
+	for _, d := range docs {
+		if d.Kind == "file_object" {
+			continue
+		}
+		for _, b := range d.Blocks {
+			if b.Type != "image" && b.Type != "file" && b.Type != "video" {
+				continue
+			}
+			target, ok := docs[b.ObjectID]
+			require.Truef(t, ok, "%s: a media block names %s and the bundle does not carry it", d.ID, b.ObjectID)
+			assert.Equalf(t, "file_object", target.Kind, "%s must be a file document", target.ID)
+
+			path, bound := index.Manifest.Files[target.ID]
+			require.Truef(t, bound, "manifest.files does not bind %s, so the walk stops one hop short", target.ID)
+			info, err := os.Stat(filepath.Join(root, filepath.FromSlash(path)))
+			require.NoErrorf(t, err, "manifest.files binds %s to %s and that file is not in the bundle", target.ID, path)
+			assert.NotZerof(t, info.Size(), "%s is empty; the last hop must reach real bytes", path)
+			walked++
+		}
+	}
+	assert.NotZero(t, walked, "the example bundle carries no media block, so the guide's walk has nothing to walk")
 }

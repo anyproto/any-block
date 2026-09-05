@@ -52,7 +52,8 @@ Four things to take from it and one to be careful about.
   same mode, *stated*. **A populated map**: file-object id → path of the blob,
   relative to `index.json`. The Community export has **no `files` member at
   all**, and 666 `file_object` documents; opening one leads to metadata, not
-  to pixels.
+  to pixels. Step 6 walks the whole path from an image block to bytes, and
+  what a reader does when the last hop is missing.
 - **`homepage`, `entrypoint`, `widgets[].target` and `auto_widget_targets`**
   are object ids, and they are the ids most likely to point at nothing. In this
   export, of the homepage plus 23 widget targets: 5 resolve to a document in
@@ -303,12 +304,51 @@ export's total. Widen it to `items`, block `object_id`s and the icon/cover
 `file` — the census SPEC §9 publishes — and the same export reads **1,265 of
 10,053 occurrences, over 723 distinct ids**. The two disagree about nothing:
 the extra 611 are 5 collection members, 108 block targets and **498 icons and
-covers**, and the icons dominate because this export carries no blobs at all.
-Quote either figure; quote its scope with it.
+covers**, and the icons dominate because this export carries no blobs at all
+(the subsection below). Quote either figure; quote its scope with it.
 
 An absent target does not mean the object never existed — it means this export
 did not carry it. Only `index.json`'s `unresolved` (step 1) can tell you the
 writer knew.
+
+### A file reference, all the way to the bytes
+
+An image is two hops longer than it looks, and every hop is an id lookup. An
+`image` block carries no URL and no path: it carries `object_id`, which names
+a **file document** (`kind: "file_object"`) holding the metadata — name, mime
+type, size — and still no bytes. The bytes, if this export carried any, are
+bound in `index.json`'s `manifest.files` under that *same* id.
+
+The whole path, over [`examples/exported_space`](examples/exported_space),
+which ships one of each so you can run it:
+
+```text
+block      { "type": "image", "object_id": "bafyreiridgephoto" }   in bafyreiridgenote
+  ↓  look the id up in the map from step 2 — never by path, never by name
+document   { "kind": "file_object", "id": "bafyreiridgephoto",
+             "properties": { "Name": "ridge.png", "Mime type": "image/png", … } }
+  ↓  look the SAME id up in index.json's manifest.files (step 1)
+manifest   { "files": { "bafyreiridgephoto": "files/ridge.png" } }
+  ↓  resolve the path relative to index.json
+bytes      examples/exported_space/files/ridge.png
+```
+
+Three things bite on real exports:
+
+- **A file document's `icon.file` points at the file document itself.** It is
+  its own thumbnail, so following it lands you back where you started — 608 of
+  Community's 666 file documents are shaped that way, and so is the one in the
+  example. Nothing is missing; stop, and go to `manifest.files` instead.
+- **The bytes are usually not there.** Community carries 666 file documents
+  and no `manifest.files` member at all, so **not one** of them leads to a
+  blob. Across the corpus that is universal, not a quirk of one export: 68 of
+  the 79 bundles carry file documents, 10,303 between them, and no bundle
+  carries a `files` map at all. A metadata-only export is the normal case —
+  say "no bytes in this export" and render the name.
+- **A media block may name a document the bundle does not carry.** Of
+  Community's 793 media blocks (717 `image`, 43 `video`, 32 `file`, 1 `pdf`),
+  745 reach a file document and **48 reach nothing** — which is this step's
+  ordinary absent-reference case and not a file problem.
 
 ## 7. Read the blocks
 

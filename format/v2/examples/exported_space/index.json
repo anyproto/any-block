@@ -11,7 +11,9 @@
   ],
   "manifest": {
     "properties": "properties.json",
-    "files": {}
+    "files": {
+      "bafyreiridgephoto": "files/ridge.png"
+    }
   },
   "unresolved": {
     "properties": ["deadbeefdeadbeefdeadbeef"]

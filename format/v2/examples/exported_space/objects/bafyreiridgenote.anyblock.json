@@ -42,6 +42,12 @@
     { "id": "b8", "type": "checkbox", "checked": true, "text": "Photos copied off the camera" },
     {
       "id": "b9",
+      "type": "image",
+      "object_id": "bafyreiridgephoto",
+      "name": "ridge.png"
+    },
+    {
+      "id": "b10",
       "type": "code",
       "language": "go",
       "text": "// **not bold**, <u>not underlined</u>: a code block is never parsed.\nfmt.Println(\"ridge\")"

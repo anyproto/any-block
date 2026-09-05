@@ -1,10 +1,11 @@
 bundle  ../exported_space
 space   "Field Notes", formatVersion 2.0
-docs    3
+docs    4
+          file_object              1
           object (no kind member)  2
           object_type              1
-dict    8 property definitions
-files   manifest.files is {}: this export carried no blobs on purpose
+dict    11 property definitions
+files   1 blobs bound to file documents
 lost    1 property keys the export could not define
 
 # Ridge, first thaw ⛰️
@@ -32,5 +33,6 @@ blocks
     bulleted_list_item  Inside a code span `<font color="red">` is literal text, not a mark.
                         This second line is a soft break inside the same block.
   checkbox [x]        Photos copied off the camera
+  image               bafyreiridgephoto -> "ridge.png" in files/bafyreiridgephoto.anyblock.json
   code                | // **not bold**, <u>not underlined</u>: a code block is never parsed.
                       | fmt.Println("ridge")
