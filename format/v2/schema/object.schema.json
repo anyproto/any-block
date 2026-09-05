@@ -2005,6 +2005,27 @@
         "icon"
       ],
       "description": "What an image was uploaded FOR, by NAME — the vocabulary of the `image_kind` property value (§3), enforced like $defs/objectOrigin by the semantic pass on the resolved key. Set on file objects. `automatically_added` marks an image a pipeline brought in rather than a person, and travels beside `is_hidden_discovery`, which is what a client actually filters on."
+    },
+    "participantPermissions": {
+      "enum": [
+        "admin",
+        "no_permissions",
+        "owner",
+        "reader",
+        "writer"
+      ],
+      "description": "What a space member may DO, by NAME — the vocabulary of the `participant_permissions` property value (§3), enforced like $defs/objectOrigin by the semantic pass on the resolved key. The names are the proto's own identifiers snake_cased, NOT the public REST API's `role` (viewer/editor/admin): that mapping is not injective over the stored enum — its inverse sends every name outside three back to Reader, `owner` included — and a name that does not round-trip to the number it came from is not a name this format can write. The enum's ZERO is `reader`, so a string this list does not name is refused rather than stored: it used to land verbatim on a number detail, where every int getter answered 0 and a mistyped owner read as a viewer."
+    },
+    "participantStatus": {
+      "enum": [
+        "active",
+        "canceled",
+        "declined",
+        "joining",
+        "removed",
+        "removing"
+      ],
+      "description": "Where a space member is in joining or leaving the space, by NAME — the vocabulary of the `participant_status` property value (§3), enforced like $defs/objectOrigin by the semantic pass on the resolved key. `canceled` is the proto's spelling and stays one word: one concept, one spelling (§15 #14). `joining` occurs in no bundle of the 79-bundle corpus and is published anyway — a vocabulary with a hole in it exports a bare integer the day something writes into the hole."
     }
   }
 }
