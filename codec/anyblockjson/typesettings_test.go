@@ -106,7 +106,7 @@ func TestTypeSettings_ProvenanceIsDroppedOnTypeDocumentsOnly(t *testing.T) {
 
 	t.Run("dropped on import of a type document", func(t *testing.T) {
 		doc := `{"formatVersion":"2.0","kind":"object_type","id":"t1","internal_key":"k",
-			"properties":{"name":"T","origin":7,"set_of":["bafyreinothing"],"revision":3}}`
+			"properties":{"name":"T","origin":"builtin","set_of":["bafyreinothing"],"revision":3}}`
 		_, snap, err := Unmarshal([]byte(doc), testOptions())
 		require.NoError(t, err, "a document carrying install provenance is stale, not wrong")
 		for _, key := range []string{"origin", "setOf"} {

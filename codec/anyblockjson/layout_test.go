@@ -44,13 +44,16 @@ func TestImport_LayoutNameToNumber(t *testing.T) {
 	}
 }
 
-// legacy documents that wrote the raw enum still import unchanged
-func TestImport_LayoutNumberStillAccepted(t *testing.T) {
+// A stored number the layout vocabulary cannot name still imports unchanged:
+// export writes such a number (there is no name to write), so the reader has
+// to take it back (I1). A number the vocabulary CAN name is refused instead
+// of being accepted-and-renamed — TestNamedEnum_ANameableNumberIsRefusedInTypeSettings.
+func TestImport_UnnameableLayoutNumberStillAccepted(t *testing.T) {
 	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
-		"type_settings": {"layout": 1}}`
+		"type_settings": {"layout": 9999}}`
 	_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 	require.NoError(t, err)
-	assert.Equal(t, float64(model.ObjectType_profile),
+	assert.Equal(t, float64(9999),
 		snap.Details.Fields["recommendedLayout"].GetNumberValue())
 }
 
