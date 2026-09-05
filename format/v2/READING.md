@@ -320,6 +320,20 @@ Four kinds of id you will meet:
   absent**. Separately, 92 of the 3,286 documents name a `type_internal_key`
   whose type document is not in the bundle.
 
+**Not every export folds a type to `type-<key>`.** A writer may decline it —
+SPEC §9's `NoDerivedTypeIds` export mode — and then a type document's `id` is
+the space's own CID, `template_for` and `object_types` hold the type's
+display-name spelling, and every reference to a type holds a CID. Nothing in
+step 2 changes: you still key documents by the `id` inside them, and every
+reference still resolves by lookup. What changes is the one shortcut above —
+`"type_internal_key": "65168e20…"` no longer names a document. Build the
+fallback while you are already walking the tree in step 2: index the type
+documents (`kind: "object_type"`) by their `internal_key` as well as by their
+`id`, and resolve a type key against that map whenever `type-<key>` finds
+nothing. Every export measured here folds — all 79 bundles carry `type-<key>`
+ids, 11,055 occurrences across their documents, indexes and dictionaries — so
+you may never meet one; the second map costs a line and retires the question.
+
 **Say which slots a census counted, always.** That 654 is one scope, not the
 export's total. Widen it to `items`, block `object_id`s and the icon/cover
 `file` — the census SPEC §9 publishes — and the same export reads **1,265 of
