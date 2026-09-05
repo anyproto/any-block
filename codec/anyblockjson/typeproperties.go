@@ -40,6 +40,20 @@ type PropertyDefinition struct {
 	KeyIsInternal bool
 	Name          string
 	Format        model.RelationFormat
+	// FormatUnknown says the entry states `format: "unknown"` — that nothing
+	// could define this property, so Format holds NOTHING and must not be
+	// read (§2f). It is a separate bit rather than a sentinel format because
+	// model.RelationFormat has no member for "there is no definition" and
+	// inventing one would put the absence into every format slot in the
+	// package; a consumer that ignores this bit sees Format's zero, which is
+	// longtext, and would create a text property that never existed.
+	//
+	// A dictionary entry's member only, and only on the READ side of an
+	// export: an author declaring a property always knows what it holds.
+	// Nothing else about the property travels beside it — there is nothing
+	// else, which is the whole content of the claim — and both dictionary
+	// doors refuse an entry that says more.
+	FormatUnknown bool
 	// Options is the declared vocabulary of a select/multiSelect property,
 	// in display order (§2a). Options are otherwise only discovered from
 	// values that happen to be used, so a vocabulary entry no record carries

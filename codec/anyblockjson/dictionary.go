@@ -36,6 +36,7 @@ import (
 
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
 	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
+	"github.com/anyproto/any-block/format/v1/model"
 	formatschema "github.com/anyproto/any-block/format/v2/schema"
 )
 
@@ -213,7 +214,19 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 			}
 			targets = append(targets, key)
 		}
-		def := tp.definition(storedKey, declaredFormatWith(Options{}, storedKey, tp.Format), targets)
+		// `format: "unknown"` is the absence of a definition, not a format
+		// (§2f): declaredFormatWith would resolve the unrecognised name to
+		// longtext, and the entry would come back claiming the property holds
+		// text. The bit carries the absence instead, and the schema has
+		// already refused every other member on such an entry, so there is
+		// nothing else for the definition to hold.
+		unknownFormat := tp.Format == propertyFormatUnknown
+		format := model.RelationFormat_longtext
+		if !unknownFormat {
+			format = declaredFormatWith(Options{}, storedKey, tp.Format)
+		}
+		def := tp.definition(storedKey, format, targets)
+		def.FormatUnknown = unknownFormat
 		// The identity verdict is this door's, not the shared builder's.
 		// TypeProperty.authoredKey answers the AUTHORING question —
 		// spelling-first, because a hand-written entry's `property` is what
@@ -562,6 +575,9 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	m := &omap{}
 	m.set(memberProperty, spelling)
 	m.set(memberInternalKey, string(def.Key))
+	if def.FormatUnknown {
+		return undefinedPropertyEntryOmap(m, def)
+	}
 	targets := make([]string, 0, len(def.ObjectTypes))
 	for _, key := range def.ObjectTypes {
 		// a type is named by its derived id wherever a key admits one (§9);
@@ -602,6 +618,41 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	m.setNonEmpty(memberUninstalled, def.Uninstalled)
 	m.setNonEmpty(memberHidden, def.Hidden)
 	m.setNonEmpty(memberBundledDiverged, def.BundledDiverged)
+	return m, nil
+}
+
+// undefinedPropertyEntryOmap renders the entry for a key NOTHING could define
+// (§2f): identity, a name where the export had one, and the `unknown`
+// sentinel. Nothing else, and an entry asked to carry anything else is an
+// ERROR rather than a silent trim — the caller building it has a definition
+// in hand and a member it set is a member it meant, so dropping one would
+// publish less than the composer believed it had published, which is the
+// class of silent loss this file exists to end.
+func undefinedPropertyEntryOmap(m *omap, def PropertyDefinition) (*omap, error) {
+	for _, stated := range []struct {
+		member string
+		set    bool
+	}{
+		{"options", len(def.Options) > 0},
+		{"object_types", len(def.ObjectTypes) > 0},
+		{"description", def.Description != ""},
+		{"include_time", def.IncludeTime != nil || def.IncludeTimeSet},
+		{"max_count", def.MaxCount != 0},
+		{"readonly", def.Readonly},
+		{"default_value", def.DefaultValue != nil || def.DefaultValueSet},
+		{memberApiKey, def.ApiKey != ""},
+		{memberUninstalled, def.Uninstalled},
+		{memberHidden, def.Hidden},
+		{memberBundledDiverged, def.BundledDiverged},
+	} {
+		if stated.set {
+			return nil, fmt.Errorf("property %q: format %q says nothing could define this property, "+
+				"so the entry states nothing else about it — drop %s, or state the format the "+
+				"property really has", def.Key, propertyFormatUnknown, stated.member)
+		}
+	}
+	m.setNonEmpty("name", def.Name)
+	m.set("format", propertyFormatUnknown)
 	return m, nil
 }
 
