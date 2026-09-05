@@ -283,9 +283,25 @@ indent of 5.
 - **`code` and `embed`** — their `text` is raw. Never parse it for markup
   (step 8).
 - **`dataview`** — a *view definition*, not rows: columns, filters, sorts, and
-  a source that is a collection's `items`, a query, or another object.
-  Community has 205 of them. Rendering one means running its query against the
-  objects you indexed in step 2; reading one means reading its `views`.
+  a **source** it names, which is the half none of its members look like.
+  Community has 205 of them. Reading one means reading its `views`. Rendering
+  one depends entirely on which source it names, and only one of the two kinds
+  can be rendered from a bundle at all.
+
+  A **collection**'s records are ids a document in this bundle lists in its
+  top-level `items` member, in that order, so a reader renders a collection
+  from the bundle alone. A **set**'s records are whatever its query matches
+  when it runs against a live space, so a reader cannot render a set from the
+  bundle at all: ship the definition, say the rows are not here, do not invent
+  them. SPEC §6.2 has all seven shapes and which member says which.
+
+  Getting this backwards is expensive in exactly the wrong direction. **90 of
+  Community's 205 dataviews are collection-sourced, and 87 of those carry no
+  filter in any view** — so "run the query" runs an unfiltered one and renders
+  a 3,286-row table of the entire space, where the right answer was sitting in
+  the host document: its 89 collection hosts list **60 ids** in `items` between
+  them, and 80 of the 89 list none at all, which makes the correct rendering of
+  most of them an empty table.
 
 `fields`, where present, is a verbatim bag of internal per-block data. One
 thing in it is load-bearing and lives nowhere else: a layout **`column`**'s
