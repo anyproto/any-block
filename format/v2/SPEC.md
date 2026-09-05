@@ -2669,7 +2669,7 @@ strings sitting on a number-format key, which nothing reads as a layout.
 `max_count` is the only thing a definition says about how many values fit,
 and it is written only where the format leaves room for more than one (§2a).
 
-**Enum-valued properties are named, not numbered.** Seven stored keys hold
+**Enum-valued properties are named, not numbered.** Nine stored keys hold
 numbers whose meaning is a proto enum (their bundled relations have format
 `number`), and the format writes the enum **name** — a bare integer would
 be an opaque enum in an otherwise self-describing format. Each key's
@@ -2696,9 +2696,25 @@ vocabulary, one table per concept (`namedEnumProperties`):
   the underlying enum's ZERO is notion, so an unchecked string here read
   back as a false claim that the object came from Notion.
 - `imageKind` — what an image object is used AS: `basic · cover · icon ·
-  automatically_added` (`$defs/imageKind`). Stored on 4,079 corpus
+  automatically_added` (`$defs/imageKind`). Stored on 4,094 corpus
   documents; named for the same reason as the rest, since a bare integer
   would be an opaque enum in a self-describing format.
+- `participantPermissions` — what a space member may DO: `reader · writer ·
+  owner · no_permissions · admin` (`$defs/participantPermissions`). The
+  names are the proto's own identifiers snake_cased and deliberately NOT the
+  public API's `role` vocabulary (viewer/editor/admin), whose inverse sends
+  every name outside those three back to Reader — `owner` included — and a
+  name that does not round-trip to the number it came from is not a name
+  this format can write. The enum's ZERO is `reader`, which is why naming it
+  matters rather than merely reads better: a string on this key used to
+  validate and store verbatim on a number detail, where every int getter
+  answered 0, so a mistyped owner read as a viewer rather than as unset.
+- `participantStatus` — where a member is in joining or leaving the space:
+  `joining · active · removed · declined · removing · canceled`
+  (`$defs/participantStatus`). `canceled` is the proto's spelling and stays
+  one word (§15 #14). `joining` occurs in no bundle of the corpus and is
+  published anyway: a vocabulary with a hole in it exports a bare integer
+  the day something writes into the hole.
 
 Import maps a name to its number; export always writes the name for an
 in-vocabulary number and the raw number for anything else — a stored value
@@ -2718,9 +2734,20 @@ emits (§11 I1): the two are complements by construction rather than by care.
 The rule is stated on nameability and not on the JSON type, which is what
 makes that so. `type_settings.layout` is the same stored key
 (`recommendedLayout`) lifted into the §2a group and carries the same rule at
-its own path. Nothing real is refused: across the 79-bundle corpus all
-62,325 values in the six named-enum property slots are strings, and not one
-is a number. And the refusal is the second line of defence, not the first —
+its own path. What that costs is measured rather than waved away. On the six
+keys already named when the 79-bundle corpus was taken — `layout`,
+`resolvedLayout`, `layoutAlign`, `origin`, `importType`, `imageKind` — all
+62,325 values in it are strings and not one is a number, so it refuses
+nothing there. The
+participant pair was named after that corpus was taken, and an export made
+before a key is named holds the bare integer: all 2,519 of the corpus's
+participant documents carry `Participant permissions` and `Participant
+status` as numbers a vocabulary can now name, and this validation refuses
+every one of them — 1,880 of them in the audited space — naming the value
+the number stands for. That is the one-time cost of closing a naming gap on
+a key real data already carries, paid by exports that predate the name; a
+document re-exported by this version writes `writer` where the old one wrote
+1. And the refusal is the second line of defence, not the first —
 the first is that a bundle PUBLISHES the admissible names on the property's
 dictionary entry (`value_names`, §2f), derived from the same table this
 section lists, so a reader learns the vocabulary instead of guessing at it.
