@@ -5,6 +5,99 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- A run can decline derived TYPE ids, and the format says so
+  (`Options.NoDerivedTypeIds`; `codec/anyblockjson/export.go`,
+  `codec/anyblockjson/refs.go`, SPEC §9, §13). A type is two things at once:
+  a KIND, named by a key that means the same thing in every space, and an
+  OBJECT, named by an id that exists in one. An API consumer addresses each
+  half by its own handle — the controlled key its own vocabulary mints, the
+  store id its object endpoint resolves — and `type-<stored_key>` is
+  neither, so a document written for one spelled a type three ways:
+  `"type": "bug"` in the envelope, beside `"template_for":
+  "type-68f1a9c…"`, beside a `Set of` carrying the prefix again. With the
+  mode set the two families of slot move in OPPOSITE directions, which is
+  the whole point. Type-KEY slots — `template_for`, every `object_types` —
+  fall back to `writableTypeSlug`, the vocabulary the envelope `type`
+  already goes through, so one type is one word across the document; a
+  raw-key fallback would have spelled it a second way for every key the
+  vocabulary renames. Reference slots and the type document's own envelope
+  id keep the store id, and `FoldDocumentId` declines alongside them rather
+  than on its own gate — so the FILENAME follows the envelope id and a type
+  document is filed under its store id. That is one decision and not two: a
+  document is found by the id inside it and by nothing else (§2c), the path
+  plan derives the file's stem from the very function the envelope id goes
+  through, and a document that kept `type-<key>` while every reference kept
+  the store id is precisely the dead link §9's gates exist to make
+  unrepresentable. Import is untouched in both directions — declining to
+  write a derived id is not declining to read one, so a document already
+  carrying `type-<key>` still resolves — and the participant fold, armed by
+  `Options.SpaceId` alone, is unaffected. Zero value is the old behaviour,
+  so every existing caller is byte-stable.
+
+  Nothing published had mentioned it, while SPEC stated in a dozen normative
+  places that the derived id is THE spelling of a type. §9 gets the mode's
+  home and each of those sentences is qualified where it stands: the
+  envelope's `template_for` and `type_internal_key` rows, §2a's and §2d's
+  `object_types`, §2c twice, §2g, §3 three times, §3a, §6.2's dataview
+  source table, §9's own reference table and two of its Derived-ids bullets,
+  §9a, §13's `Options` and `FoldDocumentId`, and §15 #27. Three costs are
+  stated rather than left to be discovered. The object → type document road
+  closes, and a reader rebuilds by `internal_key` the table `manifest.types`
+  used to ship (§2c, §15 #26). A type-KEY slot becomes a spelling to
+  resolve, through the §3 chain and under §3's ambiguity refusal, which is
+  the path an authored document's `template_for` already takes (§2g). And
+  `bundle.Validate` REFUSES a mode-on bundle: its type cross-document check
+  derives `type-<type_internal_key>` from every typed document and finds no
+  document carrying it, which over the 79-bundle corpus is 4,373 of 24,889
+  documents naming 169 distinct minted keys. That was established by running
+  `Validate` over a bundle in each shape rather than by reading the check,
+  and the check has not been widened — what the mode produces is a valid set
+  of DOCUMENTS that the bundle validator, as it stands, rejects.
+
+  Which mode produced an export is judged and answered NO, with the limits
+  named rather than a signal offered. Absence of `type-` is conclusive in
+  practice — all 79 corpus bundles carry one, 11,055 occurrences, being
+  1,793 type document ids + 6,636 type-KEY slot occurrences (5,544
+  `object_types`, 423 `template_for`, 669 of 730 in the dictionaries) +
+  2,626 reference-slot occurrences — and not conclusive in principle, since
+  a space with no type document, or one whose every type key the fold gate
+  refuses, produces the same absence. A non-derived `template_for` has three
+  possible producers: this mode, an authored bundle (§2g), and a
+  default-shape export of a gate-refused key. And a single-document export
+  that names no type in any reference slot is byte-identical under both
+  modes, so there the question has no answer at all. Stating the mode
+  outright in `index.json`, beside `unresolved`, is recorded in §9 as a
+  PROPOSAL and deliberately not added: a new member is a grammar change and
+  costs a minor version (§10, no additive-within-a-version rule).
+  READING.md's step 6 carries the reader-side repair — index the type
+  documents by `internal_key` as well as by `id` on the same walk, and fall
+  back to that map when `type-<key>` finds nothing.
+
+- API v2 and AnyBlock v2 spell participant permissions differently, on
+  purpose, and this is where that is written down. SPEC §3 and the entry
+  below already record WHY the REST API's `role` vocabulary was not
+  borrowed; what neither says is what it means for a consumer reading both
+  surfaces. AnyBlock writes the proto's own identifiers snake_cased —
+  `reader · writer · owner · no_permissions · admin`. The API's `role` maps
+  `Reader→"viewer"`, `Writer→"editor"` and `Admin→"admin"`, falling back to
+  the snake_cased proto name for the other two
+  (`core/api/service/member.go`). So three of the five names agree and two
+  do not: what AnyBlock calls `reader` the API calls `viewer`, and what
+  AnyBlock calls `writer` the API calls `editor`. The vocabulary could not
+  be borrowed because its inverse (`mapMemberRole`) sends every name outside
+  those three back to `Reader` — `owner` and `no_permissions` included — so
+  `mapMemberRole(mapMemberPermissions(Owner))` is `Reader`, and a name that
+  does not round-trip to the number it came from is not a name this format
+  can write (§3). The divergence is therefore not an oversight awaiting
+  reconciliation: reconciling it would mean adopting a vocabulary that loses
+  two of its five values on the way back. A consumer reading both surfaces
+  maps between them and treats neither spelling as the other's. Re-derived
+  over the 79-bundle, 24,889-document corpus: 2,519 participant documents
+  carry the key — Writer 1,888 · NoPermissions 566 · Owner 48 · Reader 13 ·
+  Admin 4 — so the two names that differ cover 1,901 of the 2,519 values,
+  and `owner`, one of the three that agree, is exactly the value the API's
+  own inverse loses.
+
 - The reading guide's dictionary is found where the index says it is, and its
   two corpus figures are held by arithmetic (`format/v2/READING.md`). Step 3
   was titled with the default filename and never named `manifest.properties`,
