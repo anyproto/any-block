@@ -316,15 +316,20 @@ func TestPropertyDictionary_MaxCountStaysWithinWhatItCanRead(t *testing.T) {
 
 // An entry may state `uninstalled: true` — the user removed the property
 // from the space, and the bundle carries the removal for backup fidelity
-// rather than a document (§2f, §15 #22). The member is the dictionary's
-// own: the shape's other two homes refuse it, the way the dictionary
-// refuses `section`. The flag is the whole statement: there is no list of
-// installed keys for it to contradict (§15 #24).
+// rather than a document (§2f, §15 #22). The flag is the whole statement:
+// there is no list of installed keys for it to contradict (§15 #24), and no
+// "deleted" member beside it — uninstalling a space-minted property is the
+// same act as uninstalling a bundled one, the object stays and is hidden.
+//
+// It is stated by the two homes that mean it — this one and a type's
+// property_definitions entry, each a complete standalone definition — and
+// refused by the third. It is NOT on the shared shape: that is what makes
+// the third home refuse it.
 //
 // How this can fail: leave the member off the schema's dictionaryEntry (the
 // round trip is refused on read); or write it from the shared member
-// renderer (the type document below stops being refused, and a type would
-// carry a flag that means nothing on it).
+// renderer (a property document's settings start carrying a member that
+// describes nothing there).
 func TestPropertyDictionary_UninstalledEntry(t *testing.T) {
 	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
 		in := &PropertyDictionary{
@@ -354,13 +359,19 @@ func TestPropertyDictionary_UninstalledEntry(t *testing.T) {
 			"properties":[{"property":"Due date","format":"date","uninstalled":"yes"}]}`), Options{})
 		require.Error(t, err)
 	})
-	t.Run("the other two homes refuse it", func(t *testing.T) {
-		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
-			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","uninstalled":true}]}}`)
-		require.Error(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
+	t.Run("the third home refuses it, the second states it too", func(t *testing.T) {
+		// a property document's property_settings mirrors STORED presence
+		// exactly (§2d), and the removal is not one of the members that
+		// travel there
 		relDoc := []byte(`{"formatVersion":"2.0","id":"r1","kind":"property","type":"Property",
 			"internal_key":"dueDate","property_settings":{"format":"date","uninstalled":true}}`)
 		require.Error(t, Validate(relDoc, Options{}), "a property document's property_settings")
+		// a type's property_definitions entry is a complete standalone
+		// definition (§2e), so it states the removal too (§15 #22,
+		// typepropertyuninstalled_test.go)
+		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
+			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","uninstalled":true}]}}`)
+		require.NoError(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
 	})
 	t.Run("the authoring subset does not admit it", func(t *testing.T) {
 		// an author has nothing to uninstall: the member is export fidelity,

@@ -356,6 +356,15 @@ func (e *exporter) buildTypeProperties() ([]any, error) {
 				// convention. A rejected entry itself is not appended.
 				return nil, fmt.Errorf("%s/%d: %w", typePropertyDefinitionsPath, len(out), err)
 			}
+			// the one member of the shape that is a fact about the
+			// PROPERTY and not about this type's use of it: the user
+			// removed the property, and an entry that is a complete
+			// standalone definition (§2e) may not present it as live
+			// (§15 #22). Written here rather than by the shared renderer
+			// because the shape's third home refuses it: a property
+			// document's settings mirror stored presence, and the removal
+			// is not one of the members that travel there.
+			m.setNonEmpty(memberUninstalled, def.Uninstalled)
 			m.setNonEmpty("section", l.section)
 			out = append(out, m)
 		}
@@ -431,19 +440,26 @@ type TypeProperty struct {
 	DefaultValue    any         `json:"default_value"`
 	DefaultValueSet bool        `json:"-"`
 	Section         string      `json:"section"`
-	// Uninstalled is the first of the dictionary's four owned members, as
-	// Section is the type-owned one; each home's schema refuses the other's
-	// before this decode runs (§2f).
+	// Uninstalled says the user REMOVED the property from the space (§15
+	// #22). It is the one member both this home and the dictionary entry
+	// state: an entry here is a complete standalone definition (§2e), so a
+	// reader building this type's property list has to be told, or it
+	// builds a removed property as a live one. The dictionary's other three
+	// owned members — ApiKey, Hidden, BundledDiverged — say nothing a type's
+	// declaration says, and each home's schema refuses the other's before
+	// this decode runs (§2f).
 	Uninstalled bool `json:"uninstalled"`
-	// ApiKey is the dictionary's second owned member (§2f): the property's
+	// ApiKey is the first of the dictionary's three owned members (§2f): the property's
 	// stored `apiObjectKey`, which no restore re-derives
 	// (PropertyDefinition.ApiKey). The only one of the four that is not a
 	// flag.
 	ApiKey string `json:"api_key"`
-	// Hidden is the dictionary's third owned member (§2f, §15 #23), on the
-	// same footing as Uninstalled.
+	// Hidden is the dictionary's second owned member (§2f, §15 #23): the
+	// store's own listing bit, which a type's declaration does not speak
+	// for — Section says where a property sits on ONE type, never whether
+	// the property is shown at all.
 	Hidden bool `json:"hidden"`
-	// BundledDiverged is the dictionary's fourth owned member (§2f, §15
+	// BundledDiverged is the dictionary's third owned member (§2f, §15
 	// #25): the space's copy of a bundled property diverged from the shipped
 	// table at export time, so the entry outranks the reader's table.
 	BundledDiverged bool `json:"bundled_diverged"`
@@ -610,6 +626,15 @@ func (tp TypeProperty) definition(key string, format model.RelationFormat, targe
 		Readonly:        tp.Readonly,
 		DefaultValue:    tp.DefaultValue,
 		DefaultValueSet: tp.DefaultValueSet || tp.DefaultValue != nil,
+		// the removal travels through the seam with the rest of the
+		// definition (§15 #22): the wiring that CREATES a property from
+		// this entry is the one reader that must not create a live one,
+		// and a member the seam drops is a member that reader never sees.
+		// What it does with the mark is its own decision — reproducing it
+		// is the restore that does not work
+		// (PropertyDefinition.Uninstalled) — but it cannot decide what it
+		// was not told.
+		Uninstalled: tp.Uninstalled,
 	}
 }
 

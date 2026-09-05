@@ -1505,6 +1505,10 @@
         "object_types": {
           "type": "array"
         },
+        "uninstalled": {
+          "type": "boolean",
+          "description": "The user REMOVED this property from the space (\u00a72f, \u00a715 #22). The object stays and is hidden \u2014 uninstalling a custom property is the same act as uninstalling a bundled one \u2014 so there is no \"deleted\" member beside this one. Export writes `true` only; absent is the same statement as `false`, and an author never writes it: the authoring subset refuses it, because an author declaring a property has nothing to uninstall. It is here as well as on a dictionary entry because THIS entry is a complete standalone definition (\u00a72e): a reader that opens one type document and builds its property list from it would otherwise build a removed property as a live one. What a reader MUST NOT do, in either home, is install it as a live property. The dictionary entry's other three owned members do not travel here \u2014 `hidden` is the store's own listing bit, `api_key` the property's public address, `bundled_diverged` a verdict about a space a reader never saw \u2014 because a type's declaration says how THAT type uses a property and none of those is a thing it says. The shape's third home refuses this member as it refuses those: a property document's `property_settings` mirrors stored presence exactly, and the removal is not one of the members that travel there."
+        },
         "section": {
           "enum": [
             "featured",

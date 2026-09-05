@@ -97,7 +97,11 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 	}{
 		"typeProperty": {
 			node: typeProperty, found: foundTypeProperty,
-			localMembers: []string{"format", "object_types", "section"},
+			// `section` is the type's own member and `uninstalled` the one
+			// member this home shares with the dictionary entry: an entry
+			// here is a complete standalone definition (§2e), so a removed
+			// property may not be presented as a live one (§15 #22).
+			localMembers: []string{"format", "object_types", "section", "uninstalled"},
 		},
 		"property_settings": {
 			node: relationSettings, found: foundRelationSettings,
@@ -136,20 +140,25 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 	// the way the index schema references plainIcon. Same discipline: a
 	// layer of narrowings (`object_types` back to a real array) plus the
 	// home's own requirements, closed with unevaluatedProperties. Three
-	// members are the dictionary's OWN rather than narrowings:
-	// `uninstalled` (§15 #22), `hidden` (§15 #23) and `bundled_diverged`
-	// (§15 #25), each of which means nothing on a type's declaration or a
-	// property document's settings, so they live on the entry's layer and
-	// NOT on the shared shape — which is what makes the other two homes
-	// refuse them, as this one refuses their `section`.
+	// members are the dictionary's OWN rather than narrowings: `hidden`
+	// (§15 #23), `bundled_diverged` (§15 #25) and `api_key`, each of which
+	// means nothing on a type's declaration or a property document's
+	// settings, so they live on the entry's layer and NOT on the shared
+	// shape — which is what makes the other two homes refuse them, as this
+	// one refuses their `section`. `uninstalled` (§15 #22) sits on the
+	// entry's layer too, and on the type declaration's layer beside it:
+	// both of those homes state a COMPLETE definition, and a definition
+	// that presents a removed property as live is not complete. Off the
+	// shared shape all the same, which is what keeps the third home
+	// refusing it.
 	//
 	// How this can fail: restate the ten members inside
 	// properties.schema.json instead of the $ref (drift starts), widen the
 	// entry's layer beyond the narrowing and the owned members, move an
-	// owned member onto propertyDefinition (a type declaration starts
-	// admitting a flag it cannot act on — a removal, a hidden bit, or a
-	// verdict about a space it never saw), or reopen the entry by deleting
-	// its unevaluatedProperties gate.
+	// owned member onto propertyDefinition (a property document's settings
+	// start admitting a flag that describes nothing there — a hidden bit,
+	// an api key, or a verdict about a space it never saw), or reopen the
+	// entry by deleting its unevaluatedProperties gate.
 	var propSchema struct {
 		Defs map[string]schemaNode `json:"$defs"`
 	}
@@ -234,8 +243,20 @@ func TestPropertyDefinition_OneSharedShapeThreeHomes(t *testing.T) {
 		_, onEntry := entry.Properties[owned]
 		assert.Truef(t, onEntry, "`%s` is a member of the dictionary entry's own layer (§2f)", owned)
 		_, shared := objSchema.Defs["propertyDefinition"].Properties[owned]
-		assert.Falsef(t, shared, "`%s` is the dictionary's own member, not a shared one: on the shared shape the other two homes would admit it", owned)
+		assert.Falsef(t, shared, "`%s` is stated by the homes that mean it, never by the shared shape: there every home would admit it", owned)
 	}
+	// Four of the five are the DICTIONARY's alone. `uninstalled` is the
+	// exception, and it is deliberate (§15 #22): a type's declaration is a
+	// complete standalone definition, so it states the removal too — from
+	// its own layer, which is what keeps the third home refusing it.
+	for _, owned := range []string{"hidden", "bundled_diverged", "api_key", "value_names"} {
+		_, onType := typeProperty.Properties[owned]
+		assert.Falsef(t, onType, "`%s` says nothing a type's declaration says (§2f)", owned)
+	}
+	_, removalOnType := typeProperty.Properties["uninstalled"]
+	assert.True(t, removalOnType,
+		"a type's declaration states the removal too: a reader building one type's property "+
+			"list from it must not build a removed property as a live one (§15 #22)")
 	// `format` alone is required outright: self-sufficiency (§2f) means an
 	// entry states what the property holds. Identity is required through
 	// anyOf instead — a key, OR a `name` the spelling derives from — because
