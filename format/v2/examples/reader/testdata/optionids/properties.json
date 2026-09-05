@@ -14,8 +14,15 @@
       "name": "Tag",
       "format": "multi_select",
       "options": [
-        { "name": "archive", "color": "blue", "internal_key": "65cca4101cac639011dcab8c" },
-        { "name": "pre-installed", "color": "yellow" }
+        {
+          "name": "archive",
+          "color": "blue",
+          "internal_key": "65cca4101cac639011dcab8c"
+        },
+        {
+          "name": "pre-installed",
+          "color": "yellow"
+        }
       ]
     },
     {
@@ -23,6 +30,19 @@
       "internal_key": "status",
       "name": "Status",
       "format": "select"
+    },
+    {
+      "property": "Mood",
+      "internal_key": "mood",
+      "name": "Mood",
+      "format": "multi_select",
+      "options": [
+        {
+          "name": "clear",
+          "color": "blue",
+          "internal_key": "6a19e7cfd2ccda735724fa4b"
+        }
+      ]
     }
   ]
 }

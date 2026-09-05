@@ -327,6 +327,12 @@ func (b *bundle) renderValue(def *definition, v any) string {
 			}
 			parts = append(parts, describeOption(def, name))
 		}
+		if len(parts) == 0 {
+			// 7,498 select slots in the measured corpus hold an empty array.
+			// Printing nothing at all leaves the reader unable to tell an
+			// empty value from a bug in this program.
+			return "(empty)"
+		}
 		return strings.Join(parts, ", ")
 	case "unknown":
 		return fmt.Sprintf("%s   <- no definition travelled with this export", compact(v))

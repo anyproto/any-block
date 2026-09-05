@@ -170,6 +170,8 @@ func TestAnUnresolvedOptionIDIsNotPrintedAsAName(t *testing.T) {
 			"Tag", "archive (blue), " + tagID + " (not an option name; not one of this entry's 2 options)"},
 		{"an entry with no options member at all",
 			"Status", statusID + " (not an option name; this entry carries no options)"},
+		{"an empty list says so, the way an empty reference list does",
+			"Mood", "(empty)"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			def, _ := b.resolve(doc, tc.spelling)
