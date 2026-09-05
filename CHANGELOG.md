@@ -5,6 +5,24 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- The two published schemas state ONE rule for `uninstalled`
+  (`format/v2/schema/properties.schema.json`). A type's
+  `property_definitions` entry states the member now and
+  `object.schema.json` says so, while the dictionary entry's own
+  description still read "A member of the dictionary entry only … both
+  homes refuse it" — so a third-party reader holding only the published
+  schemas, which is the reader the dictionary exists for, got two
+  contradictory rules for one member out of the two files describing its
+  two homes. `hidden` and `bundled_diverged` cited `uninstalled` as their
+  footing besides, which turned one stale sentence into three. Each now
+  says what it is: `uninstalled` is stated by two of the shape's three
+  homes and refused by the third, and the four members that really are the
+  dictionary's alone — `hidden`, `api_key`, `bundled_diverged`,
+  `value_names` — cite each other. Held by a test that derives every
+  member's homes from the schema layers instead of listing them: a
+  description may claim the dictionary entry as a member's only home only
+  where no other home states that member, and may cite another member as
+  being "on the same footing" only where the two live in the same homes.
 - The reading guide's statements now survive the export they cite
   (`format/v2/READING.md`). Six were false against the audited
   3,286-document space or against this branch's own codec, and a reader acts
@@ -475,10 +493,11 @@ original order.
   a kept document was the only place the removal could live, and the
   composition then listed the kept copy's key under `installed` anyway — so
   the backup of a removed, divergent copy reinstalled it. `uninstalled` is
-  the entry's own member (the shape's other two homes and the authoring
-  subset refuse it), the entry is exempt from the used-only rule the way a
-  divergent copy's is, and a key both installed and uninstalled is refused
-  on read and on write. Added: `UninstalledRelation`,
+  the entry's own member (the authoring subset refuses it, and so did both
+  other homes of the shape until the entry above gave a type's
+  `property_definitions` declaration the same member), the entry is exempt
+  from the used-only rule the way a divergent copy's is, and a key both
+  installed and uninstalled is refused on read and on write. Added: `UninstalledRelation`,
   `UninstalledRelationDetails`, `OmittedUninstallStamp`,
   `PropertyDefinition.Uninstalled`, `TypeProperty.Uninstalled`,
   `bundle.Stats.DictionaryUninstalled`.
