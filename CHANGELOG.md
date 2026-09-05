@@ -5,6 +5,37 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- The reading guide's dictionary is found where the index says it is, and its
+  two corpus figures are held by arithmetic (`format/v2/READING.md`). Step 3
+  was titled with the default filename and never named `manifest.properties`,
+  so a reader implementing it as written finds no dictionary on a bundle THIS
+  REPOSITORY ships — `examples/reader/testdata/propertylist` keeps its
+  dictionary at `dictionary/props.json`, which is what makes the default a
+  rule rather than a coincidence — and resolves not one property in it. The
+  step says where the path comes from now, and a test derives the premise from
+  the shipped indexes: once two of them disagree about the path, the guide has
+  to state the pointer. Step 9's `unknown` row also predates R2 by one round:
+  the sentinel is written only after the type documents of the same bundle
+  have been tried, which step 4 already said and the row did not. And step 9's
+  "81 slots across the whole 79-bundle corpus, against 5,038 for those two
+  alone" is quoted from a census READING states no part of — the split a
+  verifier caught this round, with READING already on the re-measured 81 while
+  json.go still carried the 51-vintage headerRelationsLayout the 81 is built
+  from. The tail is now checked as arithmetic across its four homes:
+  widgetLayout 13 + templateNamePrefillType 6 + headerRelationsLayout 62 = 81,
+  and 5,038 + 81 = the 5,119 the pair is quoted as a fraction of. Every other
+  figure in the guide was re-derived over the same corpus and stands — the
+  audited space's 118 entries, 36,696 of 37,336 resolved values, 640 across
+  324 documents naming 155 keys, 6,392 bare and 1,333 array `objects`/`files`
+  values, 8,695 named and 3,760 numeric enum slots, 12 of 31 select values
+  unresolved, 7,781 references (5,247 local, 1,880 reserved, 654 absent over
+  171 ids), the wider 1,265 of 10,053 over 723 ids with its 5 + 108 + 498
+  breakdown, 92 documents naming an absent type, 608 self-pointing file icons,
+  793 media blocks reaching 745 documents, 23,130 blocks at depth 5, 205
+  dataviews of which 90 are collection-sourced and 87 unfiltered over 89 hosts
+  listing 60 ids, the markup counts, and corpus-wide 12 bundles with no
+  ordinary object, 68 carrying 10,303 file documents and no `files` map at
+  all, and 74 of 22,019 select values naming no option.
 - The reading guide names the fifth list-valued format, and a test holds the
   list (`format/v2/READING.md`). SPEC §3 has enumerated five since R3 —
   `objects`, `files`, `select`, `multi_select`, `properties` — while

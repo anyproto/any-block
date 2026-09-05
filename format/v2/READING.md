@@ -106,7 +106,14 @@ document at all (step 6): its homepage is not missing, it is a built-in
 screen. So the fallback a reader needs is "show something, anything", and the
 count of exports where the homepage cannot be shown is 11, not 12.
 
-## 3. Read the dictionary, `properties.json`
+## 3. Read the dictionary the index points at
+
+**`manifest.properties` says where it is** — `properties.json` at the bundle
+root when the index states no path, and wherever the index does state one. That
+is not a formality: of the bundles shipped beside this guide, one keeps its
+dictionary at `dictionary/props.json`, and a reader that looks by name finds no
+dictionary there and resolves nothing. Find it the way step 2 finds a document:
+by what the bundle says, never by where you expect it.
 
 One file, one entry per property the bundle's objects actually use. It exists
 so you never have to ship an Anytype table: an entry is the **complete**
@@ -437,7 +444,7 @@ Three separate silences, and each has a different meaning:
 
 | you see | it means |
 |---|---|
-| a property key with a dictionary entry whose `format` is `"unknown"` | the export looked and found no definition. The values under that key are raw JSON and stay raw. |
+| a property key with a dictionary entry whose `format` is `"unknown"` | the export looked and found no definition — including in the type documents of the same bundle, which are tried before the sentinel is written (step 4). The values under that key are raw JSON and stay raw. |
 | a property key with **no entry at all** | an export that did not *say* — which is every bundle written before the rule in step 3, Community included, for 155 keys. Its `"66602dc5e5672d06c0e19245": 1717538400` could be a date, a count or an id: no entry, no declaration on any type, no format cached on a dataview column, and one legend line spelling the key as itself. Treat it exactly as `unknown`, and expect `index.json` to say nothing about it either. |
 | a reference that resolves to nothing | see step 6. `index.json`'s `unresolved.targets` is the only place a writer can say it meant to. |
 

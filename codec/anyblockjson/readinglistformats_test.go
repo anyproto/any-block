@@ -27,7 +27,9 @@ package anyblockjson
 // table entirely.
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -80,15 +82,16 @@ func readingGuideSource(t *testing.T) string {
 
 var backtickedTerm = regexp.MustCompile("`([^`]+)`")
 
-// stepFiveLines is the body of READING.md's step 5, where the format table
-// lives. Bounded by the surrounding headings so the step 2 kind table and the
-// closing links table cannot be read as format rows.
-func stepFiveLines(t *testing.T) []string {
+// readingStepLines is the body of one numbered step of READING.md, bounded by
+// the surrounding headings — so step 5's format table cannot pick up step 2's
+// kind table or the closing links table, and a claim looked for inside one step
+// cannot be satisfied by a sentence in another.
+func readingStepLines(t *testing.T, step string) []string {
 	t.Helper()
 	lines := strings.Split(readingGuideSource(t), "\n")
 	from, to := -1, -1
 	for i, line := range lines {
-		if strings.HasPrefix(line, "## 5. ") {
+		if from < 0 && strings.HasPrefix(line, "## "+step+". ") {
 			from = i
 			continue
 		}
@@ -97,8 +100,8 @@ func stepFiveLines(t *testing.T) []string {
 			break
 		}
 	}
-	require.GreaterOrEqualf(t, from, 0, "READING.md no longer has a step 5")
-	require.Greaterf(t, to, from, "READING.md's step 5 no longer ends at a heading")
+	require.GreaterOrEqualf(t, from, 0, "READING.md no longer has a step %s", step)
+	require.Greaterf(t, to, from, "READING.md's step %s no longer ends at a heading", step)
 	return lines[from:to]
 }
 
@@ -131,7 +134,7 @@ func TestReadingGuideListsExactlyTheFormatsAScalarIsWrappedOn(t *testing.T) {
 	}
 	tabled := map[string]string{}
 	body := false
-	for _, line := range stepFiveLines(t) {
+	for _, line := range readingStepLines(t, "5") {
 		// The header row names the COLUMN `format`, not a format; rows begin
 		// after the separator under it.
 		if strings.HasPrefix(line, "|---") {
@@ -165,5 +168,59 @@ func TestReadingGuideListsExactlyTheFormatsAScalarIsWrappedOn(t *testing.T) {
 		}
 		_, known := FormatByName(name)
 		assert.Truef(t, known, "READING.md's format table has a row for %q, which is not a format", name)
+	}
+}
+
+// Where the dictionary IS is the index's to say (§2c): `manifest.properties`
+// carries the path, `properties.json` at the bundle root is what an absent
+// pointer means, and nothing else finds the file. The guide's step 3 was titled
+// with the default filename and never named the pointer, so a reader that
+// implemented the step as written found no dictionary on a bundle THIS
+// REPOSITORY ships and resolved not one property in it.
+//
+// The premise is derived from those bundles rather than asserted: the test
+// looks at every index the examples carry and only demands the rule once two of
+// them disagree about where the dictionary lives.
+//
+// How this can fail: retitle step 3 with a filename again and drop the pointer;
+// or move every example bundle's dictionary back to the default, at which point
+// this test says the premise is gone rather than passing quietly.
+func TestReadingGuideFindsTheDictionaryWhereTheIndexSaysItIs(t *testing.T) {
+	paths := map[string]string{}
+	root := readerGuidePath("examples")
+	require.NoError(t, filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || info.Name() != "index.json" {
+			return err
+		}
+		body, err := os.ReadFile(path)
+		require.NoError(t, err)
+		var index struct {
+			Manifest struct {
+				Properties string `json:"properties"`
+			} `json:"manifest"`
+		}
+		require.NoError(t, json.Unmarshal(body, &index))
+		stated := index.Manifest.Properties
+		if stated == "" {
+			stated = "properties.json" // an absent pointer means the default
+		}
+		paths[stated] = path
+		return nil
+	}))
+	require.GreaterOrEqualf(t, len(paths), 2,
+		"every example bundle now keeps its dictionary at the same path (%v), so nothing here "+
+			"proves the location is the index's to state; this test's premise is gone", paths)
+
+	step := strings.Join(readingStepLines(t, "3"), " ")
+	assert.Contains(t, step, "`manifest.properties`",
+		"READING.md step 3 is where a reader goes to open the dictionary, and it never says that "+
+			"the index states the path")
+	for stated := range paths {
+		if stated == "properties.json" {
+			continue
+		}
+		assert.Containsf(t, step, "`"+stated+"`",
+			"a bundle shipped beside the guide keeps its dictionary at %s and step 3 does not "+
+				"show a reader that the path is not fixed", stated)
 	}
 }
