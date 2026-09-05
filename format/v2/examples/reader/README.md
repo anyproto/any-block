@@ -21,7 +21,7 @@ self-describing and the format has a bug.
 
 - `main.go` — open the bundle, index documents by id, resolve a property
   through the legend and the dictionary, read a value, follow a reference,
-  reconstruct block nesting.
+  reconstruct block nesting, and say where a dataview's records come from.
 - `markup.go` — the four things AnyBlock inline markup does that CommonMark
   does not. It is a display flattener, not a validator: it renders malformed
   markup instead of refusing it, which is right for reading and wrong for
@@ -34,3 +34,15 @@ The prose walkthrough of the same nine steps is
 Its golden output over [`../exported_space`](../exported_space) is checked on
 every `go test ./...`. Regenerate it with `UPDATE_GOLDEN=1 go test
 ./format/v2/examples/reader`.
+
+`testdata/` carries three more bundles, each one a case the worked example
+cannot show and a measured corpus does not contain often enough to rely on:
+
+- `collision/` — one spelling that is one dictionary entry's `internal_key`
+  and a different entry's `property`. No bundle in the 79-bundle corpus
+  collides that way, so nothing but this fixture can hold the rule that a
+  stored key wins.
+- `optionids/` — select values that name no option: an export run without an
+  option resolver lets them through as ids, 74 times over the corpus.
+- `dataview/` — all seven ways SPEC §6.2 says a dataview names its source,
+  including the two that cannot be answered from a bundle at all.

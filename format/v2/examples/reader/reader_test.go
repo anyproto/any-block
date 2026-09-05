@@ -259,6 +259,9 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 		{"one member is one id, not one ids", "bafyreionemember", []string{
 			"records: the 1 id this document lists in `items` — a collection is answered from this bundle alone (§6.2)",
 		}},
+		{"a collection with no items member is empty, not unanswerable", "bafyreiemptycollection", []string{
+			"records: this document's own `items`, which lists none — an empty collection (§6.2)",
+		}},
 		{"a type document hosting its own listing without naming itself", "type-walk", []string{
 			`records: every object of type "Walk" — a live query, and no bundle answers it (§6.2)`,
 		}},
