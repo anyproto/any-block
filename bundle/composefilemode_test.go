@@ -10,6 +10,7 @@ package bundle
 
 import (
 	"testing"
+	"testing/fstest"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
@@ -71,4 +72,29 @@ func TestComposer_ADeclaredModeADeliveredBlobContradicts(t *testing.T) {
 	assert.Contains(t, err.Error(), "metadata-only")
 	assert.Nil(t, index)
 	assert.Nil(t, properties)
+}
+
+// And the stated mode is a bundle the tooling still accepts: `files: {}`
+// binds nothing, which is the claim, so nothing downstream may read it as a
+// binding that failed. Checked across the package seam because that is where
+// a new spelling of "no blobs" would break — bundle.Validate walks the map
+// to refuse a key naming no document, and an empty one gives it nothing to
+// walk.
+func TestComposer_ADeclaredModeIsStillAValidBundle(t *testing.T) {
+	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c.DeclareMetadataOnly()
+	doc := []byte(`{"formatVersion":"2.0","id":"bafyfile","kind":"file_object"}`)
+	file := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
+		"id": strVal("bafyfile"),
+	})}
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_FileObject, file, doc))
+
+	index, properties, _, err := c.Finish()
+	require.NoError(t, err)
+	assert.Contains(t, string(index), `"files": {}`)
+	require.NoError(t, Validate(fstest.MapFS{
+		"index.json":          &fstest.MapFile{Data: index},
+		"properties.json":     &fstest.MapFile{Data: properties},
+		"files/bafyfile.json": &fstest.MapFile{Data: doc},
+	}))
 }
