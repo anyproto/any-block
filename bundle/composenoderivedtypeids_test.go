@@ -6,8 +6,9 @@ package bundle
 // document writes; nothing until now asked what a BUNDLE of such documents
 // says, which is where the two families of slot have to meet again.
 //
-// The whole space is one type — `bug`, store id testfixtures.ObjectID — and
-// everything that can name it: a page of it, a template for it, a widget
+// The whole space is one type — `bug`, store id noDerivedTypeStoreId, the
+// synthetic CID the plan test next door is built on — and everything that
+// can name it: a page of it, a template for it, a widget
 // pointing at it, a `Set of` holding it, and a property whose values must be
 // of it. With the mode on, that one type is named by
 //
@@ -17,11 +18,11 @@ package bundle
 //   - the STORE id as the type document's own envelope id and filename,
 //
 // which is the mode working exactly as its commit describes. What it also
-// says is recorded below, in two tests whose names say "does not": composing
-// this space with the mode on produces a bundle bundle.Validate REFUSES, and
-// a properties.json that spells the type a way no document in the bundle
-// spells it. Both are pinned as the behaviour that is there today, not as
-// the behaviour anyone wants; see the comments on each.
+// says is recorded below, in the two tests whose comments open "REPORTED,
+// not desired": composing this space with the mode on produces a bundle
+// bundle.Validate REFUSES, and a properties.json that spells the type a way
+// no document in the bundle spells. Both are pinned as the behaviour that is
+// there today, not as the behaviour anyone wants; see the comments on each.
 //
 // These are CHARACTERISATION tests throughout. No production code changed
 // with them.
@@ -231,35 +232,33 @@ func composeNoDerivedSpace(t *testing.T, mode bool) composedSpace {
 	return out
 }
 
-// THE FINDING, pinned as it stands. With the mode OFF this exact space
-// composes into a bundle Validate accepts. With it ON the same space
-// composes into one Validate REFUSES, for a reason neither the plan nor the
-// composer can fix on its own:
+// REPORTED, not desired — the first of the two findings, pinned as it
+// stands. With the mode OFF this exact space composes into a bundle Validate
+// accepts; with it ON the same space composes into one Validate REFUSES, for
+// a reason neither the plan nor the composer can fix on its own.
 //
 // `type_internal_key` is written on every typed document (§15 #28) and is,
 // with the mode on, the only carrier of the type's key. bundle.Validate
 // treats it as an ADDRESS — derivedTypeUses turns it into `type-<key>` and
 // requires a document of that id, because deleting manifest.types (§15 #26)
 // made the derived id the only road from an object to its type document
-// (§2c). The mode files the type document under its store id instead, so
-// the road is gone and the check fires on every SPACE-MINTED type key. A
-// bundled key is exempt only because IsDerivedTypeId answers false for one.
+// (§2c). The mode files that document under its store id instead, so the
+// road is gone and the check fires on every SPACE-MINTED type key; a bundled
+// key is exempt only because IsDerivedTypeId answers false for one.
 //
-// Measured over the 79-bundle, 24,889-document corpus: 4,255 documents in
-// 26 of the 79 bundles state a `type_internal_key` whose type is
-// space-minted AND whose type document the bundle carries — 124 distinct
-// keys, min 1 / median 4 / max 27 per affected bundle. Each of those is one
-// refusal line this mode would add to an export that validates clean today.
-// A bundled key never trips it — IsDerivedTypeId answers false for one — and
-// a further 118 documents name a space-minted type whose document their
-// bundle does not carry at all, which is already a refusal today and not the
-// mode's to add.
+// Measured over the 79-bundle, 24,889-document corpus: 4,255 documents in 26
+// of the 79 bundles state a `type_internal_key` whose type is space-minted
+// AND whose type document the bundle carries — 124 distinct keys, min 1 /
+// median 4 / max 27 per affected bundle. Each is one refusal line this mode
+// would add to an export that validates clean today. A further 118 documents
+// name a space-minted type whose document their bundle does not carry at
+// all: already a refusal today, and not the mode's to add.
 //
 // Two readings are open and this test takes neither: either the mode is not
 // for bundle output and something must say so, or bundle.Validate needs a
 // second road from `type_internal_key` to a type document — the type
-// document's `internal_key`, which is right there in the bytes. The test
-// pins the refusal so whichever way it is settled is a visible change.
+// document's own `internal_key`, which is right there in the bytes. The test
+// pins the refusal so that whichever way it is settled is a visible change.
 func TestComposeNoDerivedTypeIds_TheComposedBundleDoesNotValidate(t *testing.T) {
 	require.NoError(t, Validate(composeNoDerivedSpace(t, false).fsys),
 		"the default mode composes a bundle its own validator accepts")
@@ -481,7 +480,8 @@ func TestComposeNoDerivedTypeIds_AnUnresolvedTypeTargetIsNamedInTheModesOwnSpell
 	}
 }
 
-// REPORTED, not desired. The property dictionary's `object_types` is
+// REPORTED, not desired — the second finding. The property dictionary's
+// `object_types` is
 // written by MarshalPropertyDictionary through dictionaryTypeSpelling,
 // which does not consult the mode — so with the mode ON one type is spelled
 // TWO ways across the bundle: `bug` in every document that names it by key,
