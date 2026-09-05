@@ -103,6 +103,39 @@ original order.
   entries naming 265 distinct keys across 79 bundles. `bundle.Validate`
   reads its coverage from the decoded entries, so a bundle this composer
   writes no longer refuses itself over a key it names.
+- `value_names`: a dictionary entry publishes what a value of the property
+  can BE (§2f, §3). Nine stored keys declare `format: "number"` and export a
+  NAME — `layout`, `resolvedLayout`, `layoutAlign`, `origin`, `importType`,
+  `imageKind`, `participantPermissions`, `participantStatus`, and
+  `recommendedLayout`, which a type document carries as
+  `type_settings.layout`. On those keys `format` alone is a lie of omission
+  and the entry's own `description` is worse than silence: `layout`'s is the
+  store's text about the STORED number ("Anytype layout ID(from pb enum)"),
+  so a reader that believes it writes `{"Layout": 1}`. Nothing else in a
+  bundle could tell it otherwise — `object.schema.json` publishes an enum
+  vocabulary for the slots that constrain one, never for a property value,
+  and `$defs/propertyMap` accepts anything. The member is the complete,
+  sorted list, DERIVED from the encoder's own table so it cannot say
+  something export has stopped writing, and it is READ-facing: an author
+  never writes one, and one written by hand is answered with a warning
+  rather than obeyed. Measured over the 79-bundle, 24,889-document corpus:
+  all 62,325 values in the six object-carried slots named first are strings
+  and not one is a number.
+- A number a named enum can name is REFUSED, with the name it stands for
+  (§3), and this BREAKS DOCUMENTS that validated before this branch.
+  `{"Layout": 1}` used to validate, import as the stored number 1 and export
+  back as `"profile"` — a wrong answer rather than an error — and it now
+  fails `Validate` with `layout 1 is the stored number for "profile" … write
+  "profile"`. The rule is stated on NAMEABILITY rather than on the JSON
+  type, which is what keeps I1: export writes the NAME for every number a
+  vocabulary can name and the bare number only for one it cannot, so the set
+  refused is exactly the set `Marshal` never emits, by construction rather
+  than by luck. `{"Layout": 99}` therefore still validates.
+  `type_settings.layout` carries the same rule, being the same stored key.
+  At the time it landed the break was theoretical — all 62,325 corpus values
+  in those slots were already names — and it stopped being theoretical when
+  `participantPermissions` and `participantStatus` joined the table; what
+  that costs is the entry at the top of this list.
 - A property's `api_key` travels on its dictionary entry (§2f, §15 #23):
   `PropertyDefinition.ApiKey`, written where the store holds one. The
   public API key is the spelling callers address a property by, and it is
