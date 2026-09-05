@@ -1841,29 +1841,38 @@ bundled short-text key stays short text.
 dictionary entry's own — neither has any meaning on a type's declaration or
 a property document, and both other homes refuse them.
 
-- **`value_names`: what a value of this property can BE.** Six stored keys
+- **`value_names`: what a value of this property can BE.** Eight stored keys
   declare `format: "number"` and export a NAME (§3) — `layout`,
-  `resolvedLayout`, `layoutAlign`, `origin`, `importType`, `imageKind`, with
-  `recommendedLayout` a seventh key in the same table, carried by a type
+  `resolvedLayout`, `layoutAlign`, `origin`, `importType`, `imageKind`,
+  `participantPermissions`, `participantStatus`, with `recommendedLayout` a
+  ninth key in the same table, carried by a type
   document as `type_settings.layout`. Their entries state the complete list
   of admissible names, sorted. The member exists because on exactly these
   keys `format` is a lie of omission and the entry's own `description` is
   worse than silence: `layout`'s reads "Anytype layout ID(from pb enum)" —
   the STORE's text about the stored number, installed verbatim from the app's
-  shipped table — and a reader that believes it writes `"Layout": 1`. Read
+  shipped table — and a reader that believes it writes `"Layout": 1`;
+  `participantPermissions`' reads "Participant permissions. Possible values:
+  models.ParticipantPermissions", which points at a Go symbol in a repository
+  the bundle does not ship. Read
   `format` with `value_names`, never with `description`: a description is
   free text a user may have edited, this list is the encoder's. Measured over
   the 79-bundle corpus: of the 101,600 property slots whose entry says
-  `format: "number"`, 62,340 hold a string and 39,237 a number — the string
-  form is the **majority** — and 62,325 of those strings are these six keys,
-  in which not one value is a number. Nothing else in a bundle could tell a
+  `format: "number"`, 62,340 hold a string, 39,237 a number and 23 a JSON
+  `null` — the string
+  form is the **majority** — and 62,325 of those strings sit on six of these
+  keys, in which not one value is a number. The participant pair dates that
+  corpus rather than contradicting it: those two were named after it was
+  taken, so its 5,038 participant slots (2,519 each, in all 79 bundles) still
+  hold the bare integers the names replace. Nothing else in a bundle could tell a
   reader the members: `object.schema.json` publishes each enum vocabulary to
   the slots that constrain it and never to a property value, and
   `$defs/propertyMap` accepts anything at all. The list is DERIVED from the
   encoder's own table (`namedEnumProperties`), never maintained beside it, so
   it cannot publish a name export has stopped writing. It is READ-facing:
-  five of the six keys are hidden or readonly in the shipped table and the
-  sixth is set by the alignment UI, so the member says what a value MEANS,
+  all nine keys are hidden, readonly or both in the shipped table — seven carry
+  `isHidden`, and the two that do not, `origin` and `importType`, carry a
+  readonly value — so the member says what a value MEANS,
   never what a caller may choose — an author never writes one, the authoring
   subset refuses it, and a hand-written list is answered with a warning
   rather than obeyed, in both directions (a key with no vocabulary, and a
@@ -1887,9 +1896,28 @@ a property document, and both other homes refuse them.
   `propertyDefinition` reference rather than layering over it (§2e), there
   being no definition for the shape to describe. What the word buys is the
   one distinction a reader could not otherwise make: *the writer had nothing
-  to say* against *I failed to look*. Nothing is inferred to fill the hole —
-  no name lifted from a dataview column, no format guessed from a value.
-  `"68cda76ee9223c9dc7ce5e92": 1755471600` could be a date, a count or an id,
+  to say* against *I failed to look*, and the writer earns it by looking
+  three times. A definition is taken from the property's own record — a
+  relation snapshot the export observed, or the exporter's resolver — then
+  from the shipped bundled table, and then from a **§2a
+  `property_definitions` entry on a type document of this same bundle**,
+  which states a name and a format for the property it declares. That third
+  source is what a composer used to skip while its own type document, one
+  file over, said "Release Date", format date: a resolver answers *what is
+  the property with this object id* — which is how the declaration got the
+  name and the format — for a key it can no longer answer *which property has
+  this stored key* about, and only the second question was ever asked. Over
+  the 79-bundle corpus the rung defines 4 keys the sentinel used to cover, 2
+  of them in the audited space. A key that two type documents declare
+  DIFFERENTLY is still defined by neither: choosing between them would be
+  choosing by emit schedule.
+
+  Reading a declaration is not inferring one, and nothing else fills the
+  hole — no name lifted from a dataview column, no format guessed from a
+  value. What is left after all three is a key like the audited space's
+  `"66602dc5e5672d06c0e19245": 1717538400` — no entry, no declaration, no
+  format cached on a dataview column, and one legend line spelling the key
+  as itself — which could be a date, a count or an id,
   and the entry says so by saying nothing. A reader MUST NOT create a
   property from one; what it may do is read the values under the key as the
   raw JSON they are, and say so. How MANY keys a bundle lost, and which, is
