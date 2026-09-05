@@ -113,9 +113,13 @@ func TestReadingGuideDoesNotCallANamedEnumUnnamed(t *testing.T) {
 	require.Contains(t, namedEnumProperties, "participantPermissions")
 	require.Contains(t, namedEnumProperties, "participantStatus")
 
-	// The guide states the size of the table, so adding a tenth key fails here
-	// rather than leaving a stale "six properties" in front of a stranger.
-	assert.Containsf(t, guide, "Nine stored keys",
+	// The guide states the SIZE of the table and the count is derived here, so
+	// adding a tenth key fails this test rather than leaving a stale "six
+	// properties" in front of a stranger. It went stale exactly that way once.
+	words := []string{"Zero", "One", "Two", "Three", "Four", "Five", "Six",
+		"Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"}
+	require.Less(t, len(namedEnumProperties), len(words), "spell the new count in this list")
+	assert.Containsf(t, guide, words[len(namedEnumProperties)]+" stored keys",
 		"READING.md must state the number of keys the codec names (%d)", len(namedEnumProperties))
 
 	// And it must not tell a reader that the two the codec named last carry no
