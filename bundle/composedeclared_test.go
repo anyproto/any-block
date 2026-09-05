@@ -18,9 +18,15 @@ package bundle
 // name and format this way — 6660b586c493f62452362859 'Short bio' text,
 // 68766d49af5dbe065ddb484b 'Release' select, 68cda76ee9223c9dc7ce5e92
 // 'Release Date' date, 68cdaa41e9223c9dc7ce5f30 'Tag' multi_select — and
-// the undefined entries fall from 361 to 357 over 265 → 261 distinct keys.
-// In the audited 3,286-document space the two on that list take its
-// undefined keys from 238 to 236.
+// the undefined entries fall from 361 to 357, over 265 → 262 distinct keys:
+// four entries go, but only three keys, because 68cda76ee9223c9dc7ce5e92 is
+// an orphan in a second bundle too, where no type declares it. In the
+// audited 3,286-document space the two on that list take its undefined keys
+// from 238 to 236.
+//
+// Those are the numbers the composer in this package actually produces,
+// re-derived by driving it over all 79 bundles with each bundle's own
+// properties.json standing in for the rungs a live export answers with.
 
 import (
 	"testing"
@@ -45,7 +51,7 @@ func declaringTypeDoc(key, name, format string) []byte {
 		`"name":"` + name + `","format":"` + format + `","section":"featured"}]}}`)
 }
 
-func typeSnapshot(key string) *model.SmartBlockSnapshotBase {
+func typeSnapshot() *model.SmartBlockSnapshotBase {
 	return &model.SmartBlockSnapshotBase{Key: "releaseNotes", Details: detFields(map[string]*types.Value{
 		"id": strVal("type-object"), "uniqueKey": strVal("ot-releaseNotes"),
 	})}
@@ -70,7 +76,7 @@ func TestComposer_ATypeDocumentsDeclarationIsADefinition(t *testing.T) {
 	const key = "68cda76ee9223c9dc7ce5e92"
 
 	c := NewComposer(anyblockjson.Options{}, "Corpus")
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(key),
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 		declaringTypeDoc(key, "Release Date", "date")))
 	page := pageSnapshot()
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
@@ -110,7 +116,7 @@ func TestComposer_ADeclarationIsTheLastRungNotTheFirst(t *testing.T) {
 	c := NewComposer(anyblockjson.Options{}, "Corpus")
 	// the bundled table names dueDate "Due date"; the type declares it
 	// under a name of its own
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(key),
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 		declaringTypeDoc(key, "Deadline", "text")))
 
 	_, dictData, _, err := c.Finish()
@@ -139,9 +145,9 @@ func TestComposer_TypeDocumentsThatDisagreeDefineNothing(t *testing.T) {
 
 	t.Run("agreeing declarations still define", func(t *testing.T) {
 		c := NewComposer(anyblockjson.Options{}, "Corpus")
-		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(key),
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 			declaringTypeDoc(key, "Release Date", "date")))
-		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(key),
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 			declaringTypeDoc(key, "Release Date", "date")))
 
 		_, dictData, stats, err := c.Finish()
@@ -155,9 +161,9 @@ func TestComposer_TypeDocumentsThatDisagreeDefineNothing(t *testing.T) {
 
 	t.Run("disagreeing declarations do not", func(t *testing.T) {
 		c := NewComposer(anyblockjson.Options{}, "Corpus")
-		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(key),
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 			declaringTypeDoc(key, "Release Date", "date")))
-		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(key),
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 			declaringTypeDoc(key, "Shipped", "number")))
 
 		_, dictData, stats, err := c.Finish()
@@ -191,7 +197,7 @@ func TestComposer_ADeclaredSelectCarriesTheObservedVocabulary(t *testing.T) {
 	omitted, issues := c.Observe(model.SmartBlockType_STRelationOption, opt)
 	require.True(t, omitted)
 	require.Empty(t, issues)
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(key),
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 		declaringTypeDoc(key, "Tag", "multi_select")))
 
 	_, dictData, stats, err := c.Finish()

@@ -903,10 +903,11 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// space, with the type-declaration rung above in force: 236 keys over
 	// the whole reference census, 153 of them in a document's top-level
 	// `properties` map across 313 documents (628 value occurrences); over
-	// the 79-bundle corpus, 357 entries naming 261 distinct keys. Without
-	// that rung the same census gives 238 / 155 / 324 / 640 and 361 / 265:
-	// the four keys the difference names are the ones a type document
-	// declares.
+	// the 79-bundle corpus, 357 entries naming 262 distinct keys. Without
+	// that rung the same census gives 238 / 155 / 324 / 640 and 361 / 265.
+	// The difference is the four keys a type document declares — four
+	// ENTRIES but only three keys, because one of the four is an orphan in
+	// a second bundle as well, where no type declares it.
 	//
 	// Written AFTER the vocabulary loop above, which is not cosmetic: an
 	// orphan key may still own observed options, and that loop drops them
