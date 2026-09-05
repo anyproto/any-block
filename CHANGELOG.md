@@ -81,7 +81,15 @@ original order.
   output and something must say so, or the check needs a second road from
   `type_internal_key` to a type document, the document's own `internal_key`
   — and `TestComposeNoDerivedTypeIds_TheComposedBundleDoesNotValidate` pins
-  the refusal so that settling it either way is a visible change.
+  the refusal so that settling it either way is a visible change. That check
+  also goes SILENT in the other direction, which the same measurement found:
+  `derivedTypeUses` skips a spelling that is not a derived id, so under the
+  mode a `template_for` naming a type document the bundle does not carry has
+  nothing left to look up. Composing all 79 bundles both ways, `template_for
+  → missing type document` goes 39 → 0 and no class moves but those two, so
+  the cost is 4,255 documents newly reported AND 39 real dangling targets no
+  longer reported —
+  `TestComposeNoDerivedTypeIds_ADanglingTemplateTargetStopsBeingReported`.
 
   Which mode produced an export is judged and answered NO, with the limits
   named rather than a signal offered. Absence of `type-` is conclusive in

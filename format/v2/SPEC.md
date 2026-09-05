@@ -4921,6 +4921,19 @@ it, elsewhere in this document, and not only here:
   `internal_key`, which is right there in the bytes. A test pins the refusal
   so that settling it either way is a visible change.
 
+  The same check also goes SILENT, and the two directions belong in one
+  place. `derivedTypeUses` skips a spelling that is not a derived id — a
+  display name or a bare stored key is authoring input the wiring resolves
+  (§2g, §3), never an address the bundle must carry — so under the mode
+  `template_for` and every `object_types` stop being addresses and a
+  template pointing at a type document the bundle DOES NOT HAVE has nothing
+  left to look up. Composing all 79 corpus bundles both ways and diffing the
+  verdict line by line: `template_for → missing type document` goes 39 → 0,
+  `object_types` has 12 space-minted entries corpus-wide and none of them
+  dangle, and no other class moves. So the loud half of this cost is 4,255
+  documents newly reported, and the quiet half is 39 real dangling targets a
+  mode-off export names and a mode-on export cannot.
+
 **Which mode produced an export is not reliably determinable from the
 bytes.** A reader holding one has only circumstantial evidence, and it is
 worth being precise about how far each piece goes.

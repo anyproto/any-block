@@ -539,3 +539,74 @@ func validationIssues(t *testing.T, fsys fstest.MapFS) string {
 	}
 	return err.Error()
 }
+
+// REPORTED, not desired — the third finding, and the one that runs the other
+// way. The refusal above is a check the mode makes FIRE more; this is the
+// same check going SILENT.
+//
+// `derivedTypeUses` collects the derived type ids a document names, and skips
+// a spelling that is not one: "a display name or a bare stored key is
+// authoring input the wiring resolves (§2g, §3), never an address this bundle
+// must carry." That rule is right, and under the mode `template_for` and
+// every `object_types` stop being addresses — so a template pointing at a
+// type document the bundle DOES NOT HAVE, which the default shape reports as
+// a cross-document failure, has nothing left for the check to look up.
+//
+// Measured over the same corpus, composing every one of the 79 bundles both
+// ways and diffing bundle.Validate's verdict line by line: `template_for →
+// missing type document` goes 39 → 0, and no other class moves except the
+// `type_internal_key` one above (104 → 4,373 as composed here, the raw corpus
+// standing at 118 → 4,373 because deriving a type document's id from its key
+// rather than from a resolver closes 2 template and 14 object refusals the
+// export that produced the corpus still had, §15 #27). `object_types` has 12
+// space-minted entries corpus-wide and none of them dangle, so the whole
+// silenced population is `template_for`.
+//
+// So the mode's effect on the validator is not one-directional, and the cost
+// SPEC §9 states — "every document naming a space-minted type is reported" —
+// is only the loud half. The quiet half is 39 real dangling targets a
+// mode-off export names and a mode-on export cannot.
+func TestComposeNoDerivedTypeIds_ADanglingTemplateTargetStopsBeingReported(t *testing.T) {
+	require.True(t, anyblockjson.IsDerivedTypeId("type-ghost"),
+		"the silenced check only ever applied to a space-minted key")
+
+	// a template for a type NO document in the bundle carries
+	orphan := &model.SmartBlockSnapshotBase{
+		ObjectTypes: []string{"ot-template", "ot-ghost"},
+		Blocks:      noDerivedRootBlock(noDerivedTemplateId),
+		Details: &types.Struct{Fields: map[string]*types.Value{
+			"id": strVal(noDerivedTemplateId), "name": strVal("Ghost template"),
+		}},
+	}
+
+	verdict := func(mode bool) string {
+		opts := noDerivedOptions(mode)
+		data, err := anyblockjson.Marshal(model.SmartBlockType_Template, orphan, opts)
+		require.NoError(t, err)
+
+		c := NewComposer(opts, "Corpus")
+		omitted, issues := c.Observe(model.SmartBlockType_Template, orphan)
+		require.False(t, omitted)
+		require.Empty(t, issues)
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Template, orphan, data))
+		index, dict, _, err := c.Finish()
+		require.NoError(t, err)
+
+		plan, err := BuildPlan(opts, []DocMeta{{Id: noDerivedTemplateId, SbType: model.SmartBlockType_Template}})
+		require.NoError(t, err)
+		path, ok := plan.DocPath(noDerivedTemplateId)
+		require.True(t, ok)
+
+		return validationIssues(t, fstest.MapFS{
+			path:                            {Data: data},
+			anyblockjson.IndexFileName:      {Data: index},
+			anyblockjson.PropertiesFileName: {Data: dict},
+		})
+	}
+
+	assert.Contains(t, verdict(false), `template_for references type "type-ghost"`,
+		"the default shape names the type document the bundle is missing")
+	assert.NotContains(t, verdict(true), "ghost",
+		"REPORTED, not desired: under the mode the slot is a spelling, not an "+
+			"address, so the dangling target is not reported at all")
+}
