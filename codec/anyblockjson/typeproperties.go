@@ -838,18 +838,22 @@ func (imp *importer) applyTypeProperties(details *types.Struct) error {
 //
 
 // TypeDeclaredProperty is one §2a declaration read back out of a written
-// document: the property the entry names, and the two things the entry says
-// about the PROPERTY itself rather than about the type's use of it — its
-// name and its format.
+// document: the property the entry names, and the three things the entry
+// says about the PROPERTY itself rather than about the type's use of it —
+// its name, its format, and whether the user REMOVED it.
 //
-// It carries those two and no more on purpose. `section` says where the
-// property sits on THIS type and is not a fact about the property; an
-// entry's `options`, `object_types`, `description` and the rest are members
-// the shared shape admits but which no exported declaration of such a key
-// was observed to state — over the 79-bundle corpus the four that matter
-// state identity, `name`, `format`, and on two of them a `section`, and
-// nothing more — so promoting them would be building a definition out of
-// members the format has never seen a writer put there.
+// The cut is by what a member is ABOUT. `section` says where the property
+// sits on THIS type and is not a fact about the property at all, so it
+// stops here. The shape's remaining members — `options`, `object_types`,
+// `description`, `include_time`, `max_count`, `readonly`,
+// `default_value` — ARE facts about the property and are left out anyway:
+// the caller this reader exists for holds its own vocabulary for the first
+// and has no observed case for the rest, and that reasoning is written
+// where the choice is made (bundle.declaredDefinition). `uninstalled` is
+// carried on none of that evidence — the 79-bundle corpus predates the
+// member and states it nowhere — but because a removal is a fact about the
+// property, and an entry is a complete standalone definition (§2e): a
+// caller not told builds a removed property as a live one.
 type TypeDeclaredProperty struct {
 	// Term is the entry's identity as the document states it, with the
 	// entry's own precedence (TypeProperty.authoredIdentity): its
@@ -868,6 +872,13 @@ type TypeDeclaredProperty struct {
 	// definition says what the property HOLDS, and a declaration that
 	// cannot say that declares nothing this shape can carry.
 	Format model.RelationFormat
+	// Uninstalled is the entry's `uninstalled`: the user REMOVED the
+	// property from the space (§15 #22). The third fact about the PROPERTY
+	// the shape states, and the reason buildTypeProperties writes it here
+	// as well as in the dictionary — an entry is a complete standalone
+	// definition (§2e), so a caller that builds the property out of a
+	// declaration and is not told builds a removed property as a live one.
+	Uninstalled bool
 }
 
 // TypeDeclarations is what one document's bytes say about the properties a
@@ -943,6 +954,7 @@ func TypeDeclarationsOf(doc []byte) (TypeDeclarations, error) {
 			TermIsStoredKey: source == propertyIdentityInternalKey,
 			Name:            tp.Name,
 			Format:          format,
+			Uninstalled:     tp.Uninstalled,
 		})
 	}
 	return out, nil

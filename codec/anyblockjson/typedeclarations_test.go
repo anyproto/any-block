@@ -134,3 +134,42 @@ func TestTypeDeclarations_OneUnreadableEntryDoesNotCostTheOthers(t *testing.T) {
 	assert.Equal(t, "Due date", got.Declared[0].Term)
 	assert.Nil(t, got.Legend, "a legend that is not spelling→key binds nothing")
 }
+
+// `uninstalled` is a fact about the PROPERTY — the user removed it from the
+// space (§15 #22) — and it is the one member of the §2a shape that is,
+// besides the name and the format. So it comes back with them: a caller
+// that builds a definition out of a declaration has to be told, or it
+// builds a removed property as a live one.
+//
+// An entry that says nothing about removal says nothing: absence is not a
+// claim that the property is live, it is silence, and false is what the
+// caller does with silence either way.
+//
+// How this can fail: reduce the declaration to {name, format} again, and
+// every caller of this reader loses the removal the document states.
+func TestTypeDeclarations_TheRemovalIsAFactAboutTheProperty(t *testing.T) {
+	decl := func(entry string) TypeDeclaredProperty {
+		t.Helper()
+		doc := []byte(`{"formatVersion":"2.0","id":"type-releasenotes","kind":"object_type",` +
+			`"type":"Type","internal_key":"68cbed90450a5dddeaf685d8",` +
+			`"type_settings":{"property_definitions":[` + entry + `]}}`)
+		got, err := TypeDeclarationsOf(doc)
+		require.NoError(t, err)
+		require.Len(t, got.Declared, 1)
+		return got.Declared[0]
+	}
+
+	removed := decl(`{"property":"68cda76ee9223c9dc7ce5e92",` +
+		`"internal_key":"68cda76ee9223c9dc7ce5e92","name":"Release Date",` +
+		`"format":"date","section":"featured","uninstalled":true}`)
+	assert.True(t, removed.Uninstalled,
+		"the document states the property was removed; the reader may not drop it")
+	assert.Equal(t, "Release Date", removed.Name)
+	assert.Equal(t, model.RelationFormat_date, removed.Format)
+
+	live := decl(`{"property":"68cda76ee9223c9dc7ce5e92",` +
+		`"internal_key":"68cda76ee9223c9dc7ce5e92","name":"Release Date",` +
+		`"format":"date","section":"featured"}`)
+	assert.False(t, live.Uninstalled,
+		"an entry that states no removal states none")
+}
