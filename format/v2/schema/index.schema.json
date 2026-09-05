@@ -72,6 +72,10 @@
     "manifest": {
       "$ref": "#/$defs/manifest",
       "description": "Where to find what a reader cannot reach by walking the documents (§2c): the property dictionary and the bytes behind each file document. The format defines NO folder layout — objects/, types/, files/ are one exporter's convention — and a document is found by its id; a type document's id is its stored key spelled type-<internal_key> (§9), so no type table is needed or admitted here (§15 #26)."
+    },
+    "unresolved": {
+      "$ref": "#/$defs/unresolved",
+      "description": "What this bundle NAMES and cannot answer for (§2c). Optional, and present only when there is something to report — an index with no \"unresolved\" member says that it reports nothing, NEVER that every reference in every document resolves: what a writer checks here is bounded, so absence is not a completeness claim. Both losses reach a reader as silence — a property key that resolves to no definition, a reference that leads nowhere — and in both cases the reader's next question is whether the export is incomplete or the read was wrong. Only the writer can answer that, and this is where it does."
     }
   },
   "$defs": {
@@ -94,6 +98,35 @@
         }
       },
       "description": "Where to find what a reader cannot reach by walking the documents (§2c): the property dictionary and the bytes behind each file document. Types are NOT located here (§15 #26): a type document is found by its id, which is its stored key spelled type-<internal_key>, and every object states that key in type_internal_key."
+    },
+    "unresolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "The bundle's account of the names it uses and cannot explain. Two lists, and each earns its place differently.\n\n`properties` RESTATES what properties.json already says per key (an entry whose format is the `unknown` sentinel, §2f). The restatement is the point: the per-key entry answers 'what is this key', one key at a time, in another file; this answers 'did this export lose definitions, and which' — a set, and a property of the export rather than of any key. index.json is where a bundle is described as a whole, so the set belongs here, and answering the question must not require opening a dictionary of hundreds of entries and filtering it.\n\n`targets` has no other home at all. Whether an id resolves is a cross-document fact no single document holds, and this file is the only one that names these ids. Stating them does NOT make them legal: a bundle whose index points at a document it does not carry is still refused by cross-document validation (§2c). What the statement buys is the distinction the refusal cannot make — an export that knew what it could not carry, against one that shipped a dangling reference without noticing.\n\nMeasured, so the shape is not theoretical: one audited 3,286-document space names 238 property keys nothing defines, and its homepage and 16 of its 23 widget targets name documents the bundle does not carry; 61 of 79 measured bundles carry at least one unresolved index reference.",
+      "properties": {
+        "properties": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\u0000-\u001f]+$"
+          },
+          "description": "The stored property keys the bundle's documents reference and nothing could define — mostly relations the user deleted, whose definition went with them. Written VERBATIM: a key nothing defines has no spelling but itself, and nothing may ever be derived from a stored id (§2f). Each also has a dictionary entry carrying `format: \"unknown\"`, so the key resolves to something; this list is the same fact stated as a set."
+        },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^_]"
+          },
+          "description": "The ids this index names that no document in the bundle carries — an `entrypoint`, a `homepage`, a widget `target`, an image icon. Spelled like every other reference in this file, the derived-id fold included (§9), so the report and the slot it reports on name the same thing. A reserved listing (`_set`, `_widgets`) never appears: those name built-in screens, resolve everywhere, and are not the bundle's to carry. Neither does the auto-widget ledger's content — an entry there usually names a widget the user deleted, which is what the ledger is FOR, so a missing document is its normal state rather than a loss."
+        }
+      }
     },
     "widgetTarget": {
       "type": "string",

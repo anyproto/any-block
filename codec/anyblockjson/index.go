@@ -393,6 +393,75 @@ type Index struct {
 	// without a folder convention (§2c). Optional: a bundle without one is
 	// walked the way every bundle was before it existed.
 	Manifest *Manifest `json:"manifest"`
+	// Unresolved is what this bundle NAMES and cannot answer for (§2c).
+	// Optional, and present only when there is something to report.
+	Unresolved *Unresolved `json:"unresolved"`
+}
+
+// Unresolved is the bundle's account of the names it uses and cannot
+// explain — the loss stated where the bundle is described, rather than left
+// for a reader to discover as silence.
+//
+// It exists because both losses reach a reader the same way: nothing
+// happens. A property key nothing defines used to resolve to no dictionary
+// row at all, and an index reference naming no document leads nowhere — in
+// both cases the reader's next question is "is this export incomplete, or
+// did I read it wrong?", and only the writer can answer. 238 undefined keys
+// in one audited 3,286-document space; its homepage and 16 of its 23 widget
+// targets name documents the bundle does not carry, and 61 of 79 measured
+// bundles carry at least one such reference.
+//
+// TWO LISTS, and each earns its place differently.
+//
+// Properties is a restatement, and deliberately so. The dictionary already
+// says it per key — `format: "unknown"` on the entry — but the question the
+// list answers is not "what is this key" (a key at a time, in another file)
+// but "did this export lose definitions, and how many": a set, and a
+// property of the export rather than of any key. index.json is where a
+// bundle is described as a whole, so it is where the SET belongs, and
+// answering it must not require opening and filtering a file of hundreds of
+// entries.
+//
+// Targets has no other home at all. Whether an id resolves is a
+// cross-document fact no single document holds, and the index is the only
+// file that names these ids. Stating them does NOT make them legal:
+// bundle.Validate still refuses a bundle whose index points at a document
+// it does not carry (§2c). What the statement buys is the distinction the
+// refusal cannot make — an export that KNEW what it could not carry, versus
+// one that shipped a dangling reference without noticing.
+//
+// ABSENCE IS NOT A COMPLETENESS CLAIM. What a writer checks here is
+// bounded — the index's own reference slots, and the keys the dictionary
+// could not define — so an index with no `unresolved` member says only that
+// it reports nothing, never that every reference in every document
+// resolves.
+type Unresolved struct {
+	// Properties are the stored property keys the bundle's documents
+	// reference and nothing could define, verbatim: a key nothing defines
+	// has no spelling but itself, and nothing may be derived from it (§2f).
+	// Sorted.
+	Properties []string `json:"properties"`
+	// Targets are the ids this index names that no document in the bundle
+	// carries — an entry point, a homepage, a widget target, an image icon.
+	// Spelled like every other reference in this file, the derived-id fold
+	// included (§9), so the report and the slot it reports on name the same
+	// thing. Sorted.
+	//
+	// A reserved listing (`_set`, `_widgets`) never appears: those name
+	// built-in screens, resolve everywhere, and are not the bundle's to
+	// carry. Nor does the auto-widget ledger's content: an entry there
+	// usually names a widget the user deleted, which is what the ledger is
+	// FOR, so a missing document is its normal state rather than a loss.
+	Targets []string `json:"targets"`
+}
+
+// empty reports whether the report says nothing — the shape setNonEmpty
+// cannot judge for a struct. An empty report is the absence of one: the
+// member is written only when a list has content, and both doors refuse the
+// empty object rather than let it read as a promise that everything
+// resolves.
+func (u *Unresolved) empty() bool {
+	return u == nil || (len(u.Properties) == 0 && len(u.Targets) == 0)
 }
 
 // EntryPoint returns the entry point the bundle *declares*: the entrypoint
@@ -427,6 +496,55 @@ func (i *Index) EffectiveEntryPoint() string {
 		}
 	}
 	return ""
+}
+
+// ReferencedObjectIds returns every OBJECT this index names, sorted and
+// without repeats, in the spelling MarshalIndex writes — the derived-id fold
+// included (§9), which is why it takes the same opts. These are the ids a
+// bundle must carry a document for, and the ones bundle.Validate refuses on:
+// the entry point, the homepage, every widget target, and an image icon.
+//
+// Nothing in the platform's `_` namespace is returned. A bundle-local object
+// id may never begin with `_` (§1), so a name in that namespace is never
+// something a bundle owes a document for: the six reserved listings and the
+// two reserved homepages resolve everywhere, and a TYPO in that namespace —
+// `_favourite` — is refused by name, with the inventory, where it is written
+// (platformNameIssues); reporting it as an id the bundle failed to carry
+// would point away from the repair.
+//
+// Nor is the auto-widget ledger's content — an entry there usually names a
+// widget the user DELETED, which is what the ledger is for, so a missing
+// document is its normal state rather than a dangling reference.
+//
+// It exists so the two callers that ask "does this index point at anything
+// the bundle does not carry" — the validator at read time, a composer at
+// write time — ask one list of slots rather than each keeping its own. A
+// second list is how a slot gets checked in one place and not the other.
+func (i *Index) ReferencedObjectIds(opts Options) []string {
+	if i == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	add := func(id string) {
+		if id == "" || IsPlatformId(id) {
+			return
+		}
+		ref := opts.foldRef(id)
+		if seen[ref] {
+			return
+		}
+		seen[ref] = true
+		out = append(out, ref)
+	}
+	add(i.Entrypoint)
+	add(i.Homepage)
+	for _, w := range i.Widgets {
+		add(w.Target)
+	}
+	add(i.IconImageId())
+	sort.Strings(out)
+	return out
 }
 
 // SpaceHomepage returns what opens on entering the space: the declared
@@ -556,6 +674,9 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 	idx.Entrypoint = opts.unfoldRef(idx.Entrypoint)
 	idx.Homepage = opts.unfoldRef(idx.Homepage)
 	idx.AutoWidgetTargets = mapStrings(idx.AutoWidgetTargets, opts.unfoldRef)
+	if idx.Unresolved != nil {
+		idx.Unresolved.Targets = mapStrings(idx.Unresolved.Targets, opts.unfoldRef)
+	}
 	if idx.Icon != nil && idx.Icon.File != "" {
 		idx.Icon.File = opts.unfoldRef(idx.Icon.File)
 	}
@@ -808,7 +929,26 @@ func MarshalIndex(idx *Index, opts Options) ([]byte, error) {
 		}
 		doc.setNonEmpty("manifest", m)
 	}
+	// what the bundle names and cannot answer for (§2c). Sorted here, like
+	// every list this file writes, and the targets folded like every other
+	// reference — a report that spelled a type one way while the widget
+	// targeting it spelled it another would name two different things.
+	if !idx.Unresolved.empty() {
+		u := &omap{}
+		u.setNonEmpty("properties", stringsToAny(sortedCopy(idx.Unresolved.Properties)))
+		u.setNonEmpty("targets", stringsToAny(sortedCopy(mapStrings(idx.Unresolved.Targets, opts.foldRef))))
+		doc.set("unresolved", u)
+	}
 	return marshalCanonical(doc)
+}
+
+// sortedCopy returns the strings in canonical order without touching the
+// caller's slice — MarshalIndex is a renderer, and a renderer that reorders
+// its input has edited it.
+func sortedCopy(in []string) []string {
+	out := append([]string(nil), in...)
+	sort.Strings(out)
+	return out
 }
 
 // sortedStringOmap renders a string map with sorted keys — the canonical

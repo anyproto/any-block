@@ -114,6 +114,19 @@ type Stats struct {
 	// options that go with the ones that do own a vocabulary are still
 	// counted, in OptionsDropped.
 	UnusedPropertyKeys []string
+	// UnresolvedTargets are the ids index.json names that no document this
+	// composition WROTE carries — an entry point, a homepage, a widget
+	// target, an image icon — spelled the way the index spells them, the
+	// derived-id fold included (§9). Sorted. index.json states them too
+	// (Index.Unresolved); this is the same set for a caller that logs a
+	// summary rather than re-reading the file it just wrote.
+	//
+	// Reserved listings are not here — they resolve everywhere — and neither
+	// is the auto-widget ledger: an entry there usually names a widget the
+	// user deleted, which is the ledger's purpose, so a missing document is
+	// its normal state. The slots are the ones bundle.Validate refuses on,
+	// so an export states exactly what a later validation would find.
+	UnresolvedTargets []string
 	// RefusedOptions names the vocabularies the dictionary cannot state and
 	// why — one `key: reason` line each, sorted. The writer refuses a
 	// vocabulary on a property whose format does not admit one (§2a), and
@@ -195,6 +208,13 @@ type Composer struct {
 	// (UsedPropertyKeysFromBytes, design §1.1).
 	used map[string]bool
 
+	// documentIds are the envelope ids of the documents the emit actually
+	// WROTE, in the spelling the bundle publishes — FoldDocumentId, the same
+	// function Marshal used to write them, rather than a second opinion that
+	// could disagree about a type's derived id. They answer the one question
+	// no document can: whether an id this index names is carried here.
+	documentIds map[string]bool
+
 	written int
 	omitted int
 	// observedSpaceSettings distinguishes an intentionally omitted space
@@ -229,6 +249,7 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 		optionsByKey: map[string][]storedOption{},
 		seenOptions:  map[optionIdentity]anyblockjson.OptionDefinition{},
 		used:         map[string]bool{},
+		documentIds:  map[string]bool{},
 		spaceSettings: spaceSettingsCandidates{
 			names:        map[string]struct{}{},
 			descriptions: map[string]struct{}{},
@@ -418,6 +439,16 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.written++
+	// the id the document was WRITTEN under, which for a type or a
+	// participant is the derived id and not the store id (§9). Taken from
+	// FoldDocumentId — the function Marshal itself called — so the census of
+	// what the bundle carries cannot disagree with the bytes about a single
+	// spelling. Inside the mutex, with every other read of opts: the byte
+	// scan above is the expensive half and touches none of it.
+	if id := anyblockjson.FoldDocumentId(c.opts, sbType,
+		base.GetDetails().GetFields()["id"].GetStringValue(), base.GetKey()); id != "" {
+		c.documentIds[id] = true
+	}
 	for key := range used {
 		c.used[key] = true
 	}
@@ -880,6 +911,19 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		Properties: anyblockjson.PropertiesFileName,
 		Files:      files,
 	}
+	// what this bundle names and cannot answer for (§2c). Both halves were
+	// already in hand: the property keys nothing could define, and — now
+	// that the composer keeps the ids the emit wrote — the index's own
+	// references that name no document here. Written on the index so the
+	// question "is this export incomplete" is answered where the bundle is
+	// described, rather than by a reader discovering silence.
+	unresolvedTargets := c.unresolvedIndexTargets(&idx)
+	if len(orphans) > 0 || len(unresolvedTargets) > 0 {
+		idx.Unresolved = &anyblockjson.Unresolved{
+			Properties: orphans,
+			Targets:    unresolvedTargets,
+		}
+	}
 	idxData, err := anyblockjson.MarshalIndex(&idx, c.opts)
 	if err != nil {
 		return nil, nil, stats, fmt.Errorf("marshal index: %w", err)
@@ -902,7 +946,34 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		stats.UnusedPropertyKeys = unusedPropertyKeys
 	}
 	stats.RefusedOptions = refusedOptions
+	stats.UnresolvedTargets = unresolvedTargets
 	return idxData, dictData, stats, nil
+}
+
+// unresolvedIndexTargets names the ids the index states that no document
+// this emit wrote carries. Called with the composer's mutex held, from
+// Finish, after the index is fully assembled — the homepage arrives with the
+// omitted space document, so the reference and the documents are only both
+// in hand at the end.
+//
+// Which slots name an object is the index shape's own question, so it is
+// asked of the index (Index.ReferencedObjectIds) rather than answered a
+// second time here: that list already skips the reserved listings and the
+// auto-widget ledger, and already folds. All this adds is the half only a
+// composer has — the ids the emit actually wrote.
+//
+// Comparison runs on the FOLDED spelling on both sides — the index writes
+// `type-<key>` for a type widget and the document is written under the same
+// derived id (§9) — so a type widget resolves against the type document
+// sitting beside it instead of being reported against its store id.
+func (c *Composer) unresolvedIndexTargets(idx *anyblockjson.Index) []string {
+	var out []string
+	for _, ref := range idx.ReferencedObjectIds(c.opts) {
+		if !c.documentIds[ref] {
+			out = append(out, ref)
+		}
+	}
+	return out
 }
 
 // hasSemanticState distinguishes a genuinely empty composition from one in
