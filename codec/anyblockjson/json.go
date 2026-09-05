@@ -884,6 +884,15 @@ var imageKindVocabulary = vocabularyOf(imageKindNames, "image kind")
 // stored verbatim on a number detail, where every int getter answered 0 —
 // so a mistyped owner did not read as "unset", it read as a viewer.
 //
+// This one BREAKS EXISTING DOCUMENTS, and unlike the five keys named before
+// it. The vocabulary brings the §3 refusal of a number it can name, and for
+// those five nothing real was refused — no corpus value in their slots was a
+// number. Here every corpus value is: run against the 79 bundles, all 2,519
+// participant documents are rejected by Validate now, each refusal naming
+// the value its number stands for. That is the accepted cost of the ruling,
+// taken pre-release, and it is pinned rather than glossed
+// (TestNamedEnum_Participant/every_number_a_real_export_carries_is_refused).
+//
 // The names are the PROTO's, not the public REST API's, and the divergence
 // is deliberate. api/service/member.go maps Reader→"viewer", Writer→"editor"
 // and Admin→"admin" for its `role` field, falling back to the snake_cased

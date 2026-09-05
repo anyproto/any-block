@@ -5,6 +5,46 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- A space member's `Participant permissions` and `Participant status` are
+  written as NAMES, like the other seven name-over-number keys (§3). Both
+  declare `format: "number"` and both travelled as bare integers under a
+  description that points at a Go symbol the bundle does not ship ("Possible
+  values: models.ParticipantPermissions"), so a reader saw `2` beside a named
+  `resolved_layout: "participant"` and had nowhere to learn it meant `owner`.
+  They were the largest gap left by a distance: 2,519 slots each across the
+  79-bundle, 24,889-document corpus — 5,038 of the 5,119 slots this format
+  still left as unnamed enums, against widgetLayout's 13,
+  templateNamePrefillType's 6 and headerRelationsLayout's 62. The names are
+  the proto identifiers snake_cased (`reader · writer · owner ·
+  no_permissions · admin`, `joining · active · removed · declined · removing
+  · canceled`), registered in the same table as the rest, so they get
+  `value_names` on the dictionary entry, the name-over-number export, the
+  refusal of an unknown name and the refusal of a number the vocabulary can
+  name, with no second list to drift. The REST API's `role` vocabulary
+  (viewer/editor) is deliberately NOT borrowed: its inverse maps everything
+  outside three names back to Reader, `owner` included, and a name that does
+  not round-trip to the number it came from is not a name this format can
+  write. This CHANGES THE WIRE FORM for those 5,038 slots, pre-release and on
+  purpose, and unlike the five keys named before them it BREAKS EXISTING
+  DOCUMENTS: a number the vocabulary can name is refused (§3), and here every
+  real export carries one, so all 2,519 participant documents in the corpus
+  are rejected by `Validate` until rewritten — each refusal naming the value
+  its number stands for (`participant permissions 1 is the stored number for
+  "writer" … write "writer"`). For the earlier five the same rule cost
+  nothing, because not one real value in those slots was a number; that
+  sentence does not carry over to these two and is not repeated about them.
+- `value_names` is published only where the entry itself states `format:
+  "number"`. The encoder's table is keyed on the stored key while an entry
+  states the format the SPACE holds, so a copy that had diverged from the
+  bundled table could publish a number's names beside a format that holds no
+  numbers — and READING.md's rule, read `format` together with `value_names`,
+  holds only while the two agree. Nothing in the corpus reaches it: 79 of
+  5,385 dictionary entries are `bundled_diverged` and none of them is one of
+  the 658 entries for the nine named keys. The gate is there because the
+  entry is a READ contract a reader cannot check a space's history against.
+  Absence of the member therefore says only that THIS entry publishes no
+  vocabulary — usually because the property has none — never that the writer
+  omitted a list it had.
 - The documentation now starts where an external consumer does.
   `format/v2/READING.md` is the guide that did not exist — "read an export
   without Anytype", nine ordered steps from a directory of JSON to titles,

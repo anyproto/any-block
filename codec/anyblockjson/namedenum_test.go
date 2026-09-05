@@ -425,6 +425,41 @@ func TestNamedEnum_Participant(t *testing.T) {
 		assert.Contains(t, err.Error(), "'canceled'", "the proto's own spelling, not the British one")
 	})
 
+	// The compatibility break, stated rather than glossed. For the five keys
+	// named before these two, the refusal of a nameable number cost nothing
+	// — not one value in those slots was a number in any real export. Here
+	// the opposite holds: EVERY real export writes numbers, and every one of
+	// them is refused now. Run against the 79-bundle corpus, all 2,519
+	// participant documents are rejected, each naming the value its number
+	// stands for. That is the wire-format change this vocabulary makes, taken
+	// pre-release and deliberately; the refusal is what stops a reader
+	// writing the ordinal back and being told "right" on the next export.
+	//
+	// The ten numbers below are every value the corpus actually carries:
+	// permissions writer 1,888 · no_permissions 566 · owner 48 · reader 13 ·
+	// admin 4, status active 1,945 · removed 561 · removing 8 · declined 4 ·
+	// canceled 1.
+	t.Run("every number a real export carries is refused, naming its value", func(t *testing.T) {
+		for _, tc := range []struct{ slug, number, name string }{
+			{"participant_permissions", "0", "reader"},
+			{"participant_permissions", "1", "writer"},
+			{"participant_permissions", "2", "owner"},
+			{"participant_permissions", "3", "no_permissions"},
+			{"participant_permissions", "4", "admin"},
+			{"participant_status", "1", "active"},
+			{"participant_status", "2", "removed"},
+			{"participant_status", "3", "declined"},
+			{"participant_status", "4", "removing"},
+			{"participant_status", "5", "canceled"},
+		} {
+			doc := `{"formatVersion": "2.0", "id": "p1", "properties": {"` + tc.slug + `": ` + tc.number + `}}`
+			err := Validate([]byte(doc), Options{})
+			require.Errorf(t, err, "%s %s is the wire form every corpus export used, and it is refused now", tc.slug, tc.number)
+			assert.Containsf(t, err.Error(), `write "`+tc.name+`"`,
+				"the refusal must name the value %s stands for, or the break is unrepairable by reading it", tc.number)
+		}
+	})
+
 	t.Run("a number with no name still round-trips", func(t *testing.T) {
 		doc := `{"formatVersion": "2.0", "id": "p1", "properties": {"participant_permissions": 77, "participant_status": 88}}`
 		require.NoError(t, Validate([]byte(doc), Options{}))
