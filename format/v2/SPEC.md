@@ -7245,7 +7245,10 @@ being true.
   all. §2c reinstates it on the reference itself, which is where it
   belongs — a `template_for`, a `type_internal_key` and every
   `object_types` entry spelling a derived id must find the document
-  carrying it, a bundled key excepted.
+  carrying it, a bundled key excepted. Which is a check on the DEFAULT
+  shape: a bundle written with `NoDerivedTypeIds` spells no derived id and
+  carries no document under one, and §9 measures what the check then says
+  about it.
 
 - **#27 Derived ids** — settled: **a participant document is
   `participant-<identity>` and a type document `type-<internal_key>`, in
@@ -7316,7 +7319,8 @@ being true.
   resolved only by a reader matching the `type` spelling against a type
   document's `Name`, a route the format never promised. The scalar removes
   the table from the reader's path: it resolves the key, shows the spelling,
-  and opens `type-<key>` (#27). A
+  and opens `type-<key>` (#27) — that last step being the one the
+  `NoDerivedTypeIds` export mode gives up, and §9 says what replaces it. A
   scalar rather than the map because an object has exactly one type, and
   under #27 every other type reference is a derived id that needs no
   legend — the map had one entry left to hold. Cost, by construction on the
