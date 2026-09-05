@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go/parser"
 	"go/token"
 	"os"
@@ -887,4 +888,61 @@ func TestPlainTextRendersMalformedMarkupRatherThanRefusingIt(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Two orderings that a reader must not take from Go's map seed. Both are held
+// by rendering the same input many times: a single rendering of an unsorted map
+// can come out sorted by luck, which is exactly how the golden output caught
+// the first of these only about half the time it was broken.
+func TestTheSameBundleRendersTheSameWayEveryTime(t *testing.T) {
+	const runs = 20
+
+	t.Run("the kinds in a bundle summary", func(t *testing.T) {
+		b := &bundle{dir: "somewhere", docs: map[string]*document{}}
+		for i, kind := range []string{"object_type", "participant", "property", "file_object", "tag", ""} {
+			b.docs[fmt.Sprint(i)] = &document{ID: fmt.Sprint(i), Kind: kind}
+		}
+		want := ""
+		for i := 0; i < runs; i++ {
+			out := &strings.Builder{}
+			b.describe(out)
+			if i == 0 {
+				want = out.String()
+				continue
+			}
+			if out.String() != want {
+				t.Fatalf("two renderings of one bundle disagree:\n--- %d ---\n%s\n--- 0 ---\n%s", i, out.String(), want)
+			}
+		}
+		for _, line := range []string{"file_object", "object (no kind member)", "object_type", "participant", "property", "tag"} {
+			if !strings.Contains(want, line) {
+				t.Fatalf("the summary lost a kind: %s\n%s", line, want)
+			}
+		}
+		if at := strings.Index(want, "file_object"); at > strings.Index(want, "object_type") {
+			t.Errorf("the kinds are listed in sorted order:\n%s", want)
+		}
+	})
+
+	// A document that names one property twice is refused by the format on read
+	// and on write alike, so no export holds this. A reader still meets whatever
+	// it is handed, and `setOf` picks the FIRST spelling that resolves to the
+	// key: which one that is may not depend on the map seed.
+	t.Run("which spelling answers for a key named twice", func(t *testing.T) {
+		b := &bundle{docs: map[string]*document{}, byKey: map[string]*definition{}, bySpelling: map[string]*definition{}}
+		d := &document{
+			ID:     "bafyreitwice",
+			Legend: map[string]string{"so": "setOf", "Set of": "setOf"},
+			Properties: map[string]any{
+				"so":     []any{"type-walk"},
+				"Set of": []any{"type-fieldnote"},
+			},
+		}
+		for i := 0; i < runs; i++ {
+			query, stated := b.setOf(d)
+			if !stated || query != "type-fieldnote" {
+				t.Fatalf("run %d read %q (stated %v); `Set of` sorts before `so`, and the answer may not move", i, query, stated)
+			}
+		}
+	})
 }
