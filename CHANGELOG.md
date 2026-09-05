@@ -40,12 +40,33 @@ original order.
   envelope's `template_for` and `type_internal_key` rows, §2a's and §2d's
   `object_types`, §2c twice, §2g, §3 three times, §3a, §6.2's dataview
   source table, §9's own reference table and two of its Derived-ids bullets,
-  §9a, §13's `Options` and `FoldDocumentId`, and §15 #27. Three costs are
+  §9a, §13's `Options` and `FoldDocumentId`, and §15 #27. Four costs are
   stated rather than left to be discovered. The object → type document road
   closes, and a reader rebuilds by `internal_key` the table `manifest.types`
   used to ship (§2c, §15 #26). A type-KEY slot becomes a spelling to
   resolve, through the §3 chain and under §3's ambiguity refusal, which is
-  the path an authored document's `template_for` already takes (§2g). And
+  the path an authored document's `template_for` already takes (§2g) — and
+  what that chain cannot do is recognise a stored key the READER does not
+  hold, so a fourth cost stands beside it: a type-KEY slot can resolve to a
+  DIFFERENT type, silently. `type-<key>` carried the key in its own text and
+  was read before any vocabulary; the mode's spelling re-enters the chain,
+  where a bare stored key falls through to the name tables. `chat` is the
+  shipped case — a legacy space-minted key against bundled `chatDerived`,
+  whose Name is "Chat" — so `TypeSlug("chat")` answers `chat` and
+  `TypeKey("chat")` answers `chatDerived`, and a template exported with the
+  mode comes back belonging to another type, with no warning. The envelope
+  `type` meets the same collision and is safe because `type_internal_key`
+  stands beside it (§15 #28); the two key slots the mode moves have no
+  companion key, so §5's "a spelling shared with another key costs nothing"
+  is a claim about the envelope and not about them. Of the 212 distinct type
+  keys the corpus names in a type-KEY slot exactly one fails to invert, 8
+  bundles carry a `chat` type document, and 1 of the 24,889 documents
+  changes state — small here and unbounded in principle, since a
+  space-backed vocabulary knows more names than the bundled table.
+  `TestNoDerivedTypeIds_AKeySlotCanResolveToADifferentType` pins it; the two
+  repairs (write the raw stored key, or refuse a spelling that does not
+  invert) both cost something the mode's design was choosing between, so
+  neither is taken here. And
   `bundle.Validate` REFUSES a mode-on bundle: its type cross-document check
   derives `type-<type_internal_key>` from every typed document and finds no
   document carrying it. Over the 79-bundle corpus, 4,373 of 24,889 documents

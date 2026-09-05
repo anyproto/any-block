@@ -196,3 +196,96 @@ func TestNoDerivedTypeIds_StillReadsDerivedIds(t *testing.T) {
 	assert.Contains(t, strings.Join(tmpl.ObjectTypes, ","), "ot-wine",
 		"a derived id in a type-KEY slot still resolves")
 }
+
+// REPORTED, not desired — the mode can retarget a template, silently.
+//
+// The key slots go to the vocabulary, and the vocabulary is not required to
+// INVERT. `type-<key>` carried the key in its own text, so import read it
+// with typeRefKey before any vocabulary was consulted and the round trip was
+// closed by construction. The mode's spelling re-enters the §3 chain, and a
+// bare stored key the chain does not recognise as one can be claimed by
+// ANOTHER type's display name.
+//
+// `chat` is that key in the shipped tables, and it is not contrived: it is a
+// legacy space-minted key, and the BUNDLED type `chatDerived` is named
+// "Chat". So the two halves of the default vocabulary disagree about it —
+// TypeSlug("chat") answers "chat" (no bundled spelling for a key the table
+// does not carry), while TypeKey("chat") answers "chatDerived" (the accept
+// side folds onto the bundled NAME). Export writes `chat`, import reads
+// `chatDerived`, and the template now belongs to a different type. No
+// warning fires: the chain resolved to something, so nothing looks verbatim
+// and nothing looks ambiguous.
+//
+// The envelope `type` is exposed to the very same collision and is SAFE,
+// which is the whole shape of the finding: `type_internal_key` stands beside
+// it and import takes that as authoritative without ever resolving the
+// spelling (§15 #28). `template_for` and `object_types` have no companion
+// key. §5's reassurance that a shared type spelling "costs nothing" is a
+// claim about the envelope, and the mode moved two slots that do not have
+// what makes it true.
+//
+// Measured over the 79-bundle, 24,889-document corpus: of the 212 distinct
+// type keys its documents name in a type-KEY slot, exactly one — `chat` —
+// fails to invert; 8 bundles carry a `chat` type document, and 1 document
+// changes STATE under the mode, a template whose `template_for` names it.
+// One document, and it is a silent wrong answer rather than a refusal, which
+// is the class that has no upper bound: any space-minted key a reader's
+// vocabulary binds to another type's name behaves this way, and a
+// space-backed vocabulary knows more names than the bundled table does.
+//
+// This test takes no position on the repair. Writing the raw stored key
+// instead would spell the type a second way for every key the vocabulary
+// renames, which the mode's design rejects on purpose; refusing to write a
+// spelling that does not invert would keep one word per type and cost the
+// export a slot. Both are open, and the test pins the behaviour so that
+// settling it either way is a visible change.
+//
+// Why nothing caught it: TestNoDerivedTypeIds_KeySlotsSpellTheVocabulary
+// round-trips this exact slot, under apiLikeKeys — a stub built to invert,
+// whose assertion reads "the vocabulary inverts, so the round trip restores
+// the stored key". The vocabulary that does NOT invert is the package
+// default, which is what every offline run and every corpus export uses.
+func TestNoDerivedTypeIds_AKeySlotCanResolveToADifferentType(t *testing.T) {
+	snap := &model.SmartBlockSnapshotBase{
+		ObjectTypes: []string{"ot-template", "ot-chat"},
+		Blocks: []*model.Block{{
+			Id:      "bafyreitemplate",
+			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
+		}},
+		Details: fields(map[string]*types.Value{"id": str("bafyreitemplate")}),
+	}
+
+	// the two halves of the DEFAULT vocabulary disagree about this key
+	vocab := BundledKeyVocabulary{}
+	assert.Equal(t, "chat", vocab.TypeSlug("chat"), "no bundled spelling for a key the table does not carry")
+	key, known := vocab.TypeKey("chat")
+	assert.Equal(t, "chatDerived", key, "the accept side folds `chat` onto the bundled type NAMED \"Chat\"")
+	assert.True(t, known)
+
+	for _, tc := range []struct {
+		mode  bool
+		wrote string
+		reads []string
+	}{
+		{false, `"template_for": "type-chat"`, []string{"ot-template", "ot-chat"}},
+		{true, `"template_for": "chat"`, []string{"ot-template", "ot-chatDerived"}},
+	} {
+		var warnings []Issue
+		opts := Options{
+			NoDerivedTypeIds: tc.mode,
+			OnWarning:        func(i Issue) { warnings = append(warnings, i) },
+		}
+		data, err := Marshal(model.SmartBlockType_Template, snap, opts)
+		require.NoError(t, err, "mode=%v", tc.mode)
+		assert.Contains(t, string(data), tc.wrote, "mode=%v", tc.mode)
+
+		_, back, err := Unmarshal(data, Options{
+			OnWarning: func(i Issue) { warnings = append(warnings, i) },
+		})
+		require.NoError(t, err, "mode=%v", tc.mode)
+		assert.Equal(t, tc.reads, back.ObjectTypes,
+			"mode=%v: REPORTED, not desired — see this test's comment", tc.mode)
+		assert.Empty(t, warnings,
+			"mode=%v: the retarget is silent, which is what makes it worth pinning", tc.mode)
+	}
+}

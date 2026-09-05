@@ -2572,9 +2572,15 @@ ledger in this namespace and nothing to invert: a spelling shared with a
 stored key, or with another type's name, costs nothing, because no reader
 resolves the spelling. That last clause is the default shape's: under
 `NoDerivedTypeIds` the type-KEY slots spell the vocabulary too, so a reader
-DOES resolve a spelling in them — through the chain above, verbatim-first,
-with the same ambiguity refusal, and still with no legend to shortcut it
-(§9). A custom type stored as `object_type`, beside bundled
+DOES resolve a spelling in them — through the chain above, with no legend to
+shortcut it — and there a shared spelling does NOT cost nothing. The chain's
+verbatim-first step can only recognise a stored key the READER already
+holds, so a space-minted key its tables do not carry falls through to the
+name tables and can be claimed by another type's display name: the slot
+resolves, to the wrong type, with no ambiguity to refuse and no warning. The
+envelope keeps costing nothing because `type_internal_key` stands beside it;
+the two key slots have no companion key. §9 names the shipped case and
+measures it. A custom type stored as `object_type`, beside bundled
 `objectType`, exports `"type": "object_type", "type_internal_key":
 "object_type"`, and a package-only reader lands on the stored key rather
 than the bundled twin because it read the key, not the name. What the
@@ -4809,7 +4815,9 @@ vocabulary renames — with `wine` stored and spelled `vino`, the envelope
 would say `vino` and the template's target `wine`. Offline, where the
 vocabulary is the bundled table and knows no space-minted key, that same
 function answers with the stored key, which is still the one word the
-envelope writes for that type.
+envelope writes for that type — and is the case in which the round trip can
+break, because a reader offered a stored key its own tables do not carry
+resolves it as a name (*what the mode costs*, below).
 
 **The FILENAME follows the id, so a type document is filed under its store
 id** — `types/bafyrei….anyblock.json`, not `types/type-bug.anyblock.json`.
@@ -4845,7 +4853,7 @@ go on folding participants. A test pins that, because the two folds share an
 entry point (`foldRef`) and gating the shared one would have taken the
 participant half down with it.
 
-**What the mode costs, and where the cost lands.** Three things stop
+**What the mode costs, and where the cost lands.** Four things stop
 holding for a mode-on export. Each is qualified at the sentence that states
 it, elsewhere in this document, and not only here:
 
@@ -4865,7 +4873,35 @@ it, elsewhere in this document, and not only here:
   key, then the name tables, and an ambiguity that survives is §3's loud
   refusal rather than a guess. That is the path an AUTHORED document's
   `template_for` already takes (§2g), which is why the reading half needed
-  no new rule for it.
+  no new rule for it. What the chain cannot do is recognise a stored key the
+  READER does not hold, and that is the next cost below.
+- **A type-KEY slot can resolve to a DIFFERENT type, silently.** The
+  vocabulary the key slots go through is not required to INVERT, and the
+  bundled one does not for every key. `type-<key>` carried the key in its
+  own text, so it was read before any vocabulary was consulted; the mode's
+  spelling re-enters the §3 chain, where a bare stored key the chain cannot
+  recognise as one may be claimed by ANOTHER type's display name. The
+  shipped case is `chat`: a legacy space-minted key, against the bundled
+  type `chatDerived` whose Name is "Chat". `TypeSlug("chat")` answers
+  `chat` — the table carries no spelling for a key it does not hold — and
+  `TypeKey("chat")` answers `chatDerived`, so a template exported with the
+  mode comes back belonging to a different type, with no warning, because
+  the chain resolved to something. The envelope `type` meets the same
+  collision and is safe, and the difference is the whole shape of this:
+  `type_internal_key` stands beside it and import takes that as
+  authoritative without resolving the spelling (§15 #28). The two key slots
+  the mode moves have no companion key, so §5's "a spelling shared with
+  another key costs nothing" — true of the envelope — is not true of them.
+  Measured over the corpus: of the 212 distinct type keys its documents name
+  in a type-KEY slot, exactly one fails to invert; 8 bundles carry a `chat`
+  type document, and 1 of the 24,889 documents changes state. Small on this
+  corpus and unbounded in principle, since a space-backed vocabulary knows
+  more names than the bundled table. Two repairs are open and this section
+  takes neither — write the raw stored key (which spells the type a second
+  way for every key the vocabulary renames, the thing the mode's design
+  rejects) or refuse a spelling that does not invert (which keeps one word
+  per type and costs the export a slot) — and a test pins the behaviour so
+  that settling it either way is a visible change.
 - **`bundle.Validate` refuses a mode-on bundle.** The type namespace's
   cross-document check (§2c) derives `type-<type_internal_key>` from every
   typed document and requires a document carrying it, a bundled key
