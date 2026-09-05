@@ -3604,6 +3604,42 @@ machinery:
 Dataview blocks embed a queryable view over objects — a *set* (live query)
 or a *collection* (curated list, `is_collection: true`) — that they reference
 but do not own.
+
+**Where the records come from.** A dataview block carries no rows. It
+carries a view *definition* — properties, columns, sorts, filters — and the
+records it shows come from a **source** it names, which is the half a reader
+has to be told, because none of the members that describe it look like a
+source. Counts are the 2,560 dataview blocks of the 79-bundle corpus:
+
+| The block says | Its records are | Where that is stated | Count |
+|---|---|---|---|
+| `object_id` naming a **type** document (`kind: "object_type"`) | the objects of that type — the listing a type carries a view for | the target's own `internal_key`; the reference already spells it, `type-<key>` (§9) | 1,786, of which 1,776 are a type document's own block naming ITSELF |
+| `object_id` naming a **set** object | every object matching that set's query | the target's `Set of` property, below | 78 |
+| `object_id` naming a **collection** object | exactly the ids the target lists, in that order | the target document's `items` (§2) | 11 (10 of them also flag `is_collection`) |
+| no `object_id`, `is_collection: true` | exactly the ids THIS document lists — the block belongs to the collection it shows | this document's own `items` | 430 (167 hosts carry an `items`; in the rest the collection is empty) |
+| no `object_id`, no `is_collection` | every object matching THIS document's query — the block belongs to the set it shows | this document's own `Set of` | 174 |
+| no `object_id`, `source` present | a legacy detached inline set | `source`, output-only (§4a) | 48 |
+| `object_id` naming a document the bundle does not carry | nothing resolvable here | §9's reference table | 33 |
+
+**`Set of` is the query.** It is an ordinary property on the set object —
+bundled key `setOf`, spelled `Set of` (§3) — and its value is what the query
+ranges over. Measured corpus-wide: 175 documents carry the key, and of the
+174 values in them 136 are a type's derived id `type-<key>` and 38 are bare
+CIDs a resolver-less export could not fold (§9) — one naming a type document
+in its own bundle, 37 naming nothing there. On a TYPE document the same
+stored key means something else entirely and is dropped on export: there it
+is the type's own id, re-stamped on every init (§2a).
+
+**What a view may do to its source, and what it may not.** `filters` narrow
+what the source yields and `sorts` order it; neither can widen it, and
+neither is where the source lives. `properties` says which properties are
+available to the view and `columns` which of them a table shows: that is
+presentation. So a reader renders a **collection** from the bundle alone —
+its members are ids in a document it holds — and cannot render a **set**
+from the bundle at all, because the objects a query matches are whatever the
+space holds when it runs. The bundle ships the definition; evaluating it is
+the reader's.
+
 Field-for-field from `Content.Dataview`, with cleaned names, snake_case
 string enums, and defaults omitted:
 
