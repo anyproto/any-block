@@ -198,7 +198,8 @@ the sentinel. See step 9.
 | `url`, `email`, `phone`, `emoji` | string | |
 | `select`, `multi_select` | option **names** — usually; check, see below | |
 | `objects`, `files` | object references — step 6 | |
-| `properties`, `map` | verbatim | declared by the vocabulary, absent from all 79 measured bundles |
+| `properties` | stored property **keys** — look each one up in the dictionary | list-valued, and the one no export can teach you: see below |
+| `map` | verbatim | declared by the vocabulary, absent from all 79 measured bundles |
 | `unknown` | verbatim | not a format: the export saying it could not define this key |
 
 Any format you do not recognise: pass the value through as the JSON it is.
@@ -207,12 +208,24 @@ Four rules that are not guessable from the table:
 
 **A value may be written bare or as a one-element array, and the two are the
 same value.** On a format that holds a list — `objects`, `files`, `select`,
-`multi_select` — `"x"` and `["x"]` mean one list containing `x`, and both
-re-export as `["x"]`. So widen every value to a list and stop worrying: in
-Community, 6,392 of the values in `objects`/`files` slots are bare strings and
-1,333 are arrays, and nothing distinguishes them. The equivalence runs one way
-only: on a single-valued format an array is *not* unwrapped, so `["hi"]` on a
-`text` property is a list of strings.
+`multi_select`, `properties` — `"x"` and `["x"]` mean one list containing `x`,
+and both re-export as `["x"]`. So widen every value to a list and stop
+worrying: in Community, 6,392 of the values in `objects`/`files` slots are bare
+strings and 1,333 are arrays, and nothing distinguishes them. The equivalence
+runs one way only: on a single-valued format an array is *not* unwrapped, so
+`["hi"]` on a `text` property is a list of strings.
+
+`properties` is the fifth of those, and the only one no export can show you:
+**not one dictionary entry, type declaration or dataview column in the 79
+measured bundles states that format** — zero over every `format` member of all
+24,889 documents and all 5,385 dictionary entries. So it is the one place a
+reader is on its own, and the two things to know about it are both here. Its
+values are stored property **keys**, so you resolve one straight against the
+dictionary's `internal_key` lookup from step 3. And step 4's legend has no rung
+here: the value already *is* the key a legend maps a spelling to, which is why
+one document can name a property by its spelling where it sets a value
+(`"Due date": "2026-04-02T00:00:00Z"`) and name the same property by its stored
+key where it lists one (`"Columns to show": ["dueDate"]`).
 
 **Nine stored keys declare `format: "number"` and export a string.** Eight are
 properties on an object — `Layout`, `Resolved layout`, `Layout align`,

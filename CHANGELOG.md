@@ -5,6 +5,26 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- The reading guide names the fifth list-valued format, and a test holds the
+  list (`format/v2/READING.md`). SPEC §3 has enumerated five since R3 —
+  `objects`, `files`, `select`, `multi_select`, `properties` — while
+  READING.md's step 5 enumerated four and put `properties` in a table row
+  that called its values verbatim, the exact statement R3 landed to falsify.
+  A reader following the guide read `"dueDate"` and `["dueDate"]` as two
+  different values on a format where they are one. The guide now states the
+  five, gives `properties` its own row, and says the two things about it a
+  reader cannot get anywhere else: its values are stored property KEYS, so
+  they resolve straight against the dictionary's `internal_key` lookup, and
+  step 4's legend has no rung there because the value already IS the key a
+  legend maps a spelling to. Re-derived rather than repeated: not one
+  dictionary entry, type declaration or dataview column in the 79 measured
+  bundles states `format: "properties"` — zero over every `format` member of
+  all 24,889 documents and all 5,385 entries — which is why no export could
+  catch the guide being wrong, and why the check has to be a test.
+  `TestSpecListsExactlyTheFormatsAScalarIsWrappedOn` derives the list from
+  the importer and reads specProse alone, so READING's copy was unheld; it is
+  pinned now by the same derivation, which also refuses a list-valued format
+  sitting in a `verbatim` row.
 - The two published schemas state ONE rule for `uninstalled`
   (`format/v2/schema/properties.schema.json`). A type's
   `property_definitions` entry states the member now and
