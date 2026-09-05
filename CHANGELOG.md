@@ -5,6 +5,75 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- The reading guide's statements now survive the export they cite
+  (`format/v2/READING.md`). Six were false against the audited
+  3,286-document space or against this branch's own codec, and a reader acts
+  on every one. **The dataview instruction was the inverse of SPEC §6.2**:
+  the guide said rendering one means running its query over the documents
+  you indexed, while §6.2 concludes that a reader renders a COLLECTION from
+  the bundle alone and cannot render a SET from it at all. 90 of that
+  space's 205 dataviews are collection-sourced and 87 of those carry no
+  filter in any view, so a reader following the guide ran an unfiltered
+  query and rendered all 3,286 documents where the answer was the host's own
+  `items` — its 89 collection hosts list 60 ids between them and 80 of the
+  89 list none. **The select rule was unconditional**: 12 of the space's 31
+  `select`/`multi_select` values (39%), across 11 documents, are raw option
+  ids — 8 distinct, not one of them an option in its own entry, a document
+  in the bundle, or an option of any other entry (74 of 22,019 corpus-wide,
+  in 9 of the 79 bundles). **"12 exports carry none at all AND name a
+  homepage the bundle does not carry" is 11**: the twelfth names `_widgets`,
+  a reserved id that the guide's own step 6 says is never a document.
+  **"Everything you need to interpret a value is in the bundle"** was a
+  promise that steps 4, 6 and 9 each retract — the shape of contradictory
+  promise the review found in SPEC, reproduced on the newcomer's first page,
+  and is now the narrower claim it can keep, about DEFINITIONS, with the
+  three retractions named on the spot. **"Six properties declare number and
+  export a string" is nine stored keys** since the participant pair joined
+  the table, and the export's own 3,760 participant values are the break,
+  not a footnote. **"An absent `value_names` means the property has no named
+  vocabulary"** was about to be false for those same two. And the `unknown`
+  exemplar contradicted the data it cited: `68cda76ee9223c9dc7ce5e92` is
+  declared "Release Date", format date, by a type document in the very
+  bundle the sentence said could not interpret it — replaced by
+  `66602dc5e5672d06c0e19245: 1717538400`, which has no entry, no
+  declaration, no dataview column and one legend line spelling the key as
+  itself. Added where they were missing: `auto_widget_targets` in step 1's
+  list of id-bearing index members (10 ids in that index — 2 reserved, 6
+  naming a type document, 2 naming nothing); the half of an absent
+  `manifest.files` that says the format reads it as a metadata-only export,
+  the mode inferred; notes that the shipped export predates two of the rules
+  it illustrates; and a cross-reference between two censuses published
+  without one — 654 unresolved of 7,781 counts property slots, SPEC §9's
+  1,265 of 10,053 over 723 distinct ids adds `items`, block targets and 498
+  icons.
+- One complete path from an image block to bytes, in prose and in a bundle
+  (`READING.md` step 6, `format/v2/examples/exported_space`). The review
+  asked for it and it existed in no form: 793 media blocks in the audited
+  space, no worked path anywhere, and neither shipped bundle carried a file
+  document or a blob, so the walk could not even be run. The data invites
+  the wrong turn by itself — a file document's `icon.file` points at its OWN
+  id, on 608 of that space's 666 file documents, so the one member that
+  looks like a file address leads back to the document you are standing on,
+  while the address that leads to bytes is `manifest.files[<that same id>]`,
+  three files away in index.json. The guide walks all four hops over the
+  bundle it ships and names what bites: the self-pointing icon; that the
+  bytes are usually absent (the audited space carries 666 file documents and
+  no `files` member, and corpus-wide 68 of 79 bundles carry 10,303 file
+  documents between them while NO bundle carries a `files` map at all, so
+  metadata-only is the normal case); and that 48 of the 793 media blocks
+  name a document the bundle does not carry, which is an ordinary absent
+  reference. `examples/exported_space` gains the four hops as bytes — an
+  `image` block, a `file_object` document, three dictionary entries so its
+  file properties resolve like any other, and a `manifest.files` binding to
+  a 73-byte PNG whose stated `Size` is that file's real length — and a test
+  runs the walk rather than reading about it.
+- `object.schema.json` publishes the two participant vocabularies
+  (`$defs/participantPermissions`, `$defs/participantStatus`), which the
+  codec had been enforcing on the resolved key without the published grammar
+  naming the members. A third-party validator running only the schemas now
+  refuses the same strings the semantic pass does. `joining` occurs in no
+  bundle of the corpus and is published anyway: a vocabulary with a hole in
+  it exports a bare integer the day something writes into the hole.
 - A space member's `Participant permissions` and `Participant status` are
   written as NAMES, like the other seven name-over-number keys (§3). Both
   declare `format: "number"` and both travelled as bare integers under a
@@ -45,12 +114,107 @@ original order.
   Absence of the member therefore says only that THIS entry publishes no
   vocabulary — usually because the property has none — never that the writer
   omitted a list it had.
+- A type's `property_definitions` entry states `uninstalled` too, or it is
+  not a definition (§2a, §2f). That entry is a COMPLETE standalone
+  definition — the whole reason the shape is shared across its three homes —
+  and a type document was presenting a property the user had removed as one
+  of its live ones, because the removal travelled on the dictionary entry
+  alone: a reader that opens one type document and builds its property list
+  from it built a list the user's own app does not show. There is no
+  "deleted" member beside it and none is needed — uninstalling a
+  space-minted property is the same act as uninstalling a bundled one, the
+  object stays and is hidden either way. Nothing else moves: `hidden` is the
+  store's listing bit, `api_key` the property's public address and
+  `bundled_diverged` a verdict about a space a type document never saw, so
+  all three stay the dictionary entry's alone, and the member stays off the
+  shared shape, which is what keeps the third home — a property document's
+  settings, which mirror stored presence member for member — refusing it.
+  The seam that CREATES a property from a declaration drops it, so the one
+  reader that must not create a live property never sees it.
+- An entry that says nothing could define a key states identity and nothing
+  else: `name` is gone from the `unknown` shape (§2f). It documented two
+  sources and neither could ever produce one — a legend line binds a
+  spelling to a stored key and carries no name, and a type's declaration
+  states a format beside its name, which makes it a definition and sends the
+  key to a real entry one rung earlier — so the member was prose a reader
+  could believe and never meet, and a name beside `unknown` would describe a
+  definition the entry has just said it does not have. Deleted from the
+  shape, refused by the writer, and dropped from the published schema.
+- The composer reads the definition its own bundle states (§2f). `Finish`
+  tried the observed snapshot, then the live resolver, then the bundled
+  table, and then gave up and wrote `format: "unknown"` — for keys whose
+  name and format the bundle it was writing carried one file away, in a type
+  document's `property_definitions`. The resolver can answer "what is the
+  property with this object id", which is how the declaration got them, for
+  a key it can no longer answer "which property has this stored key" about,
+  and only the second question was ever asked. So there is a third rung,
+  LAST of the three because the others are the property's own definition
+  while a declaration is a type saying how it uses the property. Measured
+  over the 79-bundle corpus, four keys gain a real name and format:
+  `6660b586c493f62452362859` "Short bio" text, `68766d49af5dbe065ddb484b`
+  "Release" select, `68cda76ee9223c9dc7ce5e92` "Release Date" date,
+  `68cdaa41e9223c9dc7ce5f30` "Tag" multi_select. Two types declaring one
+  property differently define nothing — choosing between them is choosing by
+  emit schedule. `TypeDeclarationsOf` reads those entries back out of a
+  written document, the way `PropertyTermsOf` reads its property census, and
+  carries only the two members that are facts about the PROPERTY, name and
+  format: a declaration that cannot say what the property holds carries
+  nothing, because the enum's zero is longtext and a text property nobody
+  created is worse than silence.
+- The reader example answers the questions its own guide asks
+  (`format/v2/examples/reader`). It printed the bare word `dataview` and
+  stopped — the one thing about the block a stranger cannot guess is where
+  its records come from, because none of the members that name a source look
+  like one (§6.2) — so each block now names its source and follows a
+  collection's members like any other reference, over all seven shapes of
+  the §6.2 table; three of the new lines were wrong on real bundles and are
+  fixed with a fixture apiece (28 corpus collections list exactly one member
+  and were told "the 1 ids"; 32 of the 174 source-less hosts are type
+  documents and were told their `Set of` was missing; 5 of the 33
+  unresolvable targets are `_missing_object` and printed as merely absent),
+  and a collection whose `items` member is absent (263 blocks in the corpus)
+  had no test at all. A select value that matches no option is annotated
+  rather than printed like a name it had looked up (74 of 22,019 corpus
+  values, 12 of 31 in the audited space), an empty select prints `(empty)`
+  like an empty reference list (7,498 corpus slots hold `[]`), and the §3
+  rung order is fixed: a spelling that IS a stored key is that key, which
+  the example had backwards and which no bundle in the corpus can expose (0
+  collisions over 334,292 property slots), so a fixture and an assertion on
+  the ENTRY CHOSEN are the only things that can hold it — the guide's
+  contains-the-sentence assertion checked prose, never behaviour.
+- The schema says where a dataview's records come from (§6.2). `object_id`,
+  `is_collection` and `source` were bare type nodes and the envelope `items`
+  they point at was an array of strings, so a reader holding only an export
+  and the published schemas could not learn the model from them. Each of the
+  four now states the part of it that it carries and points back at §6.2
+  rather than restating the section. No corpus counts: a published schema
+  cannot keep a measurement true, and a test refuses any numeral in these
+  four descriptions that is not a section reference, while the behavioural
+  half of it executes each row of §6.2's table.
+- A `properties` value is a list whatever shape the document wrote.
+  `MultiValuedFormat` counts `relations` — the `properties` format — among
+  the formats that hold more than one value and the import switch did not,
+  so `{"MyProps": "tag"}` stored a scalar while `{"MyProps": ["tag"]}`
+  stored a list: two stored values for one meaning, with `Validate` silent
+  on both, which made the cardinality rule false on the one format nobody
+  had a document to notice it on (0 of the 79-bundle corpus and 0 of its
+  24,889 documents declares `"format": "properties"`). The wrap is now
+  DERIVED from the predicate rather than restated as a fifth case, so the
+  next format added there cannot repeat it. The derivation runs one way
+  only: `status` is stored as a list of one option id and is list-SHAPED
+  while the predicate rightly calls it single-VALUED, since what it answers
+  is whether a `max_count` exists (§2a).
 - The documentation now starts where an external consumer does.
   `format/v2/READING.md` is the guide that did not exist — "read an export
   without Anytype", nine ordered steps from a directory of JSON to titles,
-  property values, references and page text, every one verified against a
-  real 3,286-document export and no step needing a table the bundle does not
-  ship. `format/v2/INLINE_MARKUP.md` gives `text` the same treatment:
+  property values, references and page text, each walked over a real
+  3,286-document export and none of them needing an Anytype table. That last
+  clause is about DEFINITIONS and is not a completeness claim, which the
+  entry as first written did not say: the same guide's steps 4, 6 and 9 name
+  the definitions, targets and option names that export lost outright, and
+  the entry at the top of this list is what it cost to have promised
+  otherwise on the newcomer's first page. `format/v2/INLINE_MARKUP.md` gives
+  `text` the same treatment:
   AnyBlock inline markup named as a dialect, its complete grammar, and three
   tables of what a CommonMark parser gets wrong — an image parsing to `!alt`
   plus a link mark, no autolinks, no block syntax, case-sensitive tag names,
