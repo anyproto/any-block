@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -38,6 +39,23 @@ func TestReadingGuideAgreesWithTheSpecOnWhereRecordsComeFrom(t *testing.T) {
 		assert.Containsf(t, guide, clause,
 			"READING.md must state §6.2's conclusion, not the opposite of it")
 	}
+}
+
+// READING.md quotes SPEC §9's wider unresolved-reference census beside its own
+// narrower one, which is the whole point of the cross-reference: two censuses
+// published without one is how a reader ends up with two answers. The numbers
+// are read out of READING.md and looked for in SPEC.md, so the day either
+// census is re-measured the other is not left quoting it.
+func TestReadingGuideQuotesTheSpecCensusItCitesTo(t *testing.T) {
+	guide := readReaderGuide(t, "READING.md")
+	quoted := regexp.MustCompile(`\*\*([\d,]+) of ([\d,]+) occurrences, over ([\d,]+) distinct ids\*\*`).FindStringSubmatch(guide)
+	require.Lenf(t, quoted, 4, "READING.md no longer quotes a wider census; it must, or drop the cross-reference")
+
+	spec := readReaderGuide(t, "SPEC.md")
+	assert.Containsf(t, spec, quoted[1]+" of "+quoted[2]+" reference occurrences",
+		"READING.md quotes %s of %s and SPEC.md does not publish that census any more", quoted[1], quoted[2])
+	assert.Containsf(t, spec, "over "+quoted[3]+" distinct ids",
+		"READING.md quotes %s distinct ids and SPEC.md does not", quoted[3])
 }
 
 // Step 1 lists the members of index.json that hold an object id, because those
