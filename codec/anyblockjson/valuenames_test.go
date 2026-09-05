@@ -236,3 +236,62 @@ func TestValueNames_TheInwardDescriptionIsTheShippedTablesToFix(t *testing.T) {
 		"rewriting the description on either side makes every real copy read as the USER's "+
 			"edit — which is why the prose fix belongs in the app's table, not in this snapshot")
 }
+
+// Cardinality is not published, and this is why it need not be: on a format
+// that holds a LIST, a bare value and a one-element array are the same value
+// — both store one ListValue and both re-export as the array — so the shape
+// a document happens to use carries nothing a reader can get wrong, and a
+// `cardinality` member on the entry would describe a difference that does
+// not exist.
+//
+// The equivalence runs in ONE direction only, which is the part worth
+// pinning: on a SINGLE-valued format an array is not unwrapped. It is stored
+// as a list and re-exported as a list, so `"Layout": ["profile"]` is a
+// different stored value from `"Layout": "profile"` — the named-enum
+// substitution never fires on it, and the value stays a list of strings on a
+// number-format key. Any sentence that states the equivalence without the
+// qualification is a sentence about behaviour this package does not have.
+//
+// How this can fail: normalize an array on a single-valued format (the
+// second half goes green where it should be red, and a reader is told two
+// distinct stored values are one); or stop wrapping a scalar on a
+// list-valued one (the first half breaks and cardinality becomes real).
+func TestCardinality_ScalarAndOneElementArrayAgreeOnlyWhereTheFormatHoldsAList(t *testing.T) {
+	stored := func(doc, key string) *types.Value {
+		t.Helper()
+		require.NoError(t, Validate([]byte(doc), Options{}))
+		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+		require.NoError(t, err)
+		return snap.Details.Fields[key]
+	}
+	head := `{"formatVersion":"2.0","id":"o1","properties":{`
+
+	// list-valued formats: objects, and multi_select
+	for _, tc := range []struct{ key, scalar, array string }{
+		{"assignee", head + `"Assignee":"bafyreiperson"}}`, head + `"Assignee":["bafyreiperson"]}}`},
+		{"tag", head + `"Tag":"red"}}`, head + `"Tag":["red"]}}`},
+	} {
+		t.Run(tc.key, func(t *testing.T) {
+			one, many := stored(tc.scalar, tc.key), stored(tc.array, tc.key)
+			require.NotNil(t, one)
+			assert.Equal(t, many.String(), one.String(),
+				"a scalar is normalised to the one-element list, so the two writings are one value")
+			_, isList := one.GetKind().(*types.Value_ListValue)
+			assert.True(t, isList)
+		})
+	}
+
+	// single-valued formats: the array is NOT unwrapped
+	for _, tc := range []struct{ key, scalar, array string }{
+		{"description", head + `"Description":"hi"}}`, head + `"Description":["hi"]}}`},
+		{"layout", head + `"Layout":"profile"}}`, head + `"Layout":["profile"]}}`},
+	} {
+		t.Run(tc.key+" (single-valued)", func(t *testing.T) {
+			one, many := stored(tc.scalar, tc.key), stored(tc.array, tc.key)
+			assert.NotEqual(t, many.String(), one.String(),
+				"an array on a single-valued format stays an array — the two are different values")
+			_, isList := many.GetKind().(*types.Value_ListValue)
+			assert.True(t, isList, "and it is stored as the list it was written as")
+		})
+	}
+}
