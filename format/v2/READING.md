@@ -89,6 +89,10 @@ as "ordinary object" rather than as missing data. The vocabulary is larger than
 these five — `object.schema.json` lists every member — so branch on the values
 you handle and pass the rest through.
 
+Do not assume there is an ordinary object to show. Across 79 measured exports,
+12 carry none at all *and* name a `homepage` the bundle does not carry: types
+and participants travelled, the pages did not.
+
 ## 3. Read the dictionary, `properties.json`
 
 One file, one entry per property the bundle's objects actually use. It exists
