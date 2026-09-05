@@ -134,6 +134,14 @@ func TestNamedEnumProperties_PerKeyVerdict(t *testing.T) {
 		// key a client actually filters on — so this one is named for the
 		// READER rather than for any behaviour that depends on it.
 		"imageKind": "image kind",
+		// a space member's permissions and status: 2,519 slots each across
+		// the 79-bundle corpus, both bare integers, together 5,038 of the
+		// 5,119 unnamed enum slots that corpus carries. The stored
+		// description points at a Go symbol ("Possible values:
+		// models.ParticipantPermissions") a reader cannot open, so the
+		// number was advertised as meaningful and left unexplained.
+		"participantPermissions": "participant permissions",
+		"participantStatus":      "participant status",
 	}
 	assert.Equal(t, len(want), len(namedEnumProperties),
 		"every named key owes a verdict here — a new one must say which vocabulary it draws from")
@@ -142,12 +150,13 @@ func TestNamedEnumProperties_PerKeyVerdict(t *testing.T) {
 		require.True(t, named, "%s must be written by name", key)
 		assert.Equal(t, what, vocab.what, "%s draws from the wrong vocabulary", key)
 	}
-	// the layout-ish bundled keys that stay numbers, each for a stated
-	// reason: layoutWidth is a fraction, not an enum; widgetLayout and
-	// headerRelationsLayout hold enums almost nothing writes (13 and 51
-	// occurrences across 28,831 real exported documents, against
-	// imageKind's 4,079)
-	for _, key := range []string{"layoutWidth", "widgetLayout", "headerRelationsLayout"} {
+	// the bundled number keys that stay numbers, each for a stated reason:
+	// layoutWidth is a fraction, not an enum; widgetLayout,
+	// headerRelationsLayout and templateNamePrefillType hold enums almost
+	// nothing writes — 13, 62 and 6 slots across the 79-bundle,
+	// 24,889-document corpus, against the 5,038 the participant pair
+	// carries and imageKind's 4,094.
+	for _, key := range []string{"layoutWidth", "widgetLayout", "headerRelationsLayout", "templateNamePrefillType"} {
 		_, named := namedEnumProperty(key)
 		assert.False(t, named, "%s is deliberately not named", key)
 	}

@@ -855,6 +855,75 @@ var imageKindNames = newEnumNames(map[model.ImageKind]string{
 
 var imageKindVocabulary = vocabularyOf(imageKindNames, "image kind")
 
+// participantPermissionsNames maps model.ParticipantPermissions — what a
+// space member may DO — to the format's names: the proto's own identifiers
+// snake_cased, the originNames/imageKindNames spelling. TOTAL over the proto
+// enum, pinned by TestNamedEnum_VocabulariesTotalOverModelEnums.
+//
+// This pair is the largest naming gap the format had, and it is measured
+// rather than argued. Across the 79-bundle, 24,889-document corpus,
+// participantPermissions and participantStatus each fill 2,519 property
+// slots — every one of them a bare integer, on `participant` documents, in
+// all 79 bundles. Against that, the bundled number-format keys whose stored
+// value is a proto enum and that this format still leaves numeric total 81
+// slots (headerRelationsLayout 62, widgetLayout 13, templateNamePrefillType
+// 6), so the two keys here are 5,038 of 5,119 unnamed enum slots. The
+// values in use span the enum: Writer 1,888 · NoPermissions 566 · Owner 48
+// · Reader 13 · Admin 4, all five members present.
+//
+// A reader could not look the meaning up. The stored description is
+// "Participant permissions. Possible values: models.ParticipantPermissions"
+// — a pointer to a Go symbol in a repository the bundle does not ship, which
+// is the `layout` description's failure mode in a different costume: it
+// tells the reader the number means something and gives it no way to learn
+// what, so `2` beside a named `resolved_layout: "participant"` stayed 2.
+//
+// Note the enum's ZERO is Reader, which is why naming it MATTERS rather than
+// merely reads better: before this entry a string on this key validated and
+// stored verbatim on a number detail, where every int getter answered 0 —
+// so a mistyped owner did not read as "unset", it read as a viewer.
+//
+// The names are the PROTO's, not the public REST API's, and the divergence
+// is deliberate. api/service/member.go maps Reader→"viewer", Writer→"editor"
+// and Admin→"admin" for its `role` field, falling back to the snake_cased
+// proto name for the rest — a vocabulary this format cannot borrow, because
+// its inverse (mapMemberRole) sends everything outside those three back to
+// Reader, "owner" included. A name that does not round-trip to the number it
+// came from is not a name this format can write (§3), and the API's status
+// vocabulary — strcase.ToSnake over the same ParticipantStatus_name table —
+// is what the six names below already spell.
+var participantPermissionsNames = newEnumNames(map[model.ParticipantPermissions]string{
+	model.ParticipantPermissions_Reader:        "reader",
+	model.ParticipantPermissions_Writer:        "writer",
+	model.ParticipantPermissions_Owner:         "owner",
+	model.ParticipantPermissions_NoPermissions: "no_permissions",
+	model.ParticipantPermissions_Admin:         "admin",
+})
+
+var participantPermissionsVocabulary = vocabularyOf(participantPermissionsNames, "participant permissions")
+
+// participantStatusNames maps model.ParticipantStatus — where a member is in
+// joining or leaving the space — to the proto identifiers lowercased. TOTAL
+// over the proto enum, and total is load-bearing on the one member the
+// corpus never carries: Active 1,945 · Removed 561 · Removing 8 · Declined 4
+// · Canceled 1 across the 2,519 slots, and not one Joining. It is named all
+// the same, the imageKind precedent — a vocabulary with a hole in it exports
+// a bare integer the day something writes into the hole, and `joining` is a
+// state a live space passes through, merely not one an export tends to catch.
+//
+// `canceled` is the proto's spelling and stays; inventing `cancelled` beside
+// it would give one concept two names (§15 #14) and break the round trip.
+var participantStatusNames = newEnumNames(map[model.ParticipantStatus]string{
+	model.ParticipantStatus_Joining:  "joining",
+	model.ParticipantStatus_Active:   "active",
+	model.ParticipantStatus_Removed:  "removed",
+	model.ParticipantStatus_Declined: "declined",
+	model.ParticipantStatus_Removing: "removing",
+	model.ParticipantStatus_Canceled: "canceled",
+})
+
+var participantStatusVocabulary = vocabularyOf(participantStatusNames, "participant status")
+
 // viewTypeVocabulary is not a property vocabulary — no stored detail key
 // maps to it — but §2a's default_view member shares the reading, and the
 // guarded adapter is how both enum members stopped naming NaN.
@@ -925,7 +994,16 @@ var namedEnumProperties = map[string]propertyVocabulary{
 	// It stays because naming costs one entry and drops nothing, while
 	// dropping 4,079 documents' worth of a stored, user-visible-in-principle
 	// fact is a decision the freeze does not need to take.
-	"imageKind": imageKindVocabulary,
+	"imageKind": imageKindVocabulary, // a space member's permissions and status — 2,519 slots each across the
+	// 79-bundle corpus, both bare integers before this entry and together
+	// 5,038 of the 5,119 unnamed enum slots the corpus carries. Named on
+	// the same ground as the keys above and one of its own: the stored
+	// description points at a Go symbol ("Possible values:
+	// models.ParticipantPermissions") that a reader holding the bundle
+	// cannot open, so the number was not merely unnamed but advertised as
+	// meaningful and left unexplained.
+	"participantPermissions": participantPermissionsVocabulary,
+	"participantStatus":      participantStatusVocabulary,
 }
 
 // namedEnumProperty answers whether a stored key is written by name, and
