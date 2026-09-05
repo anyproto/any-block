@@ -1014,11 +1014,13 @@ func namedEnumProperty(key string) (propertyVocabulary, bool) {
 }
 
 // namedEnumValueNames is the vocabulary a stored key's exported value can
-// hold, sorted, or nil for a key this format does not name — the dictionary
-// entry's `value_names` (§2f), read straight out of the table above.
+// hold, sorted, for an entry that states the format those names belong to —
+// the dictionary entry's `value_names` (§2f). Nil for a key this format does
+// not name, and nil for one it does where the entry's format is not
+// "number".
 //
 // It exists so the PUBLISHED list and the WRITTEN value have one source. The
-// six keys concerned declare format "number" and export a string, and a
+// nine keys concerned declare format "number" and export a string, and a
 // reader holding only the bundle cannot learn the members from anywhere
 // else: object.schema.json's enum vocabularies are $ref'd from the slots that
 // use them and not from a property value, and $defs/propertyMap accepts any
@@ -1026,9 +1028,20 @@ func namedEnumProperty(key string) (propertyVocabulary, bool) {
 // reader with names export had stopped writing, which is worse than the
 // silence it replaced — so there is no second list, not even a field on
 // PropertyDefinition: the writer derives, the reader re-derives.
-func namedEnumValueNames(key string) ([]string, bool) {
+//
+// The FORMAT is a parameter rather than an assumption because the table is
+// keyed on the stored key and a stored key does not settle the format an
+// entry states. A space may diverge from the bundled table, and the entry
+// then publishes the space's own format; a `layout` diverged to `select`
+// with the layout names attached would state two incompatible things about
+// its own values, and READING.md's rule — read `format` together with
+// `value_names` — holds only while they agree. Nothing in the corpus reaches
+// it (79 of 5,385 dictionary entries are bundled_diverged, none of them one
+// of the 500 entries for these nine keys), and the entry is a read contract
+// a reader cannot check the space's history against.
+func namedEnumValueNames(key string, format model.RelationFormat) ([]string, bool) {
 	v, named := namedEnumProperties[key]
-	if !named {
+	if !named || format != model.RelationFormat_number {
 		return nil, false
 	}
 	return v.names(), true

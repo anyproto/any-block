@@ -364,3 +364,50 @@ func TestCardinality_ScalarAndOneElementArrayAgreeOnlyWhereTheFormatHoldsAList(t
 		})
 	}
 }
+
+// The member is a statement about NUMBERS, so an entry that does not state
+// format "number" does not publish it — even when the stored key is one this
+// format names.
+//
+// `value_names` is keyed on the stored key, and a stored key is not a
+// promise about the format an entry states: a space may DIVERGE from the
+// bundled table, and the entry then publishes the space's own format. A
+// diverged `layout` declared `select` with the layout vocabulary attached
+// would be an entry saying two incompatible things about its own values —
+// "these are options a user picked from" and "these are the names of a
+// number" — and READING.md's instruction is to read `format` together with
+// `value_names`, which only works while the two agree.
+//
+// Nothing in the corpus reaches this today: across 79 bundles, 79 of 5,385
+// dictionary entries are `bundled_diverged` and none of them is one of the
+// 500 entries for the nine named-enum keys. The gate is here because the
+// entry is a READ contract and a reader cannot check the space's history.
+//
+// How this can fail: gate on the stored key alone (a diverged select
+// publishes a number vocabulary); gate on `bundled_diverged` instead of the
+// format (a space that diverges in some OTHER member, keeping format
+// "number", stops publishing a list that is still true).
+func TestValueNames_AreNotPublishedWhereTheEntryDoesNotSayNumber(t *testing.T) {
+	entry := func(format model.RelationFormat) map[string]any {
+		def := PropertyDefinition{Key: "layout", Name: "Layout", Format: format, BundledDiverged: true}
+		if format == model.RelationFormat_status {
+			def.Options = []OptionDefinition{{Name: "basic"}}
+		}
+		data, err := MarshalPropertyDictionary(&PropertyDictionary{Properties: []PropertyDefinition{def}}, Options{})
+		require.NoError(t, err)
+		return dictionaryEntriesByKey(t, data)["layout"]
+	}
+
+	diverged := entry(model.RelationFormat_status)
+	require.Equal(t, "select", diverged["format"], "the entry states the space's own format")
+	_, published := diverged[memberValueNames]
+	assert.False(t, published,
+		"a select does not hold a number, so the number's names are not this entry's vocabulary")
+
+	// the control: the same key on the format the bundled table gives it
+	// still publishes, so the gate is on the FORMAT and not on divergence
+	untouched := entry(model.RelationFormat_number)
+	require.Equal(t, "number", untouched["format"])
+	_, published = untouched[memberValueNames]
+	assert.True(t, published, "a diverged entry that still says number still states the vocabulary")
+}

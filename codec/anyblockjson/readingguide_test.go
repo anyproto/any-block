@@ -191,13 +191,25 @@ func TestReaderExampleBundleIsExportShaped(t *testing.T) {
 		byKey[key] = entry
 	}
 
+	// The member is published for exactly the entries where the encoder
+	// names the stored key AND the entry states format "number" — the pair
+	// a reader is told to read together. Its absence therefore does not mean
+	// "this property has no named vocabulary": a diverged copy of a named
+	// key, stating some other format, publishes none while the key still has
+	// one. Absence says only that THIS entry publishes no vocabulary, which
+	// is the sentence a reader can act on and the one the guide must state.
 	t.Run("value_names is derived from the encoder table", func(t *testing.T) {
 		named := 0
 		for key, entry := range byKey {
-			want, isNamed := namedEnumValueNames(key)
 			stated, present := entry["value_names"]
+			name, _ := entry["format"].(string)
+			format, _ := FormatByName(name)
+			want, isNamed := namedEnumValueNames(key, format)
 			if !isNamed {
-				assert.Falsef(t, present, "%s has no named vocabulary and must publish none", key)
+				assert.Falsef(t, present,
+					"%s publishes no vocabulary — either this format does not name its stored "+
+						"key, or the entry states format %q rather than \"number\". Absence is "+
+						"not a list the writer forgot", key, name)
 				continue
 			}
 			named++

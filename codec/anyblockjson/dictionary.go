@@ -618,7 +618,7 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	// (TestValueNames_TheInwardDescriptionIsTheShippedTablesToFix). What this
 	// format can do is state the vocabulary beside the description, and
 	// refuse the number the description invites.
-	if names, named := namedEnumValueNames(string(def.Key)); named {
+	if names, named := namedEnumValueNames(string(def.Key), def.Format); named {
 		m.set(memberValueNames, stringsToAny(names))
 	}
 	// the entry's own members, written here rather than by the shared
