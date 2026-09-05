@@ -1332,7 +1332,7 @@ homes**, and no fourth:
 | home | shape |
 |---|---|
 | a property-dictionary entry (§2f) | one `propertyDefinition` + `uninstalled` + `hidden` + `bundled_diverged` + `api_key` + `value_names` — or, where the format is the `unknown` sentinel, identity and that word alone (§2f) |
-| a type document's property-definition entry (§2a) | one `propertyDefinition` + `section` + `uninstalled` |
+| a type document's property-definition entry (§2a) | one `propertyDefinition` + `uninstalled` + `section` |
 | a property document's definition fields (§2d) | one `propertyDefinition` |
 
 The shape's eleven members: `property`, `internal_key`, `name`, `format`,
@@ -1575,12 +1575,12 @@ not the dictionary's own the way `hidden`, `api_key`, `bundled_diverged` and
 homes have in common is that each states a whole definition on its own. The
 shape's THIRD home refuses it as it refuses all five of the others — a
 property document's `property_settings` mirrors stored presence member for
-member (§2d), and the removal is not one of the three that travel there. An author never writes
-it, because a bundle that has not been installed has nothing to uninstall
-(§2g). False is the absent form; export writes `true` only. The reinstall
-stamp — the flag stored `false` on a copy the user removed and installed
-again — is absent-equivalent to every consumer of the key and omits as an
-identical copy (§11).
+member (§2d), and the removal is not one of the three that travel there. An
+author never writes it, because a bundle that has not been installed has
+nothing to uninstall (§2g). False is the absent form; export writes `true`
+only. The reinstall stamp — the flag stored `false` on a copy the user
+removed and installed again — is absent-equivalent to every consumer of the
+key and omits as an identical copy (§11).
 
 Measured over a census of 40 spaces' object stores (5,284 relation
 documents, 4,905 on bundled keys): no bundled-key relation document carries
