@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/properties.schema.json",
+  "formatVersion": "2.0",
+  "properties": [
+    {
+      "property": "Name",
+      "internal_key": "name",
+      "name": "Name",
+      "format": "text"
+    },
+    {
+      "property": "Tag",
+      "internal_key": "tag",
+      "name": "Tag",
+      "format": "multi_select",
+      "options": [
+        { "name": "archive", "color": "blue", "internal_key": "65cca4101cac639011dcab8c" },
+        { "name": "pre-installed", "color": "yellow" }
+      ]
+    },
+    {
+      "property": "Status",
+      "internal_key": "status",
+      "name": "Status",
+      "format": "select"
+    }
+  ]
+}

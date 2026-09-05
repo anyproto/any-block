@@ -146,3 +146,75 @@ func TestAKeyBeatsANameTable(t *testing.T) {
 		t.Errorf("resolve(%q) reported stored key %q; the spelling IS the key", "tag", key)
 	}
 }
+
+// An export run without an option resolver lets option values through as ids
+// (§13). Measured: 74 of the 22,019 select/multi_select values in the 79-bundle
+// corpus are such an id, in 9 bundles; in one audited space 12 of 31 (39%),
+// across 11 documents. Printed bare they look exactly like option names, which
+// is the confusion `(not in this bundle)` already prevents on references.
+func TestAnUnresolvedOptionIDIsNotPrintedAsAName(t *testing.T) {
+	b, err := open(filepath.Join("testdata", "optionids"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, ok := b.docs["bafyreioptionids"]
+	if !ok {
+		t.Fatal("fixture lost bafyreioptionids")
+	}
+	const (
+		tagID    = "bafyreigox77xlzzmqav6qibh5wup35c2awstdx3pfqecoktinjebnlleie"
+		statusID = "bafyreidbbug6xjazjvk23g5eh7vlvrou5dsr5536rvlcn6pdjlwb3imdaq"
+	)
+	for _, tc := range []struct{ name, spelling, want string }{
+		{"a name is a name, and keeps its colour",
+			"Tag", "archive (blue), " + tagID + " (not an option name; not one of this entry's 2 options)"},
+		{"an entry with no options member at all",
+			"Status", statusID + " (not an option name; this entry carries no options)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			def, _ := b.resolve(doc, tc.spelling)
+			if def == nil {
+				t.Fatalf("fixture: no dictionary entry answers for %q", tc.spelling)
+			}
+			if got := b.renderValue(def, doc.Properties[tc.spelling]); got != tc.want {
+				t.Errorf("renderValue(%s)\n got %s\nwant %s", tc.spelling, got, tc.want)
+			}
+		})
+	}
+}
+
+// The two values that are not a plain name and not an unresolvable id: an
+// option addressed by its own stored id, and a value that is not a string at
+// all. Neither occurs in the measured corpus (0 of 22,019), and both are worse
+// than useless printed bare — the second printed as the empty string.
+func TestAnOptionIDAndANonStringStillSayWhatTheyAre(t *testing.T) {
+	b, err := open(filepath.Join("testdata", "optionids"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	def, _ := b.resolve(b.docs["bafyreioptionids"], "Tag")
+	if def == nil {
+		t.Fatal("fixture: no dictionary entry answers for Tag")
+	}
+	if got, want := b.renderValue(def, "65cca4101cac639011dcab8c"), `65cca4101cac639011dcab8c (an option id; this entry names it "archive")`; got != want {
+		t.Errorf("an option's own id\n got %s\nwant %s", got, want)
+	}
+	if got, want := b.renderValue(def, []any{float64(3)}), "3"; got != want {
+		t.Errorf("a value that is not a string\n got %q\nwant %q", got, want)
+	}
+}
+
+// The reviewer's complaint, in one line: an unresolved select value and an
+// unresolved object reference must not print alike-and-bare.
+func TestAnUnresolvedOptionReadsLikeAnAbsentReference(t *testing.T) {
+	b, err := open(filepath.Join("testdata", "optionids"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := b.docs["bafyreioptionids"]
+	def, _ := b.resolve(doc, "Status")
+	got := b.renderValue(def, doc.Properties["Status"])
+	if !strings.Contains(got, "(not an option name;") {
+		t.Errorf("an id that names no option must be annotated the way an absent reference is; got %s", got)
+	}
+}
