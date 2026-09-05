@@ -501,20 +501,32 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 			stated = map[declaredProperty]bool{}
 			c.declared[key] = stated
 		}
-		stated[declaredProperty{name: d.Name, format: d.Format}] = true
+		stated[declaredProperty{
+			name:        d.Name,
+			format:      d.Format,
+			uninstalled: d.Uninstalled,
+		}] = true
 	}
 	return nil
 }
 
 // declaredProperty is what one type document's §2a entry says about the
-// PROPERTY it declares, reduced to the two members a dictionary entry can
-// take from it. Comparable on purpose: two types declaring one property
+// PROPERTY it declares, reduced to the members a dictionary entry can take
+// from it. Comparable on purpose: two types declaring one property
 // contribute one member to the key's set when they agree and two when they
 // do not, which is the whole of how the composer decides whether a
 // declaration defines anything (Composer.declared).
+//
+// The removal is part of what has to agree. Two types that name one
+// property alike but disagree about whether the user REMOVED it are
+// disagreeing about the property, not about their own use of it, and there
+// is no entry that states both halves — so, like a disagreement about the
+// name or the format, it defines nothing rather than letting the emit
+// schedule decide whether a deleted property comes back.
 type declaredProperty struct {
-	name   string
-	format model.RelationFormat
+	name        string
+	format      model.RelationFormat
+	uninstalled bool
 }
 
 // storedInternalKey reads the stored identity a document states as its
@@ -1347,17 +1359,34 @@ func resolvedDefinition(key string, opts anyblockjson.Options) (anyblockjson.Pro
 // used to publish `format: "unknown"` beside a type document stating the
 // answer.
 //
-// It takes the two members that are facts about the PROPERTY — its name
-// and its format — and no others. `section` is the type's own member and
-// says nothing about the property; the rest of the shape's members are
-// admissible on a declaration but no exported one reached here was
-// observed to state them — over the corpus the four state identity, a
-// name, a format and, on two of them, a section, and nothing more — so
-// promoting them would build a definition out of members the format has
-// never seen a writer put there. The select vocabulary is the pointed
-// case: an entry the space's OWN option snapshots fill is the one the
-// vocabulary loop below writes, and a declared copy would either duplicate
-// it or contradict it.
+// It takes the members that are facts about the PROPERTY — its name, its
+// format, and `uninstalled`, the user having REMOVED the property from the
+// space (§15 #22) — and drops the rest. The cut is by what a member is
+// ABOUT: `section` says where the property sits on THIS type and is the
+// type's own member, while a removal is the property's, which is why the
+// §2a entry states it in the first place (buildTypeProperties) and why an
+// entry here that dropped it would publish a live property while the type
+// document one file away said it was gone.
+//
+// The shape's remaining members — `options`, `object_types`,
+// `description`, `include_time`, `max_count`, `readonly` and
+// `default_value` — are facts about the property too, and this rung drops
+// them anyway. The select vocabulary has a reason of its own: the entry
+// the space's OWN option snapshots fill is the one the vocabulary loop
+// below writes, and a declared copy would either duplicate it or
+// contradict it. The others are dropped for want of a case — over the
+// 79-bundle corpus the four keys that reach this rung state identity, a
+// name, a format and, on two of them, a section, and nothing else, so no
+// bundle is known to lose anything by it. (5,529 declarations elsewhere in
+// that corpus DO state `object_types`; none of them is for a key on this
+// rung.)
+//
+// That evidence covers those members and cannot cover `uninstalled`: the
+// corpus was exported before the member existed — `"uninstalled"` appears
+// nowhere in its 24,889 documents, neither on a declaration nor in a
+// dictionary entry — so what it says about the member is silence, not that
+// writers do not write it. The removal travels because of what it is
+// about, and the corpus is not asked.
 //
 // A key two type documents declare DIFFERENTLY gets nothing, and stays a
 // key nothing could define. There is no way to pick between them that is
@@ -1377,6 +1406,7 @@ func declaredDefinition(key string, declared map[string]map[declaredProperty]boo
 			KeyIsInternal: true,
 			Name:          d.name,
 			Format:        d.format,
+			Uninstalled:   d.uninstalled,
 		}, true
 	}
 	return anyblockjson.PropertyDefinition{}, false

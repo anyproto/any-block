@@ -43,12 +43,20 @@ import (
 // reduced to the entry that matters: a declaration of a key nothing else in
 // the bundle can define.
 func declaringTypeDoc(key, name, format string) []byte {
+	return declaringTypeDocWith(key, name, format, "")
+}
+
+// declaringTypeDocWith is the same document with further members stated on
+// the declaration (`,"uninstalled":true`), for the members of the §2a shape
+// that are facts about the PROPERTY rather than about this type's use of it.
+func declaringTypeDocWith(key, name, format, extra string) []byte {
 	return []byte(`{"formatVersion":"2.0","id":"type-releasenotes","kind":"object_type",` +
 		`"type":"Type","internal_key":"releaseNotes",` +
 		`"property_internal_keys":{"` + key + `":"` + key + `"},` +
 		`"type_settings":{"property_definitions":[` +
 		`{"property":"` + key + `","internal_key":"` + key + `",` +
-		`"name":"` + name + `","format":"` + format + `","section":"featured"}]}}`)
+		`"name":"` + name + `","format":"` + format + `","section":"featured"` +
+		extra + `}]}}`)
 }
 
 func typeSnapshot() *model.SmartBlockSnapshotBase {
@@ -212,4 +220,94 @@ func TestComposer_ADeclaredSelectCarriesTheObservedVocabulary(t *testing.T) {
 	require.Len(t, dict.Properties[0].Options, 1)
 	assert.Equal(t, "urgent", dict.Properties[0].Options[0].Name)
 	assert.Equal(t, model.RelationFormat_tag, dict.Properties[0].Format)
+}
+
+// A declaration states one member besides the name and the format that is a
+// fact about the PROPERTY: `uninstalled`, the user having REMOVED it from
+// the space (§15 #22). The rung has to carry it. A dictionary entry is what
+// a reader builds the property from, so an entry that drops the removal
+// hands that reader a live property while the type document one file away
+// says the property is gone — and a restore then reinstalls what the user
+// deleted.
+//
+// It is reachable in exactly the state this rung exists for: the exporter
+// stamps `uninstalled` on the declaration from the definition its resolver
+// answered by OBJECT ID, and answering by object id while no longer
+// answering by stored key is what puts the key on this rung in the first
+// place.
+//
+// How this can fail: reduce the declaration to {name, format} — the entry
+// comes out `{"format":"date","internal_key":"68cda76ee9223c9dc7ce5e92",
+// "name":"Release Date","property":"…"}`, byte for byte what the same
+// bundle produces when the type says nothing about removal at all.
+func TestComposer_ADeclarationCarriesTheRemovalItStates(t *testing.T) {
+	const key = "68cda76ee9223c9dc7ce5e92"
+
+	compose := func(t *testing.T, doc []byte) anyblockjson.PropertyDefinition {
+		t.Helper()
+		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(), doc))
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, pageSnapshot(),
+			[]byte(`{"formatVersion":"2.0","id":"bafypage",`+
+				`"properties":{"`+key+`":1755471600},`+
+				`"property_internal_keys":{"`+key+`":"`+key+`"}}`)))
+		_, dictData, stats, err := c.Finish()
+		require.NoError(t, err)
+		assert.Empty(t, stats.OrphanUsedKeys)
+		dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
+		require.NoError(t, err)
+		require.Len(t, dict.Properties, 1)
+		return dict.Properties[0]
+	}
+
+	t.Run("the declaration says removed", func(t *testing.T) {
+		def := compose(t, declaringTypeDocWith(key, "Release Date", "date", `,"uninstalled":true`))
+		assert.True(t, def.Uninstalled,
+			"the type document states the property was removed; the entry may not present it as live")
+		assert.Equal(t, "Release Date", def.Name, "the removal does not cost the key its definition")
+		assert.Equal(t, model.RelationFormat_date, def.Format)
+	})
+
+	t.Run("the declaration says nothing", func(t *testing.T) {
+		def := compose(t, declaringTypeDoc(key, "Release Date", "date"))
+		assert.False(t, def.Uninstalled,
+			"silence about removal is not a removal")
+		assert.Equal(t, "Release Date", def.Name)
+	})
+}
+
+// Two types declaring one property may now disagree about a third thing,
+// and the answer is the one this composer already gives for a disagreement
+// about the name or the format: neither declaration is taken, and the key
+// goes back to being one nothing could define. Choosing would be choosing
+// by emit order, and "removed" and "live" are not a difference a dictionary
+// entry can hold both halves of.
+//
+// Real exports cannot produce the disagreement — every type declaring one
+// key stamps the flag off the same resolved definition — which is why the
+// honest sentinel costs nothing here and a silent OR would cost a user
+// their deleted property back.
+//
+// How this can fail: leave `uninstalled` out of the comparable declaration,
+// and the two collapse to one member of the set; the key then takes a
+// definition whose removal bit is whichever document the schedule
+// happened to observe.
+func TestComposer_DeclarationsThatDisagreeAboutRemovalDefineNothing(t *testing.T) {
+	const key = "68cda76ee9223c9dc7ce5e92"
+
+	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
+		declaringTypeDocWith(key, "Release Date", "date", `,"uninstalled":true`)))
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
+		declaringTypeDoc(key, "Release Date", "date")))
+
+	_, dictData, stats, err := c.Finish()
+	require.NoError(t, err)
+	assert.Equal(t, []string{key}, stats.OrphanUsedKeys,
+		"no single definition could be established, and the loss is reported")
+	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 1)
+	assert.True(t, dict.Properties[0].FormatUnknown)
+	assert.False(t, dict.Properties[0].Uninstalled)
 }
