@@ -18,7 +18,10 @@ original order.
   mode set the two families of slot move in OPPOSITE directions, which is
   the whole point. Type-KEY slots — `template_for`, every `object_types` —
   fall back to `writableTypeSlug`, the vocabulary the envelope `type`
-  already goes through, so one type is one word across the document; a
+  already goes through, so one type is one word in every slot that names it
+  as a KIND — not across the whole document, since a document that also
+  names that type as an OBJECT carries the store id there, which 526 of the
+  corpus's 24,889 documents do; a
   raw-key fallback would have spelled it a second way for every key the
   vocabulary renames. Reference slots and the type document's own envelope
   id keep the store id, and `FoldDocumentId` declines alongside them rather

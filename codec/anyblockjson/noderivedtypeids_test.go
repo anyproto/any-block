@@ -7,7 +7,9 @@ package anyblockjson
 //   - a KIND, named by a key that means the same thing in every space —
 //     `type`, `template_for`, every `object_types`. These fall back to the
 //     VOCABULARY spelling, the same one the envelope `type` already uses,
-//     so one type is one word across the whole document.
+//     so one type is one word in every slot that names it as a KIND — not
+//     across the whole document, since the reference slots below hold the
+//     store id for that same type.
 //   - an OBJECT, named by an id that exists in one space — the type
 //     document's own envelope id, `set_of`, `default_type_id`, mention and
 //     link targets. These keep the STORE id, which is what the object

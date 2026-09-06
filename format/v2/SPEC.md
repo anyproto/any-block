@@ -4806,10 +4806,15 @@ the whole of it:
 | the participant fold | `participant-<identity>`, under `Options.SpaceId` | unchanged: `participant-<identity>`, under `Options.SpaceId` |
 
 **The key slots go to the vocabulary, not to the raw stored key.** That is
-what makes one type ONE word across the document, which is the point of the
-mode and not a detail of it: the envelope `type` already goes through
-`writableTypeSlug`, so routing `template_for` and `object_types` through the
-same function makes the three slots agree by construction. A raw-key
+what makes one type ONE word in every slot that names it as a KIND, which is
+the point of the mode and not a detail of it: the envelope `type` already
+goes through `writableTypeSlug`, so routing `template_for` and
+`object_types` through the same function makes those three slots agree by
+construction. Not across the whole DOCUMENT, and the difference is the
+mode's own design rather than a shortfall of it: a document that also names
+that type as an OBJECT carries the store id there, so it holds two spellings
+where the default shape held one derived id for both families. 526 of the
+corpus's 24,889 documents, in all 79 bundles, name one type in both. A raw-key
 fallback would have spelled the type a second way for every key the
 vocabulary renames — with `wine` stored and spelled `vino`, the envelope
 would say `vino` and the template's target `wine`. Offline, where the

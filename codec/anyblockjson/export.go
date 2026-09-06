@@ -122,7 +122,9 @@ type Options struct {
 	//
 	//   - type-KEY slots (`template_for`, every `object_types`) fall back to
 	//     the VOCABULARY spelling, the same one the envelope `type` already
-	//     writes, so one type is one word across the whole document;
+	//     writes, so one type is one word in every slot that names it as a
+	//     KIND — not across the whole document, since the reference slots
+	//     below carry the store id for that same type;
 	//   - reference slots (`set_of`, `default_type_id`, mention and link
 	//     targets) and the type document's own envelope id keep the STORE
 	//     id, which is what an object endpoint resolves.
