@@ -5,14 +5,19 @@
   "type": "Set",
   "type_internal_key": "set",
   "properties": {
-    "Name": "A set whose `Set of` is an empty list",
-    "Set of": []
+    "Name": "A set whose `query_source` names nothing"
   },
   "blocks": [
     {
       "id": "dataview",
       "type": "dataview",
-      "views": [{ "id": "v1", "name": "All" }]
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
     }
-  ]
+  ],
+  "query_source": {}
 }

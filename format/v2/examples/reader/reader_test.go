@@ -268,7 +268,7 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 			"bafyreighost (not in this bundle)",
 		}},
 		{"a set is a live query no bundle can answer", "bafyreiset", []string{
-			"records: every object matching this document's `Set of` (type-fieldnote) — a set is a live query, and no bundle answers it (§6.2)",
+			`records: every object matching this document's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote)) — a set is a live query, and no bundle answers it (§6.2)`,
 		}},
 		{"a type document's own listing", "type-fieldnote", []string{
 			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
@@ -282,22 +282,22 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 		{"a type document hosting its own listing without naming itself", "type-walk", []string{
 			`records: every object of type "Walk" — a live query, and no bundle answers it (§6.2)`,
 		}},
-		{"a set that spells `Set of` some other way, read through its legend", "bafyreisetbylegend", []string{
-			"records: every object matching this document's `Set of` (type-fieldnote, type-walk) — a set is a live query, and no bundle answers it (§6.2)",
+		{"a set over two types and a property: each target resolved, not echoed", "bafyreisetbylegend", []string{
+			`records: every object matching this document's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote), objects of type "Walk" (type-walk), objects carrying "Last modified date" (lastModifiedDate)) — a set is a live query, and no bundle answers it (§6.2)`,
 		}},
-		{"a `Set of` that lists nothing is not a stated query", "bafyreiemptyset", []string{
-			"records: this document's own `Set of`, which it does not state — a set is a live query, and no bundle answers it (§6.2)",
+		{"a `query_source` naming nothing is a query, and says so", "bafyreiemptyset", []string{
+			"records: this document's `query_source` names nothing — a set that states no query, which is not the same as a query matching nothing (§6.2)",
 		}},
-		{"a set that states no `Set of` at all", "bafyreinosetof", []string{
-			"records: this document's own `Set of`, which it does not state — a set is a live query, and no bundle answers it (§6.2)",
+		{"a set that states no `query_source` at all", "bafyreinosetof", []string{
+			"records: this document states no `query_source` at all — a set is a live query, and no bundle answers it (§6.2)",
 		}},
 		{"the same seven sources, named from another document", "bafyreiportal", []string{
 			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
 			"records: the 3 ids bafyreicollection lists in `items` (objects/bafyreicollection.anyblock.json)",
 			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,
-			"records: every object matching bafyreiset's `Set of` (type-fieldnote) — a set is a live query, and no bundle answers it (§6.2)",
+			`records: every object matching bafyreiset's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote)) — a set is a live query, and no bundle answers it (§6.2)`,
 			"records: from bafyreighost (not in this bundle), so this block does not say where they come from",
-			"records: bafyreimemberone (objects/bafyreimemberone.anyblock.json) states neither `items` nor `Set of`, so nothing here says where they come from",
+			"records: bafyreimemberone (objects/bafyreimemberone.anyblock.json) states neither `items` nor `query_source`, so nothing here says where they come from",
 			"records: from _missing_object (the space's own sentinel for a reference it could not serve — it does not resolve, it IS the answer), so this block does not say where they come from",
 			"records: a legacy detached inline set over source [ot-task] — a live query, and no bundle answers it (§6.2)",
 		}},
@@ -924,24 +924,58 @@ func TestTheSameBundleRendersTheSameWayEveryTime(t *testing.T) {
 		}
 	})
 
-	// A document that names one property twice is refused by the format on read
-	// and on write alike, so no export holds this. A reader still meets whatever
-	// it is handed, and `setOf` picks the FIRST spelling that resolves to the
-	// key: which one that is may not depend on the map seed.
-	t.Run("which spelling answers for a key named twice", func(t *testing.T) {
+	// The query source resolves its targets, and the two ways it can fail to
+	// are said out loud rather than silently echoed as a raw string.
+	//
+	// This subtest replaced one about SPELLINGS: `setOf` used to be an
+	// ordinary property, so a document naming it twice under two spellings
+	// made the reader's answer depend on a map seed, and the guard was that
+	// the first sorted spelling wins. The group is a root member with no
+	// spelling at all, so that hazard cannot arise any more — which is a
+	// thing the lift bought, not a test that went missing.
+	t.Run("a target that resolves against nothing says so", func(t *testing.T) {
 		b := &bundle{docs: map[string]*document{}, byKey: map[string]*definition{}, bySpelling: map[string]*definition{}}
 		d := &document{
-			ID:     "bafyreitwice",
-			Legend: map[string]string{"so": "setOf", "Set of": "setOf"},
-			Properties: map[string]any{
-				"so":     []any{"type-walk"},
-				"Set of": []any{"type-fieldnote"},
+			ID: "bafyreiunresolvable",
+			QuerySource: &querySource{
+				Types:      []string{"type-ghost"},
+				Properties: []string{"6a32d4856761631534b22f85"},
 			},
 		}
+		query, stated := b.querySource(d)
+		if !stated {
+			t.Fatal("a populated group is a stated query even when nothing in it resolves")
+		}
+		for _, want := range []string{
+			"objects of type type-ghost (no document in this bundle carries that id)",
+			"objects carrying 6a32d4856761631534b22f85 (this bundle's dictionary does not define that key)",
+		} {
+			if !strings.Contains(query, want) {
+				t.Errorf("the reader must say which half it could not resolve; %q is not in %q", want, query)
+			}
+		}
+	})
+}
+
+func TestQuerySourceOrderIsTheDocumentsOrder(t *testing.T) {
+	const runs = 32
+	t.Run("types before properties, each in the order stated", func(t *testing.T) {
+		b := &bundle{docs: map[string]*document{}, byKey: map[string]*definition{}, bySpelling: map[string]*definition{}}
+		d := &document{
+			ID: "bafyreiordered",
+			QuerySource: &querySource{
+				Types:      []string{"type-walk", "type-fieldnote"},
+				Properties: []string{"b", "a"},
+			},
+		}
+		const want = "objects of type type-walk (no document in this bundle carries that id), " +
+			"objects of type type-fieldnote (no document in this bundle carries that id), " +
+			"objects carrying b (this bundle's dictionary does not define that key), " +
+			"objects carrying a (this bundle's dictionary does not define that key)"
 		for i := 0; i < runs; i++ {
-			query, stated := b.setOf(d)
-			if !stated || query != "type-fieldnote" {
-				t.Fatalf("run %d read %q (stated %v); `Set of` sorts before `so`, and the answer may not move", i, query, stated)
+			query, stated := b.querySource(d)
+			if !stated || query != want {
+				t.Fatalf("run %d read %q; the group is two ordered lists and the reader may not reorder either", i, query)
 			}
 		}
 	})

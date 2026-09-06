@@ -77,8 +77,28 @@ type document struct {
 	// top-level member and not a property, and it is the only place a
 	// collection's records are written (§2, §6.2).
 	Items []string `json:"items"`
+	// QuerySource is a set's query: the collection member's opposite number,
+	// and a top-level member for the same reason (§2, §6.2). A POINTER,
+	// because the member has three states and only a pointer tells them
+	// apart — absent (this document states no query), present and empty (a
+	// query that names no source), populated.
+	QuerySource *querySource `json:"query_source"`
 
 	path string
+}
+
+// querySource is the §6.2 group. Two lists, and the list an entry sits in is
+// what says what the entry IS — the thing a flat list of ids could not say.
+type querySource struct {
+	// Types holds each type's derived id, `type-<internal_key>` (§9), which
+	// is the id the type's own document in this bundle carries — so a reader
+	// joins entry to document by string equality and nothing else.
+	Types []string `json:"types"`
+	// Properties holds each property's bare stored key. A bundle carries no
+	// property documents, so there is nothing to address: the key resolves
+	// against the shipped bundled table first and this bundle's
+	// properties.json second.
+	Properties []string `json:"properties"`
 }
 
 type block struct {
@@ -627,10 +647,13 @@ func (b *bundle) dataviewSource(host *document, blk block) []string {
 		case len(target.Items) > 0:
 			return b.listMembers(fmt.Sprintf("records: the %s %s lists in `items` (%s)", countIDs(len(target.Items)), id, target.path), target.Items)
 		}
-		if query, stated := b.setOf(target); stated {
-			return []string{fmt.Sprintf("records: every object matching %s's `Set of` (%s) — a set is a live query, and no bundle answers it (§6.2)", id, query)}
+		if query, stated := b.querySource(target); stated {
+			return []string{fmt.Sprintf("records: every object matching %s's `query_source` (%s) — a set is a live query, and no bundle answers it (§6.2)", id, query)}
 		}
-		return []string{fmt.Sprintf("records: %s (%s) states neither `items` nor `Set of`, so nothing here says where they come from", id, target.path)}
+		if target.QuerySource != nil {
+			return []string{fmt.Sprintf("records: %s (%s) states a `query_source` that names nothing — a set with no query (§6.2)", id, target.path)}
+		}
+		return []string{fmt.Sprintf("records: %s (%s) states neither `items` nor `query_source`, so nothing here says where they come from", id, target.path)}
 	}
 
 	switch {
@@ -646,40 +669,67 @@ func (b *bundle) dataviewSource(host *document, blk block) []string {
 		// that 1,776 of the measured blocks spell out.
 		return []string{fmt.Sprintf("records: every object of type %q — a live query, and no bundle answers it (§6.2)", b.title(host))}
 	}
-	if query, stated := b.setOf(host); stated {
-		return []string{fmt.Sprintf("records: every object matching this document's `Set of` (%s) — a set is a live query, and no bundle answers it (§6.2)", query)}
+	if query, stated := b.querySource(host); stated {
+		return []string{fmt.Sprintf("records: every object matching this document's `query_source` (%s) — a set is a live query, and no bundle answers it (§6.2)", query)}
 	}
-	return []string{"records: this document's own `Set of`, which it does not state — a set is a live query, and no bundle answers it (§6.2)"}
+	if host.QuerySource != nil {
+		return []string{"records: this document's `query_source` names nothing — a set that states no query, which is not the same as a query matching nothing (§6.2)"}
+	}
+	return []string{"records: this document states no `query_source` at all — a set is a live query, and no bundle answers it (§6.2)"}
 }
 
-// setOf reads the query a set ranges over. It is an ordinary property — the
-// bundled key `setOf` — so it is found the way any property is found, by
-// resolving the document's own spellings, and never by trusting one spelling.
-func (b *bundle) setOf(d *document) (string, bool) {
-	spellings := make([]string, 0, len(d.Properties))
-	for k := range d.Properties {
-		spellings = append(spellings, k)
+// querySource reads the query a set ranges over, and RESOLVES each target
+// rather than reprinting it: that is the whole gain of the two lists, and a
+// reader that only echoes the strings has not used them.
+//
+// A `types` entry is the derived id of a type, which is the id that type's
+// own document carries (§2c, §9) — so it resolves by looking the string up
+// among this bundle's documents, with no rule to apply and nothing to strip.
+// A `properties` entry is a bare stored key, and a bundle carries no property
+// documents, so it resolves against the dictionary this bundle ships
+// (properties.json) — or, for a bundled key, against the table every reader
+// has. Either one may fail to resolve, and saying so is the honest answer:
+// the bundle names something it does not carry.
+//
+// The order does not matter and the reader does not pretend it does: the
+// targets combine with OR, which is why the format could split one stored
+// list into two in the first place (§6.2).
+func (b *bundle) querySource(d *document) (string, bool) {
+	src := d.QuerySource
+	if src == nil {
+		return "", false
 	}
-	sort.Strings(spellings)
-	for _, spelling := range spellings {
-		if _, key := b.resolve(d, spelling); key != "setOf" {
-			continue
-		}
-		targets := make([]string, 0, 2)
-		for _, item := range values(d.Properties[spelling]) {
-			s, ok := item.(string)
-			if !ok {
-				continue
-			}
-			id, _ := reference(s)
-			targets = append(targets, id)
-		}
-		if len(targets) == 0 {
-			return "", false
-		}
-		return strings.Join(targets, ", "), true
+	targets := make([]string, 0, len(src.Types)+len(src.Properties))
+	for _, ref := range src.Types {
+		targets = append(targets, b.describeQueryType(ref))
 	}
-	return "", false
+	for _, key := range src.Properties {
+		targets = append(targets, b.describeQueryProperty(key))
+	}
+	if len(targets) == 0 {
+		return "", false
+	}
+	return strings.Join(targets, ", "), true
+}
+
+// describeQueryType names a type target: every object OF that type is in the
+// set.
+func (b *bundle) describeQueryType(ref string) string {
+	id, _ := reference(ref)
+	if target, ok := b.docs[id]; ok {
+		return fmt.Sprintf("objects of type %q (%s)", b.title(target), id)
+	}
+	return fmt.Sprintf("objects of type %s (no document in this bundle carries that id)", id)
+}
+
+// describeQueryProperty names a property target: every object that CARRIES
+// the property is in the set — presence, not a non-empty value, so an object
+// holding it empty belongs.
+func (b *bundle) describeQueryProperty(key string) string {
+	if def, ok := b.byKey[key]; ok {
+		return fmt.Sprintf("objects carrying %q (%s)", label(def, key), key)
+	}
+	return fmt.Sprintf("objects carrying %s (this bundle's dictionary does not define that key)", key)
 }
 
 // countIDs keeps a teaching program from saying "1 ids". 28 of the measured

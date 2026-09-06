@@ -5,6 +5,63 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **A query states its source on the ROOT, in two typed lists, and the stored
+  `setOf` key is refused in `properties` on every kind** (`codec/anyblockjson/querysource.go`,
+  `object.schema.json` + its authoring subset, SPEC §2/§6.2/§9/§11/§15 #29,
+  READING.md, `format/v2/examples/reader`). `"query_source": {"types":
+  ["type-habit"], "properties": ["lastModifiedDate"]}`.
+
+  The stored slot holds two different kinds of thing under one grammar. The
+  platform's own v2 refusal says so in its error text — "setOf entries are
+  type or property object ids" — three public RPCs write it from an
+  unvalidated client id list, and three separate readers resolve each entry by
+  trying it as a type and then as a relation. Measured over the 79-bundle,
+  24,889-document corpus: 175 documents carry the key, 174 values in them, 136
+  already a derived type id and 38 bare CIDs — of which **26 are property
+  objects** (`lastModifiedDate` 16, `addedDate` 4, `isArchived` 2, `type` 2,
+  `tag` 1, `createdDate` 1, classified against the source spaces' own object
+  stores), 11 tombstoned types and 1 a type document in its own bundle.
+  Thirteen of the 26 already contradicted themselves inside one document — a
+  dataview block spelling `rel-lastModifiedDate` beside a `Set of` holding an
+  opaque CID for that same property — and the codec passed a property target
+  through as a raw CID with both `Validate` and `bundle.Validate` silent.
+  SPEC §6.2 called all 37 unresolved values types "a resolver-less export
+  could not fold"; 26 were properties, and that sentence is corrected.
+
+  **Two lists rather than a prefix inside one**, because the list an entry
+  sits in IS the marker: `types` states the type's derived id
+  `type-<internal_key>` (a type IS a document, and that is its document's id,
+  so a reader joins entry to document by string equality), `properties` states
+  the bare stored key (a property is NOT a document — §15 #23 took them out of
+  bundles — so there is no address to derive). No new reserved prefix, no
+  fourth form of a property, and `NoDerivedTypeIds` is a no-op on the property
+  half because a stored key was never a derived id. **The ROOT rather than
+  `properties`**, because inside the property bag `$defs/propertyMap` accepts
+  anything and the published schema can say nothing about the value at all;
+  on the root each list carries its own element type and description, so a
+  reader holding only the export and the schemas can check both.
+
+  **The lift is unconditional — the format's first**, and that is measured:
+  the population carrying `setOf` off a type document is 174 sets plus one
+  template, all queries, and a `type_internal_key == "set"` gate would miss
+  the template and split the population 174/1. On a type document §2a's
+  provenance drop takes the key first, so nothing reaches the lift.
+
+  **Cost, stated:** one ordered stored list becomes two, so a value
+  interleaving the two kinds comes back partitioned, types first — a §11
+  normalization that converges in one generation, and 0 of the 175 corpus
+  documents are multi-valued. Migration is a clean break: the format was never
+  released, so a document written the old way is refused with the repair
+  named and nothing coexists. `setOf`'s dictionary entry goes with it — all 79
+  corpus bundles carry one today and none will, because no document spells the
+  key any more — and so does the "Set of" → "Query source" display-name
+  rename, which is moot once the property leaves documents and which would
+  have cost a bundled-relation `revision` bump and a space-by-space reviser
+  pass. `query_source.properties` entries count as property USES, so a minted
+  property named by a query lands in `properties.json`; `query_source.types`
+  entries join the derived-type cross-check, so a set pointing at a type the
+  bundle does not carry is now reported. No exported-signature change.
+
 - `Options.NoDerivedTypeIds` is scoped to a SINGLE DOCUMENT, and the bundle
   seam refuses it (`bundle/options.go`, `bundle/plan.go`, `bundle/compose.go`,
   SPEC §9, §2c, §15 #26/#27/#28, READING.md step 6, `index.schema.json` and

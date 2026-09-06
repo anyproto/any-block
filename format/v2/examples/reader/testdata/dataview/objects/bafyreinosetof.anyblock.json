@@ -5,13 +5,18 @@
   "type": "Set",
   "type_internal_key": "set",
   "properties": {
-    "Name": "A set that states no `Set of` at all"
+    "Name": "A set that states no `query_source` at all"
   },
   "blocks": [
     {
       "id": "dataview",
       "type": "dataview",
-      "views": [{ "id": "v1", "name": "All" }]
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
     }
   ]
 }
