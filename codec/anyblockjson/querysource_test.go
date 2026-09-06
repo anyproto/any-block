@@ -335,3 +335,24 @@ func TestQuerySource_ALegacyBareKeyLandsInTheRightList(t *testing.T) {
   }`)
 	assert.Empty(t, warnings, "both resolved, so neither is a guess")
 }
+
+// A `types` entry wearing the reserved prefix whose tail is not a stored type
+// key is refused where it stands, on both surfaces (§9, §12 I2) — the same
+// refusal `template_for` and every `object_types` make. Falling through would
+// hand `type-` to the vocabulary as a display SPELLING and look up a type
+// named "type-".
+//
+// How this can fail: drop the semantic arm and Validate passes a document
+// Unmarshal refuses, which is the two surfaces disagreeing about one
+// document.
+func TestQuerySource_AMalformedDerivedIdIsRefusedWhereItStands(t *testing.T) {
+	doc := `{"formatVersion":"2.0","id":"s1","query_source":{"types":["type-"]}}`
+	err := Validate([]byte(doc), Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "/query_source/types/0")
+	assert.Contains(t, err.Error(), "is not a stored type key")
+
+	_, _, importErr := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+	require.Error(t, importErr, "Validate and the import seam agree (§12 I2)")
+	assert.Contains(t, importErr.Error(), "is not a stored type key")
+}

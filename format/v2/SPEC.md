@@ -3858,6 +3858,14 @@ it is a union the order ACROSS the two lists carries no meaning, which is
 what lets one stored list become two; within a list the stored order is
 kept, and the rebuild puts types first (§11).
 
+A `query_source` and an `items` are alternatives in meaning — one document is
+a set or a collection, not both — but neither surface refuses the pair, and
+that is measured rather than lenient: ONE of the 175 corpus documents
+carrying a query source also carries an `items`, so a refusal would reject
+real stored state and export would then emit what `Validate` rejects (§11
+I1). A reader meeting both should read the block that names them (the table
+above) and not guess.
+
 **Three states, not two.** ABSENT means this document states no query.
 PRESENT AND EMPTY — `"query_source": {}` — means a query that names no
 source, which is a different thing from a query that matches nothing: a
