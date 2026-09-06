@@ -322,15 +322,21 @@ Four kinds of id you will meet:
 
 **Not every export folds a type to `type-<key>`.** A writer may decline it —
 SPEC §9's `NoDerivedTypeIds` export mode — and then a type document's `id` is
-the space's own CID, `template_for` and `object_types` hold the type's
-display-name spelling, and every reference to a type holds a CID. Nothing in
+the space's own CID, `template_for` and `object_types` hold the writer's
+VOCABULARY spelling for that type (its display name where the writer's
+vocabulary had one, the stored key where it had none — so a bare word there
+may be either), and every reference to a type holds a CID. Nothing in
 step 2 changes: you still key documents by the `id` inside them, and every
 reference still resolves by lookup. What changes is the one shortcut above —
 `"type_internal_key": "65168e20…"` no longer names a document. Build the
 fallback while you are already walking the tree in step 2: index the type
 documents (`kind: "object_type"`) by their `internal_key` as well as by their
 `id`, and resolve a type key against that map whenever `type-<key>` finds
-nothing. Every export measured here folds — all 79 bundles carry `type-<key>`
+nothing. Try that map BEFORE your own name tables: a bare word in
+`template_for` is as likely to be a stored key as a display name, and
+matching names first can land it on a DIFFERENT type that happens to bear
+that name — `chat` against the bundled type named "Chat" is the shipped case
+(§9). Every export measured here folds — all 79 bundles carry `type-<key>`
 ids, 11,055 occurrences across their documents, indexes and dictionaries — so
 you may never meet one; the second map costs a line and retires the question.
 
