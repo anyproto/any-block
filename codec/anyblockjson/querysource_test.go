@@ -356,3 +356,69 @@ func TestQuerySource_AMalformedDerivedIdIsRefusedWhereItStands(t *testing.T) {
 	require.Error(t, importErr, "Validate and the import seam agree (§12 I2)")
 	assert.Contains(t, importErr.Error(), "is not a stored type key")
 }
+
+// A stored PROPERTY key that happens to wear the reserved `type-` prefix
+// cannot be written into the property list, because Validate refuses an
+// entry there that wears it — so writing one would hand back a document
+// this package's own Validate rejects (§11 I1). The entry keeps the
+// property's object id instead, which is what the stored slot held anyway,
+// and the loss is reported.
+//
+// A stored key is not gated the way a type key is (`property_internal_keys`
+// accepts any control-character-free string), so this is reachable from a
+// real space and not only from a synthetic snapshot.
+//
+// How this can fail: write the key through unguarded and Marshal emits what
+// Validate rejects — the one invariant the codec is held to against
+// untrusted snapshots.
+func TestQuerySource_APropertyKeyWearingTheReservedPrefixKeepsItsId(t *testing.T) {
+	res := newTypeIdVocabulary()
+	res.byId["relid-lookalike"] = PropertyDefinition{Key: "type-lookalike", Name: "Lookalike"}
+	opts := foldOptions()
+	opts.ResolveProperties = res
+	var warnings []Issue
+	opts.OnWarning = func(i Issue) { warnings = append(warnings, i) }
+
+	data, err := Marshal(model.SmartBlockType_Page, querySnapshot("relid-lookalike"), opts)
+	require.NoError(t, err)
+	require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (§11 I1)")
+	assert.Contains(t, string(data), `"properties": [
+      "relid-lookalike"
+    ]`, "the id stands in for a key the list may not hold")
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0].Message, "wears the reserved type- prefix")
+
+	_, back, err := Unmarshal(data, opts)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"relid-lookalike"}, valueStringList(back.GetDetails().GetFields()["setOf"]))
+}
+
+// The other half of the same I1 guard: a stored property key with no
+// written form at all. Nothing gates a stored property key, so a space can
+// hold one carrying a control character or running past the 128-rune bound
+// the member names accept (§3) — and the import seam refuses such a key, so
+// writing it would hand back a document this package cannot read.
+//
+// How this can fail: write the key through and Unmarshal refuses what
+// Marshal produced.
+func TestQuerySource_APropertyKeyWithNoWrittenFormKeepsItsId(t *testing.T) {
+	res := newTypeIdVocabulary()
+	res.byId["relid-unwritable"] = PropertyDefinition{Key: "carriage\rreturn", Name: "Unwritable"}
+	opts := foldOptions()
+	opts.ResolveProperties = res
+	var warnings []Issue
+	opts.OnWarning = func(i Issue) { warnings = append(warnings, i) }
+
+	data, err := Marshal(model.SmartBlockType_Page, querySnapshot("relid-unwritable"), opts)
+	require.NoError(t, err)
+	require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (§11 I1)")
+	assert.Contains(t, string(data), `"properties": [
+      "relid-unwritable"
+    ]`)
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0].Message, "carries a control character")
+
+	_, back, err := Unmarshal(data, opts)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"relid-unwritable"}, valueStringList(back.GetDetails().GetFields()["setOf"]))
+}

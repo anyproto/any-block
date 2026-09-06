@@ -174,19 +174,34 @@ func (e *exporter) querySourceTargets() querySource {
 	return out
 }
 
-// queryPropertyKey guards the one shape a `properties` entry may not take: a
-// stored key no JSON string in this format may hold (§3, isWritablePropertyKey
-// — the import seam refuses one, so emitting it would hand back an archive
-// this package's own Validate rejects, I1). The entry keeps the id it came
-// from instead, and lands in the list it belongs to either way, since the
-// resolver already said it is a property.
+// queryPropertyKey guards the two shapes a `properties` entry may not take,
+// and the rule behind both is I1: Marshal may not emit what Validate
+// rejects, and this slot is fed from an untrusted snapshot.
+//
+//   - a stored key no JSON string in this format may hold (§3,
+//     isWritablePropertyKey — the import seam refuses one);
+//   - a stored key that wears the reserved `type-` prefix. Nothing gates a
+//     stored PROPERTY key the way typeKeyFoldable gates a type key — the
+//     §3 legend accepts any control-character-free string — so a space can
+//     hold `type-lookalike` as a real relation key, and writing it here
+//     would trip the wrong-list refusal on the way back in.
+//
+// Either way the entry keeps the id it came from, which is what the stored
+// slot held anyway, and it lands in the list it belongs to regardless: the
+// resolver already said it is a property, and the id round-trips exactly.
 func (e *exporter) queryPropertyKey(key, id string) string {
-	if isWritablePropertyKey(key) {
-		return key
+	if strings.HasPrefix(key, TypeRefPrefix) {
+		e.warn("/"+memberQuerySource, "stored property key %q wears the reserved type- prefix (§9), which "+
+			"%q may not hold, so the query source keeps the property's object id %q",
+			key, memberQuerySource+"."+memberQueryProperties, id)
+		return id
 	}
-	e.warn("/"+memberQuerySource, "%s, so the query source keeps the property's object id %q",
-		unwritableKeyReason("stored property key", key), id)
-	return id
+	if !isWritablePropertyKey(key) {
+		e.warn("/"+memberQuerySource, "%s, so the query source keeps the property's object id %q",
+			unwritableKeyReason("stored property key", key), id)
+		return id
+	}
+	return key
 }
 
 // buildQuerySource renders the group, or nil when this document states no

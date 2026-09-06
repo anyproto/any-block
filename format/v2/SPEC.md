@@ -3858,6 +3858,16 @@ it is a union the order ACROSS the two lists carries no meaning, which is
 what lets one stored list become two; within a list the stored order is
 kept, and the rebuild puts types first (§11).
 
+**Two degradations on the property list, both I1 guards.** Nothing gates a
+stored PROPERTY key the way §9's fold gate gates a type key — the §3 legend
+accepts any control-character-free string — so a space can hold one that this
+list may not spell: a key wearing the reserved `type-` prefix (which the
+wrong-list refusal would then reject on the way back in), or one with no
+written form at all (a control character, or past the 128-rune member bound).
+Either way the entry keeps the property's object id, which is what the stored
+slot held anyway, and export warns. It stays in `properties` regardless: the
+resolver already said it is a property, and the id round-trips exactly.
+
 A `query_source` and an `items` are alternatives in meaning — one document is
 a set or a collection, not both — but neither surface refuses the pair, and
 that is measured rather than lenient: ONE of the 175 corpus documents
