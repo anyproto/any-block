@@ -39,6 +39,13 @@ type bundleDocumentEnvelope struct {
 			ObjectTypes []string `json:"object_types"`
 		} `json:"property_definitions"`
 	} `json:"type_settings"`
+	// The §6.2 query source's type list. It joined this census when the
+	// query left `properties`: inside the bag it was a VALUE, and no check
+	// reads a value as an address, so a set naming a type the bundle does
+	// not carry validated clean and then showed nothing.
+	QuerySource struct {
+		Types []string `json:"types"`
+	} `json:"query_source"`
 }
 
 // bundleDictionaryEnvelope reads the dictionary's type-key slots off the raw
@@ -83,6 +90,9 @@ func derivedTypeUses(source string, envelope bundleDocumentEnvelope) []derivedTy
 		for _, target := range definition.ObjectTypes {
 			add("object_types", target)
 		}
+	}
+	for _, target := range envelope.QuerySource.Types {
+		add("query_source.types", target)
 	}
 	return uses
 }

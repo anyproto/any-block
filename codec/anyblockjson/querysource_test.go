@@ -285,3 +285,26 @@ func TestQuerySource_TheModeReachesTypesAndNotProperties(t *testing.T) {
 		valueStringList(back.GetDetails().GetFields()["setOf"]),
 		"both spellings read back to the store ids the slot holds")
 }
+
+// A `query_source.properties` entry is a property USE, and the ONE place a
+// property key appears with no spelling anywhere in the document. The
+// dictionary is used-only (§2f), so a census that counted spellings alone
+// would leave a minted property named as a query source out of
+// `properties.json` — and then nothing in the bundle could say what the query
+// ranges over.
+//
+// It is a STORED KEY, never a spelling: it skips the §3 ladder the way a
+// type declaration's `internal_key` does.
+//
+// How this can fail: leave PropertyTermsOf reading spellings only and the
+// dictionary silently shrinks by exactly the properties queries name.
+func TestQuerySource_APropertyTargetIsAPropertyUse(t *testing.T) {
+	terms, err := PropertyTermsOf([]byte(`{"formatVersion":"2.0","id":"s1",
+		"query_source":{"types":["type-task"],"properties":["6a32d4856761631534b22f85","lastModifiedDate"]}}`))
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{
+		"6a32d4856761631534b22f85": true,
+		"lastModifiedDate":         true,
+	}, terms.StoredKeys, "both entries are stored keys, and the type list is not a property use")
+	assert.Empty(t, terms.Spellings, "a query source names no spelling")
+}

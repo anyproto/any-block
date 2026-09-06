@@ -338,6 +338,13 @@ func PropertyTermsOf(doc []byte) (PropertyTerms, error) {
 			}
 		}
 	}
+	// a §6.2 query source names properties by STORED KEY and spells none of
+	// them, so it contributes here rather than to Spellings — the one slot
+	// in the format where a property is referenced with no term at all
+	// (querysource.go)
+	for _, key := range QuerySourcePropertyKeys(raw) {
+		terms.StoredKeys[key] = true
+	}
 	if list, _ := typePropertyDefinitionsOf(raw); list != nil {
 		for _, item := range list {
 			tp, _ := item.(map[string]any)
