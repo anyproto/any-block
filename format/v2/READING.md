@@ -320,25 +320,34 @@ Four kinds of id you will meet:
   absent**. Separately, 92 of the 3,286 documents name a `type_internal_key`
   whose type document is not in the bundle.
 
-**Not every export folds a type to `type-<key>`.** A writer may decline it —
-SPEC §9's `NoDerivedTypeIds` export mode — and then a type document's `id` is
-the space's own CID, `template_for` and `object_types` hold the writer's
-VOCABULARY spelling for that type (its display name where the writer's
-vocabulary had one, the stored key where it had none — so a bare word there
-may be either), and every reference to a type holds a CID. Nothing in
-step 2 changes: you still key documents by the `id` inside them, and every
-reference still resolves by lookup. What changes is the one shortcut above —
-`"type_internal_key": "65168e20…"` no longer names a document. Build the
-fallback while you are already walking the tree in step 2: index the type
-documents (`kind: "object_type"`) by their `internal_key` as well as by their
-`id`, and resolve a type key against that map whenever `type-<key>` finds
-nothing. Try that map BEFORE your own name tables: a bare word in
-`template_for` is as likely to be a stored key as a display name, and
-matching names first can land it on a DIFFERENT type that happens to bear
-that name — `chat` against the bundled type named "Chat" is the shipped case
-(§9). Every export measured here folds — all 79 bundles carry `type-<key>`
-ids, 11,055 occurrences across their documents, indexes and dictionaries — so
-you may never meet one; the second map costs a line and retires the question.
+**Not every bundle folds a type to `type-<key>`.** An AUTHORED bundle — one
+a person or a script wrote rather than an exporter (SPEC §2g) — may file a
+type document under any id it likes and name types by display name, so
+`template_for` and `object_types` can hold a bare word (its display name, or
+its stored key — you cannot tell which from the slot) and a type document's
+`id` can be anything. Nothing in step 2 changes: you still key documents by
+the `id` inside them, and every reference still resolves by lookup. What
+changes is the one shortcut above — `"type_internal_key": "65168e20…"` no
+longer names a document. Build the fallback while you are already walking the
+tree in step 2: index the type documents (`kind: "object_type"`) by their
+`internal_key` as well as by their `id`, and resolve a type key against that
+map whenever `type-<key>` finds nothing. Try that map BEFORE your own name
+tables: a bare word in `template_for` is as likely to be a stored key as a
+display name, and matching names first can land it on a DIFFERENT type that
+happens to bear that name — `chat` against the bundled type named "Chat" is
+the shipped case (§9). Every export measured here folds — all 79 bundles
+carry `type-<key>` ids, 11,055 occurrences across their documents, indexes
+and dictionaries — so you may never meet one; the second map costs a line and
+retires the question.
+
+What will NOT hand you such a bundle is SPEC §9's `NoDerivedTypeIds` export
+mode. It is scoped to a single document — a bundle composed with it would
+have no road at all from an object to its type document, which is what §9
+measures — and the bundle composer refuses those options, so no bundle from
+this format's exporter is in it. If you are handed ONE document written that
+way, the same advice applies with nothing to index against: read
+`type_internal_key` for the key and treat the `template_for`/`object_types`
+spelling as a name to resolve, not as an address.
 
 **Say which slots a census counted, always.** That 654 is one scope, not the
 export's total. Widen it to `items`, block `object_id`s and the icon/cover

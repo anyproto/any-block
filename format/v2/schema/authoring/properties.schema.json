@@ -187,7 +187,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "objects/files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\", \"type-task\") or its NFC display name (\"Habit\", \"Task\"). Export writes the derived id, unless the run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead (SPEC §9). Empty or absent = any object."
+          "description": "objects/files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\", \"type-task\") or its NFC display name (\"Habit\", \"Task\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC §9). Empty or absent = any object."
         },
         "description": {
           "type": "string",

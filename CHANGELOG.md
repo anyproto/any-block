@@ -5,6 +5,71 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- `Options.NoDerivedTypeIds` is scoped to a SINGLE DOCUMENT, and the bundle
+  seam refuses it (`bundle/options.go`, `bundle/plan.go`, `bundle/compose.go`,
+  SPEC §9, §2c, §15 #26/#27/#28, READING.md step 6, `index.schema.json` and
+  `object.schema.json`). The mode exists so a consuming API can address a
+  type by the controlled key its own vocabulary mints or by the store id its
+  object endpoint resolves — `type-<stored_key>` is neither — and that is a
+  fact about ONE document handed to ONE such API. A bundle is the one context
+  where the derived id is load-bearing: `type_internal_key` states the key on
+  every typed document (§15 #28), the type document is filed at `type-<key>`,
+  and since `manifest.types` was retired (§15 #26) that pair is the only road
+  from an object to its type document. `bundle.BuildPlan` and
+  `bundle.NewComposer` now refuse the Options at CONSTRUCTION — both, because
+  they take Options separately and a boundary either door can be walked
+  around is not one, and at construction because a caller told at `Finish`
+  has already emitted every document of the space. `NewComposer` returns
+  `(*Composer, error)`; that is the only exported-signature change.
+
+  The refusal is a measurement. All 79 bundles of the 24,889-document corpus
+  were composed both ways and `bundle.Validate`'s verdict diffed line by
+  line: `type_internal_key → missing type document` 104 → 4,373 (+4,269),
+  `template_for → missing type document` 39 → 0 (−39), `object_types →
+  missing type document` 0 → 21 (+21), and nothing else moves (1,662
+  installed copies of a bundled type, 2,519 participant permissions written
+  as numbers, 151 index/manifest references to a missing object, 361 used
+  property keys the dictionary misses — all unchanged). The +4,269 is 4,269
+  documents over 133 space-minted keys in 27 of the 79 bundles, min 1 /
+  median 4 / max 27 keys per affected bundle, each one an export that
+  validates clean now and would not. The +21 is `properties.json` alone:
+  `MarshalPropertyDictionary` writes `object_types` through
+  `dictionaryTypeSpelling`, which takes no `Options` and cannot consult the
+  mode, so 34 entries in 5 bundles naming 21 distinct types would go on
+  spelling `type-<key>` while every document beside them spelled the
+  vocabulary word — one type, two spellings, one bundle, which is what the
+  mode exists to prevent. The −39 is the subtle one and the reason the
+  boundary is not merely conservative: `derivedTypeUses` rightly skips a
+  spelling that is not a derived id, so under the mode `template_for` stops
+  being an address and 39 REAL dangling targets stop being reported. The
+  mode does not fix them; it silences them. Widening the check instead —
+  a second road from `type_internal_key` through a type document's own
+  `internal_key` — answers the first row only: it cannot make
+  `properties.json` agree with the documents beside it, and it cannot give
+  `template_for` back the address the mode removed.
+
+  Two figures the round that measured this first got wrong, corrected here
+  by re-derivation. The census behind the loud half reads 4,269 documents /
+  133 keys / 27 bundles / median 4 on the shape §15 #27 produces; 4,255 /
+  124 / 26 / median 3.5 is the RAW corpus's census, against a baseline of 118
+  rather than 104, and the two pairs were mixed in one paragraph — which is
+  why 104 + 4,255 missed 4,373. And `object_types` DOES move: the earlier
+  table recorded no class moving but `type_internal_key` and `template_for`,
+  and the +21 it missed is the two-spellings finding arriving as a refusal.
+
+  Nothing at the codec changed. A single document exported with the mode
+  writes exactly what it wrote before — the five tests in
+  `codec/anyblockjson/noderivedtypeids_test.go` are untouched — and import
+  was never gated in either direction. What changed is everything published
+  that described a NoDerivedTypeIds BUNDLE: §9 is rescoped and carries the
+  boundary's reason and figures in one place, §2c's derived-type check and
+  §15 #26 name the measurement rather than leaving two readings open, §9's
+  proposal of an `index.json` `"conventions"` member is CLOSED (the index is
+  a bundle file and a bundle is never in the mode, so the member's only
+  honest value is the default), READING.md's fallback is attributed to
+  AUTHORED bundles where it belongs, and `index.schema.json` and
+  `object.schema.json` stop promising a bundle shape that cannot exist.
+
 - A run can decline derived TYPE ids, and the format says so
   (`Options.NoDerivedTypeIds`; `codec/anyblockjson/export.go`,
   `codec/anyblockjson/refs.go`, SPEC §9, §13). A type is two things at once:
@@ -43,10 +108,12 @@ original order.
   envelope's `template_for` and `type_internal_key` rows, §2a's and §2d's
   `object_types`, §2c twice, §2g, §3 three times, §3a, §6.2's dataview
   source table, §9's own reference table and two of its Derived-ids bullets,
-  §9a, §13's `Options` and `FoldDocumentId`, and §15 #27. Four costs are
-  stated rather than left to be discovered. The object → type document road
-  closes, and a reader rebuilds by `internal_key` the table `manifest.types`
-  used to ship (§2c, §15 #26). A type-KEY slot becomes a spelling to
+  §9a, §13's `Options` and `FoldDocumentId`, and §15 #26, #27 and #28. Three
+  costs a DOCUMENT pays are stated rather than left to be discovered, and a
+  fourth that lands on a set of documents is the entry above this one. The
+  object → type document road closes, and a reader rebuilds by
+  `internal_key` the table `manifest.types` used to ship (§2c, §15 #26). A
+  type-KEY slot becomes a spelling to
   resolve, through the §3 chain and under §3's ambiguity refusal, which is
   the path an authored document's `template_for` already takes (§2g) — and
   what that chain cannot do is recognise a stored key the READER does not
@@ -69,47 +136,23 @@ original order.
   `TestNoDerivedTypeIds_AKeySlotCanResolveToADifferentType` pins it; the two
   repairs (write the raw stored key, or refuse a spelling that does not
   invert) both cost something the mode's design was choosing between, so
-  neither is taken here. And
-  `bundle.Validate` REFUSES a mode-on bundle: its type cross-document check
-  derives `type-<type_internal_key>` from every typed document and finds no
-  document carrying it. Over the 79-bundle corpus, 4,373 of 24,889 documents
-  state a non-bundled `type_internal_key` over 169 minted keys; 118 of those
-  (45 keys) already fail today because their type document is absent, so
-  what the mode ADDS is the other 4,255 — 124 keys across 26 of the 79
-  bundles — each an export that validates clean now and would not. That was
-  established by running `Validate` over a bundle in each shape rather than
-  by reading the check, and the check has not been widened: what the mode
-  produces is a valid set of DOCUMENTS that the bundle validator, as it
-  stands, rejects. Two readings stay open — the mode is not for bundle
-  output and something must say so, or the check needs a second road from
-  `type_internal_key` to a type document, the document's own `internal_key`
-  — and `TestComposeNoDerivedTypeIds_TheComposedBundleDoesNotValidate` pins
-  the refusal so that settling it either way is a visible change. That check
-  also goes SILENT in the other direction, which the same measurement found:
-  `derivedTypeUses` skips a spelling that is not a derived id, so under the
-  mode a `template_for` naming a type document the bundle does not carry has
-  nothing left to look up. Composing all 79 bundles both ways, `template_for
-  → missing type document` goes 39 → 0 and no class moves but those two, so
-  the cost is 4,255 documents newly reported AND 39 real dangling targets no
-  longer reported —
-  `TestComposeNoDerivedTypeIds_ADanglingTemplateTargetStopsBeingReported`.
+  neither is taken here. And a
+  BUNDLE composed with the mode is refused by its own validator — measured
+  here first, and settled by the entry above this one, which scopes the mode
+  to a single document and refuses those Options at the bundle seam.
 
-  Which mode produced an export is judged and answered NO, with the limits
-  named rather than a signal offered. Absence of `type-` is conclusive in
-  practice — all 79 corpus bundles carry one, 11,055 occurrences, being
-  1,793 type document ids + 6,636 type-KEY slot occurrences (5,544
+  Which mode produced a document is judged and answered NO, with the limits
+  named rather than a signal offered. A non-derived `template_for` has three
+  possible producers: this mode, an authored document (§2g), and a
+  default-shape export of a gate-refused key. And a document that names no
+  type in any reference slot is byte-identical under both modes, so there
+  the question has no answer at all. The scale the mode would move, if it
+  were ever let near a whole space, is what makes the boundary's figures
+  legible: 11,055 `type-<key>` occurrences across the 79 corpus bundles,
+  being 1,793 type document ids + 6,636 type-KEY slot occurrences (5,544
   `object_types`, 423 `template_for`, 669 of 730 in the dictionaries) +
-  2,626 reference-slot occurrences — and not conclusive in principle, since
-  a space with no type document, or one whose every type key the fold gate
-  refuses, produces the same absence. A non-derived `template_for` has three
-  possible producers: this mode, an authored bundle (§2g), and a
-  default-shape export of a gate-refused key. And a single-document export
-  that names no type in any reference slot is byte-identical under both
-  modes, so there the question has no answer at all. Stating the mode
-  outright in `index.json`, beside `unresolved`, is recorded in §9 as a
-  PROPOSAL and deliberately not added: a new member is a grammar change and
-  costs a minor version (§10, no additive-within-a-version rule).
-  READING.md's step 6 carries the reader-side repair — index the type
+  2,626 reference-slot occurrences. READING.md's step 6 carries the
+  reader-side repair for a bundle that does not fold — index the type
   documents by `internal_key` as well as by `id` on the same walk, and fall
   back to that map when `type-<key>` finds nothing.
 
