@@ -264,6 +264,9 @@ type Composer struct {
 // at construction rather than at Finish: a caller told at Finish has already
 // emitted every document and can do nothing with the news.
 func NewComposer(opts anyblockjson.Options, spaceName string) (*Composer, error) {
+	if err := refuseDocumentOnlyOptions(opts, "new bundle composer"); err != nil {
+		return nil, err
+	}
 	return &Composer{
 		opts:         opts,
 		spaceName:    spaceName,

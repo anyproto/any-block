@@ -96,6 +96,9 @@ type Plan struct {
 // identity, would otherwise be planned onto one path and the second emit
 // would overwrite the first in silence.
 func BuildPlan(opts anyblockjson.Options, docs []DocMeta) (*Plan, error) {
+	if err := refuseDocumentOnlyOptions(opts, "plan document paths"); err != nil {
+		return nil, err
+	}
 	p := &Plan{
 		docPaths:  make(map[string]string, len(docs)),
 		blobPaths: map[string]string{},

@@ -1,23 +1,21 @@
 package bundle
 
-// plannoderivedtypeids_test.go — Options.NoDerivedTypeIds (§9) through the
-// PLAN. The codec's own tests pin what one document writes; this pins the
-// half only the bundle owns: WHERE that document is filed.
+// plannoderivedtypeids_test.go — `Options.NoDerivedTypeIds` (§9) at the PLAN
+// seam. BuildPlan is the first door of a composition and the first to refuse
+// the mode; composenoderivedtypeids_test.go carries the boundary's whole
+// argument and the corpus figures behind it, and this file pins the half only
+// the plan owns.
 //
-// The settled rule is that the filename FOLLOWS THE ID — one decision, not
-// two. BuildPlan hands the same Options to FoldDocumentId that Marshal
-// writes the envelope with, so a type document filed under `type-<key>`
-// declares `type-<key>` and one filed under its store id declares the store
-// id. There is no mode in which the stem and the envelope disagree, and that
-// is the whole claim: a reference carries the folded id, so id → path stays
-// a pure function only while the two move together (DESIGN.md §1.3).
-//
-// These are CHARACTERISATION tests. No production code changed with them;
-// they pin behaviour the cherry-picked commit already had and that nothing
-// above `codec/anyblockjson` had yet exercised.
+// What the plan used to do with the mode was file a type document under its
+// STORE id, because the filename FOLLOWS THE ID — one decision, not two —
+// and BuildPlan hands the same Options to FoldDocumentId that Marshal writes
+// the envelope with. That behaviour is still in FoldDocumentId, which is the
+// codec's and is pinned there
+// (TestNoDerivedTypeIds_TypeDocumentKeepsItsStoreId); what is gone is the
+// route to it through a bundle, because a bundle addresses a type document
+// by the derived id and nothing else does (§2c, §15 #26).
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/gogo/protobuf/types"
@@ -31,14 +29,102 @@ import (
 )
 
 // noDerivedTypeStoreId is a STORE id, CID-shaped like every id the plan
-// really meets. The shape matters where a downstream lift checks it, and the
-// STORE-ness matters here: see the no-op trap at the bottom of this file.
+// really meets. The STORE-ness is what the no-op trap at the bottom of this
+// file is about.
 const noDerivedTypeStoreId = testfixtures.ObjectID
 
-// noDerivedTypeSnapshot is the type document behind noDerivedTypeStoreId:
-// store id, own key, nothing else the plan or the envelope reads.
-func noDerivedTypeSnapshot() *model.SmartBlockSnapshotBase {
-	return &model.SmartBlockSnapshotBase{
+// The refusal, at the seam where a path table would have been built. It
+// arrives before the first path is fixed, so an exporter learns it has asked
+// for something impossible while it still has every document in front of it.
+//
+// How this can fail: refuse from inside the per-document loop instead of
+// ahead of it — an empty document list then plans happily with the mode on,
+// and a caller that discovers its document set later gets no warning at all.
+func TestBuildPlan_RefusesNoDerivedTypeIds(t *testing.T) {
+	docs := []DocMeta{
+		{Id: noDerivedTypeStoreId, SbType: model.SmartBlockType_STType, Key: "bug"},
+		{Id: "bafyreitemplate", SbType: model.SmartBlockType_Template},
+		{Id: "bafyreipage", SbType: model.SmartBlockType_Page},
+	}
+
+	plan, err := BuildPlan(anyblockjson.Options{NoDerivedTypeIds: true}, docs)
+	require.Error(t, err)
+	assert.Nil(t, plan)
+	assert.Contains(t, err.Error(), "plan document paths:",
+		"the seam names itself, as every other BuildPlan refusal does")
+	assert.Contains(t, err.Error(), "NoDerivedTypeIds")
+
+	// and with nothing to plan, which is where a refusal buried in the
+	// per-document loop would have gone quiet
+	_, err = BuildPlan(anyblockjson.Options{NoDerivedTypeIds: true}, nil)
+	require.Error(t, err, "the mode is a property of the run, not of its inputs")
+
+	// the same documents, the mode off: a plan, with the type document filed
+	// under its derived id and everything else under its own
+	planOff, err := BuildPlan(anyblockjson.Options{}, docs)
+	require.NoError(t, err)
+	path, ok := planOff.DocPath(noDerivedTypeStoreId)
+	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds")
+	assert.Equal(t, "types/type-bug"+DocExtension, path)
+}
+
+// The refusal is on the TYPE half of the fold and must not be read as a
+// refusal of derived ids generally: the participant fold is a separate gate,
+// on SpaceId alone, and a plan that folds participants is untouched.
+//
+// How this can fail: refuse on any derived-id fold rather than on the one
+// Options member — every participant-bearing export stops planning.
+func TestBuildPlan_RefusesTheModeAndNothingElseAboutDerivedIds(t *testing.T) {
+	identity := testfixtures.AccountIdentity
+	spaceId := testfixtures.SpaceID
+	participant := domain.NewParticipantId(spaceId, identity)
+
+	plan, err := BuildPlan(anyblockjson.Options{SpaceId: spaceId}, []DocMeta{
+		{Id: participant, SbType: model.SmartBlockType_Participant},
+		{Id: noDerivedTypeStoreId, SbType: model.SmartBlockType_STType, Key: "bug"},
+	})
+	require.NoError(t, err)
+
+	got, _ := plan.DocPath(participant)
+	assert.Equal(t, "participants/participant-"+identity+DocExtension, got,
+		"the participant fold is gated on SpaceId and knows nothing about types")
+	got, _ = plan.DocPath(noDerivedTypeStoreId)
+	assert.Equal(t, "types/type-bug"+DocExtension, got)
+}
+
+// THE TRAP, which the boundary gave a new subject rather than taking away.
+// While the plan still honoured the mode, its effect showed only when the id
+// it filed from was a STORE id: feed BuildPlan an id that is ALREADY the
+// derived form and both modes answered the same thing, because the fold is
+// idempotent — so a fixture built on `type-<key>` inputs passed with the
+// switch wired to nothing at all.
+//
+// The refusal is on the OPTIONS, not on what is being planned, so that same
+// fixture is now refused: there is no document set quiet enough to make the
+// mode a no-op, which is exactly the property a fixture-shaped hole could
+// have hidden.
+func TestBuildPlan_AnAlreadyFoldedIdIsStillRefused(t *testing.T) {
+	docs := []DocMeta{{Id: "type-bug", SbType: model.SmartBlockType_STType, Key: "bug"}}
+
+	planOff, err := BuildPlan(anyblockjson.Options{}, docs)
+	require.NoError(t, err)
+	off, _ := planOff.DocPath("type-bug")
+	assert.Equal(t, "types/type-bug"+DocExtension, off,
+		"an already-folded id is a fixed point of the fold, which is why it proved nothing")
+
+	_, err = BuildPlan(anyblockjson.Options{NoDerivedTypeIds: true}, docs)
+	require.Error(t, err, "and the refusal does not care what the fold would have done")
+}
+
+// The plan and the envelope inside are one decision (DESIGN.md §1.3), and
+// that is the claim the mode threatened: a stem the fold moved while the
+// envelope stayed put would point every reference in the bundle at a filename
+// that is not there. With the mode refused there is exactly one answer, and
+// this is it — read from the document itself rather than from a second
+// opinion, since agreeing is precisely what a second opinion would not prove.
+func TestBuildPlan_TheStemAndTheEnvelopeAreOneDecision(t *testing.T) {
+	opts := anyblockjson.Options{}
+	snap := &model.SmartBlockSnapshotBase{
 		Key: "bug",
 		Blocks: []*model.Block{{Id: noDerivedTypeStoreId,
 			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}}},
@@ -46,119 +132,15 @@ func noDerivedTypeSnapshot() *model.SmartBlockSnapshotBase {
 			"id": strVal(noDerivedTypeStoreId), "uniqueKey": strVal("ot-bug"), "name": strVal("Bug"),
 		}},
 	}
-}
 
-// envelopeId marshals a snapshot and reads back the `id` the document
-// declares — the only honest way to ask whether the plan's stem and the
-// document inside agree, since agreeing is precisely what a second opinion
-// would not prove.
-func envelopeId(t *testing.T, opts anyblockjson.Options,
-	sbType model.SmartBlockType, snap *model.SmartBlockSnapshotBase) string {
-	t.Helper()
-	data, err := anyblockjson.Marshal(sbType, snap, opts)
+	plan, err := BuildPlan(opts, []DocMeta{
+		{Id: noDerivedTypeStoreId, SbType: model.SmartBlockType_STType, Key: "bug"}})
 	require.NoError(t, err)
-	var envelope struct {
-		ID string `json:"id"`
-	}
-	require.NoError(t, json.Unmarshal(data, &envelope))
-	return envelope.ID
-}
-
-// The same DocMeta set, planned both ways. A type document is the only kind
-// that moves: with the mode off it is filed under the derived id, with it on
-// under its store id, and in BOTH modes the envelope inside declares exactly
-// the stem the plan chose. Every other kind is byte-identical, because the
-// mode declines the TYPE half of the fold and nothing else.
-//
-// How this can fail: gate FoldDocumentId's type arm but not the plan's call
-// into it (the stem keeps `type-` while the envelope drops it, and every
-// reference in the bundle points at a filename that is not there); gate the
-// participant arm alongside (the participant row below moves and it must
-// not — that fold is on SpaceId alone).
-func TestBuildPlan_NoDerivedTypeIdsFilesATypeUnderItsStoreId(t *testing.T) {
-	off := anyblockjson.Options{}
-	on := anyblockjson.Options{NoDerivedTypeIds: true}
-
-	docs := []DocMeta{
-		{Id: noDerivedTypeStoreId, SbType: model.SmartBlockType_STType, Key: "bug"},
-		{Id: "bafyreitemplate", SbType: model.SmartBlockType_Template},
-		{Id: "bafyreipage", SbType: model.SmartBlockType_Page},
-	}
-
-	planOff, err := BuildPlan(off, docs)
-	require.NoError(t, err)
-	planOn, err := BuildPlan(on, docs)
-	require.NoError(t, err)
-
-	pathOff, ok := planOff.DocPath(noDerivedTypeStoreId)
-	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds, in both modes")
-	pathOn, ok := planOn.DocPath(noDerivedTypeStoreId)
+	path, ok := plan.DocPath(noDerivedTypeStoreId)
 	require.True(t, ok)
 
-	assert.Equal(t, "types/type-bug.anyblock.json", pathOff)
-	assert.Equal(t, "types/"+noDerivedTypeStoreId+".anyblock.json", pathOn)
-	assert.NotEqual(t, pathOff, pathOn, "the mode is the whole difference between the two plans")
-
-	// and the document inside each agrees with the name outside it
-	assert.Equal(t, "type-bug",
-		envelopeId(t, off, model.SmartBlockType_STType, noDerivedTypeSnapshot()))
-	assert.Equal(t, noDerivedTypeStoreId,
-		envelopeId(t, on, model.SmartBlockType_STType, noDerivedTypeSnapshot()))
-	assert.Equal(t, "types/"+envelopeId(t, off, model.SmartBlockType_STType, noDerivedTypeSnapshot())+DocExtension,
-		pathOff, "stem and envelope are one decision")
-	assert.Equal(t, "types/"+envelopeId(t, on, model.SmartBlockType_STType, noDerivedTypeSnapshot())+DocExtension,
-		pathOn, "stem and envelope are one decision")
-
-	// nothing else moves
-	for _, id := range []string{"bafyreitemplate", "bafyreipage"} {
-		a, _ := planOff.DocPath(id)
-		b, _ := planOn.DocPath(id)
-		assert.Equal(t, a, b, "%s: the mode declines the TYPE half of the fold and nothing else", id)
-	}
-}
-
-// The participant fold is a separate gate and the plan must not take it down
-// with the type fold — the same control the codec's own test keeps, at plan
-// scope, because BuildPlan reaches FoldDocumentId through one call for every
-// kind.
-func TestBuildPlan_NoDerivedTypeIdsLeavesTheParticipantStemAlone(t *testing.T) {
-	identity := testfixtures.AccountIdentity
-	spaceId := testfixtures.SpaceID
-	participant := domain.NewParticipantId(spaceId, identity)
-
-	plan, err := BuildPlan(anyblockjson.Options{SpaceId: spaceId, NoDerivedTypeIds: true}, []DocMeta{
-		{Id: participant, SbType: model.SmartBlockType_Participant},
-		{Id: noDerivedTypeStoreId, SbType: model.SmartBlockType_STType, Key: "bug"},
-	})
+	data, err := anyblockjson.Marshal(model.SmartBlockType_STType, snap, opts)
 	require.NoError(t, err)
-
-	got, _ := plan.DocPath(participant)
-	assert.Equal(t, "participants/participant-"+identity+".anyblock.json", got,
-		"turning off derived TYPE ids says nothing about participants")
-	got, _ = plan.DocPath(noDerivedTypeStoreId)
-	assert.Equal(t, "types/"+noDerivedTypeStoreId+".anyblock.json", got)
-}
-
-// THE TRAP. The mode changes what a type document is FILED under only when
-// the id it is filed from is a STORE id. Feed BuildPlan an id that is
-// already the derived form and both modes answer the same thing — the fold
-// is idempotent and declining it changes nothing — so a test written on
-// `type-<key>` inputs would pass with the switch wired to nothing at all.
-//
-// This is not hypothetical shape-policing: the plan is keyed by the id the
-// emit loop holds, which is the store's, and a fixture that hands it
-// `type-bug` has quietly stopped testing the thing.
-func TestBuildPlan_AnAlreadyFoldedIdMakesTheModeANoOp(t *testing.T) {
-	docs := []DocMeta{{Id: "type-bug", SbType: model.SmartBlockType_STType, Key: "bug"}}
-
-	planOff, err := BuildPlan(anyblockjson.Options{}, docs)
-	require.NoError(t, err)
-	planOn, err := BuildPlan(anyblockjson.Options{NoDerivedTypeIds: true}, docs)
-	require.NoError(t, err)
-
-	off, _ := planOff.DocPath("type-bug")
-	on, _ := planOn.DocPath("type-bug")
-	assert.Equal(t, "types/type-bug.anyblock.json", off)
-	assert.Equal(t, off, on,
-		"an already-folded id is fixed point of the fold: a fixture built on one proves nothing about the mode")
+	assert.Contains(t, string(data), `"id": "type-bug"`)
+	assert.Equal(t, "types/type-bug"+DocExtension, path)
 }
