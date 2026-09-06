@@ -72,7 +72,7 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 	}
 	for _, shape := range shapes {
 		t.Run(shape.name+", referenced", func(t *testing.T) {
-			c := NewComposer(anyblockjson.Options{}, "Removed")
+			c := newComposer(t, anyblockjson.Options{}, "Removed")
 			omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
 				optionSnapshot("bafyopt", shape.key, "urgent", "red", "k_urgent"))
 			require.True(t, omitted)
@@ -98,7 +98,7 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 			assert.Equal(t, 2, stats.OmittedDocs, "the option and the relation")
 		})
 		t.Run(shape.name+", unreferenced", func(t *testing.T) {
-			c := NewComposer(anyblockjson.Options{}, "Removed")
+			c := newComposer(t, anyblockjson.Options{}, "Removed")
 			omitted, issues := c.Observe(model.SmartBlockType_STRelation, shape.snapshot(t))
 			require.True(t, omitted)
 			assert.Empty(t, issues, "not a loss to report: nothing names the key")
@@ -113,7 +113,7 @@ func TestComposerCarriesAnUninstalledPropertyAsAnEntry(t *testing.T) {
 		})
 	}
 	t.Run("the reinstall stamp is an installed copy", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Reinstalled")
+		c := newComposer(t, anyblockjson.Options{}, "Reinstalled")
 		copy := testInstalledCopy(t, "tag")
 		copy.Details.Fields["isUninstalled"] = boolVal(false)
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)

@@ -34,7 +34,7 @@ func composedFileDocument(t *testing.T, c *Composer) {
 // the inference publishes an intent the run never had.
 func TestComposer_TheFileModeIsDeclaredNotInferred(t *testing.T) {
 	// given a composition that wrote a file document and streamed no blob
-	silent := NewComposer(anyblockjson.Options{}, "Corpus")
+	silent := newComposer(t, anyblockjson.Options{}, "Corpus")
 	composedFileDocument(t, silent)
 	silentData, _, _, err := silent.Finish()
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestComposer_TheFileModeIsDeclaredNotInferred(t *testing.T) {
 		"undeclared, the bundle says nothing about blobs — it cannot know")
 
 	// when the caller states the mode instead
-	declared := NewComposer(anyblockjson.Options{}, "Corpus")
+	declared := newComposer(t, anyblockjson.Options{}, "Corpus")
 	declared.DeclareMetadataOnly()
 	composedFileDocument(t, declared)
 	declaredData, _, stats, err := declared.Finish()
@@ -62,7 +62,7 @@ func TestComposer_TheFileModeIsDeclaredNotInferred(t *testing.T) {
 // must not publish the false half of it. Finish refuses, the way it refuses
 // space settings whose observations disagree.
 func TestComposer_ADeclaredModeADeliveredBlobContradicts(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	c.DeclareMetadataOnly()
 	composedFileDocument(t, c)
 	c.ObserveFileBlob("bafyfile", "files/bafyfile.png")
@@ -81,7 +81,7 @@ func TestComposer_ADeclaredModeADeliveredBlobContradicts(t *testing.T) {
 // to refuse a key naming no document, and an empty one gives it nothing to
 // walk.
 func TestComposer_ADeclaredModeIsStillAValidBundle(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	c.DeclareMetadataOnly()
 	doc := []byte(`{"formatVersion":"2.0","id":"bafyfile","kind":"file_object"}`)
 	file := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{

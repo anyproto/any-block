@@ -18,7 +18,7 @@ func TestUnnamedObservedSpaceUsesFallbackAsSemanticState(t *testing.T) {
 	delete(space.Details.Fields, "name")
 	delete(space.Details.Fields, "homepage")
 
-	composer := NewComposer(anyblockjson.Options{}, "Fallback space")
+	composer := newComposer(t, anyblockjson.Options{}, "Fallback space")
 	omitted, issues := composer.Observe(model.SmartBlockType_Workspace, space)
 	require.True(t, omitted)
 	require.Empty(t, issues)
@@ -39,7 +39,7 @@ func TestUnnamedObservedSpaceUsesFallbackAsSemanticState(t *testing.T) {
 		anyblockjson.PropertiesFileName: {Data: dictionary},
 	}))
 
-	unused := NewComposer(anyblockjson.Options{}, "Fallback space")
+	unused := newComposer(t, anyblockjson.Options{}, "Fallback space")
 	index, dictionary, _, err = unused.Finish()
 	require.NoError(t, err)
 	assert.Nil(t, index)

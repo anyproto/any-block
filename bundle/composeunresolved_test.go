@@ -33,7 +33,7 @@ func writtenPage(t *testing.T, c *Composer, id string) {
 // everywhere and is not the bundle's to carry); or report none, which is
 // what shipping the audited space did.
 func TestComposer_TheIndexStatesTheTargetsItCannotResolve(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 
 	widgets, err := anyblockjson.WidgetsSnapshot(&anyblockjson.Index{Widgets: []anyblockjson.Widget{
 		{Target: testfixtures.ObjectID},
@@ -62,7 +62,7 @@ func TestComposer_TheIndexStatesTheTargetsItCannotResolve(t *testing.T) {
 // shape. The homepage is lifted from the omitted space document, so the
 // composer learns the reference and the documents in the same run.
 func TestComposer_AHomepageThatNeverTravelledIsNamed(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	omitted, issues := c.Observe(model.SmartBlockType_Workspace, testSpaceSnapshot())
 	require.True(t, omitted)
 	require.Empty(t, issues)
@@ -84,7 +84,7 @@ func TestComposer_AHomepageThatNeverTravelledIsNamed(t *testing.T) {
 // is reported unresolved.
 func TestComposer_ATypeWidgetResolvesThroughTheDerivedId(t *testing.T) {
 	opts := anyblockjson.Options{ResolveProperties: composerTypeVocabulary{}}
-	c := NewComposer(opts, "Corpus")
+	c := newComposer(t, opts, "Corpus")
 
 	widgets, err := anyblockjson.WidgetsSnapshot(&anyblockjson.Index{
 		Widgets: []anyblockjson.Widget{{Target: testfixtures.ObjectIDAlt}},
@@ -110,7 +110,7 @@ func TestComposer_ATypeWidgetResolvesThroughTheDerivedId(t *testing.T) {
 // already computing and dropping (Stats.OrphanUsedKeys).
 func TestComposer_TheIndexStatesTheKeysNothingDefines(t *testing.T) {
 	const orphan = "68cda76ee9223c9dc7ce5e92"
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafypage")})}
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
 		[]byte(`{"formatVersion":"2.0","id":"bafypage","properties":{"`+orphan+`":1755471600},`+
@@ -128,7 +128,7 @@ func TestComposer_TheIndexStatesTheKeysNothingDefines(t *testing.T) {
 // A bundle that answers for everything it names states nothing: the member
 // is present only when there is a loss, and its absence is not a claim.
 func TestComposer_ABundleThatResolvesEverythingReportsNothing(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	writtenPage(t, c, testfixtures.ObjectID)
 	indexData, _, stats, err := c.Finish()
 	require.NoError(t, err)

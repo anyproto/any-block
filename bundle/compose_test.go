@@ -20,6 +20,17 @@ import (
 	"github.com/anyproto/any-block/internal/testfixtures"
 )
 
+// newComposer is NewComposer for a test that has already established the
+// Options are ones a bundle admits (options.go). Every composition test but
+// the boundary's own goes through it, so the refusal is asserted in one
+// place rather than spelled at ninety call sites.
+func newComposer(t *testing.T, opts anyblockjson.Options, spaceName string) *Composer {
+	t.Helper()
+	c, err := NewComposer(opts, spaceName)
+	require.NoError(t, err)
+	return c
+}
+
 func strVal(s string) *types.Value {
 	return &types.Value{Kind: &types.Value_StringValue{StringValue: s}}
 }
@@ -91,7 +102,7 @@ func testInstalledCopy(t *testing.T, key string) *model.SmartBlockSnapshotBase {
 // here.
 func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	// given
-	c := NewComposer(anyblockjson.Options{}, "Fallback name")
+	c := newComposer(t, anyblockjson.Options{}, "Fallback name")
 
 	omitted, issues := c.Observe(model.SmartBlockType_Workspace, testSpaceSnapshot())
 	require.True(t, omitted, "index.json states everything the space document holds")
@@ -197,7 +208,7 @@ func TestComposer_ObservationOrderNeverReachesTheBytes(t *testing.T) {
 		}
 	}
 	run := func(t *testing.T, seq []obs) (string, string) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		for _, o := range seq {
 			omitted, _ := c.Observe(o.sbType, o.base)
 			if !omitted && o.doc != nil {
@@ -225,7 +236,7 @@ func TestComposer_ObservationOrderNeverReachesTheBytes(t *testing.T) {
 // An empty composition states nothing: no written document, no bundle
 // files — the harness's own rule for a space whose dump produced nothing.
 func TestComposer_NothingWrittenNothingStated(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	index, dict, stats, err := c.Finish()
 	require.NoError(t, err)
 	assert.Nil(t, index)
@@ -239,7 +250,7 @@ func TestComposer_LiftedWidgetPropertiesEnterTheDictionaryCensus(t *testing.T) {
 	resolver := composerPropertyResolver{def: anyblockjson.PropertyDefinition{
 		Key: key, Name: "Widget only", Format: model.RelationFormat_shorttext,
 	}}
-	c := NewComposer(anyblockjson.Options{ResolveProperties: resolver}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{ResolveProperties: resolver}, "Corpus")
 
 	widget, err := anyblockjson.WidgetsSnapshot(&anyblockjson.Index{Widgets: []anyblockjson.Widget{{
 		Target: target, Properties: []string{key},
@@ -283,7 +294,7 @@ func TestComposer_SameNamedOptionsHaveATotalOrder(t *testing.T) {
 		})}
 	}
 	run := func(t *testing.T, reversed bool) string {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		twins := []*model.SmartBlockSnapshotBase{optSnap("bafyaaa", "teal"), optSnap("bafyzzz", "purple")}
 		if reversed {
 			twins[0], twins[1] = twins[1], twins[0]
@@ -322,7 +333,7 @@ func TestComposerTakesOptionIdentityFromTheSnapshotKey(t *testing.T) {
 		"detail is the fallback":           {"", "opt-status_Done", "status_Done"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := NewComposer(anyblockjson.Options{}, "probe")
+			c := newComposer(t, anyblockjson.Options{}, "probe")
 			snap := &model.SmartBlockSnapshotBase{
 				Key: tc.key,
 				Details: detFields(map[string]*types.Value{
@@ -344,7 +355,7 @@ func TestComposerTakesOptionIdentityFromTheSnapshotKey(t *testing.T) {
 // lift used to be in neither counter, so it vanished from the accounting the
 // "reported, not silent" promise rests on.
 func TestComposerAccountsForEveryObservedOption(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "probe")
+	c := newComposer(t, anyblockjson.Options{}, "probe")
 	opt := func(id, relKey, name string) *model.SmartBlockSnapshotBase {
 		return &model.SmartBlockSnapshotBase{Key: name, Details: detFields(map[string]*types.Value{
 			"id": strVal(id), "relationKey": strVal(relKey), "name": strVal(name),
@@ -385,7 +396,7 @@ func TestComposerAccountingHoldsOnThePathsThatReachNoEntry(t *testing.T) {
 		return s.OptionsLifted + s.OptionsDropped + s.OptionsUnliftable + s.OptionsRepeated
 	}
 	t.Run("a composition of nothing but refused options", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "probe")
+		c := newComposer(t, anyblockjson.Options{}, "probe")
 		for _, o := range []*model.SmartBlockSnapshotBase{
 			{Key: "k1", Details: detFields(map[string]*types.Value{"id": strVal("o1"), "name": strVal("NoKey")})},
 			{Key: "k2", Details: detFields(map[string]*types.Value{"id": strVal("o2"), "relationKey": strVal("tag")})},
@@ -405,7 +416,7 @@ func TestComposerAccountingHoldsOnThePathsThatReachNoEntry(t *testing.T) {
 			{"identical repeat", "red"}, {"conflicting repeat", "lime"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				c := NewComposer(anyblockjson.Options{}, "probe")
+				c := newComposer(t, anyblockjson.Options{}, "probe")
 				mk := func(color string) *model.SmartBlockSnapshotBase {
 					return &model.SmartBlockSnapshotBase{Key: "tag_Urgent", Details: detFields(map[string]*types.Value{
 						"id": strVal("o1"), "relationKey": strVal("tag"),
@@ -436,14 +447,14 @@ func TestComposerDedupesRepeatedOptionObservations(t *testing.T) {
 		})}
 	}
 	t.Run("identical repeat is a no-op", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "probe")
+		c := newComposer(t, anyblockjson.Options{}, "probe")
 		_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
 		_, issues := c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
 		assert.Empty(t, issues)
 		assert.Len(t, c.optionsByKey["tag"], 1, "one option, not two")
 	})
 	t.Run("conflicting repeat is reported, not silent", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "probe")
+		c := newComposer(t, anyblockjson.Options{}, "probe")
 		_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
 		_, issues := c.Observe(model.SmartBlockType_STRelationOption, mk("lime"))
 		require.NotEmpty(t, issues)
@@ -456,7 +467,7 @@ func TestComposerDedupesRepeatedOptionObservations(t *testing.T) {
 	// property's whole vocabulary with no Issue and no counter: the one loss
 	// this omission is supposed to report rather than hide.
 	t.Run("one id under two owning properties is two vocabularies", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "probe")
+		c := newComposer(t, anyblockjson.Options{}, "probe")
 		under := func(key string) *model.SmartBlockSnapshotBase {
 			return &model.SmartBlockSnapshotBase{Key: "k1", Details: detFields(map[string]*types.Value{
 				"id": strVal("o1"), "relationKey": strVal(key),
@@ -474,7 +485,7 @@ func TestComposerDedupesRepeatedOptionObservations(t *testing.T) {
 	// they are present. An id-less option is identified by its content, so a
 	// repeat collapses while two distinct id-less options stay distinct.
 	t.Run("an option with no id is identified by its content", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "probe")
+		c := newComposer(t, anyblockjson.Options{}, "probe")
 		idless := func(name string) *model.SmartBlockSnapshotBase {
 			return &model.SmartBlockSnapshotBase{Key: "k_" + name, Details: detFields(map[string]*types.Value{
 				"relationKey": strVal("tag"), "name": strVal(name), "relationOptionColor": strVal("red"),
@@ -498,7 +509,7 @@ func TestComposerDedupesRepeatedOptionObservations(t *testing.T) {
 //
 // How this can fail: put a spelling-keyed type table back on the manifest.
 func TestComposer_SurvivesALegacyTypeKeyBesideItsBundledTwin(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Chatty")
+	c := newComposer(t, anyblockjson.Options{}, "Chatty")
 	for _, key := range []string{"chat", "chatDerived"} {
 		snap := &model.SmartBlockSnapshotBase{Key: key, Details: detFields(map[string]*types.Value{
 			"id": strVal("bafy" + key), "uniqueKey": strVal("ot-" + key), "name": strVal("Chat"),

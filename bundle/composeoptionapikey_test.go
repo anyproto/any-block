@@ -34,7 +34,7 @@ import (
 // lost at the writer instead of at the composer).
 func TestComposerCarriesAnOptionsApiKey(t *testing.T) {
 	// given
-	c := NewComposer(anyblockjson.Options{}, "Board")
+	c := newComposer(t, anyblockjson.Options{}, "Board")
 	option := optionSnapshot("bafyopt", "status", "Canceled", "red", "63454af2")
 	option.Details.Fields["apiObjectKey"] = strVal("cancelled")
 	plain := optionSnapshot("bafyopt2", "status", "Done", "lime", "63454af3")

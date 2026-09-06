@@ -193,7 +193,7 @@ func composeNoDerivedSpace(t *testing.T, mode bool) composedSpace {
 	plan, err := BuildPlan(opts, metas)
 	require.NoError(t, err)
 
-	c := NewComposer(opts, "Corpus")
+	c := newComposer(t, opts, "Corpus")
 	out := composedSpace{
 		fsys:  fstest.MapFS{},
 		docs:  map[string][]byte{},
@@ -451,7 +451,7 @@ func TestComposeNoDerivedTypeIds_AnUnresolvedTypeTargetIsNamedInTheModesOwnSpell
 		})
 		require.NoError(t, err)
 
-		c := NewComposer(noDerivedOptions(mode), "Corpus")
+		c := newComposer(t, noDerivedOptions(mode), "Corpus")
 		omitted, issues := c.Observe(model.SmartBlockType_Widget, widget)
 		require.True(t, omitted)
 		require.Empty(t, issues)
@@ -584,7 +584,7 @@ func TestComposeNoDerivedTypeIds_ADanglingTemplateTargetStopsBeingReported(t *te
 		data, err := anyblockjson.Marshal(model.SmartBlockType_Template, orphan, opts)
 		require.NoError(t, err)
 
-		c := NewComposer(opts, "Corpus")
+		c := newComposer(t, opts, "Corpus")
 		omitted, issues := c.Observe(model.SmartBlockType_Template, orphan)
 		require.False(t, omitted)
 		require.Empty(t, issues)

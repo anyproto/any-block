@@ -48,7 +48,7 @@ func TestComposerOmitsAnOptionItsSmartBlockTypeDoesNotClassify(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			// given
-			c := NewComposer(anyblockjson.Options{}, "Board")
+			c := newComposer(t, anyblockjson.Options{}, "Board")
 			option := optionSnapshot("bafyopt", "status", "In Progress", "orange", "63454af2")
 			for k, v := range tc.layout {
 				option.Details.Fields[k] = v
@@ -86,7 +86,7 @@ func TestComposerOmitsAnOptionItsSmartBlockTypeDoesNotClassify(t *testing.T) {
 // How this can fail: fix the option half alone.
 func TestComposerOmitsAPropertyItsSmartBlockTypeDoesNotClassify(t *testing.T) {
 	// given
-	c := NewComposer(anyblockjson.Options{}, "Board")
+	c := newComposer(t, anyblockjson.Options{}, "Board")
 	relation := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafyrel"), "relationKey": strVal("67e31405450a5dcab2fa75aa"),
 		"name": strVal("Budget"), "relationFormat": numVal(float64(model.RelationFormat_number)),
@@ -126,7 +126,7 @@ func TestComposerLeavesAnOrdinaryDocumentAlone(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			// given
-			c := NewComposer(anyblockjson.Options{}, "Board")
+			c := newComposer(t, anyblockjson.Options{}, "Board")
 
 			// when
 			omitted, issues := c.Observe(model.SmartBlockType_Page,
