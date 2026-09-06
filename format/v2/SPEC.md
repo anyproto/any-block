@@ -6115,6 +6115,15 @@ fail neither test belong in authoring guidance and in review.
   property this document never spells** (§9a — a warning: the entry can never
   be consulted and the value degrades to name resolution; a key-set
   comparison against the document's property census, not a parse of the key),
+  the **`query_source` group** (§6.2 — a `types` entry wearing the reserved
+  `type-` prefix whose tail is not a stored type key, a `types`-shaped entry
+  sitting in `properties` instead, a `properties` entry that is not a
+  writable stored key, and the group on a TYPE document, which states no
+  query at all; each mirrors the import seam refusal for refusal. What is
+  NOT checked here is which list an ordinary entry belongs in: a bare stored
+  key and a store id look alike to bytes, which is why `types` states the
+  derived id and only the prefixed direction is catchable — and neither
+  surface can know whether the document is a set, exactly as for `items`),
   and
   **inline-markup parsing** (§8) — grammar errors report the block's JSON
   path and the offending snippet. The indent bound [0, 32] lives in the

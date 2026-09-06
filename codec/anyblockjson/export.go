@@ -1650,7 +1650,7 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	if sbType == model.SmartBlockType_Template && len(typeKeys) > 1 {
 		// the target type is a reference by key (§9): `type-<key>`, the
 		// same spelling every id-valued slot folds to, so a template names
-		// its type the way a filter or a `Set of` value does
+		// its type the way a filter or a `query_source.types` entry does
 		doc.setNonEmpty("template_for", e.typeKeyRef(typeKeys[1]))
 	}
 	doc.setNonEmpty(memberInternalKey, e.snapshot.Key)

@@ -308,3 +308,30 @@ func TestQuerySource_APropertyTargetIsAPropertyUse(t *testing.T) {
 	}, terms.StoredKeys, "both entries are stored keys, and the type list is not a property use")
 	assert.Empty(t, terms.Spellings, "a query source names no spelling")
 }
+
+// A stored value that is already a bare KEY rather than an id — the shape
+// the sibling `object_types` slot carries on 21 production entries — still
+// lands in the right list, through the same two capabilities asked the other
+// way round.
+//
+// How this can fail: ask only the id half and a legacy key falls through to
+// the unclassified arm, where it is written into `types` whatever it is —
+// silently right half the time.
+func TestQuerySource_ALegacyBareKeyLandsInTheRightList(t *testing.T) {
+	opts := typeRefOptions()
+	var warnings []Issue
+	opts.OnWarning = func(i Issue) { warnings = append(warnings, i) }
+
+	data, err := Marshal(model.SmartBlockType_Page, querySnapshot("page", "dueDate"), opts)
+	require.NoError(t, err)
+	require.NoError(t, Validate(data, Options{}))
+	assert.Contains(t, string(data), `"query_source": {
+    "types": [
+      "type-page"
+    ],
+    "properties": [
+      "dueDate"
+    ]
+  }`)
+	assert.Empty(t, warnings, "both resolved, so neither is a guess")
+}

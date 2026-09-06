@@ -113,10 +113,15 @@ type querySource struct {
 //     format that identifies a property already holds either a spelling or
 //     the stored key. A bare key in a list that says "these are properties"
 //     is the format's existing word for the thing;
-//   - a bare stored key already sitting where the store speaks ids — 21
+//   - a bare stored KEY already sitting where the store speaks ids — 21
 //     production entries do this in the sibling `object_types` slot —
-//     resolves through the same two capabilities by key, so a legacy value
-//     lands in the right list;
+//     resolves through the same two capabilities the other way round, by
+//     key, so a legacy value lands in the right list. The ladder is two
+//     tiers and each tier asks TYPE first: both id questions, then both key
+//     questions. Type-first because the slot's declared targets are types,
+//     which is the same reason the unclassified fall-through below picks
+//     `types` — one rule, stated once, rather than a different tie-break
+//     per tier;
 //   - anything left is UNCLASSIFIED: no resolver could say what it is. It
 //     keeps its stored spelling and goes in `types`, with a warning. Types
 //     is the right default and not a coin flip: the slot's bundled
@@ -145,17 +150,18 @@ func (e *exporter) querySourceTargets() querySource {
 				out.properties = append(out.properties, e.queryPropertyKey(string(def.Key), entry))
 				continue
 			}
-			// a bare stored key where the store speaks ids: `PropertyId`
-			// answers for the key it already is, which is how the sibling
-			// §2a recommended lists read the same legacy shape
-			if id, ok := pr.PropertyId(PropertyDefinition{Key: domain.RelationKey(entry)}); ok && id != "" {
-				out.properties = append(out.properties, e.queryPropertyKey(entry, entry))
-				continue
-			}
 		}
+		// second tier: the entry is a bare stored KEY, not an id — the shape
+		// `object_types` carries on 21 production entries. Same order.
 		if tr != nil {
 			if id, ok := tr.TypeIdByKey(entry); ok && id != "" {
 				out.types = append(out.types, e.typeKeyRef(entry))
+				continue
+			}
+		}
+		if pr != nil {
+			if id, ok := pr.PropertyId(PropertyDefinition{Key: domain.RelationKey(entry)}); ok && id != "" {
+				out.properties = append(out.properties, e.queryPropertyKey(entry, entry))
 				continue
 			}
 		}

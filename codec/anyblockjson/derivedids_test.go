@@ -123,7 +123,7 @@ func typeRefOptions() Options {
 }
 
 // typeRefSnapshot puts a type object id in every slot the census found
-// them in (§9): `Set of` and `Template's Type` values, a filter on the
+// them in (§9): a `Template's Type` value, the query source, a filter on the
 // `type` property, a view's `default_type_id`, a link block, a mention,
 // and `items`.
 func typeRefSnapshot() *model.SmartBlockSnapshotBase {
