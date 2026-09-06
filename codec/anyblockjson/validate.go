@@ -1186,6 +1186,13 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// Go decode error carrying no JSON pointer — the divergence §12 rules out.
 	checkNumbers(doc, "", addIssue)
 
+	// The §6.2 group's two refusals the schema cannot make: an entry wearing
+	// the reserved type- prefix whose tail is not a stored type key, and one
+	// sitting in the list that is not for it (querysource.go). Mirrors the
+	// import seam refusal for refusal, so with default Options the two
+	// verdicts cannot differ (§12, I2).
+	querySourceIssues(doc, addIssue)
+
 	// Key spellings are display names, carried exactly as the space holds
 	// them — and a name can hold what nobody can see: edge whitespace or a
 	// default-ignorable code point (8 of 767 measured production names do).
@@ -2336,6 +2343,21 @@ func deniedPropertyKey(key string) (string, bool) {
 	if propertySettingsLiftedDetailKeys()[key] {
 		return fmt.Sprintf("%q is written on a property document's envelope as %s in property_settings, "+
 			"not as a property", key, propertySettingsLiftedKeyRepair(key)), true
+	}
+	// the §6.2 query-source lift, same rule and same derivation — and
+	// UNCONDITIONAL, where §2a's is kind-scoped: there is no document class
+	// for which a flat `Set of` means something other than a query
+	// (querysource.go). A document written before the lift is REFUSED with
+	// the repair named rather than read, the treatment §2d gives its own
+	// legacy spelling: the format is pre-release, and the flat list is not
+	// merely a second position for the same fact — it is the grammar the
+	// group exists to replace, one list interleaving type and property
+	// targets with nothing marking which is which, and no reader of the
+	// bytes alone can partition it.
+	if querySourceLiftedDetailKeys()[key] {
+		return fmt.Sprintf("%q is written on the root as %s, not as a property — the query source is two "+
+			"lists because a flat one cannot say whether an entry names a type or a property (§6.2)",
+			key, querySourceLiftedKeyRepair(key)), true
 	}
 	return "", false
 }

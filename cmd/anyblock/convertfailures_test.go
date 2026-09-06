@@ -206,8 +206,10 @@ func TestShippedV1FixtureConvertsToV2(t *testing.T) {
 // The type fold's inverse is fatal before the write, exactly as the
 // participant fold's is. The CLI wires no TypeResolver — nothing in this
 // repository does — so a `type-<internal_key>` reference cannot be rebuilt
-// here, and writing the literal string into a v1 snapshot's `setOf` puts a
-// non-address where an object id belongs.
+// here, and writing the literal string into a v1 snapshot's
+// `targetObjectType` puts a non-address where an object id belongs. The
+// slot is a REFERENCE one on purpose: the query source's `types` is a
+// type-KEY slot (§6.2) and reads with no resolver at all.
 //
 // How this can fail: leave the new code unobserved and the conversion
 // silently writes a snapshot whose type references address nothing.
@@ -215,7 +217,7 @@ func TestFoldedTypesWithoutResolverAreFatalBeforeTheWrite(t *testing.T) {
 	temp := t.TempDir()
 	input := filepath.Join(temp, "type.anyblock.json")
 	output := filepath.Join(temp, "type.pb.json")
-	doc := `{"formatVersion":"2.0","id":"page-one","properties":{"Set of":["type-task"]}}`
+	doc := `{"formatVersion":"2.0","id":"page-one","properties":{"Template's Type":["type-task"]}}`
 	require.NoError(t, os.WriteFile(input, []byte(doc), 0o644))
 	warnings := captureCLIWarnings(t)
 

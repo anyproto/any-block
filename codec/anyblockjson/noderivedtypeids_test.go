@@ -89,7 +89,9 @@ func TestNoDerivedTypeIds_ReferenceSlotsKeepTheStoreId(t *testing.T) {
 
 	_, imported, err := Unmarshal(data, noDerivedOptions())
 	require.NoError(t, err)
-	assert.Equal(t, []string{"typeid-page"}, valueStringList(imported.GetDetails().GetFields()["setOf"]))
+	assert.Equal(t, []string{"typeid-page"}, valueStringList(imported.GetDetails().GetFields()["setOf"]),
+		"the query source is a type-KEY slot: mode-on it carries the vocabulary spelling, "+
+			"which reads back to the same store id (§6.2, §9)")
 	assert.Equal(t, "typeid-page", imported.Blocks[1].GetLink().TargetBlockId)
 	dv := imported.Blocks[2].GetDataview()
 	assert.Equal(t, "typeid-wine", dv.Views[0].DefaultObjectTypeId)
@@ -187,7 +189,7 @@ func TestNoDerivedTypeIds_StillReadsDerivedIds(t *testing.T) {
 	opts := noDerivedOptions()
 
 	_, snap, err := Unmarshal([]byte(
-		`{"formatVersion":"2.0","properties":{"Set of":["type-page"]}}`), opts)
+		`{"formatVersion":"2.0","query_source":{"types":["type-page"]}}`), opts)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"typeid-page"}, valueStringList(snap.GetDetails().GetFields()["setOf"]),
 		"a derived id on input still rebuilds this space's type object id")

@@ -124,10 +124,13 @@ func TestPublishedSchemasQualifyEveryDerivedTypeIdPromise(t *testing.T) {
 	}
 	// The claims are matched by their wording, so a reword that dodges every
 	// pattern would pass the loop by describing nothing. Pin the count: the
-	// eight sites this round qualified are the eight the schemas state.
-	assert.Equal(t, 8, matched,
+	// ten sites this round qualified are the ten the schemas state (eight,
+	// plus `query_source.types` in each of the two object schemas — §6.2's
+	// type list is a type-KEY slot and takes the mode's vocabulary spelling
+	// the way `template_for` does).
+	assert.Equal(t, 10, matched,
 		"the published schemas state a different number of derived-id promises than "+
-			"the eight this rule was derived from; a new one needs the mode named, and a "+
+			"the ten this rule was derived from; a new one needs the mode named, and a "+
 			"deleted one needs this figure moved")
 }
 
