@@ -5,6 +5,21 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **The full-format example carries an installed bundled type, and the
+  full-format validator runs on it** (`format/v2/examples/exported_space`,
+  `bundle/exportedspaceexample_test.go`, READING.md). The example a reader is
+  shown first held one type document, a custom one, and nothing ran
+  `bundle.Validate` over the bundle at all — so the tree contained no instance
+  of the shape 1,650 of the corpus's 1,808 type documents have, and a
+  validator that refused all 79 real exports reached a freeze with a green
+  suite. The space's installed Page type (`internal_key: "page"`,
+  `Name: "Page"`) now stands beside the custom Field note, `bundle.Validate`
+  runs on the example, and a second test asserts the shape is still there so
+  the first cannot pass vacuously once someone tidies the type away. A third
+  asserts the other side of the split: the same bytes are an export, so
+  `bundle.ValidateAuthoring` refuses them. The reader example's census moves
+  from 4 documents to 5.
+
 - **Whole-bundle validation stops applying an authoring rule to exports**
   (SPEC §2c, §2g, §13, `bundle.Validate`, `bundle.ValidateAuthoring`,
   `PlanAuthoringTypeVocabulary`). `bundle.Validate` planned every bundle's

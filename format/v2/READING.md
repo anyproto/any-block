@@ -551,7 +551,7 @@ as this one, it means only that the export predates the member.
 |---|---|
 | [`INLINE_MARKUP.md`](INLINE_MARKUP.md) | the text dialect, for anyone writing a parser |
 | [`examples/reader`](examples/reader) | these nine steps, executable, standard library only |
-| [`examples/exported_space`](examples/exported_space) | a tiny export-shaped bundle the reader runs on — stored keys, a legend, published enum names, a key nothing could define, a reference that resolves and one that does not, and a file document bound to a real blob |
+| [`examples/exported_space`](examples/exported_space) | a tiny export-shaped bundle the reader runs on — stored keys, a legend, published enum names, a key nothing could define, a reference that resolves and one that does not, a file document bound to a real blob, and the space's INSTALLED Page type beside its own custom one, which is the shape 1,650 of the 79-bundle corpus's 1,808 type documents have |
 | [`SPEC.md`](SPEC.md) | normative and complete; §2c index, §2f dictionary, §3 properties, §4–7 blocks, §8 text, §9 ids |
 | [`README.md`](README.md) | why the format is shaped this way |
 | `../../cmd/anyblock` | `validate` a bundle, convert one document to and from v1 |

@@ -1,9 +1,9 @@
 bundle  ../exported_space
 space   "Field Notes", formatVersion 2.0
-docs    4
+docs    5
           file_object              1
           object (no kind member)  2
-          object_type              1
+          object_type              2
 dict    11 property definitions
 files   1 blobs bound to file documents
 lost    1 property keys the export could not define

@@ -508,7 +508,7 @@ func TestTheCommandItself(t *testing.T) {
 		if code != 1 || !strings.Contains(errOut, `no document with id "bafyreinosuchthing"`) {
 			t.Errorf("exit %d, stderr %q", code, errOut)
 		}
-		if !strings.Contains(out, "docs    4") {
+		if !strings.Contains(out, "docs    5") {
 			t.Errorf("the bundle summary is worth printing even when the document is not there:\n%s", out)
 		}
 	})
