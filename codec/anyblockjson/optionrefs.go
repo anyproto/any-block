@@ -30,6 +30,19 @@ package anyblockjson
 // taken at face value: a stored key IS the address, while an option id is a
 // shortcut past a name that is already one (§3).
 //
+// SAME-NAMED OPTIONS. A property's vocabulary may hold two options with one
+// name — real spaces do, and §2a admits them — and this legend is keyed by
+// NAME, so one document has room for exactly one entry per name per property.
+// An object sitting on BOTH of them therefore had nowhere to put the second
+// id: the document spelled `["books", "books"]`, the legend held one, and
+// both values landed on it. The object lost a tag, silently, and no amount of
+// legend reading could recover it. The answer is the collision discipline the
+// format already applies to property spellings (§3, planKeyTerms): census the
+// option ids the document writes under one property and, where two of them
+// claim ONE name, degrade EVERY claimant — both, never just the loser, so the
+// written term does not depend on which slot claimed first. See
+// planOptionTerms.
+//
 // NESTED, not joined by a separator. The legend is
 // {property spelling: {option name: option id}} because a name in this format
 // is arbitrary user text and no character can be reserved to join it to its
@@ -45,8 +58,10 @@ package anyblockjson
 
 import (
 	"encoding/json"
+	"sort"
 
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
+	"github.com/anyproto/any-block/format/v1/model"
 )
 
 //
@@ -68,13 +83,16 @@ type optionRefPair struct {
 // exactly the values that need it and nothing else: there is no pruning pass
 // because there is nothing unused to prune (§9a).
 //
-// FIRST WRITING WINS. Two distinct options of one property sharing one name
-// produce one key, and a JSON list of two identical strings has no way to say
-// which entry means which option — the collapse §11 already documents for
-// name resolution. Keeping the first makes the collapse deterministic, which
-// is what export∘import byte-stability needs; dropping the entry instead
-// would hand the choice back to the resolver's list order and make a second
-// generation differ from the first.
+// FIRST WRITING WINS, and by the time this runs nothing contests. Two
+// distinct options of one property sharing one name used to produce one key
+// here and lose the second id; the term plan (planOptionTerms) now degrades
+// every claimant before the value is written, so the terms reaching this
+// function are unique per option by construction. The rule stays as the floor
+// under the population the plan cannot see — an option id in a slot the
+// census walk did not reach — because keeping the first makes the residue
+// deterministic, which is what export∘import byte-stability needs; dropping
+// the entry instead would hand the choice back to the resolver's list order
+// and make a second generation differ from the first.
 func (e *exporter) recordOptionRef(key, name, id string) {
 	if key == "" || name == "" || id == "" || name == id {
 		return
@@ -156,6 +174,240 @@ func (e *exporter) optionIdsFor(key string) map[string]string {
 		return nil
 	}
 	return out
+}
+
+//
+// ---- the option term ledger ----
+//
+
+// optionTerm answers what an option is WRITTEN as: its name, or — where two
+// options of this property claim that name in this document — the degraded
+// term the plan minted for it. It is the option namespace's analogue of
+// propertySlug's termPlan, and it exists for the same reason: a name is not
+// an address, two holders can claim one, and a legend keyed by the claim has
+// room for exactly one of them.
+//
+// The plan is built once per property key, on the first value written under
+// it, and memoized including the empty answer: the census below walks the
+// snapshot, and a document that mentions one property in forty slots must not
+// walk it forty times.
+func (e *exporter) optionTerm(key, id, name string) string {
+	if e.optionPlans == nil {
+		e.optionPlans = map[string]map[string]string{}
+	}
+	plan, planned := e.optionPlans[key]
+	if !planned {
+		plan = e.planOptionTerms(key)
+		e.optionPlans[key] = plan
+	}
+	if term, degraded := plan[id]; degraded {
+		return term
+	}
+	return name
+}
+
+// planOptionTerms is the option census's collision verdict for one property:
+// the term each censused option id will take. For nearly every option that is
+// its plain name, and the plan says nothing about it; where two censused ids
+// resolve to ONE name, EVERY claimant degrades through the ladder, so which
+// option keeps the plain spelling is not a question — none of them does, and
+// the answer cannot depend on which slot claimed first.
+//
+// The ladder has two rungs rather than the term ledger's three. Rung (a)
+// there is "the stored key is readable, write it verbatim", and no option id
+// is: the ids the store hands out are CIDs, which say nothing to a reader.
+// So a claimant takes:
+//
+//	(b) `<name> (<tail6>)` — the name with the option id's last six
+//	    characters, deterministic, immutable while the option lives, and
+//	    visibly synthetic; and
+//	(c) the option id, bare, when (b) is unavailable or would itself be
+//	    contested — a residual tie on name AND tail, or a suffixed form some
+//	    OTHER censused option is already named.
+//
+// Rung (c) is a real loss of readability, so it is deliberately last: a bare
+// CID in a tag list tells a reader nothing, and the bundle's own property
+// dictionary cannot translate it back (its option `internal_key` is the
+// option's STORED key, a different identifier from the object id this legend
+// carries — the two never join). Rung (b) keeps the name a reader needs and
+// still says which option it is.
+func (e *exporter) planOptionTerms(key string) map[string]string {
+	if e.opts.ResolveOptions == nil {
+		return nil
+	}
+	ids := e.optionCensus(key)
+	if len(ids) < 2 {
+		return nil // one claimant cannot contest itself
+	}
+	sort.Strings(ids)
+	claims := map[string][]string{}
+	for _, id := range ids {
+		name, ok := e.opts.ResolveOptions.OptionName(domain.RelationKey(key), id)
+		if !ok || name == "" || name == id {
+			// an id no resolver names is written verbatim already
+			// (optionName), so it claims no name and contests nothing
+			continue
+		}
+		claims[name] = append(claims[name], id)
+	}
+	// rung (b) candidates are counted before any is granted, so a residual
+	// tie — same name, same six-character tail — sends BOTH claimants to
+	// rung (c) rather than whichever sorted first to (b). The same order
+	// planKeyTerms uses, for the same reason.
+	suffixCount := map[string]int{}
+	for name, holders := range claims {
+		if len(holders) < 2 {
+			continue
+		}
+		for _, id := range holders {
+			if s := optionDisambiguatedName(name, id); s != "" {
+				suffixCount[s]++
+			}
+		}
+	}
+	plan := map[string]string{}
+	for name, holders := range claims {
+		if len(holders) < 2 {
+			continue
+		}
+		for _, id := range holders {
+			s := optionDisambiguatedName(name, id)
+			// `claims[s]` is the avoid-set: a suffixed form that is some
+			// other censused option's own NAME would collide with it exactly
+			// as the plain name collided, one rung down
+			if s == "" || suffixCount[s] > 1 || len(claims[s]) > 0 {
+				plan[id] = id
+				continue
+			}
+			plan[id] = s
+		}
+	}
+	return plan
+}
+
+// optionDisambiguatedName is the option namespace's rung (b): `<name>
+// (<tail6>)`, tail6 being the option id's last six characters. It is the
+// counterpart of DisambiguatedKeySpelling, and it is a separate function
+// because that one answers "" for every key that is not a 24-hex bson id — a
+// readable stored key is its own honest spelling, rung (a) — and an option id
+// is never readable, so the test would refuse every option there is.
+//
+// It answers "" only for an id with no room for a tail that says less than
+// the id itself, which sends the claimant to rung (c) — where the whole id is
+// written, and six characters would have been most of it anyway. Runes, not
+// bytes: slicing a tail mid-rune would mint a term that is not valid UTF-8.
+func optionDisambiguatedName(name, id string) string {
+	if name == "" || id == "" {
+		return ""
+	}
+	tail := []rune(id)
+	if len(tail) <= 6 {
+		return ""
+	}
+	return name + " (" + string(tail[len(tail)-6:]) + ")"
+}
+
+// optionCensus is the population planOptionTerms decides over: every option
+// id this document may write under ONE property key. It mirrors the two emit
+// sites that substitute a name for an id — a select property value
+// (buildProperties → propertyValue) and a dataview filter value or sort
+// custom order (dataviewToJSON → dvValueToJSON) — and mirroring them is the
+// whole obligation, exactly as it is for the property-key census
+// (seedTermLedger).
+//
+// An over-census degrades a claimant that had no rival, which is always
+// correct and merely less compact — until the next generation, which does not
+// repeat it, and then a second export of the same object differs from the
+// first. Two ways that can happen and one of them is closed: the detail walk
+// applies buildProperties' own drops, so a key written nowhere censuses
+// nothing. What remains is an option id named ONLY by a dataview filter the
+// emit later drops (a group with no live children, §6.2) — which filters
+// survive is decided during the block emit, so this walk cannot know. It
+// needs the dropped filter to name a live option that shares a name with
+// another live option of the same property elsewhere in the same document;
+// the corpus at out-57f4add holds no such document.
+//
+// `missingObjectId` is skipped for the reason propertyValue skips it: the
+// sentinel names an option that is gone, nothing is written for it, and it
+// resolves to no name to contest.
+func (e *exporter) optionCensus(key string) []string {
+	if key == "" {
+		return nil
+	}
+	var ids []string
+	seen := map[string]bool{}
+	add := func(id string) {
+		if id == "" || id == missingObjectId || seen[id] {
+			return
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	// a snapshot-less entry point (MarshalPropertyValueChecked) holds one
+	// value and no document to walk; it seeds its own census
+	for _, id := range e.optionCensusSeed[key] {
+		add(id)
+	}
+	if e.snapshot == nil {
+		return ids
+	}
+	if e.snapshot.Details != nil && e.censusedDetailKey(key) {
+		if format, ok := e.resolveFormat(key); ok && isOptionFormat(format) {
+			for _, id := range valueStringList(e.snapshot.Details.Fields[key]) {
+				add(id)
+			}
+		}
+	}
+	for _, b := range e.snapshot.Blocks {
+		c, ok := b.GetContent().(*model.BlockContentOfDataview)
+		if !ok {
+			continue
+		}
+		dv := orEmpty(c.Dataview)
+		if format, ok := e.dvFormat(dv, key); !ok || !isOptionFormat(format) {
+			continue
+		}
+		for _, v := range dv.Views {
+			if v == nil {
+				continue
+			}
+			for _, f := range flattenFilters(v.Filters) {
+				if f.RelationKey != key {
+					continue
+				}
+				for _, id := range valueStringList(f.Value) {
+					add(id)
+				}
+			}
+			for _, srt := range v.Sorts {
+				if srt == nil || srt.RelationKey != key {
+					continue
+				}
+				for _, cv := range srt.CustomOrder {
+					for _, id := range valueStringList(cv) {
+						add(id)
+					}
+				}
+			}
+		}
+	}
+	return ids
+}
+
+// censusedDetailKey mirrors buildProperties' admission: a key it drops writes
+// no value, so the ids stored under it claim no name. Quiet, because the emit
+// itself reports every one of these drops and reporting them twice would say
+// the document had two faults where it has one.
+func (e *exporter) censusedDetailKey(key string) bool {
+	if strippedDetailKeys()[key] || e.envelopeLiftedKeys()[key] || !isWritablePropertyKey(key) {
+		return false
+	}
+	return !e.droppedPropertyKey(key, quietWarn)
+}
+
+// isOptionFormat reports the two formats whose values are option ids (§3).
+func isOptionFormat(format model.RelationFormat) bool {
+	return format == model.RelationFormat_status || format == model.RelationFormat_tag
 }
 
 //

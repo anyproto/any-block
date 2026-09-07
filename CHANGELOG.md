@@ -5,6 +5,54 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **Two options of one property that share a name each keep their identity**
+  (SPEC §3, §9a, `option_ids`, `codec/anyblockjson/optionrefs.go`).
+  `option_ids` is keyed by NAME — `{property spelling: {name: option id}}` —
+  so one document has room for exactly one entry per name per property. A
+  property's vocabulary may hold two options with one name; §2a admits that
+  deliberately, because real spaces hold them. An object sitting on BOTH had
+  nowhere to put the second id: the document spelled `["books", "books"]`, the
+  legend carried one, and on reimport both values landed on that one option.
+  The object lost a tag, with nothing in the bytes to say so — and nothing a
+  reader could do about it, because the export it holds is the evidence
+  destroyed. Re-derived on the 24 905-document corpus at out-57f4add:
+  **4 properties across 4 bundles hold same-named options** (one `Tag`
+  vocabulary has 327 options and 6 ambiguous names), **8 value entries across
+  7 documents** spell one of those names, and **1 document** — *Read Write
+  Own: Building the Next Era of the Internet: Dixon, Chris* — writes
+  `"Tag": ["books","books","book","read"]` where the two `books` are different
+  options.
+
+  Export now runs the collision discipline the format already applies to
+  property spellings (§3, `planKeyTerms`): it censuses the option ids the
+  document writes under one property and, where two of them claim ONE name,
+  writes `<name> (<tail6>)` for **every** claimant — both, never just the
+  loser, so the term never depends on which slot claimed first. The legend
+  keys the entries by those terms, so an inner key names exactly one option.
+  Import needed no change: `resolveOption` already tries the legend by the
+  written term before asking the space by name. Where the suffixed form is
+  itself contested — two claimants whose ids share a tail, or a form some
+  other option of the property already answers to — the option id is written
+  bare, which is the rung the ladder ends on.
+
+  The written term is `<name> (<tail6>)` and not the option's stored key,
+  which is what the equivalent property rule writes: the codec never holds an
+  option's stored key. A value slot holds the option's OBJECT id, a property
+  dictionary's `options[].internal_key` holds its STORED key, and the two are
+  disjoint identifier spaces — over the whole corpus, **1,681 dictionary
+  option keys and 1,424 legend option ids, intersection 0**. A bare id would
+  therefore have left a select value nothing in the export could translate
+  back into a name.
+
+  **Not a tightening, and it invalidates nothing**: `Validate` gains no rule,
+  and a document spelling a shared name twice stays valid — an authored one
+  is meant to. Measured: validating all 79 corpus bundles before and after
+  gives byte-identical output (0 new errors, 0 new warnings), and re-exporting
+  all 24,905 documents through the codec gives **byte-identical bytes for
+  every one of them**. That zero is itself the defect: an option pool rebuilt
+  from the corpus's own legends shows **0 ambiguous names**, because the
+  collapse had already happened before the bytes were written.
+
 - **One stored type key, one type document — the unnamed shell included**
   (SPEC §2c, `bundle.Validate`).
   A type document's address is a pure function of its key,

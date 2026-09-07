@@ -322,7 +322,7 @@ Fields, in **canonical order** (§4):
 | `type_settings` | object | no | Only for type documents (`kind: "object_type"`, `"bundled_object_type"`): everything that defines the TYPE, in one gated subtree — `layout`, `api_key`, `plural_name`, `default_template`, `default_view`, and `property_definitions` (§2a). Present on any other kind → validation error. The root spelling `type_properties` is refused with the repair named. |
 | `property_internal_keys` | object | no | Legend: the stored property key each spelling in this document names (§3). Written for every spelling the **bundled table does not bind to the key being written** — a spelling the table cannot invert (a space's own key) *and* the **identity entry**, which is the ordinary case: a custom key written verbatim names itself, because nothing else in the document says the term is a stored key rather than somebody's display-name spelling. A reader consults it **before** its own vocabulary and takes the value as **authoritative**: it is not liveness-checked, deliberately (§3). Absent only from a document whose every spelling is bundled. |
 | `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. (In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode those two slots spell the vocabulary rather than the derived id; the type namespace carries no legend either way, and a bundle refuses that mode — §9.) A document carrying the map is refused with the repair named (§10). |
-| `option_ids` | object | no | Legend: the id of the option each select/multi_select **name** in this document stands for — nested, `{property spelling: {option name: option id}}` (§3, §9a). Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the name resolves exactly as it did before the legend existed. |
+| `option_ids` | object | no | Legend: the id of the option each select/multi_select **term** in this document stands for — nested, `{property spelling: {written term: option id}}` (§3, §9a). The term is the option's name, except where two options of one property claim one name here: then every claimant is written `<name> (<tail6>)` and keyed by that (§3), so an inner key names exactly one option. Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the name resolves exactly as it did before the legend existed. |
 | `blocks` | array | no | The document's blocks as a **flat pre-order array**; nesting via `indent` (§4). |
 | `query_source` | object | no | For SET objects: what the live query ranges over (§6.2), in two typed lists — `types` (type targets, each the type's derived id `type-<internal_key>`, §9) and `properties` (property targets, each a bare stored key). Stands for the stored `setOf` key, which `properties` refuses. THREE states: absent (this document states no query), present and EMPTY (a query naming no source), populated. Present on a document that is not a set → validation error, enforced by the import *wiring* for the same reason `items` is. |
 | `items` | array | no | For collection objects: member object ids, in order (from the internal collection store key `objects`). Present on a non-collection document → validation error — enforced by the import *wiring* (collection-ness resolves against the space's types, not offline); the package's `Validate` checks structure only (implementation decision). |
@@ -3077,14 +3077,39 @@ non-bundled key onto an existing relation of the same format bearing the same
 display name — but that is the wiring's behavior, not the codec's: the codec
 binds the slot to the stored key and hands it on.)
 
-What remains normalized, and what no longer is: **one object holding two
-same-named options of one property** still collapses — the document spells
-`["books", "books"]`, and two identical strings have no way to say which entry
-means which option. Export keeps the first writing, so the collapse is
-deterministic and a second export reproduces the first byte for byte (§11
-guarantee 3);
-it is no better than name resolution here, and no worse. A rename, and a
-duplicate name an object touches only once, are no longer lossy (§11).
+**Where two options of one property claim ONE name in a document, every
+claimant is written as `<name> (<tail6>)` instead** — the name, then the
+option id's last six characters — and the legend maps that written term to
+the id. Every claimant, never just the loser, so which option keeps the plain
+name is not a question anyone answers: none of them does, and the term never
+depends on which slot claimed first. The census is over the DOCUMENT, not the
+space — a name only one option of the property claims *here* is written
+plainly, whatever else the space holds.
+
+The rule exists because this legend is keyed by NAME, so a document has room
+for exactly one entry per name per property, and §2a admits same-named options
+deliberately (real spaces hold them, §2f). An object sitting on BOTH therefore
+had nowhere to put the second id: the document spelled `["books", "books"]`,
+the legend held one, and both values came back on that one option. The object
+lost a tag, silently, with nothing in the bytes to say so. Measured on a
+24 905-document corpus: one document, `"Tag": ["books","books","book","read"]`,
+where the two `books` are different options.
+
+`<name> (<tail6>)` rather than the option id, which the format could also
+write: a bare id says nothing to a reader, and nothing in the export
+translates it back — the property dictionary's option `internal_key` is the
+option's STORED key, a different identifier from the OBJECT id this legend
+carries (§2a, §2f, §9a), and the two never join. The suffixed term keeps the
+name a reader needs and still says which option it is. The id is written bare
+only where the suffixed form is itself contested — two claimants of one name
+whose ids share a tail, or a form some other option of the property is already
+named — because there the suffixed term would lose an identity exactly as the
+plain name did. It is the same ladder a contested property spelling walks
+(§3), minus the rung that writes a readable stored key: no option id is
+readable.
+
+A rename, a duplicate name an object touches once, and a duplicate an object
+touches twice are all no longer lossy (§11).
 
 **Format resolution.** The format does not carry per-property formats;
 `Marshal` and `Unmarshal` accept an optional resolver (§13). Property keys in
@@ -4839,7 +4864,7 @@ found by its id and by nothing else (§2c).
 | `_filter_template_<n>_` — a dynamic filter value (§6.2) | a view filter's `value` | **not an object id.** The CLIENT substitutes one before issuing the query: `_filter_template_2_` is the current user, `_filter_template_1_` the object hosting an inline dataview | opaque to the middleware — a query evaluated server-side compares against the literal string and matches nothing |
 | `<mention object_id="…">text</mention>` — an inline reference inside `text` (§8.1) | any text-bearing block, and table cells | the attribute holds a bare id in any of the forms above (folded like every other reference); the element's text is the caption and carries no `#` suffix | the target may be `_missing_object`: the mention's text stays and only its address is gone. Measured: 13 |
 | `[text](anytype://object?objectId=<id>)` — an inline object link (§8.1) | any text-bearing block | percent-decode the single `objectId` parameter. The form is exact — any other `anytype://` destination is a plain link, preserved verbatim | the same as a bare id. Measured: 2. The deep-link string occurs 9 times in this export and 7 of them are not links: 4 sit inside `code` blocks, whose text is never parsed for markup at all (§8.1), 1 inside a code span, where a destination is literal text, and 2 are `Name` property VALUES, which no text parser ever sees. Counting those would mean parsing what §8.1 forbids parsing |
-| `option_ids` values (§9a) | the envelope's option legend, beside select/multi_select values | an option's OBJECT id, and a **hint** rather than a reference: honored only where the reading space still serves it as a live option of that relation, then the name, then the value unchanged | it never resolves inside a bundle and is not meant to — a bundle carries no option documents at all (§15 #21), and the option's whole meaning is already inline on the dictionary entry (§2f) |
+| `option_ids` values (§9a) | the envelope's option legend, beside select/multi_select values | an option's OBJECT id, and a **hint** rather than a reference: honored only where the reading space still serves it as a live option of that relation, then the name, then the value unchanged | it never resolves inside a bundle and is not meant to — a bundle carries no option documents at all (§15 #21), and the option's whole meaning is already inline on the dictionary entry (§2f), reached by NAME: a dictionary entry's `internal_key` is the option's STORED key and this value is its OBJECT id, so the two identifiers never join and the name is the only bridge. For a value written `<name> (<tail6>)` because two options claimed one name (§3), the bridge is the name half — and the dictionary holds two entries for it, which is the fact the term is reporting |
 | a bundle-local slug (`page-wiki-home`, `type-habit`) | an authored bundle's own ids and every reference to them (§2c) | exactly like any other id: the document whose `id` is that string | the import wiring relinks bundle-local ids on install; one that names no document in the bundle is a cross-document refusal (§12) |
 
 **Two things the table cannot tell you, and where they are said instead.**
@@ -5542,7 +5567,18 @@ the key admission rule, the two charsets, and the joined key's length bound.
   deliberately: it is the same string the value slot already holds, and a
   legend that cannot name a value its own document carries is the `C#` hole
   again, one level down.
-- **Value**: the full option id.
+- **Inner keys are unique per property by construction**, which is what makes
+  the map total: where two options of one property claim ONE name in this
+  document, the value slots write `<name> (<tail6>)` for EVERY claimant and
+  the legend keys the entries by those terms (§3). Without that rule the map
+  had room for one of the two ids and the second option was lost; with it,
+  the inner key is still "the term the value slot spells", and that term is
+  now an address.
+- **Value**: the full option **object** id — not the option's stored key, which
+  is what a property dictionary's `options[].internal_key` states (§2a, §2f).
+  The two are different identifiers for one option and neither derives from
+  the other, so a reader joining a value slot back to a vocabulary entry joins
+  on the NAME, and the degrade rule above is what keeps that name unique.
 - **Written unconditionally**, wherever export substitutes a name for an id —
   property values, dataview filter values, sort custom orders (§3). Behind no
   compaction flag, because this is identity rather than compaction; and
@@ -5865,11 +5901,13 @@ section that owns it:
   present-and-empty still survives.
 - Select/multi_select option ids replaced by name resolution — in properties,
   filter values, and custom orders (§3, §6.2) — which `option_ids` inverts
-  exactly (§9a), leaving two residues: **two same-named options of one
-  property held by ONE object** collapse onto the first, because the document
-  spells one string twice; and a reader wired with no option resolver ignores
-  the legend and keeps the names, having no space in which an id could be an
-  option at all.
+  exactly (§9a), leaving one residue: a reader wired with no option resolver
+  ignores the legend and keeps the names, having no space in which an id could
+  be an option at all. **Two same-named options of one property held by ONE
+  object** used to be a second residue — the document spelled one string twice
+  and the legend had room for one id — and is not one now: every claimant of a
+  contested name is written `<name> (<tail6>)`, so each option carries its own
+  entry (§3).
 - Scalar-stored select/objects/files property values become single-element
   lists (§3).
 - Object types reduced to the positions §2 models — one type, plus, on a

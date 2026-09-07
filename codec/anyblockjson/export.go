@@ -302,7 +302,11 @@ func MarshalPropertyValueChecked(key string, v *types.Value, opts Options) (any,
 	if err := checkProtoValueNumbers(v, ""); err != nil {
 		return nil, nil, err
 	}
-	e := &exporter{opts: opts}
+	// the census has no document to walk here, so the one value in hand IS
+	// the population: a caller handed `["books", "books"]` beside a one-entry
+	// legend is holding the same lost identity a whole-document export is
+	// (optionCensus)
+	e := &exporter{opts: opts, optionCensusSeed: map[string][]string{key: valueStringList(v)}}
 	out := e.propertyValue(key, key, v)
 	return out, e.optionIdsFor(key), nil
 }
@@ -383,6 +387,17 @@ type exporter struct {
 	// (property spelling → option name → id) at envelope-assembly time, when
 	// the term ledger has settled.
 	optionRefs map[optionRefPair]string
+
+	// optionPlans is the option namespace's answer to termPlan, one map per
+	// stored property key: the term a censused option id is WRITTEN as, where
+	// two options of that property claim one name in this document
+	// (planOptionTerms). Built on first use per key and memoized including
+	// the empty answer, so a property named in forty slots walks the snapshot
+	// once. optionCensusSeed carries the census population a snapshot-less
+	// entry point holds instead — MarshalPropertyValueChecked has one value
+	// and no document to walk.
+	optionPlans      map[string]map[string]string
+	optionCensusSeed map[string][]string
 
 	// idLabels maps a stored block/row/column id to the id written for it, and
 	// idsUsed is every id this document has written. One set for every id
@@ -2224,8 +2239,14 @@ func (e *exporter) propertyValue(key, servedKey string, v *types.Value) any {
 func (e *exporter) optionName(key, id string) string {
 	if e.opts.ResolveOptions != nil {
 		if name, ok := e.opts.ResolveOptions.OptionName(domain.RelationKey(key), id); ok {
-			e.recordOptionRef(key, name, id)
-			return name
+			// the name is what the document writes UNLESS another option of
+			// this property claims it here too, in which case every claimant
+			// takes a degraded term instead (optionTerm): the legend is keyed
+			// by the written term, so two options arriving under one term is
+			// one of them losing its id
+			term := e.optionTerm(key, id, name)
+			e.recordOptionRef(key, term, id)
+			return term
 		}
 	}
 	return id
