@@ -5,6 +5,36 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **The avoid-set on a degraded option term is the PROPERTY's options, not
+  the ones one document censuses** (SPEC §3, `planOptionTerms`). Where two
+  options of one property claim one name, every claimant is written
+  `<name> (<tail6>)`, and the id is written bare where that suffixed form is
+  "a form some other option of the property is already named" (§3). The check
+  asked a narrower question: `claims`, the census of the options THIS document
+  writes. A document is free to sit on two of three same-named options, and
+  the third never enters that census — so the plan minted `books (yfirst)`
+  while a live third option was literally named it, and the legend entry made
+  it look correct.
+
+  That is the fault the rule exists to prevent, one rung down. The legend id
+  is a hint (§3), so a reader that cannot use it — a bundle installed into a
+  space that never saw those ids — falls to name resolution, matches the
+  third option, and lands the object on an option it was never on. The
+  resolver answers the property-scoped question directly
+  (`OptionId(key, term)`), so the check is now that question; the census check
+  stays beside it as the floor under a resolver that names an id it cannot
+  invert. The affected claimant takes the bare id instead — rung (c), a value
+  a reader cannot render, and the deliberate price of never pointing at the
+  wrong option.
+
+  Corpus at out-57f4add: **no byte moves**. All 24,905 documents re-export to
+  the same bytes and all 79 bundles validate identically before and after.
+  The corpus cannot hold this fault: its 79 property dictionaries carry 2,490
+  options, of which **one** name has the `<stem> (<six characters>)` shape at
+  all (`Other (logseq)`), and its stem names no option of its property — while
+  the four properties that do hold same-named options (19 ambiguous names
+  between them) hold no shaped name. What the fix buys is a space that does.
+
 - **A second root in a table cell's array form is refused, where it used to
   be admitted and then quietly reparented** (SPEC §6.1, `checkFlatRun`).
   §6.1 defines the array form as one cell block at indent 0 followed by its
