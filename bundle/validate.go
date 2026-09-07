@@ -304,6 +304,30 @@ func Validate(fsys fs.FS) error {
 			addPropertyUse(key, name)
 		}
 	}
+	// One stored type key, one type document (§2c, §9). A type document's
+	// address is a pure function of its key — `type-<internal_key>`,
+	// FoldDocumentId — so two type documents sharing a key are two
+	// definitions of ONE identity: they canonicalize to one id, they file to
+	// one path, and composition keeps whichever it planned last. The
+	// envelope-id check below cannot see it (the two documents have
+	// different raw ids) and the authoring planner cannot either, because it
+	// skips a type document with no display Name before it records any key
+	// ownership — and an unnamed type shell is a legal exported shape, 12 of
+	// them across the corpus's 1,808 type documents. So the key is owned
+	// here, per DOCUMENT PATH and independently of the name, which is the
+	// only place that sees every type document.
+	storedTypeKeyPaths := map[string][]string{}
+	recordStoredTypeKey := func(name string, envelope bundleDocumentEnvelope) {
+		if envelope.InternalKey == "" {
+			return
+		}
+		switch envelope.Kind {
+		case "object_type", "bundled_object_type":
+		default:
+			return
+		}
+		storedTypeKeyPaths[envelope.InternalKey] = append(storedTypeKeyPaths[envelope.InternalKey], name)
+	}
 	recordDocument := func(name string, envelope bundleDocumentEnvelope) {
 		if envelope.ID == "" {
 			return
@@ -362,11 +386,33 @@ func Validate(fsys fs.FS) error {
 			return nil
 		}
 		recordDocument(name, envelope)
+		recordStoredTypeKey(name, envelope)
 		typeUses = append(typeUses, derivedTypeUses(name, envelope)...)
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("walk bundle: %w", err)
+	}
+
+	// Reported after the walk, over sorted keys, so the diagnostic is the
+	// same whatever order the filesystem hands the documents over — and it
+	// names EVERY path claiming the key, because the repair is a choice
+	// between them and the reader has to see the candidates.
+	duplicateTypeKeys := make([]string, 0, len(storedTypeKeyPaths))
+	for key, paths := range storedTypeKeyPaths {
+		if len(paths) > 1 {
+			duplicateTypeKeys = append(duplicateTypeKeys, key)
+		}
+	}
+	sort.Strings(duplicateTypeKeys)
+	for _, key := range duplicateTypeKeys {
+		paths := append([]string(nil), storedTypeKeyPaths[key]...)
+		sort.Strings(paths)
+		issues = append(issues, fmt.Sprintf(
+			"stored type key %q is defined by %d type documents (%s); a type document's id is type-%s (§9), "+
+				"so these are two definitions of one identity and one file — give each type its own internal_key, "+
+				"or keep one document",
+			key, len(paths), strings.Join(paths, ", "), key))
 	}
 
 	// Cross-file authoring coherence is a two-pass operation. The first pass

@@ -5,6 +5,36 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **One stored type key, one type document — the unnamed shell included**
+  (SPEC §2c, `bundle.Validate`).
+  A type document's address is a pure function of its key,
+  `type-<internal_key>` (§9), so two type documents sharing an
+  `internal_key` are two definitions of one identity: they canonicalize to
+  the same id, `BuildPlan` files them under the same path, and composition
+  keeps whichever it planned last. Nothing refused them. Document
+  uniqueness is checked by ENVELOPE id, and the two documents have
+  different raw ids until they canonicalize; the authoring vocabulary owns
+  a key only for a type that declares a display `Name`, and it skips a type
+  document without one *before* it records any ownership at all. An
+  object-type SHELL with no `Name` is a legal exported shape — **12 across
+  the corpus's 1,808 type documents** — so naming it is not the repair.
+
+  `bundle.Validate` now owns the stored type key per type DOCUMENT PATH,
+  independently of the display-name planner, and refuses a bundle where two
+  claim one key, naming every path that claims it: the repair is a choice
+  between them, so the reader is shown the candidates. Reported after the
+  walk over sorted keys, so the diagnostic does not depend on filesystem
+  order. §2c states the rule, because no schema can compare two files and a
+  consumer holding only the export and the schemas could not derive it.
+
+  A TIGHTENING, measured before shipping: **0 of 24,905 corpus documents
+  and 0 of 79 corpus bundles newly fail**. Re-derived over out-57f4add: all
+  1,808 type documents are `kind: "object_type"`, they carry **178 distinct
+  internal keys**, and **no bundle has two type documents sharing one**.
+  Sweeping both surfaces before and after the change gives byte-identical
+  verdicts — 25,063 document-level subjects and all 79 bundle-level ones —
+  and the new diagnostic fires **0 times** on the corpus.
+
 - **No two bundle entries may fold together, and the design stops arguing
   case-safety for a population it never counted** (SPEC §2c,
   `bundle/DESIGN.md`).

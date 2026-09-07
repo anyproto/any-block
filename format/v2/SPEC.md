@@ -997,6 +997,23 @@ construction (§9). An AUTHORED bundle can still carry a type document under
 a non-derived id, and this check is what tells its author so: the report
 names the id nothing carries, which is the repair.
 
+**One stored type key, one type document: no two type documents in one
+bundle may share an `internal_key`, whether the type carries a display
+`Name` or not.** A type document's address is a pure function of its key —
+`type-<internal_key>` (§9) — so two documents claiming one key are two
+definitions of a single identity: they canonicalize to the same id, the
+path plan files them under the same name, and composition keeps whichever
+it planned last. Nothing else catches it. Document uniqueness is checked by
+ENVELOPE id, and the two documents have different raw ids until they are
+canonicalized; the authoring vocabulary owns a key only for a type that
+declares a display `Name`, and an object-type SHELL with no `Name` is a
+legal exported shape (12 across the corpus's 1,808 type documents). So the
+key is owned per type DOCUMENT, independently of the name, and
+`bundle.Validate` refuses the bundle naming every path that claims the key
+— the repair is a choice between them, so the reader is shown the
+candidates. The bundled table is a separate rule and is stated above: a
+bundled key names a type every reader already has.
+
 **Entry paths must survive a case-insensitive filesystem: no two entries
 in one bundle may be equal after NFC normalization and Unicode case
 folding.** A bundle is a directory or a ZIP, and both are extracted onto
