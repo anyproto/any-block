@@ -966,6 +966,21 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 			}
 		}
 	}
+	// a `pattern` verdict renders as the expression itself, which is the
+	// shipped statement of the rule but not a repair. `added_at` is the one
+	// slot in this schema that carries a pattern the AUTHOR writes by hand —
+	// every other one bounds an id or a key the app mints — and a reader
+	// told only `does not match '^[0-9]{4}-(0[1-9]|1[0-2])-…'` has to read a
+	// regular expression to learn that RFC 3339 was wanted.
+	if k, isPattern := e.ErrorKind.(*kind.Pattern); isPattern {
+		if toks := e.InstanceLocation; len(toks) > 0 && toks[len(toks)-1] == "added_at" {
+			return fmt.Sprintf("added_at %q is not an RFC 3339 timestamp: write the full UTC "+
+				"form, \"2026-07-06T15:04:05Z\", which is what export writes; an offset form, "+
+				"\"2026-07-06T17:04:05+02:00\"; or the bare date \"2026-07-06\", which means UTC "+
+				"midnight (§3, §5). The year is four digits, `T` and `Z` are upper case, and "+
+				"an absent timestamp is stated by leaving the member out, not by writing \"\"", k.Got)
+		}
+	}
 	return e.ErrorKind.LocalizedString(printer)
 }
 
@@ -1700,6 +1715,7 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 		if typ == "code" && codeLangConflict(block) {
 			addIssue(path, "language and fields.lang are both set")
 		}
+		checkAddedAt(block, path, addIssue)
 		if typ == "table" {
 			walkTable(block, path, claimId, addIssue, checkInline, walkBlock, checkFlatRun)
 		}
@@ -2715,6 +2731,36 @@ func sortedMapKeys(m map[string]any) []string {
 func escapeJSONPointer(token string) string {
 	token = strings.ReplaceAll(token, "~", "~0")
 	return strings.ReplaceAll(token, "/", "~1")
+}
+
+// checkAddedAt is the half of the file block's timestamp grammar no schema can
+// state: the pattern in `added_at` fixes the SHAPE — four-digit year, months
+// 01-12, days 01-31, an optional RFC 3339 time with a real hour, minute and
+// second — and no regular expression can then ask the calendar whether the day
+// exists. `2026-02-30T12:00:00Z` and `2026-04-31` satisfy every character
+// class and name no instant.
+//
+// The destination is int64 unix seconds (`BlockContentFile.AddedAt`), so there
+// is no preserving reading of a string that does not parse: fileFromJSON
+// assigned nothing, the block imported with the field at zero, and the next
+// export wrote no `added_at` at all — a successful round trip that dropped
+// the author's timestamp with neither an error nor a warning. Refusing is the
+// only verdict that keeps the value in the author's hands.
+//
+// The predicate is parseDate, the importer's own, so Validate and Unmarshal
+// cannot reach different verdicts on the same string (§12, I2).
+func checkAddedAt(block map[string]any, path string, addIssue func(path, format string, args ...any)) {
+	stamp, isString := block["added_at"].(string)
+	if !isString || stamp == "" {
+		return
+	}
+	if _, ok := parseDate(stamp); ok {
+		return
+	}
+	addIssue(path+"/added_at", "added_at %q names no instant: the shape is right and "+
+		"the calendar refuses it. The stored field is a unix second, so a string that "+
+		"does not parse has no number to become — it imported as zero and was gone from "+
+		"the next export, said by nothing", stamp)
 }
 
 // codeLangConflict reports a code block carrying both the first-class

@@ -3569,7 +3569,7 @@ mapping:
 | `toggle` | Text/Toggle | `color`, `text` |
 | `callout` | Text/Callout | `icon` (§2b, `emoji` or `file` only), `color`, `text` |
 | `toggle_heading_1` … `toggle_heading_3` | Text/ToggleHeader1..3 | `color`, `text` |
-| `file` `image` `video` `audio` `pdf` | File (Type enum promoted; `Type_None` → `file` with no `object_id`) | `object_id` (target file object), `name`, `mime_type`, `size` (bytes), `style` (`auto · link · embed`), `added_at` (RFC 3339; omitted with a warning when the stored timestamp is outside the representable years, §3 — unlike a property value there is no number form to fall back to). Legacy `hash` accepted on input. On export, a block with only the legacy `hash` set writes it as `object_id` (the hash migrates on round-trip, §11); when both are set, `object_id` wins and the hash is dropped. `state` is not serialized: import sets `Done` when `object_id`/`hash` is present, `Empty` otherwise. File blocks are leaves in the editor, but legacy data can nest real blocks under them — indented descendants are allowed and round-trip verbatim |
+| `file` `image` `video` `audio` `pdf` | File (Type enum promoted; `Type_None` → `file` with no `object_id`) | `object_id` (target file object), `name`, `mime_type`, `size` (bytes), `style` (`auto · link · embed`), `added_at` (RFC 3339, the same grammar a `date` property value carries, §3 — the published schema states the shape as a `pattern` and the reader's semantic pass asks the calendar, so `"2026-02-30T12:00:00Z"` is refused rather than imported as zero and dropped; omitted with a warning when the stored timestamp is outside the representable years, §3 — unlike a property value there is no number form to fall back to). Legacy `hash` accepted on input. On export, a block with only the legacy `hash` set writes it as `object_id` (the hash migrates on round-trip, §11); when both are set, `object_id` wins and the hash is dropped. `state` is not serialized: import sets `Done` when `object_id`/`hash` is present, `Empty` otherwise. File blocks are leaves in the editor, but legacy data can nest real blocks under them — indented descendants are allowed and round-trip verbatim |
 | `bookmark` | Bookmark | `url`, `object_id` (target bookmark object). `state` handled like file blocks. Deprecated preview fields and `type` (derivable) are dropped — preview data lives on the target object |
 | `link` | Link | `object_id` (target object), `card_style` (`text · card · inline`), `icon_size` (`none · small · medium`), `description` (`none · manual · content`), `properties` (string array: the **spellings** of the properties shown on the card, inverted through `property_internal_keys` like every other key slot — not stored keys, which is what a value on the `properties` FORMAT holds instead, §3). Deprecated `style` is dropped. The legacy `fields` copies of four of these — `cardStyle`, `iconSize`, `description`, `relations` — are **not** dropped: they stay in the output-only bag, where they can be stale (§5.3) |
 | `divider` | Div | `style` (`line · dots`, default `line`) |
@@ -6150,7 +6150,15 @@ fail neither test belong in authoring guidance and in review.
   so the reader states the alternatives, reading them out of the published
   schema rather than restating them, and the schema's own verdict at that
   pointer is suppressed so the document still gets one fault, one issue),
-  `language`-vs-`fields.lang` conflicts, an **`option_ids` key naming a
+  `language`-vs-`fields.lang` conflicts, **an `added_at` the calendar
+  refuses** (§5 — the schema's `pattern` fixes the shape and cannot ask
+  whether the day exists, so `2026-02-30T12:00:00Z` reaches this pass; the
+  predicate is the importer's own `parseDate`, and the destination is a unix
+  second, so a string that does not parse used to import as zero and vanish
+  from the next export), the **`url` alias on an embed** (§5.2 — refused by
+  the schema on a renderer processor and beside `text`, and re-worded here
+  for the same reason the missing `format` is: both schema verdicts point at
+  deleting the block's only content), an **`option_ids` key naming a
   property this document never spells** (§9a — a warning: the entry can never
   be consulted and the value degrades to name resolution; a key-set
   comparison against the document's property census, not a parse of the key),

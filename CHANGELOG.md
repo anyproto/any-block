@@ -5,6 +5,37 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **`added_at` states its grammar, and a date the calendar refuses is an
+  error rather than a zero** (`object.schema.json`,
+  `codec/anyblockjson/validate.go`, SPEC §5, §12).
+  `{"type": "file", "object_id": "f", "added_at": "2026-02-30T12:00:00Z"}` is
+  now refused at `/blocks/0/added_at`.
+
+  The member was typed `{"type": "string"}` and nothing else, so a date that
+  does not exist — and a locale-formatted one, `07/09/2026` — validated,
+  imported with **zero warnings**, and re-exported with the member gone.
+  `BlockContentFile.AddedAt` is an int64 of unix seconds; `fileFromJSON`
+  assigned nothing when `parseDate` refused and had no refusal branch, so
+  there is no preserving reading to fall back to.
+
+  **The grammar is §3's, not a third convention.** The schema carries a
+  `pattern` for the shape — four-digit year (the whole range a unix second
+  can be written back out in), months 01-12, days 01-31, an optional RFC 3339
+  time with `T`/`Z` upper case, fractional seconds, and an offset — and the
+  reader's semantic pass asks the calendar, which no regular expression can:
+  `2026-02-30`, `2026-04-31` and a leap day in a non-leap year all satisfy
+  every character class. The predicate is the importer's own `parseDate`, so
+  `Validate` and `Unmarshal` cannot disagree (§12, I2). An empty string goes
+  with them: an absent timestamp is stated by leaving the member out.
+
+  The schema's own `pattern` verdict renders as the expression, and `added_at`
+  is the one slot in this schema whose pattern an author writes by hand, so
+  it is re-worded where it is raised.
+
+  **Corpus:** 0 of 24,905 documents (79 bundles, out-57f4add) newly fail. All
+  9,301 `added_at` values in it are the full UTC form export writes, and all
+  9,301 parse.
+
 - **An embed's `url` is a service-processor input alias, and never sits beside
   `text`** (`object.schema.json`, `codec/anyblockjson/validate.go`, SPEC §5,
   §5.2). `{"type": "embed", "processor": "mermaid", "url": "graph TD; A-->B"}`
