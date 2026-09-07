@@ -4196,12 +4196,29 @@ import rehydrates it from the dataview `properties` list and `bundle`
 
 Proto-default edge cases (implementation decisions): a leaf whose proto
 condition is `None` (0) omits `condition` — absent means `None`; a proto
-group node with operator `No` (0) exports as `"and"`; contentless filter
-nodes (groups with no live children, leaves carrying at most an id) and
-sorts without a property key are no-ops and are dropped on export;
-out-of-range proto enum values are omitted rather than serialized (an
-unknown *text style* is an export error — silently restyling content would
-be worse).
+group node with operator `No` (0) exports as `"and"`; a leaf carrying at
+most an id, and a sort without a property key, are genuine **no-ops** and
+are dropped on export — the query engine returns nothing for a `None`
+condition and the enclosing group skips it, so the drop cannot change what
+a view matches; out-of-range proto enum values are omitted rather than
+serialized (an unknown *text style* is an export error — silently
+restyling content would be worse).
+
+A **group with no live children is dropped too, and that drop is NOT a
+no-op.** The engine reads an empty `FiltersAnd` and an empty `FiltersOr`
+alike as **TRUE** (`pkg/lib/database/filter.go`), so such a branch is inert
+under an enclosing AND — the top-level array included, which is an implicit
+AND — and matches EVERYTHING under an enclosing OR. `OR(AND[], Done ==
+true)` therefore exports as `OR(Done == true)`, and a view that matched
+every object comes back matching only the done ones. The drop is reported,
+though through the nameless-leaf warning rather than one of its own. This
+is a stated defect of the export normalization, not a repair the document
+shape should make: an empty group is a shape 2.0 admits — `filters` carries
+no `minItems`, deliberately — so refusing it would invalidate documents
+this version accepts, and the fix belongs in the simplifier, which has to
+read the enclosing operator before deleting a true branch. Nothing measured
+is affected: 0 of the 18 filter groups across the 79 corpus bundles is
+empty.
 
 #### 6.2.1 Compact filter syntax — shipped grammar, reserved document field
 

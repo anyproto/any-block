@@ -5,6 +5,32 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **A filter group with no live children is dropped, and the drop is not a
+  no-op** (SPEC §6.2, `codec/anyblockjson/dataview.go` comment).
+  §6.2 listed such a group among the "contentless filter nodes ... [that] are
+  no-ops and are dropped on export", and the exporter's own comment said the
+  same. The drop is real; the no-op is not. Heart's query engine reads an
+  empty `FiltersAnd` and an empty `FiltersOr` alike as **TRUE**
+  (`pkg/lib/database/filter.go`: the AND's loop over nothing returns true, the
+  OR returns true for `len == 0`), so under an enclosing OR the branch matches
+  everything and deleting it narrows the view to its siblings.
+  `OR(AND[], Done == true)` round-trips to `OR(Done == true)`: a view that
+  matched every object comes back matching only the done ones.
+
+  §6.2 now says what the drop does, keeps the "no-op" word for the two cases
+  that earn it (a leaf carrying at most an id, a sort with no property key —
+  the engine skips both), and says why the repair is not a narrowing of the
+  document: an empty group is a shape 2.0 accepts, `filters` carries no
+  `minItems` deliberately, and the fix belongs in the simplifier, which has to
+  read the enclosing operator before deleting a true branch.
+
+  Prose and one code comment; no schema, no behaviour change. **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**, and none carries
+  the shape: **0 of the 18 filter groups in the corpus is empty**. The new
+  regression is also the only test in the suite that fails when `minItems: 1`
+  is added to `$defs/filterNode` — the wrong repair, which would invalidate
+  documents this version accepts.
+
 - **A legacy bare target type key is respelled, not passed through, and §2d
   says so** (SPEC §2d).
   §2d promised that a bare type key a legacy import stored directly in

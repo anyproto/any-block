@@ -241,7 +241,14 @@ func (e *exporter) filterToJSON(f *model.BlockContentDataviewFilter, dv *model.B
 			}
 		}
 		if len(nested) == 0 {
-			return nil // a group with no live children is a no-op
+			// A group left with no live children is dropped — and the drop
+			// is NOT a no-op, whatever it used to say here: the query engine
+			// reads an empty FiltersAnd and an empty FiltersOr alike as TRUE,
+			// so under an enclosing OR this deletes a match-all branch and
+			// narrows the view to its siblings (SPEC §6.2). Stated rather
+			// than repaired: the fix has to consult the enclosing operator,
+			// and refusing the shape would invalidate documents 2.0 accepts.
+			return nil
 		}
 		fm.set("operator", op)
 		fm.set("filters", nested)
