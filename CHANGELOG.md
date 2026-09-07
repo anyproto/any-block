@@ -5,6 +5,31 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **An unknown block discriminator is refused or reported, never a silent
+  subtree delete** (SPEC §10, `blockToJSON`, `blockEmissionShape`). A block's
+  kind is decided by three stored discriminators — the content oneof, a
+  `layout` block's style, a file block's type — and the three disagreed about
+  a value this build has no name for. The oneof warned. A layout style did
+  not: `Layout{Style: 99}` wrapping a paragraph left `Marshal` returning
+  success, ZERO warnings, and a document with no `blocks` array at all, which
+  then re-validated `ok` — because a dropped block drops its subtree, and the
+  drop was unconditional. A file type was written out as `"type": "file"`,
+  stating a content kind the block does not have; the `file` spelling belongs
+  to the stored `None` and to nothing else. Both are §10's closed regime,
+  where the SPEC already said a content discriminator refuses the whole
+  document rather than misrepresent content.
+
+  All three now share one answer (`unmappedDiscriminator`): refuse, naming the
+  block, or — with an `OnWarning` sink, the read path — drop it and REPORT the
+  drop. The four named layout styles are enumerated where the default used to
+  stand, so `Div`/`Header`/`TableRows`/`TableColumns` drop exactly as before
+  (§7, §7a); the table preflight census follows the file rule too, or an
+  export is refused over the grid of a table it never writes. Nothing in the
+  corpus moves: all 24,905 documents at out-57f4add validate, import and
+  re-export byte-identically before and after — every one of their 17,013
+  file-family blocks and 1,814 row/column blocks carries a named
+  discriminator. What the fix buys is the day heart adds one that is not.
+
 - **The full-format example carries an installed bundled type, and the
   full-format validator runs on it** (`format/v2/examples/exported_space`,
   `bundle/exportedspaceexample_test.go`, READING.md). The example a reader is

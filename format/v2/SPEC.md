@@ -5817,6 +5817,19 @@ JSON implementation.
   default, because the slot has a safe default and no raw form (§6.2); and a
   content discriminator — `kind`, a block `type`, a relation `format` —
   REFUSES the whole document at export rather than misrepresent content.
+
+  **A block's `type` is decided by three stored discriminators, and all three
+  answer alike.** The content oneof, a `layout` block's STYLE (which decides
+  `row` vs `column` vs structural, §7/§7a), and a file block's TYPE (`file` /
+  `image` / `video` / `audio` / `pdf`, §5) each name a kind of content, so a
+  value none of this build's tables holds refuses the document, naming the
+  block. The one relaxation is the read path: with an `Options.OnWarning` sink
+  installed the block is DROPPED — with its subtree, since the flat encoding
+  has no place for a child whose parent was not written (§4) — and the drop is
+  REPORTED, never silent. Two things are therefore never done to an unknown
+  discriminator: it is not written as some other kind (a future file type is
+  not `file`; the `file` spelling answers for the stored `None` and nothing
+  else), and its subtree does not leave a SUCCESSFUL export with nothing said.
 - The `$schema` URL carries the same `major.minor` identity
   (`https://schemas.anytype.io/anyblock/<version>/object.schema.json`) and is
   **decorative for validity**: it is optional and no reader gates compatibility
