@@ -5,6 +5,49 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **The icon colour's raw-number escape is bounded, and the exporter checks
+  the bound before it narrows** (`object.schema.json`,
+  `codec/anyblockjson/iconcover.go`, SPEC §2b, §11).
+  `{"icon": {"format": "color", "color": 1e20}}` is now refused at
+  `/icon/color`.
+
+  The schema admitted any integer ≥ 1 with no upper bound, and the exporter
+  then narrowed the stored float64 to int64 before choosing the palette or
+  the raw-number branch — a conversion Go leaves **implementation-defined**
+  outside the int64 range. Measured on the same accepted document:
+  darwin/arm64 saturated to MaxInt64 and `Marshal` refused the object,
+  darwin/amd64 went to MinInt64, fell through the "not a colour" arm, and
+  exported the object SUCCESSFULLY with the icon gone. One document, two
+  architectures, two answers, neither of them the value.
+
+  **The bound is 2^53-1**, the same number `size` already carries: at or
+  below it every integer is a float64 exactly and its decimal literal denotes
+  that float, so the value survives the numeric transport policy in both
+  directions. Above it the codec was already partial well below int64 —
+  `4611686018427388000` passed `Validate` and `Unmarshal` and then failed
+  `Marshal` on the exporter's own output.
+
+  The exporter enforces the same number on the way out, range-checking the
+  stored float BEFORE the narrowing exactly as `formatDateValue` does, and
+  **dropping** a value above it with a warning rather than refusing the
+  object: `Marshal` must never emit what `Validate` rejects (§11, I1), and
+  one stored number a generator got wrong must not make an object
+  unexportable (§12).
+
+  `iconColor` also stops being a `oneOf`. §12's one-fault-one-issue rule
+  governs every discriminated union in this schema, and this one was the
+  leftover: a wrong number reported the palette enum beside the range
+  verdict, and `12.5` was told to be `"grey"`. As a type dispatch each of
+  those is one issue, and the right one.
+
+  **Corpus:** 0 of 25,063 files (24,905 documents, 79 `index.json`, 79
+  `properties.json`; 79 bundles, out-57f4add) newly fail. Every numeric
+  colour in the corpus is on the INDEX surface — 12, 13 and 15, in six
+  `index.json` files, all inside the bound — and `index.json`'s `icon` is a
+  `$ref` into this same definition (§2c), so the bound reaches it without a
+  second copy. No object document in the corpus carries a numeric colour at
+  all.
+
 - **`added_at` states its grammar, and a date the calendar refuses is an
   error rather than a zero** (`object.schema.json`,
   `codec/anyblockjson/validate.go`, SPEC §5, §12).

@@ -587,13 +587,30 @@ object**, whose `format` member says which kind it is:
   value is one of the ten palette names §2a already mandates for select
   options, mapped positionally from the stored number: `iconOption: n` is
   `palette[n-1]`.
-- **`color` also admits a raw integer ≥ 1**, for a stored value the palette
-  has no name for. This is not decoration: two generators in this repo
-  disagree about the range (`rand.Intn(16)+1` in the pb importer,
+- **`color` also admits a raw integer, 1 to 9007199254740991**, for a stored
+  value the palette has no name for. This is not decoration: two generators in
+  this repo disagree about the range (`rand.Intn(16)+1` in the pb importer,
   `rand.Intn(10)+1` in the markdown one), so 12, 13 and 15 exist in real
   data. It is the same escape §3 already gives a layout number outside the
   enum. `iconOption: 0` is the proto zero, **not** the first color — 145
-  production objects carry it and none of them is grey.
+  production objects carry it and none of them is grey. The escape is used on
+  the INDEX surface in practice: all six numeric colours in the 79-bundle
+  corpus are a space icon in `index.json`, whose `icon` is a `$ref` into this
+  same definition (§2c), and no object document in that corpus carries one.
+
+  The upper bound is 2^53-1, the same bound `size` carries (§5) and the
+  largest integer this format moves through a v1 float value and writes back
+  out denoting the same number. Above it the escape stopped working in two
+  different ways at once, and both were reachable from one accepted document:
+  `{"icon": {"format": "color", "color": 1e20}}` validated and imported, and
+  then the float→int64 narrowing the exporter does is **implementation-defined
+  in Go** for a value outside int64 — measured, on the same bytes,
+  darwin/arm64 saturated to MaxInt64 and made `Marshal` refuse the object,
+  darwin/amd64 went to MinInt64, fell through the "not a colour" arm, and
+  exported the object successfully with the icon gone. The schema states the
+  bound; the exporter range-checks the stored float BEFORE narrowing, as it
+  does for a date (§3), and drops a value above it with a warning rather than
+  emitting a number its own `Validate` would reject (§11, I1).
 - **`name` is an OPEN string with a shape rule, not a closed enum.** The
   ~397-name vocabulary lives in `core/api/model/icon.go`, which `pkg/lib` may
   not import, and closing the enum would break §11's Marshal-never-emits rule
@@ -5688,7 +5705,9 @@ section that owns it:
     all nine relations being `hidden: true`, so no property row exists for
     presence to be meaningful to (1,358 production objects carry only empty
     sources and end up with no icon and no cover at all);
-  - (c) `iconOption: 0` is the proto zero, not a color, and is dropped;
+  - (c) `iconOption: 0` is the proto zero, not a color, and is dropped; so
+    is a stored value above 2^53-1, with a warning — there is no number the
+    format can write for it (§2b);
   - (d) `iconImage` entries beyond the first are dropped with a warning
     (never observed — the relation is `maxCount: 1`);
   - (e) a `file` value that is not id-shaped is dropped with a warning,

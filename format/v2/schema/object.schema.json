@@ -414,16 +414,21 @@
       "description": "The id of an object in this space, a bundle-local slug, or a raw content CID. Never a URL and never a filesystem path — this format does no I/O, so it can only name an object or content the reader can resolve. To supply an image by URL, use a layer that can fetch it: it uploads the image, mints the file object and writes that object's id here. An object id uses the dag-cbor CID codec (normally beginning `bafyrei`); a raw or dag-pb content CID normally begins `bafybei` and resolves against content storage rather than the bundle's object documents."
     },
     "iconColor": {
-      "description": "One of the ten palette colours — the same palette select options use (§2a) — or, for a stored value the palette has no name for, its raw number.",
-      "oneOf": [
-        {
-          "$ref": "#/$defs/optionColor"
-        },
-        {
-          "type": "integer",
-          "minimum": 1
-        }
-      ]
+      "description": "One of the ten palette colours — the same palette select options use (§2a) — or, for a stored value the palette has no name for, its raw number. That escape is bounded at 9007199254740991 (2^53-1), the same bound `size` carries: it is the largest integer this format moves through a v1 float value and writes back out denoting the same number, and the reference exporter drops a stored value above it with a warning rather than emitting one this schema refuses.",
+      "type": [
+        "string",
+        "integer"
+      ],
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "$ref": "#/$defs/optionColor"
+      },
+      "else": {
+        "minimum": 1,
+        "maximum": 9007199254740991
+      }
     },
     "opaqueName": {
       "type": "string",

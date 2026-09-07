@@ -22,6 +22,7 @@ package anyblockjson
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -141,6 +142,14 @@ func iconColorNames() []string {
 	return out
 }
 
+// maxIconColor bounds the raw-number escape below: the largest integer that
+// survives this format's numeric transport unchanged, which is 2^53-1 — the
+// same bound `size` already states (§5), and the point above which a JSON
+// integer literal stops denoting the float64 it was written from. The
+// published schema states it as the `iconColor` maximum, and
+// TestIconColorBoundIsTheSchemaMaximum pins the two together.
+const maxIconColor = 1<<53 - 1
+
 // iconColorValue renders a stored `iconOption` as the schema's `iconColor`: a
 // palette name, or the raw number for a value the palette has no name for.
 // ok is false when there is no colour at all — `iconOption: 0` is the proto
@@ -151,7 +160,7 @@ func iconColorNames() []string {
 // about the range (`rand.Intn(16)+1` in the pb importer,`rand.Intn(10)+1` in
 // the markdown one), so 12/13/15 exist in real data. It is the same device
 // §3 already uses for a layout number outside the enum.
-func iconColorValue(v *types.Value) (any, bool) {
+func iconColorValue(v *types.Value, warn func(path, format string, args ...any)) (any, bool) {
 	if v == nil {
 		return nil, false
 	}
@@ -159,10 +168,27 @@ func iconColorValue(v *types.Value) (any, bool) {
 	if n != math.Trunc(n) || math.IsNaN(n) || math.IsInf(n, 0) {
 		return nil, false
 	}
-	i := int64(n)
-	if i < 1 {
+	// range-checked BEFORE the narrowing, for the reason formatDateValue is:
+	// a float outside int64 converts to an implementation-defined value in
+	// Go, so a check after the conversion is checking a different number.
+	// Measured on one document, `{"icon": {"format": "color", "color": 1e20}}`:
+	// darwin/arm64 saturated to MaxInt64 and Marshal refused the object,
+	// darwin/amd64 went to MinInt64, fell through the `< 1` arm, and exported
+	// the object SUCCESSFULLY with the icon gone. Same bytes, two answers.
+	if n < 1 {
 		return nil, false
 	}
+	if n > maxIconColor {
+		// there is no spelling for it: the schema bounds the escape at the
+		// same number, so writing it anyway would make Marshal emit what its
+		// own Validate rejects (§11, I1). Dropped with a warning rather than
+		// refused, like an unrepresentable timestamp — one stored number a
+		// generator got wrong must not make an object unexportable (§12).
+		warn("/icon", "icon colour %s is outside the range this format writes "+
+			"(1 to %d) and is dropped", strconv.FormatFloat(n, 'g', -1, 64), int64(maxIconColor))
+		return nil, false
+	}
+	i := int64(n)
 	names := iconColorNames()
 	if i <= int64(len(names)) {
 		return names[i-1], true
@@ -284,7 +310,7 @@ func (e *exporter) buildIcon() *omap {
 // space-icon reader, which has no options to consult.
 func iconOf(detail func(string) *types.Value, warn func(path, format string, args ...any),
 	deleted func(string) bool) *Icon {
-	color, hasColor := iconColorValue(detail(detailKeyIconOption))
+	color, hasColor := iconColorValue(detail(detailKeyIconOption), warn)
 	ic := &Icon{}
 	if hasColor {
 		ic.Color = color
