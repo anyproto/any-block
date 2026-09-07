@@ -454,7 +454,7 @@ func isOptionFormat(format model.RelationFormat) bool {
 // ---- import ----
 //
 
-// resolveOption resolves ONE select value — the whole of §3's three-step
+// resolveOption resolves ONE select value — the whole of §3's four-step
 // chain, and the only place any of it lives. Every option slot in the format
 // arrives here: property values (import.go) and dataview filter values and
 // sort custom orders (dataview.go) alike, which is what makes "how is an
@@ -463,12 +463,12 @@ func isOptionFormat(format model.RelationFormat) bool {
 // First answer wins:
 //
 //  1. the document's own `option_ids` entry, honored only for an id the
-//     target space still serves as an option of that relation
-//     (optionIdFromLegend below);
+//     target space still serves as an option of that relation;
 //  2. name resolution through the wired resolver, which is what a bundle
 //     carried to a space that never saw those ids falls back on;
-//  3. the same question again on the NAME inside a degraded term
-//     (optionTermStem below), because a term is not a name;
+//  3. name resolution once more on the name inside a term the document's OWN
+//     legend certifies as minted — the entry files this term under an id, and
+//     the term is that id's rung-(b) form (optionTermStem below);
 //  4. the value unchanged — its stem where step 3 recognized one — because
 //     creating a missing option is the wiring's job (§3).
 //
@@ -483,36 +483,51 @@ func isOptionFormat(format model.RelationFormat) bool {
 // have asked, so the answer is the one §3 promises: the name resolves exactly
 // as it did before the legend existed.
 //
-// It is asked AFTER the exact term, never before, so an option a space really
-// does name `Other (logseq)` is found under its own name; and step 4 hands
-// back the stem for the same reason, so what the wiring creates is `books`
-// and not the synthetic term. The residue that leaves is exactly an option
-// name of that shape carried into a space that does not have it, which then
-// merges onto its stem instead of being created — one name in the 2,490
-// options of the 79-bundle corpus at out-57f4add has the shape at all (§11).
+// THE CERTIFICATE IS THE LEGEND, NOT THE SHAPE. `<name> (<six characters>)`
+// is also ordinary user text: the corpus at out-57f4add holds a real option
+// NAMED `Other (logseq)`, beside a real `Other (workflowy)` that the same
+// test would leave alone. A step 3 that fired on the shape read that name as
+// a term — binding the object to whatever option the target space called
+// `Other`, or handing the wiring `Other` to create where it called nothing
+// that. Both are the fault the collision rule exists to prevent, and the
+// second is the same silent rename the rule's own §3 forbids. So step 3 asks
+// the document instead: the legend files this term under an id, rung (b)
+// mints a term AS that id's last six characters, and only a term that
+// reconstructs from its own entry is one. A minted term always does, by
+// construction; a name does only by coincidence with an id it never saw.
 //
-// Both are questions for a SPACE, so a reader with no option resolver asks
-// neither and the value passes through as written (§3, §13). Nothing in the
-// string says whether `Other (logseq)` is a term or a name, and a reader with
-// no vocabulary to check it against would be guessing — and rewriting a value
-// it cannot read back, which is what makes the unwired round trip a
-// fixpoint.
+// Step 3 is also asked AFTER the exact term, never before, so an option a
+// space really does name `Other (logseq)` is found under its own name even
+// where the legend would certify the split; and step 4 hands back the stem
+// only where step 3 recognized one, so what the wiring creates is `books`
+// for a minted term and the writing space's own name for everything else.
+//
+// Every step past the first is a question for a SPACE, so a reader with no
+// option resolver asks none of them and the value passes through as written
+// (§3, §13) — which is what makes the unwired round trip a fixpoint.
 //
 // `key` is the stored key the value lands on and `slug` the spelling the slot
 // wrote: the resolver is asked with the former and the legend keyed by the
 // latter, because the reader that resolves the legend is reading the
 // document, not the store.
 func (imp *importer) resolveOption(key, slug, name string) string {
-	if id, ok := imp.optionIdFromLegend(key, slug, name); ok {
-		return id
-	}
 	if imp.opts.ResolveOptions == nil {
 		return name
+	}
+	// read once and used twice: step 1 wants an id it can USE, and step 3
+	// wants the id the term was MINTED from — which a space that never held
+	// the id answers for just as well, the mint being a fact about the
+	// writing side
+	filed := imp.optionIdFiledUnder(slug, name)
+	if filed != "" {
+		if _, live := imp.opts.ResolveOptions.OptionName(domain.RelationKey(key), filed); live {
+			return filed
+		}
 	}
 	if id, ok := imp.opts.ResolveOptions.OptionId(domain.RelationKey(key), name); ok {
 		return id
 	}
-	if stem, degraded := optionTermStem(name); degraded {
+	if stem, minted := optionTermStem(name, filed); minted {
 		if id, ok := imp.opts.ResolveOptions.OptionId(domain.RelationKey(key), stem); ok {
 			return id
 		}
@@ -522,36 +537,51 @@ func (imp *importer) resolveOption(key, slug, name string) string {
 }
 
 // optionTermStem splits `<name> (<tail6>)` back into its name half — the
-// exact inverse of optionDisambiguatedName, and the same split the reference
-// reader makes to render one of these terms (READING.md, describeOption).
+// exact inverse of optionDisambiguatedName, and it is asked WITH the id the
+// legend files the term under, because the shape alone does not answer the
+// question.
 //
-// The tail is six characters by construction, which is what keeps an ordinary
-// parenthetical out of it: `Done (2024)` is four and `Release (v1.2.3)` is
-// seven. What it cannot keep out is a name that fits exactly, and nothing in
-// the string says which it is — that is why the caller asks it last, once the
-// term itself has been offered to the space under its own name.
-func optionTermStem(term string) (string, bool) {
-	const tail = 6
-	r := []rune(term)
+// A six-character parenthetical is ordinary user text. `Other (logseq)` is
+// one, and a real option of a real property in the corpus at out-57f4add is
+// NAMED it, beside `Other (workflowy)` — the second is nine characters and
+// would survive a shape test the first does not, which is the whole argument
+// against shape: nothing about the string chose which. Two of the corpus's
+// 22 378 select/multi_select values are that name, and a stem-on-shape rule
+// bound them to whatever option a target space happened to call `Other`.
+//
+// What the exporter actually promises is narrower and checkable: a term is
+// written only where the legend is (§3), and rung (b) mints it AS the name
+// plus the last six characters OF THE ID the legend files it under
+// (optionDisambiguatedName, recordOptionRef). So the term reconstructs from
+// its own legend entry, and a name does not — the id beside the corpus's
+// `Other (logseq)` ends `ozqe2u`. That is a question the document answers
+// about itself rather than a guess about a shape, so it is what this asks.
+//
+// It stays false for an id shorter than a tail (rung (b) wrote nothing for
+// one) and for a term filed under no id at all (`OmitIds` writes no legend
+// and degrades no term either, §9), both by the reconstruction failing.
+func optionTermStem(term, filed string) (string, bool) {
 	// `x (aaaaaa)` is the shortest form: one stem rune, a space, a paren, six
 	// tail runes, a paren
-	if len(r) < tail+4 || r[len(r)-1] != ')' {
+	r := []rune(term)
+	if len(r) < 10 || filed == "" {
 		return "", false
 	}
-	open := len(r) - tail - 2
-	if r[open] != '(' || r[open-1] != ' ' {
+	stem := string(r[:len(r)-9])
+	if optionDisambiguatedName(stem, filed) != term {
 		return "", false
 	}
-	return string(r[:open-1]), true
+	return stem, true
 }
 
-// optionIdFromLegend is step 1 of §3's option resolution: the `option_ids`
-// entry, honored only when the id it carries is a live option OF THAT
-// RELATION in the target space. The liveness question is the resolver's
-// OptionName — it answers for an id exactly when that id is an option of that
-// key — which is why a reader with no resolver ignores these entries
-// altogether: it has no space to ask, and an id it cannot check is not an
-// answer it can give.
+// optionIdFiledUnder is the `option_ids` lookup, unchecked: the id this
+// document files a term under, whether or not the reading space still serves
+// it. Two of §3's steps ask it, and they ask different questions of the same
+// answer — step 1 wants an id it can USE, and refuses one the space does not
+// serve (resolveOption applies that check, since only it holds the resolver's
+// verdict); step 3 wants the id the term was MINTED from, which a space that
+// never held it answers for just as well, because the mint is a fact about
+// the writing side.
 //
 // There is no reachability precondition left to state. The lookup is indexed
 // by the spelling the slot in hand just wrote, so an entry filed under any
@@ -559,27 +589,21 @@ func optionTermStem(term string) (string, bool) {
 // to make the key's right half MEAN a property rather than be a string, the
 // nesting makes that structural. Validate still takes the census, to warn
 // about an entry that can never be consulted (§12); import does not need it.
-func (imp *importer) optionIdFromLegend(key, slug, name string) (string, bool) {
-	if slug == "" || name == "" || imp.opts.ResolveOptions == nil {
-		return "", false
+func (imp *importer) optionIdFiledUnder(slug, name string) string {
+	if slug == "" || name == "" {
+		return ""
 	}
 	// the slot's exact spelling first, then its §3 canonical NFC form — the
 	// same two-step every key slot resolves by (propertyKeyIn); option NAMES
 	// (the inner level) stay byte-exact, they are the value strings
 	// themselves
-	id := imp.optionLegend()[slug][name]
-	if id == "" {
-		if n := nfcTerm(slug); n != slug {
-			id = imp.optionLegend()[n][name]
-		}
+	if id := imp.optionLegend()[slug][name]; id != "" {
+		return id
 	}
-	if id == "" {
-		return "", false
+	if n := nfcTerm(slug); n != slug {
+		return imp.optionLegend()[n][name]
 	}
-	if _, live := imp.opts.ResolveOptions.OptionName(domain.RelationKey(key), id); !live {
-		return "", false
-	}
-	return id, true
+	return ""
 }
 
 //
@@ -621,7 +645,7 @@ func (imp *importer) optionIdFromLegend(key, slug, name string) (string, bool) {
 //
 // ONE census, not two. It used to exist in a decoded twin as well, because
 // import took it too, and an agreement test stood between them. Import no
-// longer takes a census at all (optionIdFromLegend), so the twin lost its
+// longer takes a census at all (optionIdFiledUnder), so the twin lost its
 // only caller — and a function kept alive so a test can check it agrees with
 // the one that is actually used proves nothing about behaviour. What the
 // agreement test really guarded is that the census covers every position a

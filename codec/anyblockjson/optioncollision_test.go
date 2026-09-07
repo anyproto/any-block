@@ -457,8 +457,14 @@ func TestOptionCollision_ADegradedTermResolvesByItsStem(t *testing.T) {
 // The strip is the LAST name question asked, never the first, so an option a
 // space really does name `<stem> (<six characters>)` is found under its own
 // name and never mangled into its stem. One option name in the 2,490 the
-// 79-bundle corpus at out-57f4add carries has the shape — `Other (logseq)` —
-// and this is the rule that keeps it a name.
+// 79-bundle corpus at out-57f4add carries has the shape — `Other (logseq)`.
+//
+// Ordering alone does not keep that name a name, and the sibling test
+// (…ARealNameShapedLikeATermIsNotStripped) is the one that does: a target
+// space that does NOT hold the name reaches the strip, and there the id the
+// legend files the term under is what says the term was never minted. This
+// pins the half ordering owns — that a space which DOES hold the name never
+// gets as far as asking.
 func TestOptionCollision_AnOptionNamedLikeADegradedTermResolvesToItself(t *testing.T) {
 	// given — a document written by a space where that IS the option's name
 	source := spaceOptions{"tag": {{id: "bafysource", name: "Other (logseq)"}}}
@@ -526,14 +532,25 @@ func TestOptionCollision_ThePublishedRulesResolveADegradedTerm(t *testing.T) {
 	assert.NotContains(t, spec, "**Reading one option value: three steps",
 		"the chain has a step for the term the degrade writes")
 	assert.Contains(t, spec, "**Reading one option value: four steps, first answer wins.**")
-	assert.Contains(t, spec, "3. **Name resolution again, on the name inside a degraded term.**",
+	// INVERTED from `3. **Name resolution again, on the name inside a
+	// degraded term.**`: that heading described a step keyed on the term's
+	// SHAPE, and a real option name carries the shape (below). The step is
+	// keyed on the legend now, and the heading has to say so, since the
+	// heading is what an implementor codes from.
+	assert.Contains(t, spec, "3. **Name resolution again, on the name inside a term the legend certifies.**",
 		"a degraded term must resolve by its name rather than mint one")
+	assert.Contains(t, spec, "**The shape alone does not identify one.**",
+		"§3 must say why the legend and not the shape decides")
+	assert.Contains(t, spec, "the term reconstructs from\n   the id it files the term under",
+		"§3 must state the test itself, not merely that there is one")
 	assert.NotContains(t, spec, "the inner\nkey the option **name** exactly as the value spells it",
 		"the inner key is the TERM the slot writes, which for a degraded value is not a name")
 
 	// §2's envelope row states the fallback a reader is promised.
+	// INVERTED from `… which §3's step 3 strips the suffix to find`: the row
+	// promised an unconditional strip, which is the behaviour being removed.
 	assert.Contains(t, spec,
-		"a degraded term by the name inside it, which §3's step 3 strips the suffix to find",
+		"a degraded term by the name inside it, which §3's step 3 finds by asking THIS entry",
 		"§2 must state the fallback a degraded term actually gets")
 
 	// and so does the published schema, in the same words.
@@ -551,15 +568,104 @@ func TestOptionCollision_ThePublishedRulesResolveADegradedTerm(t *testing.T) {
 		"the schema promised a degraded term a resolution it did not get")
 	assert.Contains(t, optionIds, "a degraded term by the name inside it",
 		"the schema must state the same fallback §2 and §3 do")
+	// INVERTED from `found by stripping the trailing ` (` + six characters +
+	// `)``, for the same reason as §2's row.
+	assert.NotContains(t, optionIds, "found by stripping the trailing",
+		"the schema promised a strip on shape, which rebinds a real name of that shape")
+	assert.Contains(t, optionIds, "recognised by THIS entry rather than by its shape",
+		"the schema must say what separates a term from a name")
 
 	// §11 owns the trade the fallback makes, which nothing stated before.
-	assert.Contains(t, spec, "In a space that never held those ids the legend answers nothing",
+	// INVERTED from `the legend answers nothing`: it answers, and the answer
+	// is what step 3 reads — only its id cannot be honoured there.
+	assert.Contains(t, spec, "In a space that never held those ids the legend cannot be honoured",
 		"§11 must state what a cross-space install of a degraded term does")
+	assert.Contains(t, spec, "**The trade is bounded by\n  the legend, not by the shape.**",
+		"§11 must state the bound, since the corpus holds the name that needs it")
+	assert.NotContains(t, spec, "none of\n  the corpus's 3,591 select-format values has the shape",
+		"the figure was unreproducible and its claim false: 2 values have the shape")
+	assert.Contains(t, spec, "**2 of the 22 378 select/multi_select values**",
+		"§11 must carry the re-derived figure with its denominator")
 
 	// and PRINCIPLES keeps the list of accepted losses complete: it promised
 	// the losses are "few and listed, never smoothed over", and named only
 	// what a name-only WRITER pays.
-	assert.Contains(t, readFormatDocumentation(t)["PRINCIPLES.md"],
+	principles := readFormatDocumentation(t)["PRINCIPLES.md"]
+	assert.Contains(t, principles,
 		"and what a reader in ANOTHER space pays",
 		"the accepted-loss list must carry the cross-space fallback too")
+	assert.Contains(t, principles,
+		"That second loss is bounded by the legend rather than by the suffix's shape",
+		"and must say what bounds it, since the bound is what keeps a real name a name")
+}
+
+// A REAL option name may have the term's shape, and the corpus proves it
+// does. `Software used` in bundle `bafyreigryvrmerbtfsw…` is a `multi_select`
+// with eight options, two of them `Other (logseq)` and `Other (workflowy)` —
+// user text, uncontested, never degraded by anything. Two of the corpus's
+// documents carry `Other (logseq)` as a value, one of them beside
+// `Other (workflowy)` in the same list.
+//
+// A resolver that strips a six-character parenthetical on every miss reads
+// that name as a term and asks about `Other`, which is the fault the whole
+// collision rule exists to prevent, one section away: the object binds to an
+// option it was never on where the space has an `Other`, and is renamed to
+// `Other` where it does not. The suffix on `Other (workflowy)` is nine
+// characters, so the same list keeps its own name — the arbitrariness is
+// visible in the data.
+//
+// What separates a term from a name is not the shape. It is the legend: a
+// term is written only where the legend is (§3), and its six characters are
+// the last six of the id the legend files it under. That is a question the
+// document answers about itself, and a real name does not answer it — the
+// corpus id beside `Other (logseq)` ends `ozqe2u`, and the synthetic id
+// standing in for it here ends `aaaaaa`.
+func TestOptionCollision_ARealNameShapedLikeATermIsNotStripped(t *testing.T) {
+	// given — the corpus shape: both names are real, and neither is contested
+	source := spaceOptions{"tag": {
+		{id: "bafyoptionaaaaaa", name: "Other (logseq)"},
+		{id: "bafyoptionbbbbbb", name: "Other (workflowy)"},
+	}}
+	snap := optionSnapshot(map[string]*types.Value{"tag": strList(
+		"bafyoptionaaaaaa",
+		"bafyoptionbbbbbb",
+	)})
+	data, err := Marshal(model.SmartBlockType_Page, snap, Options{ResolveOptions: source})
+	require.NoError(t, err)
+	require.Equal(t, []any{"Other (logseq)", "Other (workflowy)"}, docProperty(t, data, "Tag"))
+
+	for name, tc := range map[string]struct {
+		target spaceOptions
+		want   []string
+	}{
+		// the silent rebinding: an option the object was never on
+		"a space with an option named the stem": {
+			target: spaceOptions{"tag": {{id: "t-other", name: "Other"}}},
+			want:   []string{"Other (logseq)", "Other (workflowy)"},
+		},
+		// the silent rename: what the wiring is handed to create is the
+		// NAME the writing space held, never a truncation of it
+		"a space that has neither": {
+			target: spaceOptions{"tag": {{id: "t-films", name: "films"}}},
+			want:   []string{"Other (logseq)", "Other (workflowy)"},
+		},
+		// and where the space really does hold it, it is found under its own
+		// name — the exact term is still asked first
+		"a space that has the name itself": {
+			target: spaceOptions{"tag": {
+				{id: "t-exact", name: "Other (logseq)"},
+				{id: "t-other", name: "Other"},
+			}},
+			want: []string{"t-exact", "Other (workflowy)"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// when
+			_, back, err := Unmarshal(data, Options{ResolveOptions: tc.target})
+			require.NoError(t, err)
+
+			// then
+			assert.Equal(t, tc.want, storedList(t, back, "tag"))
+		})
+	}
 }
