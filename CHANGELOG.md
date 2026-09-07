@@ -5,6 +5,41 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **An embed's `url` is a service-processor input alias, and never sits beside
+  `text`** (`object.schema.json`, `codec/anyblockjson/validate.go`, SPEC §5,
+  §5.2). `{"type": "embed", "processor": "mermaid", "url": "graph TD; A-->B"}`
+  is now a validation error at `/blocks/0/url`.
+
+  It used to validate, import with **zero warnings**, and re-export as
+  `{"type": "embed", "processor": "mermaid"}` — a successful round trip that
+  lost the diagram. There is no code fix: `BlockContentLatex` has exactly two
+  fields, `Text` and `Processor`, so a renderer's source written under `url`
+  has no slot to be stored in, and §5.2 already said `url` was an alias for
+  the URL a SERVICE processor embeds. The schema said otherwise — one branch
+  admitted `url` for every processor, the omitted default (`latex`) included.
+
+  **Both halves of the rule are now in the published schema**, so a reader
+  holding only the export and the schemas reaches the same verdict: `url` is
+  admissible only when `processor` is present and is not one of the seven
+  renderers, and a block stating `text` and `url` together is refused rather
+  than having one of them dropped (import keeps `text`, so the second URL in
+  a document carrying two disappeared silently).
+
+  The schema's own verdicts — `property "url" is not allowed` and a bare
+  `'not' failed` — both point at deleting a member, and on an embed the
+  member IS the block, so `embedSourceSlotIssues` words them the way
+  `propertyNameIssues` and `derivedIdSlotIssue` word theirs: *rename it to
+  `text` and keep its value*. It judges the same condition the schema does,
+  at every position a block can occupy, cells included, and the renderer set
+  is derived from the importer's own `sourceProcessors` rather than restated.
+  A branch of an `anyOf` whose every leaf another pass spoke for no longer
+  merges into a verdict about the instance's SHAPE — a table cell holding
+  such an embed was reported as `got object, want string, null, array`.
+
+  **Corpus:** 0 of 24,905 documents (79 bundles, out-57f4add) newly fail. No
+  export has ever written `url` on an embed — export writes `text`, always —
+  and none of the corpus's 160 embed blocks carries one.
+
 - **A query states its source on the ROOT, in two typed lists, and the stored
   `setOf` key is refused in `properties` on every kind** (`codec/anyblockjson/querysource.go`,
   `object.schema.json` + its authoring subset, SPEC §2/§6.2/§9/§11/§15 #29,

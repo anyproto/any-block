@@ -1039,11 +1039,51 @@
               },
               "text": {
                 "type": "string",
-                "description": "The block's text. Formatting is expressed INLINE, inside this string — this format has no `marks` array and no offsets (§8). A CommonMark-inline subset plus a small tag whitelist, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` — an external link\n  `[text](anytype://object?objectId=<id>)` — a link to an object in this space\n  `<mention object_id=\"<id>\">text</mention>` — a decorated object reference (icon + name)\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no HTML beyond those tags. `\\n` is a soft line break within the block. A literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` in prose is backslash-escaped."
-              },
-              "url": {
-                "type": "string"
+                "description": "The embed's payload, and the ONLY slot the stored model has for one. LITERAL: no inline markup is read here and none is written (\u00a78.4). What it holds is decided by `processor` \u2014 SOURCE CODE for a renderer (`latex`, the default, `mermaid`, `chart`, `graphviz`, `kroki`, `excalidraw`, `drawio`), the URL to embed for a service processor (every other value), where `url` is accepted as an input alias for this member and nowhere else."
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "embed",
+                  "equation"
+                ]
+              },
+              "processor": {
+                "not": {
+                  "enum": [
+                    "latex",
+                    "mermaid",
+                    "chart",
+                    "graphviz",
+                    "kroki",
+                    "excalidraw",
+                    "drawio"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "type",
+              "processor"
+            ]
+          },
+          "then": {
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "INPUT ALIAS for `text`, and only on a SERVICE processor (\u00a75.2). Export never writes it \u2014 it writes `text` \u2014 and the two are ONE stored slot, so a block stating both is refused rather than having one of them silently dropped. A RENDERER processor (`latex`, `mermaid`, `chart`, `graphviz`, `kroki`, `excalidraw`, `drawio`) refuses this member outright, and so does an absent `processor`, which means `latex`: their payload is source code, the model has nowhere to put a second string, and a document written that way lost its diagram on import."
+              }
+            },
+            "not": {
+              "required": [
+                "text",
+                "url"
+              ]
             }
           }
         },

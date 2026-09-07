@@ -3576,7 +3576,7 @@ mapping:
 | `row` / `column` | Layout/Row, Layout/Column | — none first-class; descendants carry the content, and a `row` contains only `column`s (§4 containment, read on the lifted tree, §7a). A **column**'s width is the one thing these blocks carry of their own, and it is in `fields` (§5.3) |
 | `group` | Layout/Div (legacy) | — **accepted on input only; lifted** (§7a). No export ever writes one |
 | `table` | Table (+ structural children) | `columns`, `rows` — see §6.1 |
-| `embed` | Latex | `processor`, `text` (**literal**, §8.4) — see §5.2 |
+| `embed` | Latex | `processor`, `text` (**literal**, §8.4). `url` is accepted as an input alias for `text` on a SERVICE processor only, and is refused on a renderer processor and beside `text` — see §5.2 |
 | `table_of_contents` | TableOfContents | — |
 | `property` | Relation | `property` (the property's spelling, the member every property-naming slot uses; renders the property inline) |
 | `dataview` | Dataview | fully specified in §6.2 |
@@ -3620,6 +3620,27 @@ set.
 `chart`, `graphviz`, `kroki`, `excalidraw`, `drawio`) and a **URL** for
 service processors (everything else); for service processors import also
 accepts the URL under a `url` key as an input alias.
+
+**`url` is admissible only there, and never beside `text`.** Both halves are
+validation errors, stated in the published schema, not conventions a reader
+enforces on its own:
+
+- On a **renderer** processor — and on a block with no `processor`, which
+  means `latex` — `url` is refused. `BlockContentLatex` has exactly two
+  fields, `Text` and `Processor`, so there is no slot a second string could
+  go in: `{"type": "embed", "processor": "mermaid", "url": "graph TD; A-->B"}`
+  used to validate, import with no warning, and come back out of that
+  successful import as `{"type": "embed", "processor": "mermaid"}` with the
+  diagram gone. The repair is to rename the member to `text`, which is what
+  the refusal says.
+- On a **service** processor, a block stating both `text` and `url` is
+  refused. They are one stored slot written two ways, import keeps `text`,
+  and a document holding two different URLs would lose one of them without
+  saying so.
+
+Export writes `text`, always, on every processor; no export has ever written
+`url`, and none of the 160 embed blocks in the 79-bundle, 24,905-document
+corpus carries one.
 
 Standalone math is `{ "type": "embed", "processor": "latex", "text": "…" }`;
 import accepts `equation` as a type alias for it (what Notion-trained
