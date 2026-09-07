@@ -5,6 +5,28 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **An absent `format` is not a declaration of `text`, and §2a stops saying
+  it is** (SPEC §2a).
+  §2a said the `property_definitions` entry's `format` "defaults to `text`
+  when absent on input"; §3 said of the SAME slot that an absent format "is
+  NOT a declaration of `text`" and resolves through the chain. Two rules, one
+  slot, and an implementer who read §2a first pins a bundled DATE property to
+  text and its filters stop being dates.
+
+  The runtime settles it and §3 was right: `declaredFormatWith` runs the §3
+  chain for an empty name — the bundled table, then the caller's resolver —
+  and reaches `longtext` only where nothing answers. Both doors into the
+  array do it, the document and `BuildRecommendedLists`.
+  `{"property": "due_date"}` resolves to `date` through each.
+
+  Prose only; no schema, no code, no behaviour change. `Validate` is
+  untouched, so **0 of 24,905 corpus documents (79 bundles, out-57f4add)
+  change verdict**. The sentence had no corpus incidence to begin with:
+  canonical export always writes a format, and **all 20,458
+  `property_definitions` entries in the corpus carry one** — an absent
+  `format` only ever arrives from a hand-written document, which is exactly
+  the population the wrong sentence addressed.
+
 - **The icon colour's raw-number escape is bounded, and the exporter checks
   the bound before it narrows** (`object.schema.json`,
   `codec/anyblockjson/iconcover.go`, SPEC §2b, §11).

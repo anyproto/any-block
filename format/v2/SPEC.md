@@ -520,7 +520,13 @@ property (including the `_missing_object` sentinel of already-dangling
 references); legacy lists that store bare property **keys** instead of ids
 resolve through the reverse lookup, falling back to the bundle for system
 properties. The canonical form writes `property`, `internal_key`, `name` and `format` on
-every entry (`format` defaults to `text` when absent on input), and writes the
+every entry — and the `format` it writes is the **resolved** one, because an
+absent `format` on input is **not a declaration of `text`**: it says nothing,
+and the answer to nothing is the §3 chain, which reaches `text` only where
+nothing can answer (the rule §3 states for every slot carrying `format`, this
+array included — `{"property": "due_date"}` resolves to `date`, not to
+`text`). Canonical export therefore always writes a format, so an absent one
+only ever arrives from a hand-written document. Export also writes the
 `property_definitions` array **even when empty** — its presence is what tells
 import to rebuild the lists. Import then rebuilds all four id lists — empty
 sections become explicit empty lists, matching how type objects store them —
