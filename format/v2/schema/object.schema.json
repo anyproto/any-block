@@ -49,7 +49,8 @@
       ]
     },
     "id": {
-      "type": "string"
+      "type": "string",
+      "description": "This document's own address: the string every reference to it spells (§9). Three spellings are RESERVED and say what the document IS. `type-<internal_key>` is a type document's id, and belongs only to the type whose `internal_key` is that remainder. `participant-<identity>` is a participant document's id — and so is the BARE `<identity>` on its own: a base58 account identity, 48 characters carrying a version byte and a CRC16 checksum, the spelling documents written before the prefix used and the one an object-reference slot still reads as that member. No other kind may carry a bare account identity here, for that reason: a reference written that way rebuilds into `_participant_<space>_<identity>`, so the document would be addressed by nothing that names it. The checksum makes that half semantic — no schema can verify a CRC16 — so it is stated here and enforced by the reader, while the two prefixes are refused by the conditions below. Every other id is an ordinary address, and a `-` elsewhere (`page-welcome`) is an ordinary slug."
     },
     "type": {
       "type": "string",
@@ -292,7 +293,7 @@
       }
     },
     {
-      "$comment": "The same reservation for participants: `participant-<identity>` is a participant document's id. That the remainder is a real account identity — a base58 strkey with its version byte and CRC16 checksum — is semantic, as no schema can express a checksum.",
+      "$comment": "The same reservation for participants: `participant-<identity>` is a participant document's id. That the remainder is a real account identity — a base58 strkey with its version byte and CRC16 checksum — is semantic, as no schema can express a checksum. The BARE identity, the spelling written before the prefix and still read as one, is reserved for participant documents by the same rule and for the same reason; it is semantic in whole, so it appears in the description of `id` and nowhere in this grammar.",
       "if": {
         "properties": {
           "kind": {

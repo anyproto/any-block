@@ -5,6 +5,37 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **A bare account identity is a participant's address, so no other
+  document may wear one** (SPEC §9, `object.schema.json`,
+  `authoring/object.schema.json`, `reservedIdViolation`).
+  A participant is read under two spellings — `participant-<identity>` and
+  the bare `<identity>` documents written before the prefix used — and
+  `participantRefIdentity` classifies both by the identity's own CRC16, so
+  an object reference spelled either way rebuilds into
+  `_participant_<spaceId>_<identity>`. The envelope `id` was not held to
+  that: a page whose `id` was a checksum-valid identity validated, its own
+  self-link validated, and under `Options{SpaceId: …}` the id stayed put
+  while the link left for the participant. The page was addressable by
+  nothing that named it.
+
+  The reservation now covers the bare spelling beside the two prefixes: an
+  envelope id that classifies as an account identity belongs to a
+  participant document, and on any other kind is refused at `/id` by
+  `Validate`, by `ValidateAuthoring` and by `bundle.Validate`, and refused
+  by `Marshal` rather than written (§11 I1). A participant document still
+  READS its legacy bare id; export still writes the prefixed form. Unlike
+  the two prefixes, this half cannot be delegated to the published grammar
+  — the classifier is a CRC16 over a base58 payload — so both schemas state
+  it in the description of `id` and say that the reader enforces it.
+
+  A TIGHTENING, and measured before shipping: **0 of 24,905 corpus
+  documents (79 bundles, out-57f4add) newly fail**, because **0 carry a
+  bare account identity as their envelope id** — every envelope id in the
+  corpus is a CID (20,578), `participant-<identity>` (2,519) or
+  `type-<internal_key>` (1,808), and none is absent. The
+  full document sweep is byte-identical before and after across all 25,063
+  validated subjects (24,905 documents, 79 indexes, 79 dictionaries).
+
 - **A manifest-bound `.json` path is an attachment, and the reading guide
   stops sending consumers into one** (`format/v2/READING.md`).
   Step 2 told consumers to read every `.json` file that is not `index.json`

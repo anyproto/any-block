@@ -4962,6 +4962,22 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   semantic, because no schema can compare a member against a substring of
   another or verify a checksum. A `-` anywhere else in an id — `page-welcome` — is an ordinary
   bundle-local slug.
+- **So is the bare identity, and for the same reason.** A participant is
+  read under two spellings, `participant-<identity>` and the bare
+  `<identity>` older documents wrote (*The participant fold*), and a
+  reference slot resolves BOTH to that member. An envelope id that is a
+  bare account identity therefore belongs to a participant document too:
+  on any other kind the document declares an address that nothing naming
+  it can reach — its own self-link leaves for
+  `_participant_<spaceId>_<identity>` while the id stays put — so it is
+  refused at `/id` beside the two prefixes. A participant document keeps
+  the spelling on input, as it always has; export writes the prefixed form.
+  This half is semantic in WHOLE, not in part: the classifier is a CRC16
+  over a base58 payload, which no schema can compute, so unlike the
+  prefixes it cannot be delegated to `object.schema.json` — the grammar
+  states it in the description of `id` and the reader enforces it. A
+  third-party reader that wants the guarantee must run the checksum
+  itself; every other id in this format can be compared as a string.
 - **Import rebuilds through the same capability.** `type-<key>` in an
   id-valued slot becomes the type object the target space serves for that
   key (`TypeIdByKey`); a key the space does not serve stays as written —
@@ -5286,7 +5302,9 @@ base58 string means a member" is a rule a reader has to know; `participant-`
 says it — and it is the same rule a type document's id follows
 (`type-<internal_key>`, *Derived ids* below). A bare identity is still
 READ, as input compatibility with documents written before the prefix (the
-checksum classifier is exact either way), and never written.
+checksum classifier is exact either way), and never written. Because it is
+read as a member, it is reserved as one: no document but a participant's
+may carry a bare identity as its own `id` (*Derived ids* below).
 
 Every slot folds, not only the ones a property census found participants
 in: object/file-format property values, `items`, block `object_id`s,

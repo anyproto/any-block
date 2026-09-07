@@ -832,10 +832,21 @@ func FoldDocumentId(opts Options, sbType model.SmartBlockType, id, internalKey s
 
 // reservedIdViolation states the derived-id reservation (§9) once, for the
 // validator and for Marshal alike: an id wearing `type-` must belong to a
-// type document whose internal_key is the remainder, and one wearing
+// type document whose internal_key is the remainder, one wearing
 // `participant-` to a participant document whose remainder is an account
-// identity. The message names the repair; "" means the id is entitled to
-// whatever it wears.
+// identity, and a BARE account identity — the participant fold's other
+// input spelling — to a participant document as well. The message names the
+// repair; "" means the id is entitled to whatever it wears.
+//
+// The bare form is the checksum half of the participant reservation, and it
+// is reserved for the reason the prefix is: participantRefIdentity
+// classifies both spellings, so an object reference that is a bare identity
+// rebuilds into `_participant_<space>_<identity>` (unfoldParticipantRef) and
+// addresses that member. An ordinary document wearing one therefore declares
+// an address no reference to it can reach — it validated, and its own
+// self-link left for the participant. Unlike the prefixes, no schema can
+// carry this half: the classifier is a CRC16 over a base58 payload, so the
+// published grammar states it in prose at `/id` and this pass enforces it.
 func reservedIdViolation(id string, isType, isParticipant bool, internalKey, kind string) string {
 	switch {
 	case strings.HasPrefix(id, TypeRefPrefix):
@@ -857,6 +868,13 @@ func reservedIdViolation(id string, isType, isParticipant bool, internalKey, kin
 		if !isAccountIdentity(identity) {
 			return fmt.Sprintf("id %q wears the reserved participant- prefix (§9), but %q is not an account identity",
 				id, identity)
+		}
+	case isAccountIdentity(id):
+		if !isParticipant {
+			return fmt.Sprintf("id %q is an account identity, the reserved bare spelling of that member's participant "+
+				"(§9): every object reference written this way rebuilds into that participant, so this document (kind "+
+				"%q) would be addressed by nothing that names it — choose an id that is not an account identity, or "+
+				"declare this document kind %q", id, kind, kindNames.name(model.SmartBlockType_Participant))
 		}
 	}
 	return ""

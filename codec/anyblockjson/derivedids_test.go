@@ -746,3 +746,62 @@ func TestDerivedIds_ReservationIsInTheCanonicalSchema(t *testing.T) {
 		})
 	}
 }
+
+// A BARE account identity is the participant fold's other input spelling
+// (participantRefIdentity), so in an object-reference slot it addresses the
+// participant of that identity and nothing else. An envelope id may
+// therefore be one only on a participant document: on any other kind the
+// document declares an address that every reference to it resolves
+// elsewhere — the page validates, the link validates, and the link points
+// at `_participant_<space>_<identity>`.
+//
+// This is the checksum half of the `participant-` reservation, and it is
+// semantic alone: a schema can refuse a prefix, but no schema can verify a
+// CRC16, so the published grammar states the rule in prose at `/id` and
+// this pass is what enforces it.
+//
+// How this can fail: drop the isAccountIdentity case from
+// reservedIdViolation and the page below validates with a self-link that
+// silently re-homes; keep it but forget the isParticipant gate and the
+// legacy bare-identity participant document stops being readable.
+func TestDerivedIds_BareIdentityIsReservedForParticipants(t *testing.T) {
+	identity := foldIdentity
+
+	t.Run("an ordinary object may not wear a bare identity", func(t *testing.T) {
+		doc := `{"formatVersion":"2.0","id":"` + identity + `","properties":{"Name":"Ordinary page"},` +
+			`"blocks":[{"type":"link","object_id":"` + identity + `"}]}`
+
+		err := Validate([]byte(doc), Options{})
+		require.Error(t, err)
+		var ve *ValidationError
+		require.ErrorAs(t, err, &ve)
+		require.Len(t, ve.Issues, 1)
+		assert.Equal(t, "/id", ve.Issues[0].Path)
+		assert.Contains(t, ve.Issues[0].Message, "reserved")
+
+		require.Error(t, ValidateAuthoring([]byte(doc)), "the authoring surface agrees")
+		_, _, uerr := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+		require.Error(t, uerr, "Unmarshal agrees (§12 I2)")
+	})
+
+	t.Run("a participant document still reads its legacy bare id", func(t *testing.T) {
+		doc := `{"formatVersion":"2.0","kind":"participant","id":"` + identity + `"}`
+		require.NoError(t, Validate([]byte(doc), Options{}))
+		_, snap, err := Unmarshal([]byte(doc), foldOptions())
+		require.NoError(t, err)
+		assert.Equal(t, foldComposite, snap.GetDetails().GetFields()["id"].GetStringValue())
+	})
+
+	t.Run("Marshal refuses to write one", func(t *testing.T) {
+		snap := &model.SmartBlockSnapshotBase{
+			Blocks: []*model.Block{{
+				Id:      identity,
+				Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
+			}},
+			Details: fields(map[string]*types.Value{"id": str(identity), "name": str("Ordinary page")}),
+		}
+		_, err := Marshal(model.SmartBlockType_Page, snap, foldOptions())
+		require.Error(t, err, "Marshal never emits what Validate rejects (§11 I1)")
+		assert.Contains(t, err.Error(), "envelope id")
+	})
+}
