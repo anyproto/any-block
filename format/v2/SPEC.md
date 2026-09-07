@@ -1392,8 +1392,9 @@ keys. The translation is the optional `TypeResolver` capability of
 `Options.ResolveProperties` (storeresolver implements it from the same one
 bounded type listing the §3 vocabulary budgets): export inverts id → key, import key →
 this space's id, so a resolver-wired round trip is id-exact. A bare KEY
-that a legacy import stored directly (21 production entries) is not an id,
-and does not pass through verbatim: it takes **three steps**. The stored key
+that a legacy import stored directly — 21 such entries in the sweep below,
+against 1,301 object ids — is not an id, and
+does not pass through verbatim: it takes **three steps**. The stored key
 DENOTES that type; canonical export writes its derived reference
 `type-<key>` (§9), the one spelling of a type every slot writes; and import
 resolves that key to **this space's type object id** whenever the capability
@@ -1410,10 +1411,11 @@ every space while a type key does not. Both drop, the real id with a warning
 naming it; `object_types` is a list, and a list expresses absence by being
 shorter. Note the store answers for CORPSES too: an uninstalled type still
 has a row and still inverts through `TypeKeyById` (its id names something),
-so only an id with no row at all drops. Without any resolver the whole list
-passes through verbatim and the offline round trip is byte-exact — an id
-the store merely could not be asked about is still the stored value's
-meaning, and a backup format that deleted it on export would be
+so only an id with no row at all drops. Without any resolver every stored ID
+passes through verbatim, and the offline round trip is byte-exact for every
+entry alike: a bare key still crosses as `type-<key>` and comes back that
+key, and an id the store merely could not be asked about is still the stored
+value's meaning, so a backup format that deleted it on export would be
 disqualifying.
 
 Corpus facts the design rests on (38,061 documents, 10,617 relation
@@ -6135,14 +6137,25 @@ and **`object_types` entries take the §3 list normalizations** — a
 scalar-stored value wraps, empty-string entries drop — while the id↔key
 translation is exact for every id the store actually speaks: ids out, ids
 back under the `TypeResolver` capability, verbatim both ways without it.
-One residue, measured at 27 corpus relations: **a legacy bare type KEY
+One residue: **a legacy bare type KEY
 stored where the store speaks object ids comes back as this space's type
-object id** — export passes the key through verbatim (it is no id the
-resolver serves), and import writes the id the key names, which is the
-store's own spelling for the same type. A respelling, not a rebinding — the
-comparator normalizes both sides to keys through the same capability, the
-treatment the recommended lists already get, so only a change of the type
-NAMED reports.
+object id**.
+Export does not pass it through: it writes the key's derived
+reference `type-<key>` (§9), the one spelling of a type every slot writes —
+with a resolver or without one — and import writes the id that key names,
+which is the store's own spelling for the same type. §2d states all three
+steps and this is the same rule, not a second one. A respelling, not a
+rebinding — the comparator normalizes both sides to keys through the same
+capability, the treatment the recommended lists already get, so only a change
+of the type NAMED reports.
+
+Its population is §2d's, measured once:
+**21 bare-key entries in `relationFormatObjectTypes`**, beside 1,301 object
+ids and 9 sentinels, in the 38,061-document account sweep that section names.
+It is not re-derivable from the 24,905-document, 79-bundle corpus at
+out-57f4add, and never will be from a bundle corpus: a bundle writes no
+property document at all (§15 #23), so the documents this residue lives in
+are not in one.
 
 The deleted-icon rule (§9) adds one normalization of its own, armed only
 when the wiring supplies the `ObjectDeletionResolver` capability (§13):

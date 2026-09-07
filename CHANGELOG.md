@@ -5,6 +5,29 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **§11 stops restating the verbatim rule §2d retired, and the two sections
+  cite ONE measured population** (SPEC §2d, §11). Commit a97ce35 replaced
+  §2d's "passes through **verbatim in both directions**" with the three steps
+  a legacy bare target type key actually takes, and pointed §2d at §11 — while
+  §11's own paragraph still said "export passes the key through verbatim (it
+  is no id the resolver serves)". Export does not: `relationformat.go` wraps
+  the target keys in `typeKeyRefs`, so `page` crosses as `type-page` under
+  every wiring including none at all, which the batch-2 test already asserted
+  for exactly this input. A reader landing in §11 first — which is where §2d
+  now sends them — got the retired rule back.
+
+  The pair also stated one population twice and disagreed about it: §2d "21
+  production entries", §11 "27 corpus relations" — different numbers in
+  different units for what reads as the same thing, and neither derivable
+  from the 24,905-document, 79-bundle corpus at out-57f4add, which carries no
+  property documents at all, because a bundle writes none (§15 #23). §11 now
+  cites §2d's figure in §2d's unit — 21 bare-key entries in
+  `relationFormatObjectTypes` beside 1,301 object ids, in the
+  38,061-document account sweep §2d names — and says outright that a bundle
+  corpus can never re-derive it. §2d says what the 21 are entries OF, and
+  states the no-resolver case exactly: the stored IDS pass through verbatim,
+  while a bare key still crosses as `type-<key>` and comes back that key.
+
 - **A degraded option term resolves by the name inside it, and is not written
   where no legend can answer for it** (SPEC §2, §3, §9, §9a, §11,
   `object.schema.json`, `resolveOption`, `planOptionTerms`). Where two options

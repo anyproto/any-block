@@ -130,3 +130,37 @@ func TestSpecStatesOneRuleForLegacyTargetTypeKeys(t *testing.T) {
 	assert.Contains(t, spec, "stored where the store speaks object ids comes back as this space's type\nobject id",
 		"§11 must still carry the normalization §2d now defers to")
 }
+
+// §11 carried the retired rule verbatim. Commit a97ce35 replaced §2d's "passes
+// through **verbatim in both directions**" with the three steps the value
+// actually takes, and pointed §2d at §11 — but §11's own paragraph still said
+// "export passes the key through verbatim (it is no id the resolver serves)".
+// Export does no such thing: `relationformat.go` wraps the target keys in
+// `typeKeyRefs`, so `page` crosses as `type-page`, which the runtime half
+// above asserts for all three wirings including none at all. A reader landing
+// in §11 first — which is where §2d now sends them — got the retired rule
+// back.
+//
+// The pair also stated one population twice and disagreed: §2d "21 production
+// entries", §11 "27 corpus relations", different units and different numbers
+// for what reads as the same thing. Neither is derivable from the corpus at
+// out-57f4add, which carries no property documents at all — a bundle writes
+// none (§15 #23) — so the figure is cited from the one sweep that measured it
+// rather than restated.
+func TestSpecStatesOneVerbatimRuleAndOnePopulation(t *testing.T) {
+	spec := readFormatDocumentation(t)["SPEC.md"]
+
+	assert.NotContains(t, spec, "export passes the key through verbatim",
+		"§11 must not restore the rule §2d retired")
+	assert.NotContains(t, spec, "it is no id the\nresolver serves",
+		"the key IS a key the resolver serves; it is not an id, which is a different sentence")
+	assert.Contains(t, spec, "Export does not pass it through: it writes the key's derived\nreference",
+		"§11 must state the export step §2d states")
+
+	assert.NotContains(t, spec, "27 corpus relations",
+		"§11 may not restate a population §2d measures, in another unit, from no named source")
+	assert.Contains(t, spec, "21 bare-key entries in `relationFormatObjectTypes`",
+		"§11 must cite the population §2d measured, in the unit §2d measured it in")
+	assert.NotContains(t, spec, "(21 production entries)",
+		"§2d must say what the 21 are entries OF, since §11 now cites them")
+}
