@@ -5,6 +5,30 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **A manifest-bound `.json` path is an attachment, and the reading guide
+  stops sending consumers into one** (`format/v2/READING.md`).
+  Step 2 told consumers to read every `.json` file that is not `index.json`
+  and not the dictionary. `manifest.files` maps a file object's id to the path
+  holding that file's BYTES, and those bytes can themselves be JSON, which the
+  extension cannot distinguish from a document. The format's own validator
+  agrees: it collects every manifest-bound path and skips it *before* it looks
+  for documents by extension. So a bundle whose
+  `manifest.files["file-json"] = "attachments/data.json"` holds `[1,2,3]`
+  passes `bundle.Validate`, and a consumer following the guide chokes on it.
+
+  Step 2 now says the manifest is the authority and the suffix is not, and —
+  while it is true — warns that the shipped example reader has not caught up:
+  on that bundle it exits with `attachments/data.json: json: cannot unmarshal
+  array into Go value of type main.document`. Repairing the example is a code
+  fix (F055/F056's batch); the guide had to stop being wrong first.
+
+  Prose only; no schema, no code, no behaviour change, and **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**. No corpus
+  bundle exercises the hazard — all **79 carry no `manifest.files` member at
+  all**, the metadata-only mode of §2c — but **12 of the corpus's file objects
+  carry the `json` extension**, so a FAT export of one of those spaces
+  produces it.
+
 - **The link-destination bound says what it counts, and the docs stop
   promising a byte-stability the two surfaces do not have**
   (SPEC §8.2, `format/v2/INLINE_MARKUP.md`).

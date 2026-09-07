@@ -74,8 +74,27 @@ Four things to take from it and one to be careful about.
 
 ## 2. Index every document by the `id` inside it
 
-Walk the tree, read every `.json` file that is not `index.json` and not the
-dictionary, and key them by the `id` member.
+Walk the tree, read every `.json` file that is not `index.json`, not the
+dictionary, and **not a path `manifest.files` names**, and key them by the `id`
+member.
+
+**A `.json` file can be an attachment rather than a document.**
+`manifest.files` maps a file object's id to the path holding that file's BYTES
+(step 6), and those bytes can themselves be JSON — a saved API response, an
+exported dataset — which the extension cannot distinguish from a document. A
+bundle like that is conformant: the format's own validator collects every
+manifest-bound path and skips it *before* it looks for documents by extension,
+and 12 of the corpus's file objects carry the `json` extension. So the manifest
+is the authority and the suffix is not: read `manifest.files`' values first, and
+skip those paths here. A reader that does not will try to decode `[1,2,3]` as a
+document, and if it aborts on a decode failure — as the example reader does — it
+rejects a bundle with nothing wrong with it.
+
+The example reader has not caught up with this step yet: it skips only
+`index.json` and the dictionary, so on a bundle whose `manifest.files` names a
+`.json` attachment it exits with
+`attachments/data.json: json: cannot unmarshal array into Go value of type
+main.document`. Follow the step, not that line of the example.
 
 **Do not key them by path.** The format defines no folder layout at all;
 `objects/`, `types/`, `participants/`, `templates/`, `files/` and the

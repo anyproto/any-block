@@ -980,3 +980,39 @@ func TestQuerySourceOrderIsTheDocumentsOrder(t *testing.T) {
 		}
 	})
 }
+
+// A manifest-bound `.json` path holds a file's BYTES, not a document (SPEC
+// §2c). This example does not skip those paths yet, so it rejects a bundle the
+// format accepts — READING.md step 2 states the rule and warns that this line
+// of the example has not caught up.
+//
+// How this can fail: add manifest.files' values to open's skip set and this
+// test goes red — as it should, together with the guide's warning paragraph.
+func TestAJSONAttachmentIsReadAsADocumentAndAborts(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"index.json": `{"formatVersion":"2.0","entrypoint":"page","manifest":` +
+			`{"properties":"properties.json","files":{"file-json":"attachments/data.json"}}}`,
+		"properties.json":          `{"properties":[{"property":"Name","internal_key":"name","name":"Name","format":"text"}]}`,
+		"objects/page.json":        `{"formatVersion":"2.0","id":"page","properties":{"Name":"Hello"}}`,
+		"files/file.anyblock.json": `{"formatVersion":"2.0","id":"file-json","kind":"file_object"}`,
+		"attachments/data.json":    `[1,2,3]`,
+	} {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	_, err := open(dir)
+	if err == nil {
+		t.Fatal("the example now skips manifest-bound paths: delete this test and " +
+			"READING.md's warning that it does not")
+	}
+	if !strings.Contains(err.Error(), "attachments/data.json: json: cannot unmarshal array") {
+		t.Errorf("err = %v, want the decode failure READING.md quotes", err)
+	}
+}
