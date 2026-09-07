@@ -6400,8 +6400,10 @@ fail neither test belong in authoring guidance and in review.
   against the tree §7a's lift builds and naming the effective parent), id
   uniqueness over the whole document (§4), table shape and cell rules
   (§6.1, including the inclusive 100,000 row×column implicit-grid limit,
-  with empty cells counted, and a cell block that is a transparent container
-  included), envelope combinations (`items`/`template_for`/`kind`, §2),
+  with empty cells counted, a cell block that is a transparent container, and
+  a SECOND root in a cell's array form — an element after the first at indent
+  0, which is one root too many for a position that holds one),
+  envelope combinations (`items`/`template_for`/`kind`, §2),
   **property-key admission on the resolved stored key** (§3 — each
   `properties` spelling resolves through the §3 chain before the deny rule,
   the enum-name check and the format-shape warning run; validation
