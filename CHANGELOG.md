@@ -86,6 +86,15 @@ original order.
   each said the split was on shape and now say what it is on. §11 carries the
   re-derived figures with their denominator in place of the false one.
 
+  §3's ORDER also gained a test and a reason. Step 2 before step 3 was pinned
+  by nothing: swapping them left every test green, because a certified term
+  and a space that names that term were never both true in one case. They are
+  both true in a real one — a space that took an EARLIER install of the same
+  document holds an option literally named `books (yfirst)`, because the term
+  is what a reader handed the wiring before the fallback existed, and
+  re-installing must land on it rather than move the object to that space's
+  plain `books`.
+
 - **§11 stops restating the verbatim rule §2d retired, and the two sections
   cite ONE measured population** (SPEC §2d, §11). Commit a97ce35 replaced
   §2d's "passes through **verbatim in both directions**" with the three steps
