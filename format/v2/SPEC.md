@@ -2215,6 +2215,15 @@ The schema keeps its literal list — it is what an agent actually reads, and
 it carries both spellings of each — and a test pins the list against the
 enforced set in both directions, so neither can rot again.
 
+`bundle.ValidateAuthoring` is the cross-document half, and the only thing
+that distinguishes an authored bundle from an exported one anywhere in this
+format: same walk as `bundle.Validate`, plus each document through the
+subset, plus the STRICT type-declaration plan the surface split above
+describes (§2c). It deliberately does NOT run the index and dictionary
+subset schemas over their files — `authoring/index.schema.json` forbids
+`manifest`, which §2c blesses in an authored bundle in as many words, and a
+walk is not the place to settle which of the two gives.
+
 `ValidateAuthoring`, `ValidateAuthoringIndex` and
 `ValidateAuthoringPropertyDictionary` (§13) run the FULL validation first —
 so refusals carry §12's curated wording — then those semantic rules, then
@@ -2803,6 +2812,49 @@ from what a type key is — and one rule above that deliberately does
   spells, and a type no slot writes appears nowhere — the legend that once
   published a space's spelling→key mapping for a type the document never
   mentioned is gone with the ledger that fed it (§15 #28).
+
+**A bundle's type declarations are planned as one set, and what a COLLISION
+means in that set depends on which surface asked.** The type documents are
+read before any document that spells a type is decoded, so the namespace is
+complete before anything binds and walk order cannot matter
+(`PlanAuthoringTypeVocabulary`). What the plan does with two declarations
+that collide splits in two, and the split is not readable out of the bytes —
+the two surfaces write the same document.
+
+- **A full export** describes a space that EXISTS. Its installed bundled
+  types are ordinary `object_type` documents keyed with the bundled key —
+  `internal_key: "task"`, `Name: "Task"`, or whatever the space renamed it
+  to — and two of a space's own types may carry one caption, because the app
+  lets a user make both. Neither is a thing an export may be refused for:
+  the identity is not proposed here, it is reported. So every declaration is
+  admitted and EVERY claimant of a contested caption is recorded, leaving the
+  spelling with several answers instead of one — and the refusal where the
+  format already puts it, at the slot that has to RESOLVE the caption, which
+  refuses it by name and says how many claim it. An exported document never
+  reaches that slot, because `type_internal_key` stands beside every spelling
+  (§2). This is `bundle.Validate`.
+- **An authored bundle** PROPOSES its identities, and there one collision is
+  silent in a way no later check can see. A declaration keyed `task`, or
+  captioned "Task", captures every dependent `"type": "Task"` its author
+  wrote for the built-in: the spelling resolves, to exactly one key, with no
+  ambiguity to refuse and no warning to give. Refusing the DECLARATION is the
+  only place that is visible, so the plan refuses it — stored key, display
+  name and legacy derived alias alike, against the bundled table and against
+  each other. This is `bundle.ValidateAuthoring`.
+
+Which of the two a bundle is is a fact about the CALLER, like the
+`NoDerivedTypeIds` mode and like the space id this format does not carry
+(§9). Applying the authoring rule to exports was the shipped behaviour and it
+refused **all 79 bundles of the 24,905-document corpus**: 1,650 installed
+bundled types across every one of them (1,643 keyed exactly like a bundled
+type, 10 keyed `chat` beside bundled `chatDerived`, less 3 unnamed shells the
+plan already skipped), 12 caption collisions across 6 bundles — Recipe ×3,
+one of them with a trailing space, plus Page, Goal, and a Space that folds
+onto `space` and `spaceView` at once — and 2 same-caption custom types in 1. And it refused them
+FIRST, because issues sort alphabetically, so the line a reader met before
+any real defect was `stored type key "task" conflicts with bundled type key
+"task"`, which is not a defect at all. Lifting it takes the corpus from 0 of
+79 bundles validating to 17, and no bundle newly fails.
 
 **What is not a key slot.** The vocabulary applies where
 a document NAMES a type or property, and nowhere else. Envelope and DTO field
@@ -7069,7 +7121,9 @@ The inline codec is implemented locally because canonical, byte-stable
 rendering needs stricter guarantees than a best-effort import parser while
 remaining syntax-compatible with the application surface (§8.1).
 
-The root `bundle` package owns composition and cross-document validation.
+The root `bundle` package owns composition and cross-document validation,
+through two entry points that differ in one question — `Validate` for the
+full format and `ValidateAuthoring` for a bundle an author wrote (§2c, §2g).
 Anytype Heart supplies store-backed format, option, property, participant,
 object-name, existence, and deletion resolvers at the integration boundary.
 The application's own export path (`core/block/export/anyblock`) is the

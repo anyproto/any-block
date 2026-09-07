@@ -5,6 +5,65 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **Whole-bundle validation stops applying an authoring rule to exports**
+  (SPEC §2c, §2g, §13, `bundle.Validate`, `bundle.ValidateAuthoring`,
+  `PlanAuthoringTypeVocabulary`). `bundle.Validate` planned every bundle's
+  type declarations under the AUTHORING rule, which refuses a declaration
+  that takes a bundled stored key or a bundled/duplicated caption. An export
+  writes exactly that shape and means the opposite by it: an `object_type`
+  document keyed `task` and named `Task` is the space's INSTALLED Task, not a
+  proposal to shadow it, and two of a space's own types may carry one caption
+  because the app lets a user make both. Re-derived on the 24,905-document,
+  79-bundle corpus at out-57f4add: **all 79 bundles were refused**, on 1,650
+  installed bundled types spread across every one of them, 12 caption
+  collisions across 6 (Recipe ×3 — one with a trailing space — plus Page,
+  Goal, and a Space that folds onto two bundled keys at once), and 2 same-caption
+  custom types in 1 — and the refusals sorted FIRST, so the line a reader met
+  before any real defect was `stored type key "task" conflicts with bundled
+  type key "task"`, which is not a defect at all.
+
+  The rule is not deleted, it is placed. `bundle.Validate` now plans the
+  namespace as INSTALLED: every declaration is admitted whatever it is keyed,
+  and EVERY claimant of a contested caption is recorded, so the spelling has
+  several answers rather than one and the refusal lands where the format
+  already puts it — at the slot that has to RESOLVE the caption, which names
+  the slot and says how many types claim the word. An exported document never
+  reaches it, because `type_internal_key` stands beside every spelling (§2).
+  The five dependent type slots stay guarded, each now reporting its own JSON
+  pointer instead of the type document's. The new `bundle.ValidateAuthoring`
+  keeps the strict plan, together with the per-document authoring subset: an
+  author writes SPELLINGS, so a declaration keyed `task` captures every
+  dependent `"type": "Task"` written for the built-in — silently, since the
+  spelling then resolves to one key with no ambiguity left to refuse — and
+  refusing the declaration is the only place that is visible. Which surface a
+  bundle is on is not readable from its bytes and is stated by the caller,
+  the way `NoDerivedTypeIds` is (§9).
+
+  **Measured, both directions.** Corpus validation goes from **0 of 79
+  bundles passing to 17**, and **0 bundles newly fail**; all 62 that still
+  fail do so on the dangling `entrypoint`/`homepage`/widget targets (61) and
+  dangling `type-<key>` references (9) they already carried, and on nothing
+  else. Exactly one issue LINE is new corpus-wide, in a bundle that fails
+  either way and whose issue count is unchanged at 118: with the plan no
+  longer failing first, the property half of it runs, and it refuses a type
+  entry that states `{"property": "Tag", "internal_key": "tag"}` in a space
+  where a second live property is also named "Tag" — telling it to "state
+  internal_key", which it does. That is a real, separate defect (an entry's
+  own `internal_key` is ignored whenever its `property` spelling is
+  contested, in the binding pass as much as in the plan) and it is left where
+  it stands: fixing it is a change to how the codec resolves a type
+  declaration, owed its own corpus verification. **Not a tightening**: per-document conformance is
+  untouched — `Validate`, `Unmarshal` and every warning over all 24,905
+  documents hash byte-identically before and after
+  (`b1fd1827a1319fe0a8b1f5a5463514c8269c09402b48e616dcfe0f9fd261f3bd`).
+
+  `bundle.ValidateAuthoring` deliberately does not run the index and
+  dictionary subset SCHEMAS over their files: `authoring/index.schema.json`
+  forbids `manifest`, while §2c blesses a manifest in an authored bundle in
+  as many words. Which of the two gives is its own question, and refusing a
+  bundle the SPEC calls legal is the defect this change exists to stop
+  making, not one to commit somewhere else.
+
 - **Two options of one property that share a name each keep their identity**
   (SPEC §3, §9a, `option_ids`, `codec/anyblockjson/optionrefs.go`).
   `option_ids` is keyed by NAME — `{property spelling: {name: option id}}` —

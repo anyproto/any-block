@@ -165,6 +165,13 @@ func bundlePathAliasKey(name string) string {
 // itself: manifest paths, duplicate ids, and index references to objects in
 // the bundle.
 //
+// It validates the FULL format — a description of a space that exists — so
+// it takes every type declaration as an identity the space HAS: an installed
+// bundled type keyed with its bundled key, a caption two live types share.
+// A bundle an author WROTE asks a different question of the same bytes and
+// is ValidateAuthoring's; the difference is a fact about the caller, since
+// the two surfaces write the same document (§2c).
+//
 // The supplied filesystem must confine every resolved path to the bundle
 // root. Validate can enforce lexical and exact-directory-entry paths, but an
 // arbitrary fs.FS controls how links and other aliases are resolved. Callers
@@ -172,6 +179,52 @@ func bundlePathAliasKey(name string) string {
 // pass the resulting root.FS(), rather than use os.DirFS, when validating
 // untrusted bundle contents.
 func Validate(fsys fs.FS) error {
+	return validate(fsys, fullFormatSurface)
+}
+
+// ValidateAuthoring is Validate for a bundle an author WROTE (§2g): every
+// check Validate runs, plus each DOCUMENT through
+// `anyblockjson.ValidateAuthoring` — the subset schema and the semantic
+// rules stated on the resolved key — plus the STRICT type-declaration plan.
+//
+// The index and the property dictionary are checked exactly as Validate
+// checks them, and their authoring schemas are deliberately NOT run here.
+// `authoring/index.schema.json` forbids `manifest`, and §2c blesses a
+// manifest in an authored bundle in as many words — "an authored bundle
+// writes `"files": {"logo": "assets/logo.png"}` against its own minted ids
+// and any layout it likes". Running that schema would refuse a bundle the
+// SPEC calls legal, which is the defect this function exists to stop making,
+// not one to commit somewhere else. Whether the schema or the prose gives is
+// its own question; neither answer is this walk's to assume.
+//
+// The strict plan is the reason this function exists. An author writes
+// SPELLINGS, so a declaration that takes the bundled key `task`, or the
+// caption "Task", captures every dependent `"type": "Task"` the author meant
+// for the built-in — and captures it silently, because the spelling then
+// resolves to exactly one key and there is nothing left to refuse. Refusing
+// the declaration is the only place that hazard is visible. A full export
+// carries the same shape and means the opposite by it — the space HAS that
+// type — so Validate must not refuse it, and does not (§2c).
+//
+// Which of the two a bundle is cannot be read out of its bytes: the two
+// surfaces write the same document. It is a fact about the caller, stated by
+// calling one function or the other, exactly as `NoDerivedTypeIds` is a fact
+// about the writer (§9).
+func ValidateAuthoring(fsys fs.FS) error {
+	return validate(fsys, authoringSurface)
+}
+
+// bundleSurface says which of the two questions of §2g a walk is asking. It
+// is the caller's statement and never inferred from a document.
+type bundleSurface uint8
+
+const (
+	fullFormatSurface bundleSurface = iota
+	authoringSurface
+)
+
+func validate(fsys fs.FS, surface bundleSurface) error {
+	authoring := surface == authoringSurface
 	authoritativePaths := newAuthoritativeBundlePaths()
 	indexStatus, inspectErr := inspectExactBundleFile(fsys, anyblockjson.IndexFileName, authoritativePaths)
 	switch indexStatus {
@@ -378,6 +431,14 @@ func Validate(fsys fs.FS) error {
 			issues = append(issues, fmt.Sprintf("%s: %v", name, decodeErr))
 			return nil
 		}
+		// The subset runs AFTER the full grammar, so a document outside both
+		// is reported by §12's curated wording rather than by a `not`/`enum`
+		// verdict that can only say some member matched.
+		if authoring {
+			if subsetErr := anyblockjson.ValidateAuthoring(data); subsetErr != nil {
+				issues = append(issues, fmt.Sprintf("%s: %v", name, subsetErr))
+			}
+		}
 		authoringDocuments[name] = data
 		recordPropertyUses(name, data)
 		var envelope bundleDocumentEnvelope
@@ -415,18 +476,25 @@ func Validate(fsys fs.FS) error {
 			key, len(paths), strings.Join(paths, ", "), key))
 	}
 
-	// Cross-file authoring coherence is a two-pass operation. The first pass
-	// plans the complete NFC display-name/legacy-alias/stored-key namespace;
-	// only a successful plan may be supplied to readers. This makes filesystem
-	// walk order irrelevant and prevents a custom declaration from shadowing a
-	// bundled type or another declaration for just the documents read first.
-	planOptions := anyblockjson.AuthoringVocabularyPlanOptions{}
+	// Cross-file type coherence is a two-pass operation. The first pass plans
+	// the complete NFC display-name/legacy-alias/stored-key namespace; only a
+	// successful plan may be supplied to readers. This makes filesystem walk
+	// order irrelevant: every claimant of a spelling is known before any
+	// document that spells it is read.
+	//
+	// The plan is INSTALLED, because this function validates the full format
+	// — a description of a space that exists. Its bundled types are installed
+	// there under their bundled keys, and two of its own types may share a
+	// caption; neither is a thing this bundle may refuse. The authoring
+	// surface, where a declaration is a proposal and a collision captures a
+	// spelling its author meant for something else, is ValidateAuthoring.
+	planOptions := anyblockjson.AuthoringVocabularyPlanOptions{Installed: !authoring}
 	if dictionaryDecoded {
 		planOptions.PropertyDictionary = propertyDictionaryData
 	}
 	authoringVocabulary, planErr := anyblockjson.PlanAuthoringTypeVocabulary(authoringDocuments, planOptions)
 	if planErr != nil {
-		issues = append(issues, fmt.Sprintf("authoring type declarations: %v", planErr))
+		issues = append(issues, fmt.Sprintf("type declarations: %v", planErr))
 	} else {
 		names := make([]string, 0, len(authoringDocuments))
 		for name := range authoringDocuments {
@@ -435,13 +503,13 @@ func Validate(fsys fs.FS) error {
 		sort.Strings(names)
 		for _, name := range names {
 			if _, _, decodeErr := anyblockjson.Unmarshal(authoringDocuments[name], anyblockjson.Options{Keys: authoringVocabulary}); decodeErr != nil {
-				issues = append(issues, fmt.Sprintf("%s: authoring type binding: %v", name, decodeErr))
+				issues = append(issues, fmt.Sprintf("%s: type binding: %v", name, decodeErr))
 			}
 		}
 		if len(propertyDictionaryData) != 0 {
 			if _, decodeErr := anyblockjson.UnmarshalPropertyDictionary(propertyDictionaryData,
 				anyblockjson.Options{Keys: authoringVocabulary}); decodeErr != nil {
-				issues = append(issues, fmt.Sprintf("%s: authoring type binding: %v", propertyPath, decodeErr))
+				issues = append(issues, fmt.Sprintf("%s: type binding: %v", propertyPath, decodeErr))
 			}
 		}
 	}
