@@ -10,6 +10,24 @@
       "bafyreitagoptionidnotinthisentry"
     ],
     "Status": "bafyreistatusoptionidwithnooptions",
-    "Mood": []
+    "Mood": [],
+    "Shelf": [
+      "books (ionone)",
+      "books (iontwo)",
+      "reference"
+    ],
+    "Room": [
+      "attic (ongrey)"
+    ]
+  },
+  "option_ids": {
+    "Shelf": {
+      "books (ionone)": "bafyreibooksoptionone",
+      "books (iontwo)": "bafyreibooksoptiontwo",
+      "reference": "bafyreireferenceoption"
+    },
+    "Room": {
+      "attic (ongrey)": "bafyreiatticoptiongrey"
+    }
   }
 }

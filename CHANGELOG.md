@@ -53,6 +53,15 @@ original order.
   from the corpus's own legends shows **0 ambiguous names**, because the
   collapse had already happened before the bytes were written.
 
+  The reading guide and the reference reader carry the shape (READING.md §5,
+  `format/v2/examples/reader`): strip a trailing ` (` + six characters + `)`
+  and, where the dictionary entry names MORE than one option that stem, render
+  the stem. WHICH of the twins it is stays unanswerable inside a bundle — the
+  term's tail is the option's object id and the entry states its stored key —
+  so a colour is printed only where the twins agree on one. Printed verbatim,
+  the term reads as an option name nobody chose, which hides exactly what it
+  was written to report.
+
 - **One stored type key, one type document — the unnamed shell included**
   (SPEC §2c, `bundle.Validate`).
   A type document's address is a pure function of its key,

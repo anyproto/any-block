@@ -474,10 +474,81 @@ func describeOption(def *definition, value string) string {
 			return fmt.Sprintf("%s (an option id; this entry names it %q)", value, o.Name)
 		}
 	}
+	// A term the export DEGRADED because two options of this property claim
+	// one name (SPEC §3): `<name> (<tail6>)`, the name plus the option
+	// object id's last six characters. The exact-name match above runs
+	// first, so an option genuinely named this never lands here. The name
+	// is the half a reader shows; the tail is not joinable to anything in a
+	// bundle — a dictionary entry states an option's STORED key and the
+	// legend carries its OBJECT id, two different identifiers for one
+	// option — so this entry cannot say WHICH of the same-named options the
+	// value is, and saying that is the honest render.
+	if stem, ok := degradedOptionName(value); ok {
+		if same := optionsNamed(def, stem); len(same) > 1 {
+			if color := agreedOptionColor(def, same); color != "" {
+				return fmt.Sprintf("%s (%s, one of the %d options this entry names %q)",
+					stem, color, len(same), stem)
+			}
+			return fmt.Sprintf("%s (one of the %d options this entry names %q)",
+				stem, len(same), stem)
+		}
+	}
 	if len(def.Options) == 0 {
 		return fmt.Sprintf("%s (not an option name; this entry carries no options)", value)
 	}
 	return fmt.Sprintf("%s (not an option name; not one of this entry's %d options)", value, len(def.Options))
+}
+
+// degradedOptionName splits `<name> (<tail6>)` back into its name half. The
+// tail is exactly six characters by construction, which is what keeps the
+// test cheap and what keeps an ordinary parenthetical — `Done (2024)`, four
+// — out of it. A stem this entry names once or not at all is not a degraded
+// term at all, and the caller checks that before believing this.
+func degradedOptionName(value string) (string, bool) {
+	const tail = 6
+	r := []rune(value)
+	// `x (aaaaaa)` is the shortest form: one stem rune, a space, a paren,
+	// six tail runes, a paren
+	if len(r) < tail+4 || r[len(r)-1] != ')' {
+		return "", false
+	}
+	open := len(r) - tail - 2
+	if r[open] != '(' || r[open-1] != ' ' {
+		return "", false
+	}
+	return string(r[:open-1]), true
+}
+
+// optionsNamed is every option of this entry carrying one name — more than
+// one is exactly the shape §3's degrade reports.
+func optionsNamed(def *definition, name string) []int {
+	var out []int
+	for i, o := range def.Options {
+		if o.Name == name {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// agreedOptionColor answers the colour same-named options share, or "" when
+// they disagree — which they do in the corpus: the two options named `books`
+// are red and yellow, and a reader that picked one would be guessing.
+func agreedOptionColor(def *definition, idx []int) string {
+	color := ""
+	for _, i := range idx {
+		if def.Options[i].Color == "" {
+			return ""
+		}
+		if color == "" {
+			color = def.Options[i].Color
+			continue
+		}
+		if def.Options[i].Color != color {
+			return ""
+		}
+	}
+	return color
 }
 
 func contains(list []string, s string) bool {

@@ -43,6 +43,47 @@
           "internal_key": "0f1e2d3c4b5a69788796a5b8"
         }
       ]
+    },
+    {
+      "property": "Shelf",
+      "internal_key": "shelf",
+      "name": "Shelf",
+      "format": "multi_select",
+      "options": [
+        {
+          "name": "books",
+          "color": "red",
+          "internal_key": "0f1e2d3c4b5a69788796a5c1"
+        },
+        {
+          "name": "books",
+          "color": "yellow",
+          "internal_key": "0f1e2d3c4b5a69788796a5c2"
+        },
+        {
+          "name": "reference",
+          "color": "blue",
+          "internal_key": "0f1e2d3c4b5a69788796a5c3"
+        }
+      ]
+    },
+    {
+      "property": "Room",
+      "internal_key": "room",
+      "name": "Room",
+      "format": "multi_select",
+      "options": [
+        {
+          "name": "attic",
+          "color": "grey",
+          "internal_key": "0f1e2d3c4b5a69788796a5c4"
+        },
+        {
+          "name": "attic",
+          "color": "grey",
+          "internal_key": "0f1e2d3c4b5a69788796a5c5"
+        }
+      ]
     }
   ]
 }
