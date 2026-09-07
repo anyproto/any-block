@@ -5,6 +5,36 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **`OptionResolver`'s contract says both methods are asked in both
+  directions, because both are** (SPEC §13, `OptionResolver`). The interface
+  documented `OptionId` as the import half — "maps option ids to names on
+  export and names to ids on import" — and named `OptionName` as the only
+  method with a duty on each side. `optionNameTaken` has called `OptionId`
+  from the EXPORT side since the avoid-set on a degraded term widened from
+  one document's census to the property's options, and it is the only
+  export-side caller in the codebase, so the frozen contract was contradicted
+  by the code it describes.
+
+  The export duty cannot be moved to `OptionName`. The question is "does some
+  option of this property already answer to this term?", asked about a
+  property whose option ids the interface cannot enumerate — and it must be
+  asked about the property rather than the census precisely because a document
+  may sit on two of three same-named options and never mention the third. So
+  the contract is re-documented rather than the call relocated, in both copies
+  (the Go doc and §13's published block), with what each direction asks of
+  each method and what stubbing either one costs on each side. Export reads
+  only whether an answer exists and discards the id, so the first-match scan
+  that makes the import answer a hint does not reach it — which is now stated,
+  since a consumer implementing the interface from §13 alone would otherwise
+  have to guess.
+
+  Two tests pin it: one watches a recording resolver and asserts export asks
+  `OptionId` about every term it is about to mint, one exports the same
+  document through a resolver that answers `OptionId` and one that does not
+  and shows the avoid-set going quiet. Removing the export-side call reddens
+  both, and the pre-fix run of the first reported "§13 said OptionId is the
+  import half; export has asked it since the avoid-set widened".
+
 - **A degraded option term is recognised by the legend that files it, not by
   its shape** (SPEC §2, §3, §9a, §11, PRINCIPLES rule 6,
   `object.schema.json`, `resolveOption`, `optionTermStem`). The previous

@@ -20,10 +20,16 @@ import (
 // properties are resolved internally; the resolver covers custom keys (§3).
 type FormatResolver func(key domain.RelationKey) (model.RelationFormat, bool)
 
-// OptionResolver maps select/multiSelect option ids to names on export and
-// names to ids on import (creating options is the import wiring's job, §3).
+// OptionResolver answers both directions of "which option is this?" for
+// select/multiSelect values. Creating a missing option is the import wiring's
+// job, never this interface's (§3).
 //
-// OptionName has TWO duties, and the second one is not an export call:
+// BOTH METHODS ARE ASKED IN BOTH DIRECTIONS, and each asks for something
+// different on each side. The pairing is not id→name on the way out and
+// name→id on the way in; it was documented that way and the codec's own
+// export path contradicted it.
+//
+// OptionName:
 //
 //  1. export — what is this option id called? The name is what the document
 //     writes for the value (§3), and the id it stood for rides along in the
@@ -35,17 +41,47 @@ type FormatResolver func(key domain.RelationKey) (model.RelationFormat, bool)
 //     precisely what "still serves" means. Nothing else asks it, so a
 //     resolver's answer here is the whole of the check.
 //
-// A resolver that cannot answer OptionName gives up the legend entirely: it
-// says "no id is live", so every entry fails step 1 of §3's chain and every
-// value falls back to name resolution, exactly as it did before `option_ids`
-// existed — including the two losses the legend was added to close, a name
-// shared by two options of one property (the first one answers) and an option
-// renamed since the export (nothing answers, and the wiring mints a second
-// option under the stale name). That is a legitimate position for a resolver
-// with no option store to consult, and returning false is then the honest
-// answer; it is not a stub to leave in place unexamined, because it disables
-// a feature for everything that reader imports, silently. `OptionId` without
-// `OptionName` is the shape to look at twice.
+// OptionId:
+//
+//  1. import — name resolution, §3's step 2: the id the value's term stands
+//     for, and the FIRST of them where two options of the property share the
+//     name, which is one of the two losses `option_ids` exists to close.
+//  2. export — an EXISTENCE test, and the id is discarded (optionNameTaken).
+//     Before writing `<name> (<tail6>)` for a claimant of a contested name,
+//     export asks whether some option of the property is already NAMED that
+//     term, and falls to the bare id where one is (§3, rung (c)). The
+//     question is about the PROPERTY and not about this document's census,
+//     so nothing enumerable answers it: a document may sit on two of three
+//     same-named options and never mention the third, and the third is
+//     exactly the one whose name the term must avoid. OptionName cannot be
+//     asked instead — it takes an id, and the ids of a property's options are
+//     not something this interface can enumerate. Because only existence is
+//     read, the scan order that makes the import answer a hint does not
+//     reach the export use.
+//
+// A resolver that stubs either method disables something on BOTH sides.
+//
+// No OptionName: no name is written on export (values go out as bare ids,
+// and no legend is recorded, since the legend is written at the substitution
+// itself), and on import the legend is given up entirely — every entry fails
+// step 1 of §3's chain and every value falls back to name resolution, exactly
+// as it did before `option_ids` existed, including the two losses the legend
+// was added to close: a name shared by two options of one property (the first
+// one answers) and an option renamed since the export (nothing answers, and
+// the wiring mints a second option under the stale name).
+//
+// No OptionId: import resolves no name at all — the legend still answers for
+// an id the space serves, and every value it does not cover falls through
+// §3's step 4 unchanged, which is what the wiring then creates — and on
+// export the avoid-set goes quiet — a minted term may be a name some live option of the property
+// already answers to, which a reader that cannot use the legend id resolves
+// onto an option the object was never on. That one is the worse half, because
+// the legend entry written beside such a term looks correct.
+//
+// Either is a legitimate position for a resolver with no option store to
+// consult, and returning false is then the honest answer; neither is a stub
+// to leave in place unexamined, because each disables a feature silently for
+// everything that reader reads or writes.
 type OptionResolver interface {
 	OptionName(key domain.RelationKey, id string) (string, bool)
 	OptionId(key domain.RelationKey, name string) (string, bool)

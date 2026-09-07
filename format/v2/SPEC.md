@@ -6837,11 +6837,32 @@ application pipeline.
 // Bundle properties are resolved internally; the resolver covers custom keys.
 type FormatResolver func(key domain.RelationKey) (model.RelationFormat, bool)
 
-// OptionResolver maps select/multi_select option ids to names on export and
-// names to ids on import (creating options is the import wiring's job).
-// OptionName carries a second duty on the import side: it is the liveness
-// question `option_ids` is checked against — it answers for an id exactly
-// when that id is an option of that relation here (§3, §9a).
+// OptionResolver answers both directions of "which option is this?" for
+// select/multi_select values. Creating a missing option is the import
+// wiring's job, never this interface's.
+//
+// Both methods are asked in both directions, and each asks for something
+// different on each side:
+//
+//   - OptionName, on export, is what the document writes for a value; on
+//     import it is the liveness question `option_ids` is checked against —
+//     it answers for an id exactly when that id is an option of that
+//     relation here (§3, §9a).
+//   - OptionId, on import, is name resolution: the id a value's term stands
+//     for, the FIRST where two options share the name. On export it is an
+//     existence test — before writing `<name> (<tail6>)` for a contested
+//     name, export asks whether some option of the property is already NAMED
+//     that term, and writes the bare id instead where one is (§3). It
+//     discards the id, so the scan order that makes the import answer a hint
+//     does not reach it.
+//
+// A resolver that stubs either method disables something on BOTH sides. No
+// OptionName: no legend is honoured on import and no name is written on
+// export. No OptionId: import resolves no name — only the legend answers,
+// and every value it does not cover passes through for the wiring to create
+// — and on export the avoid-set goes quiet, so a minted term may be a name a
+// live option of the property already answers to, which a reader resolves
+// onto an option the object was never on (§3).
 type OptionResolver interface {
     OptionName(key domain.RelationKey, id string) (string, bool)
     OptionId(key domain.RelationKey, name string) (string, bool)
