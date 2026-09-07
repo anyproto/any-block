@@ -1770,6 +1770,19 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 				}
 				k = prev + 1
 			}
+			// §6.1: a cell's array form is ONE block and its descendants, not
+			// a run of roots. Import cannot represent a second root — it
+			// rebuilds every later element under the first (flatSubtree never
+			// pops its initial entry) — so admitting one hands the text to a
+			// parent the document never named: under a leaf root the next
+			// export drops it, under a `row` root the next export writes a
+			// document this same Validate rejects. The offending element is
+			// addressed rather than the cell, and it is an ERROR in lenient
+			// mode too, because clamping it to indent 1 is the silent
+			// reparenting itself and not a repair of it.
+			if inCell && i > 0 && k == 0 {
+				addIssue(path, "indent 0 makes this a second cell root — a cell's array form is one block and its descendants (§6.1), so every element after the first is indented under it")
+			}
 			for len(stack) > 0 && stack[len(stack)-1].indent >= k {
 				stack = stack[:len(stack)-1]
 			}

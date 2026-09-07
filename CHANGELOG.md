@@ -5,6 +5,31 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **A second root in a table cell's array form is refused, where it used to
+  be admitted and then quietly reparented** (SPEC §6.1, `checkFlatRun`).
+  §6.1 defines the array form as one cell block at indent 0 followed by its
+  descendants. Validation checked the first element for an id and a
+  transparent type and then ran the ordinary flat-run rules, which let a
+  later element sit at indent 0 and start a fresh root — a shape import
+  cannot build. `flatSubtree` never pops its initial entry, so the second
+  root became a CHILD of the first, and the cell
+  `[{"type":"divider"},{"type":"paragraph","text":"KEEP_ME"}]` validated,
+  imported, and re-exported with the text gone and no warning; with a `row`
+  as the first element, `Marshal` succeeded and returned a document this
+  package's own `Validate` rejects. The refusal names the offending element
+  (`/blocks/0/rows/0/cells/0/1`), covers the omitted `indent` whose default
+  is 0, and is an error under `NormalizeIndent` too — clamping the second
+  root to indent 1 IS the silent reparenting, not a repair of it.
+
+  Corpus at out-57f4add: **0 of 24,905 documents newly fail** — the whole
+  corpus validates, imports and re-exports byte-identically before and
+  after. Re-derived, the reason is that no exported cell can hold this
+  shape: 26,951 cells across 1,473 tables in 981 documents, of which 26,669
+  are the string shorthand, 162 `null`, 120 a bare block object, and **0 the
+  array form**. This guards hand-authored and API input — heart's `set_cell`
+  puts its `value` straight into the table JSON and reimports it with
+  `UnmarshalBlock`, carrying no structural constraint of its own.
+
 - **An unknown block discriminator is refused or reported, never a silent
   subtree delete** (SPEC §10, `blockToJSON`, `blockEmissionShape`). A block's
   kind is decided by three stored discriminators — the content oneof, a

@@ -3899,7 +3899,17 @@ machinery:
   `indent` (validation error if present). The **array form** exists for the
   legacy case of a cell block with descendants: the cell block first at
   indent 0, its descendants following per the §4 rules; export uses it only
-  when descendants exist (single-block cells stay bare — canonical). Cells
+  when descendants exist (single-block cells stay bare — canonical).
+  **One root, and the rest are its descendants**: after the first element,
+  indent 0 — including the indent an element does not spell, whose default is
+  0 — is a validation error naming that element. A cell is a POSITION, not a
+  run, so a second root has nowhere to be: import rebuilds every later element
+  under the first, which turns the second root into a child the document never
+  said it was, and from there the text is dropped (under a leaf root) or
+  re-emitted as a document this Validate rejects (under a `row` root). It is
+  an error under `NormalizeIndent` too, unlike a V1 violation: clamping the
+  second root to indent 1 performs that reparenting rather than repairing it.
+  Cells
   **never carry `id`** — cell ids are derived (`<rowId>-<colId>`); an `id`
   on a cell block (bare, or first element of the array form) is a
   validation error. Cell blocks (and their array-form descendants) **cannot
