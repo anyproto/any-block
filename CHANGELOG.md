@@ -5,6 +5,31 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **The option shorthand has one criterion, and it is all three members**
+  (SPEC §2a, §2f).
+  §2a made the bare option name canonical "whenever the option declares no
+  color" — in the same table cell that admits `internal_key` and `api_key`
+  and says export states each where the store holds one. Implemented
+  literally, that rule canonicalizes a colorless option carrying a stored key
+  down to its bare name, erasing the option's stored identity and the
+  spelling its API callers address it by; neither is derivable from the name,
+  and no restore mints either. §2f stated a second, closer criterion
+  ("neither a color nor a stored key") that still omitted `api_key`, and its
+  option-member inventory listed three members where the shape admits four.
+
+  One serializer writes both homes (`checkedPropertyOptions`) and its
+  criterion is **all three**: a bare name only when `color`, `internal_key`
+  and `api_key` are all absent, an object stating every member otherwise.
+  Both sections now say that, and §2f's inventory lists `api_key`.
+
+  Prose only; no schema, no code, no behaviour change. The schema already
+  admitted all four members (`$defs/vocabularyOption`), so **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**. What the
+  retired §2a rule would have cost, measured on the same corpus: of **2,490
+  option entries across the 79 property dictionaries, every one is an
+  object** and 2,461 carry a color — the **29 colorless ones would each have
+  been stripped to a bare name**, losing 29 stored keys and 5 api keys.
+
 - **An absent `format` is not a declaration of `text`, and §2a stops saying
   it is** (SPEC §2a).
   §2a said the `property_definitions` entry's `format` "defaults to `text`
