@@ -555,4 +555,11 @@ func TestOptionCollision_ThePublishedRulesResolveADegradedTerm(t *testing.T) {
 	// §11 owns the trade the fallback makes, which nothing stated before.
 	assert.Contains(t, spec, "In a space that never held those ids the legend answers nothing",
 		"§11 must state what a cross-space install of a degraded term does")
+
+	// and PRINCIPLES keeps the list of accepted losses complete: it promised
+	// the losses are "few and listed, never smoothed over", and named only
+	// what a name-only WRITER pays.
+	assert.Contains(t, readFormatDocumentation(t)["PRINCIPLES.md"],
+		"and what a reader in ANOTHER space pays",
+		"the accepted-loss list must carry the cross-space fallback too")
 }

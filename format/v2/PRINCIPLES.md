@@ -258,7 +258,10 @@ property share a name, export writes `<name> (<tail6>)` for every claimant so
 each keeps its own entry, and a renamed option is found by the id riding
 beside the term (§3, §9a). What is left is what a name-only WRITER pays — an
 authored document spelling a shared name resolves to whichever option the
-space lists first.
+space lists first — and what a reader in ANOTHER space pays: no id in the
+legend is live there, so each suffixed term falls back to the name inside it
+and both land on that space's one option of that name, which is exactly what
+the plain name did before the legend (§3, §11).
 
 ### 7. A document stands alone
 

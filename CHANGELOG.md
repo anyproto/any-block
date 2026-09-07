@@ -72,7 +72,9 @@ original order.
   name has the shape (`Other (logseq)`), no option of its property is named
   its stem, and none of the 3,591 select-format values in the corpus has it.
   All 24,905 documents re-export byte-identically and all 79 bundles validate
-  identically before and after.
+  identically before and after. PRINCIPLES' list of accepted losses, which
+  promises to be complete, gains the half it was missing: what a reader in
+  another space pays, beside what a name-only writer does.
 
 - **The avoid-set on a degraded option term is the PROPERTY's options, not
   the ones one document censuses** (SPEC §3, `planOptionTerms`). Where two
