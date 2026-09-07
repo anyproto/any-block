@@ -5,6 +5,48 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **No two bundle entries may fold together, and the design stops arguing
+  case-safety for a population it never counted** (SPEC §2c,
+  `bundle/DESIGN.md`).
+  A bundle is extracted onto whatever filesystem the reader has, and APFS
+  and NTFS fold case. Two entries that collapse under NFC + case folding are
+  two documents and one file: the second write wins, the first document's
+  bytes are gone, and the survivor still validates, because document
+  uniqueness is checked by envelope id and nothing counts paths. §2c now
+  states the rule — **no two entries in one bundle may be equal after NFC
+  normalization and Unicode case folding**, across documents, `index.json`,
+  the dictionary and every `manifest.files` blob, path COMPONENTS included
+  so directory aliases and file/directory conflicts are collisions too.
+
+  `DESIGN.md` argued path safety from **two** id populations and gave each
+  its own case argument. Filename stems are ENVELOPE ids, and the §9 folds
+  make **three**: re-derived over the corpus this release was cut against
+  (79 bundles, 24,905 documents, out-57f4add) — **20,578 lowercase-base32
+  CIDs** of 59 characters, **2,519 `participant-<identity>`** stems of 60,
+  and **1,808 `type-<internal_key>`** stems of 8 to 29. The third had no
+  case argument anywhere, and it is the one that needs one: a stored type
+  key may carry uppercase for an ordinary reason (`typeKeyFoldable` admits
+  `[A-Za-z0-9_]`; the shipped table itself ships `chatDerived`,
+  `objectType`, `relationOption`, `spaceView` — 4 of the corpus's 178
+  distinct keys, 316 documents), so `type-Recipe` beside `type-recipe` is
+  ordinary, not astronomical. The section now counts three and argues each.
+
+  **2.0 states this rule and does not enforce it**, and §2c says so rather
+  than leaving a reader to credit `bundle.Validate` with a census it does
+  not run. The two halves are on different clocks: the RULE removes bundles
+  from the legal set, so it had to be stated before the freeze; the CENSUS
+  refuses only what the rule already forbids and can land in any later
+  patch. A test pins the gap and must be inverted in the commit that closes
+  it.
+
+  A TIGHTENING, measured before shipping: **0 of 24,905 corpus documents
+  newly fail** — nothing enforces the rule yet, and nothing would if it
+  did: **0 case/NFC-fold collisions across all 79 bundles and their 25,063
+  entries**, **0 entries that are not already NFC**, and **0 type keys
+  anywhere in the corpus that differ only by case**. Which is the whole
+  argument for stating it now: free today, and paid for in real exports if
+  it waits.
+
 - **A bare account identity is a participant's address, so no other
   document may wear one** (SPEC §9, `object.schema.json`,
   `authoring/object.schema.json`, `reservedIdViolation`).

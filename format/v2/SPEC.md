@@ -997,6 +997,41 @@ construction (§9). An AUTHORED bundle can still carry a type document under
 a non-derived id, and this check is what tells its author so: the report
 names the id nothing carries, which is the repair.
 
+**Entry paths must survive a case-insensitive filesystem: no two entries
+in one bundle may be equal after NFC normalization and Unicode case
+folding.** A bundle is a directory or a ZIP, and both are extracted onto
+whatever filesystem the reader has — APFS and NTFS fold case by default,
+and macOS normalizes. Two entries that collapse under that fold are two
+documents and one file: the second write wins, the first document's bytes
+are gone, and the survivor still validates, because document uniqueness is
+checked by envelope id and nothing counts paths. So a bundle that carries
+such a pair is not a bundle a reader can be handed. The rule covers every
+entry — documents, `index.json`, the dictionary, and every blob a
+`manifest.files` entry binds — and it covers path COMPONENTS, so a
+directory alias (`objects/` beside `Objects/`) and a file/directory
+conflict are collisions too.
+
+The rule is about what a bundle MAY contain, and this exporter's own
+output cannot produce a violation of it: a stem is a lowercase-base32 CID,
+`participant-<identity>`, or `type-<internal_key>`, and ids are unique per
+space. An AUTHORED bundle can, and a legacy or hand-minted stored type key
+can: `type-` stems are the one population whose tail may carry uppercase
+(`typeKeyFoldable` admits `[A-Za-z0-9_]`), so `type-Recipe` beside
+`type-recipe` is two legal type documents and one file.
+
+**2.0 states this rule and does not enforce it.** `bundle.Validate` checks
+individual manifest targets for exact spelling but runs no census over
+entry paths, so a colliding bundle is admitted today and the loss happens
+at extraction time. The gap is stated rather than left to be discovered
+because the two halves belong to different clocks: the RULE removes
+bundles from the legal set, so it must be stated before the format freezes
+or it can never be stated at all, while the CENSUS refuses only what the
+rule already forbade and can land in any later patch. A reader that needs
+the guarantee today must run the fold itself. Measured on the corpus this
+release was cut against: **zero collisions across all 79 bundles and their
+25,063 entries**, and zero entries that are not already NFC — which is why
+the rule costs nothing now and would cost real exports later.
+
 **This exporter's convention** (the "one exporter's convention" slot,
 recorded so a reader of OUR bundles knows the layout without reverse-
 engineering it; none of it is format — a reader must still walk and index,

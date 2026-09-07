@@ -307,32 +307,47 @@ minting a use case can even choose ids that ARE its filenames. Legibility
 of the LISTING is deliberately traded away in this mode and comes back
 whole in a later mode (below).
 
-**Why ids are safe, measured.** Corpus ids are exactly two populations:
-26,050 ids of 59 chars (lowercase-base32 CIDs) and 2,492 of 48 chars
-(base58 participant identities). Their combined character set is
-`1-9 A-H J-N P-Z a-k m-z` — no `0`, `I`, `O`, `l`, no path-hostile
-characters, no Unicode, no normalization surface, no Windows reserved
-stems, no length hazard (59 + 14 = 73 bytes per component maximum, under
-the 255-byte limit; worst full path with `spaces/<59-char id>/objects/`
-prefixes ≈ 150 chars, under Windows' 260 default). The derived ids add
-`-` and a fixed word in front (`participant-`, `type-`; SPEC §9) and, for a
-type, the stored key — a bundled camelCase key, a 24-hex bson, or a legacy
-key the fold gate admits only within `[A-Za-z0-9_]` — so the population's
-path safety is unchanged. A participant stem is exactly 12 + 48 = 60
-characters; a type stem is 5 plus a stored key `typeKeyFoldable` admits up
-to 120, so at most 125 — 139 bytes with the extension, far under the
-255-byte component limit and inside the 128-character bound an authored id
-has. Uniqueness is by
-construction (ids are unique per space; measured: zero duplicates within
-any of the 77 bundles). Case-insensitive filesystems are covered by two
-different arguments, one per population, and the distinction matters: the
-59-char CIDs **cannot** case-collide structurally — their alphabet has no
-uppercase, so folding is the identity function on them; the 48-char
-identities ARE mixed-case, so a fold collision is not structurally
-impossible for them — merely astronomically improbable (two distinct
-identities would have to differ only in the case of their letters), and
-**zero occur across the 2,492 measured** (true case-fold collisions within
-a bundle across all 28,542 ids: 0). Determinism is free: the
+**Why ids are safe, measured.** A document's filename stem is its ENVELOPE
+id, and the envelope ids the derived-id folds produce (SPEC §9) split the
+corpus into **three populations**, not the two the raw store ids form. Over
+the 79 bundles of the corpus this release was cut against (24,905
+documents, re-derived): **20,578 lowercase-base32 CIDs of 59 characters**,
+**2,519 `participant-<identity>` stems of exactly 12 + 48 = 60**, and
+**1,808 `type-<internal_key>` stems of 8 to 29** — a bundled camelCase key,
+a 24-hex bson, or a minted snake_case key, everything `typeKeyFoldable`
+admits within `[A-Za-z0-9_]`. The character sets differ by population and
+the difference is the whole of the case argument below: CIDs use
+`2-7 a-z`, identities `1-9 A-H J-N P-Z a-k m-z`, and type stems, in this
+corpus, `- 0-9 D O T V _ a-y`. No path-hostile characters, no Unicode, no
+Windows reserved stems (and **zero corpus entries are not already NFC**),
+no length hazard: the longest component measured is 74 bytes and the
+longest bundle-relative path 87, against a 255-byte component limit and
+Windows' 260-character default; the structural worst case is a type stem
+of 5 + 120 = 125, 139 bytes with the extension. Uniqueness is by
+construction (ids are unique per space; re-derived: **zero duplicate stems
+within any of the 79 bundles**).
+
+Case-insensitive filesystems need **one argument per population**, and the
+third population is why the count matters. The 59-character CIDs
+**cannot** case-collide structurally — their alphabet has no uppercase, so
+folding is the identity function on them. The 48-character identities ARE
+mixed-case, so a fold collision is not structurally impossible for them —
+merely astronomically improbable, since two distinct identities would have
+to differ only in the case of their letters. **And a stored type key is the
+one stem that can carry uppercase for an ordinary reason**: the fold gate
+admits `[A-Za-z0-9_]`, the shipped table itself ships `chatDerived`,
+`objectType`, `relationOption` and `spaceView` (4 of the corpus's 178
+distinct keys, 316 documents), and nothing anywhere makes `Recipe` and
+`recipe` unmintable as two keys. That population has no probabilistic
+argument and never had one — a collision there is ordinary, not
+astronomical — which is why SPEC §2c now states the fold rule for entry
+paths outright instead of leaving it to the id populations to imply. Real
+incidence is still nil: **zero case/NFC-fold collisions across all 79
+bundles and their 25,063 entries**, and zero keys anywhere in the corpus
+that differ only by case. Enforcing it is a census this release does not
+run (§2c says so); stating it is what could not wait for the freeze.
+
+Determinism is free: the
 name is the id, no collision machinery, no global set needed — which also
 retires `namer.Get`'s `rand.Int63n` nondeterminism (core/block/export/export.go, `namer.Get`)
 without replacing it with anything.
