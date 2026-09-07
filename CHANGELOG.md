@@ -5,6 +5,37 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **The link-destination bound says what it counts, and the docs stop
+  promising a byte-stability the two surfaces do not have**
+  (SPEC §8.2, `format/v2/INLINE_MARKUP.md`).
+  "2048 UTF-16 code units" never said *of what* — the escaped spelling, the
+  decoded destination, or the source code points — and the two surfaces
+  answer differently. The parser bounds the destination **as spelled**, in
+  Unicode **code points** (escape backslashes counted, the angle form's `<`
+  inside the count so only 2047 fit between the delimiters). Export bounds
+  the **decoded** destination in **UTF-16 code units**, before escaping.
+
+  The reading rule is now stated on the spelling, which is what a reader can
+  apply to the bytes in front of it with nothing decoded first, and the
+  export measurement is recorded as the defect it is, with the two cases
+  where the answers differ:
+
+  - a 2048-unit destination containing one `&` escapes to a 2049-code-point
+    spelling; export emits it and the parser refuses it, so `[click](…)`
+    comes back as prose with the link gone, the caption swallowed and the
+    escapes resolved — the bytes do not survive either;
+  - a destination of 1,019 astral characters after a 13-character prefix is
+    1,032 code points but 2,051 UTF-16 units, so export drops the mark while
+    a hand-written document spelling it IS read as a link.
+
+  Prose only; no schema, no code, no behaviour change, and **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**. Nothing
+  measured is near either number: the longest of **40,694 link destination
+  spellings** in the corpus is **443 code points**, and none exceeds 2048
+  under either count. Repairing export — measuring the spelling it is about
+  to write — is a later code fix; it drops marks it currently emits and
+  invalidates no conformant document, so it does not block the freeze.
+
 - **A filter group with no live children is dropped, and the drop is not a
   no-op** (SPEC §6.2, `codec/anyblockjson/dataview.go` comment).
   §6.2 listed such a group among the "contentless filter nodes ... [that] are

@@ -157,10 +157,19 @@ documents, where `` `<a href>` `` and `` `anytype://object?objectId=<ID>` ``
 sit inside code spans in ordinary prose.
 
 Link destinations render bare with `` \ ( ) & < [ ] ` `` backslash-escaped, or
-angle-wrapped when the URL contains whitespace. Destinations longer than 2,048
-UTF-16 code units, destinations surrounded by more than 32 whitespace
-characters, and link labels nested more than 32 deep are **not recognised** —
-the `[` stays literal. Those bounds keep parsing linear on untrusted input.
+angle-wrapped when the URL contains whitespace. Destinations longer than
+**2,048 Unicode code points as spelled in the document**, destinations
+surrounded by more than 32 whitespace characters, and link labels nested more
+than 32 deep are **not recognised** — the `[` stays literal. Those bounds keep
+parsing linear on untrusted input.
+
+Count the spelling, not the URL it decodes to: each escape backslash is its
+own code point (`\&` is two), and an astral character counts once rather than
+as two UTF-16 units. The 2,048 starts at the destination's first character, so
+in the angle-wrapped form the `<` is inside the count and only 2,047 code
+points fit between the delimiters. The exporter currently bounds the *decoded*
+destination at 2,048 UTF-16 units instead, so it can emit a spelling this
+parser refuses — SPEC §8.2 records the mismatch and the two cases it bites.
 
 ---
 

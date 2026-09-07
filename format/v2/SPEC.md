@@ -4579,13 +4579,40 @@ attribute values on input. `_` delimiter runs parse exactly like `*` runs
 (so `__x__` is bold — liberal input; canonical output always uses stars).
 
 **Resource bounds** (implementation decision — deterministic local rules
-that keep parsing linear on the untrusted-document boundary): link
-destinations longer than 2048 UTF-16 code units, destinations surrounded by
-more than 32 whitespace characters, and link labels nested more than 32
-deep are not recognized — the `[` stays literal. Export drops Link/Object
-marks whose rendered destination would exceed the bound, and Emoji marks
-whose param exceeds 64 code units, as invalid (§8.3 step 1), so round trips
-stay byte-stable.
+that keep parsing linear on the untrusted-document boundary): a link
+destination longer than **2048 Unicode code points AS SPELLED IN THE
+DOCUMENT**, a destination surrounded by more than 32 whitespace characters,
+and link labels nested more than 32 deep are not recognized — the `[` stays
+literal.
+
+**What the 2048 counts is the spelling, not the destination it decodes to.**
+Every escape backslash counts as its own code point (`\&` is two), an entity
+counts as the characters it is written with, and an astral character counts
+**once** — one code point, not the two UTF-16 units it becomes. The scan
+admits 2048 code points starting at the destination's first character, and
+in the angle-wrapped form that first character is the `<` itself, so a
+wrapped destination gets **2047** between the delimiters. Stated on the
+spelling because that is what a reader can apply to the bytes in front of
+it, with nothing decoded first, and because it is what bounds the work.
+
+**Export bounds a different measurement, and the two do not agree.** It
+drops a Link or Object mark whose **decoded** destination exceeds 2048
+**UTF-16 code units** — measured before escaping and wrapping — and an Emoji
+mark whose param exceeds 64 code units, as invalid (§8.3 step 1). Where the
+two coincide, which is every destination needing no escape and carrying no
+astral character, round trips are byte-stable. Where they do not, they are
+not, and it fails silently in both directions: a 2048-unit destination
+containing one `&` renders to a 2049-code-point spelling that export emits
+and the parser then refuses, so `[click](…)` reparses as literal prose with
+the link gone, its caption swallowed and its escapes resolved — not even the
+bytes survive; and a destination of 1,019 astral
+characters after a 13-character prefix is 1,032 code points but 2,051 UTF-16
+units, so export drops the mark while the parser reads a hand-written one as
+a link. This is a **stated defect, not a licence** — export has to measure
+the spelling it is about to write, and until it does, a writer that keeps
+destinations inside BOTH numbers is byte-stable. Nothing measured is near
+either: across the 79 corpus bundles the longest of 40,694 link destination
+spellings is **443 code points**, and none exceeds 2048 under either count.
 
 ### 8.3 Canonical rendering (the round-trip contract for marks)
 
