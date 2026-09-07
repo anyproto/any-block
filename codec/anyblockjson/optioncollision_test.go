@@ -19,6 +19,9 @@ package anyblockjson
 // slot claimed first.
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gogo/protobuf/types"
@@ -365,4 +368,191 @@ func TestOptionCollision_TheAvoidSetIsThePropertysOptions(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, storedList(t, back, "tag"), "tgt3",
 		"no written term may resolve to an option the object was never on")
+}
+
+// `OmitIds` drops the legend (§9), and the degraded term exists only to give
+// that legend room for a second entry. Written without it the term names
+// nothing anywhere: its six characters are a fragment of an id the document
+// no longer carries, and the reading side has neither an id to check nor an
+// option of that name to find, so the wiring mints an option LITERALLY called
+// `books (yfirst)`.
+//
+// That is strictly worse than the behaviour this rule replaced, which wrote
+// `["books","books"]` and landed both on a real option. So the plan is gated
+// on the legend it exists to serve.
+func TestOptionCollision_OmitIdsWritesNoDegradedTerm(t *testing.T) {
+	// given
+	space := spaceOptions{"tag": {
+		{id: "bafyfirst", name: "books"},
+		{id: "bafysecond", name: "books"},
+	}}
+	snap := optionSnapshot(map[string]*types.Value{"tag": strList("bafyfirst", "bafysecond")})
+
+	// when
+	data, err := Marshal(model.SmartBlockType_Page, snap, Options{ResolveOptions: space, OmitIds: true})
+	require.NoError(t, err)
+
+	// then — the plain name, and no legend
+	require.NoError(t, Validate(data, Options{}))
+	assert.Equal(t, []any{"books", "books"}, docProperty(t, data, "Tag"))
+	assert.Nil(t, docOptionIds(t, data))
+
+	// and the values come back on the real option rather than minting two
+	// synthetic names — the identity loss OmitIds already accepts, not a new
+	// one it does not
+	_, back, err := Unmarshal(data, Options{ResolveOptions: space})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"bafyfirst", "bafyfirst"}, storedList(t, back, "tag"))
+}
+
+// A degraded term is only as good as the legend beside it, and §3 already
+// says what happens when the legend cannot answer: "the name resolves exactly
+// as it did before the legend existed". For a degraded term it did not — the
+// space knows no option called `books (yfirst)`, so resolution fell straight
+// through to the value unchanged and the wiring minted the synthetic name.
+//
+// That is the case the whole naming rule is FOR: §3 spells options by name
+// because "a bundle carries no option objects", so the install that reads
+// them is exactly the one whose space never saw the ids.
+func TestOptionCollision_ADegradedTermResolvesByItsStem(t *testing.T) {
+	// given — an export from a space holding two options named `books`
+	source := spaceOptions{"tag": {
+		{id: "bafyfirst", name: "books"},
+		{id: "bafysecond", name: "books"},
+	}}
+	snap := optionSnapshot(map[string]*types.Value{"tag": strList("bafyfirst", "bafysecond")})
+	data, err := Marshal(model.SmartBlockType_Page, snap, Options{ResolveOptions: source})
+	require.NoError(t, err)
+	require.Equal(t, []any{"books (yfirst)", "books (second)"}, docProperty(t, data, "Tag"))
+
+	for name, tc := range map[string]struct {
+		target spaceOptions
+		want   []string
+	}{
+		// the install §3 is written for: none of the ids is live here, and
+		// the target's own `books` is what the names mean
+		"a space that has the option under that name": {
+			target: spaceOptions{"tag": {{id: "bafytarget", name: "books"}}},
+			want:   []string{"bafytarget", "bafytarget"},
+		},
+		// and where the name resolves to nothing either, what passes through
+		// is the NAME — so the wiring mints one option called `books`, not
+		// two called `books (yfirst)` and `books (second)`
+		"a space that has no such option at all": {
+			target: spaceOptions{"tag": {{id: "bafyother", name: "films"}}},
+			want:   []string{"books", "books"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// when
+			_, back, err := Unmarshal(data, Options{ResolveOptions: tc.target})
+			require.NoError(t, err)
+
+			// then
+			assert.Equal(t, tc.want, storedList(t, back, "tag"))
+		})
+	}
+}
+
+// The strip is the LAST name question asked, never the first, so an option a
+// space really does name `<stem> (<six characters>)` is found under its own
+// name and never mangled into its stem. One option name in the 2,490 the
+// 79-bundle corpus at out-57f4add carries has the shape — `Other (logseq)` —
+// and this is the rule that keeps it a name.
+func TestOptionCollision_AnOptionNamedLikeADegradedTermResolvesToItself(t *testing.T) {
+	// given — a document written by a space where that IS the option's name
+	source := spaceOptions{"tag": {{id: "bafysource", name: "Other (logseq)"}}}
+	snap := optionSnapshot(map[string]*types.Value{"tag": strList("bafysource")})
+	data, err := Marshal(model.SmartBlockType_Page, snap, Options{ResolveOptions: source})
+	require.NoError(t, err)
+	require.Equal(t, []any{"Other (logseq)"}, docProperty(t, data, "Tag"))
+
+	// when — a space that holds the same option under a different id, beside
+	// one named the stem
+	target := spaceOptions{"tag": {
+		{id: "bafyother", name: "Other"},
+		{id: "bafyexact", name: "Other (logseq)"},
+	}}
+	_, back, err := Unmarshal(data, Options{ResolveOptions: target})
+	require.NoError(t, err)
+
+	// then — the exact name wins; the stem is never consulted
+	assert.Equal(t, []string{"bafyexact"}, storedList(t, back, "tag"))
+}
+
+// A reader with no option resolver has no space in which to ask any of §3's
+// questions, and the strip is one of them: nothing in the string says whether
+// `Other (logseq)` is a §3 term or an option's own name, and a reader with no
+// vocabulary to check it against may not guess. §3 says such a reader changes
+// nothing, and that is what keeps the unwired round trip byte-stable.
+func TestOptionCollision_AReaderWithNoResolverStripsNothing(t *testing.T) {
+	// given — a document written by a space that had two options named `books`
+	source := spaceOptions{"tag": {
+		{id: "bafyfirst", name: "books"},
+		{id: "bafysecond", name: "books"},
+	}}
+	snap := optionSnapshot(map[string]*types.Value{"tag": strList("bafyfirst", "bafysecond")})
+	data, err := Marshal(model.SmartBlockType_Page, snap, Options{ResolveOptions: source})
+	require.NoError(t, err)
+
+	// when — read with no resolver at all
+	sbType, back, err := Unmarshal(data, Options{})
+	require.NoError(t, err)
+
+	// then — the terms survive as written
+	assert.Equal(t, []string{"books (yfirst)", "books (second)"}, storedList(t, back, "tag"))
+
+	// and the unwired round trip is a fixpoint: an unwired export writes back
+	// exactly what it read
+	again, err := Marshal(sbType, back, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, []any{"books (yfirst)", "books (second)"}, docProperty(t, again, "Tag"))
+}
+
+// The prose half. A reader outside this repository holds the export and the
+// published statements and nothing else, so those statements ARE the
+// implementation — and four of them described a resolution a degraded term
+// does not get. §3's algorithm said the inner key is "the option name exactly
+// as the value spells it"; its step 2 resolved names "as before", which for a
+// degraded term misses every time; and §2's envelope row and the published
+// schema both promised that an id the space cannot honour leaves "the name"
+// resolving as it would without the legend, which for a degraded term it did
+// not. Each is pinned here because the freeze makes a wrong sentence
+// permanent.
+func TestOptionCollision_ThePublishedRulesResolveADegradedTerm(t *testing.T) {
+	spec := readFormatDocumentation(t)["SPEC.md"]
+
+	// §3's chain is the part an implementor codes.
+	assert.NotContains(t, spec, "**Reading one option value: three steps",
+		"the chain has a step for the term the degrade writes")
+	assert.Contains(t, spec, "**Reading one option value: four steps, first answer wins.**")
+	assert.Contains(t, spec, "3. **Name resolution again, on the name inside a degraded term.**",
+		"a degraded term must resolve by its name rather than mint one")
+	assert.NotContains(t, spec, "the inner\nkey the option **name** exactly as the value spells it",
+		"the inner key is the TERM the slot writes, which for a degraded value is not a name")
+
+	// §2's envelope row states the fallback a reader is promised.
+	assert.Contains(t, spec,
+		"a degraded term by the name inside it, which §3's step 3 strips the suffix to find",
+		"§2 must state the fallback a degraded term actually gets")
+
+	// and so does the published schema, in the same words.
+	data, err := os.ReadFile(filepath.Join("..", "..", "format", "v2", "schema", "object.schema.json"))
+	require.NoError(t, err)
+	var schema struct {
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
+	}
+	require.NoError(t, json.Unmarshal(data, &schema))
+	optionIds := schema.Properties["option_ids"].Description
+	require.NotEmpty(t, optionIds)
+	assert.NotContains(t, optionIds, "otherwise the name resolves as it would without the legend",
+		"the schema promised a degraded term a resolution it did not get")
+	assert.Contains(t, optionIds, "a degraded term by the name inside it",
+		"the schema must state the same fallback §2 and §3 do")
+
+	// §11 owns the trade the fallback makes, which nothing stated before.
+	assert.Contains(t, spec, "In a space that never held those ids the legend answers nothing",
+		"§11 must state what a cross-space install of a degraded term does")
 }

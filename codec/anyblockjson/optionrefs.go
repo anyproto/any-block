@@ -235,6 +235,17 @@ func (e *exporter) planOptionTerms(key string) map[string]string {
 	if e.opts.ResolveOptions == nil {
 		return nil
 	}
+	// no legend, no degrade. The suffixed term is not a name: it is a key
+	// into `option_ids`, and its six characters are a fragment of an id.
+	// `OmitIds` drops that legend (§9), so a term written under it names
+	// nothing anywhere — the reading side has no id to check and no option of
+	// that name to find, and the wiring mints an option literally called
+	// `books (yfirst)`. Writing the plain name instead is the identity loss
+	// OmitIds already accepts (both values land on one option) rather than a
+	// new one it does not.
+	if e.opts.OmitIds {
+		return nil
+	}
 	ids := e.optionCensus(key)
 	if len(ids) < 2 {
 		return nil // one claimant cannot contest itself
@@ -456,8 +467,36 @@ func isOptionFormat(format model.RelationFormat) bool {
 //     (optionIdFromLegend below);
 //  2. name resolution through the wired resolver, which is what a bundle
 //     carried to a space that never saw those ids falls back on;
-//  3. the value unchanged, because creating a missing option is the wiring's
-//     job (§3).
+//  3. the same question again on the NAME inside a degraded term
+//     (optionTermStem below), because a term is not a name;
+//  4. the value unchanged — its stem where step 3 recognized one — because
+//     creating a missing option is the wiring's job (§3).
+//
+// Step 3 is what makes step 2's promise true for a degraded term. Where two
+// options of one property claim one name, export writes `<name> (<tail6>)`
+// for every claimant (§3), and that term is a key into the legend, not a
+// name: no space is expected to hold an option called it. Without step 3 a
+// document read anywhere the legend cannot answer — a bundle installed into a
+// space that never saw those ids, which is the case option values are spelled
+// by name FOR — missed at step 2 every time and minted an option carrying six
+// characters of a foreign id. Step 3 asks the question the plain name would
+// have asked, so the answer is the one §3 promises: the name resolves exactly
+// as it did before the legend existed.
+//
+// It is asked AFTER the exact term, never before, so an option a space really
+// does name `Other (logseq)` is found under its own name; and step 4 hands
+// back the stem for the same reason, so what the wiring creates is `books`
+// and not the synthetic term. The residue that leaves is exactly an option
+// name of that shape carried into a space that does not have it, which then
+// merges onto its stem instead of being created — one name in the 2,490
+// options of the 79-bundle corpus at out-57f4add has the shape at all (§11).
+//
+// Both are questions for a SPACE, so a reader with no option resolver asks
+// neither and the value passes through as written (§3, §13). Nothing in the
+// string says whether `Other (logseq)` is a term or a name, and a reader with
+// no vocabulary to check it against would be guessing — and rewriting a value
+// it cannot read back, which is what makes the unwired round trip a
+// fixpoint.
 //
 // `key` is the stored key the value lands on and `slug` the spelling the slot
 // wrote: the resolver is asked with the former and the legend keyed by the
@@ -467,12 +506,43 @@ func (imp *importer) resolveOption(key, slug, name string) string {
 	if id, ok := imp.optionIdFromLegend(key, slug, name); ok {
 		return id
 	}
-	if imp.opts.ResolveOptions != nil {
-		if id, ok := imp.opts.ResolveOptions.OptionId(domain.RelationKey(key), name); ok {
+	if imp.opts.ResolveOptions == nil {
+		return name
+	}
+	if id, ok := imp.opts.ResolveOptions.OptionId(domain.RelationKey(key), name); ok {
+		return id
+	}
+	if stem, degraded := optionTermStem(name); degraded {
+		if id, ok := imp.opts.ResolveOptions.OptionId(domain.RelationKey(key), stem); ok {
 			return id
 		}
+		return stem
 	}
 	return name
+}
+
+// optionTermStem splits `<name> (<tail6>)` back into its name half — the
+// exact inverse of optionDisambiguatedName, and the same split the reference
+// reader makes to render one of these terms (READING.md, describeOption).
+//
+// The tail is six characters by construction, which is what keeps an ordinary
+// parenthetical out of it: `Done (2024)` is four and `Release (v1.2.3)` is
+// seven. What it cannot keep out is a name that fits exactly, and nothing in
+// the string says which it is — that is why the caller asks it last, once the
+// term itself has been offered to the space under its own name.
+func optionTermStem(term string) (string, bool) {
+	const tail = 6
+	r := []rune(term)
+	// `x (aaaaaa)` is the shortest form: one stem rune, a space, a paren, six
+	// tail runes, a paren
+	if len(r) < tail+4 || r[len(r)-1] != ')' {
+		return "", false
+	}
+	open := len(r) - tail - 2
+	if r[open] != '(' || r[open-1] != ' ' {
+		return "", false
+	}
+	return string(r[:open-1]), true
 }
 
 // optionIdFromLegend is step 1 of §3's option resolution: the `option_ids`
