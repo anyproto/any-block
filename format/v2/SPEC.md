@@ -1339,10 +1339,17 @@ and a bundled-bound spelling needs no legend entry.
 keys. The translation is the optional `TypeResolver` capability of
 `Options.ResolveProperties` (storeresolver implements it from the same one
 bounded type listing the §3 vocabulary budgets): export inverts id → key, import key →
-this space's id, so a resolver-wired round trip is id-exact. A bare key
-legacy imports stored directly (21 production entries) passes through
-**verbatim in both directions**, its own address (§3): a key is vocabulary,
-and a vocabulary miss is never evidence of nonexistence. What no longer
+this space's id, so a resolver-wired round trip is id-exact. A bare KEY
+that a legacy import stored directly (21 production entries) is not an id,
+and does not pass through verbatim: it takes **three steps**. The stored key
+DENOTES that type; canonical export writes its derived reference
+`type-<key>` (§9), the one spelling of a type every slot writes; and import
+resolves that key to **this space's type object id** whenever the capability
+can answer — the §11 normalization, a respelling and not a rebinding, since
+the id is the store's own spelling for the same type. Only a key nothing can
+answer for stays a key, and that is where a key is its own address (§3): a
+key is vocabulary, and a vocabulary miss is never evidence of nonexistence,
+so the term survives rather than dropping. What no longer
 passes is an entry the space's own store disowns (§9): the
 `_missing_object` sentinel, and an object id the wired existence capability
 says names no row — 56 production properties carry one, type ids from the

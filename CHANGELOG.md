@@ -5,6 +5,26 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **A legacy bare target type key is respelled, not passed through, and §2d
+  says so** (SPEC §2d).
+  §2d promised that a bare type key a legacy import stored directly in
+  `relationFormatObjectTypes` "passes through **verbatim in both
+  directions**"; §11 described the identical stored value as a normalization
+  — it "comes back as this space's type object id". A reader implementing §2d
+  keeps a key where the importer stores an id, and a round-trip verifier
+  following §2d reports the documented normalization as data loss.
+
+  §11 is right, and neither direction is verbatim. Measured on the stored
+  value `["page"]`: canonical export writes `["type-page"]`, the key's
+  derived reference (§9), under every resolver state — so the export
+  direction is a respelling too — and import stores `typeidpage` when the
+  `TypeResolver` capability answers for `page`, `page` when no resolver can.
+  §2d now states those three steps and points at §11 instead of contradicting
+  it.
+
+  Prose only; no schema, no code, no behaviour change, and **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**.
+
 - **The option shorthand has one criterion, and it is all three members**
   (SPEC §2a, §2f).
   §2a made the bare option name canonical "whenever the option declares no
