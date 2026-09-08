@@ -6690,28 +6690,26 @@ type FormatResolver func(key domain.RelationKey) (model.RelationFormat, bool)
 // select/multi_select values. Creating a missing option is the import
 // wiring's job, never this interface's.
 //
-// Both methods are asked in both directions, and each asks for something
-// different on each side:
+// The pairing is NOT one method per direction: OptionName is asked on BOTH
+// sides and asks something different on each, while OptionId is asked on
+// import only.
 //
 //   - OptionName, on export, is what the document writes for a value; on
 //     import it is the liveness question `option_ids` is checked against —
 //     it answers for an id exactly when that id is an option of that
 //     relation here (§3, §9a).
-//   - OptionId, on import, is name resolution: the id a value's term stands
-//     for, the FIRST where two options share the name. On export it is an
-//     existence test — before writing `<name> (<tail6>)` for a contested
-//     name, export asks whether some option of the property is already NAMED
-//     that term, and writes the bare id instead where one is (§3). It
-//     discards the id, so the scan order that makes the import answer a hint
-//     does not reach it.
+//   - OptionId is name resolution, §3's step 2: the id a value's name stands
+//     for, and the FIRST of them where two options of the property share
+//     that name, which is one of the two losses `option_ids` exists to
+//     close.
 //
-// A resolver that stubs either method disables something on BOTH sides. No
-// OptionName: no legend is honoured on import and no name is written on
-// export. No OptionId: import resolves no name — only the legend answers,
-// and every value it does not cover passes through for the wiring to create
-// — and on export the avoid-set goes quiet, so a minted term may be a name a
-// live option of the property already answers to, which a reader resolves
-// onto an option the object was never on (§3).
+// Stubbing either costs something, and the costs are not symmetric. No
+// OptionName: no name is written on export, and on import the legend is
+// given up entirely, because the liveness check every entry must pass has
+// nothing to answer it. No OptionId: export is unaffected, since nothing on
+// the export side asks it; on import only the legend answers, and every
+// value it does not cover falls through §3's step 3 for the wiring to
+// create.
 type OptionResolver interface {
     OptionName(key domain.RelationKey, id string) (string, bool)
     OptionId(key domain.RelationKey, name string) (string, bool)

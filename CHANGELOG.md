@@ -5,35 +5,33 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
-- **`OptionResolver`'s contract says both methods are asked in both
-  directions, because both are** (SPEC §13, `OptionResolver`). The interface
-  documented `OptionId` as the import half — "maps option ids to names on
-  export and names to ids on import" — and named `OptionName` as the only
-  method with a duty on each side. `optionNameTaken` has called `OptionId`
-  from the EXPORT side since the avoid-set on a degraded term widened from
-  one document's census to the property's options, and it is the only
-  export-side caller in the codebase, so the frozen contract was contradicted
-  by the code it describes.
+- **`OptionResolver`'s contract stops pairing one method with one
+  direction** (SPEC §13, `OptionResolver`). The interface summarised itself
+  as "maps option ids to names on export and names to ids on import", which
+  names `OptionName` as the export half — while `OptionName` is also the
+  liveness question every `option_ids` entry is checked against on IMPORT
+  (§3 step 1, `optionrefs.go`), and nothing else asks that question, so a
+  resolver stubbing it gives up the legend entirely. A consumer implementing
+  the frozen interface from §13 alone could read the summary and wire only
+  the export direction.
 
-  The export duty cannot be moved to `OptionName`. The question is "does some
-  option of this property already answer to this term?", asked about a
-  property whose option ids the interface cannot enumerate — and it must be
-  asked about the property rather than the census precisely because a document
-  may sit on two of three same-named options and never mention the third. So
-  the contract is re-documented rather than the call relocated, in both copies
-  (the Go doc and §13's published block), with what each direction asks of
-  each method and what stubbing either one costs on each side. Export reads
-  only whether an answer exists and discards the id, so the first-match scan
-  that makes the import answer a hint does not reach it — which is now stated,
-  since a consumer implementing the interface from §13 alone would otherwise
-  have to guess.
+  Both copies — the Go doc and §13's published block — now state, per method
+  and per direction, what is asked and what stubbing it costs. `OptionName`
+  has a duty on each side; `OptionId` has one, on import: name resolution,
+  §3's step 2, answering the FIRST id where two options of the property share
+  a name, which is one of the two losses `option_ids` exists to close. The
+  two costs are not symmetric and the text says so: no `OptionName` loses
+  both the written name and the whole legend, while no `OptionId` leaves
+  export untouched and drops import to the legend alone, every value it does
+  not cover falling through §3's step 3 for the wiring to create.
 
-  Two tests pin it: one watches a recording resolver and asserts export asks
-  `OptionId` about every term it is about to mint, one exports the same
-  document through a resolver that answers `OptionId` and one that does not
-  and shows the avoid-set going quiet. Removing the export-side call reddens
-  both, and the pre-fix run of the first reported "§13 said OptionId is the
-  import half; export has asked it since the avoid-set widened".
+  Scoped to what the code does. An earlier draft of this entry also
+  documented an EXPORT-side duty on `OptionId` — an existence test behind the
+  degraded-option avoid-set — and that call site went with the
+  option-degradation scheme; `grep -rn "\.OptionId(" --include='*.go' .`
+  now finds one production caller, `resolveOption` on the import path. The
+  two tests that pinned the export-side ask went with it, having no subject
+  left.
 
 - **§11 stops restating the verbatim rule §2d retired, and the two sections
   cite ONE measured population** (SPEC §2d, §11). Commit a97ce35 replaced
