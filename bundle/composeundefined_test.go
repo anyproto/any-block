@@ -7,9 +7,16 @@ package bundle
 // (Stats.OrphanUsedKeys) and then wrote nothing about them, so the
 // dictionary a reader opens had no row for the key at all and a reader
 // could not tell "the writer had nothing to say" from "I failed to look".
-// Measured on the audited 3,286-document space: 238 such keys across the
-// whole reference census, of which 155 appear in a document's top-level
-// `properties` map, in 324 documents, 640 value occurrences.
+// Measured on the audited 3,286-document space, with the type-declaration
+// rung in force (composedeclared_test.go): 236 such keys across the whole
+// reference census, of which 153 appear in a document's top-level
+// `properties` map, in 313 documents, 628 value occurrences.
+//
+// The key these tests use is one of them, and it is the honest example the
+// space really carries: `"66602dc5e5672d06c0e19245": 1717538400` could be
+// a date, a count or an id, and nothing in that bundle can tell — no
+// dictionary entry, no type declaration, no format cached on a dataview
+// column, and one legend line spelling the key as itself.
 //
 // The entry states identity and the `unknown` sentinel and nothing else,
 // which is the whole content of the claim (the codec's
@@ -36,14 +43,14 @@ import (
 // PropertyDefinition's zero, so an entry built without the sentinel claims
 // the deleted property held text.
 func TestComposer_ANamedKeyNothingCanDefineStillGetsAnEntry(t *testing.T) {
-	const orphan = "68cda76ee9223c9dc7ce5e92"
+	const orphan = "66602dc5e5672d06c0e19245"
 
 	c := NewComposer(anyblockjson.Options{}, "Corpus")
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafypage"),
 	})}
 	doc := []byte(`{"formatVersion":"2.0","id":"bafypage",` +
-		`"properties":{"` + orphan + `":1755471600},` +
+		`"properties":{"` + orphan + `":1717538400},` +
 		`"property_internal_keys":{"` + orphan + `":"` + orphan + `"}}`)
 	omitted, _ := c.Observe(model.SmartBlockType_Page, page)
 	require.False(t, omitted)
@@ -76,7 +83,7 @@ func TestComposer_ANamedKeyNothingCanDefineStillGetsAnEntry(t *testing.T) {
 // reports `options is only meaningful on select/multi_select, not "text"`
 // against a property it has just said nothing can define.
 func TestComposer_AnUndefinedKeyCarriesNoVocabulary(t *testing.T) {
-	const orphan = "68cda76ee9223c9dc7ce5e92"
+	const orphan = "66602dc5e5672d06c0e19245"
 
 	c := NewComposer(anyblockjson.Options{}, "Corpus")
 	opt := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
@@ -120,14 +127,14 @@ func TestComposer_AnUndefinedKeyCarriesNoVocabulary(t *testing.T) {
 // composition validates only for a reader that never asks what the key
 // means.
 func TestComposer_AComposedBundleAnswersForEveryKeyItNames(t *testing.T) {
-	const orphan = "68cda76ee9223c9dc7ce5e92"
+	const orphan = "66602dc5e5672d06c0e19245"
 
 	c := NewComposer(anyblockjson.Options{}, "Corpus")
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafypage"),
 	})}
 	doc := []byte(`{"formatVersion":"2.0","id":"bafypage",` +
-		`"properties":{"` + orphan + `":1755471600},` +
+		`"properties":{"` + orphan + `":1717538400},` +
 		`"property_internal_keys":{"` + orphan + `":"` + orphan + `"}}`)
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page, doc))
 

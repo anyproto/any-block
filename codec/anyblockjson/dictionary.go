@@ -241,9 +241,12 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 		// exists to prevent (§2f). dictionaryEntryIdentity already weighed
 		// exactly this above; use its answer rather than a second opinion.
 		def.KeyIsInternal = isInternal
-		// dictionary-owned, so set here rather than in the shared builder:
-		// the type-document door never sees the member (its schema refuses
-		// it), and the PATCH channel has no removal to state
+		// three of these are dictionary-owned, so they are set here rather
+		// than in the shared builder: the type-document door never sees
+		// them, its schema refusing each. The removal is the exception —
+		// a type's declaration states it too (§15 #22) and the shared
+		// builder reads it there — and it is set here as well because this
+		// door does not go through that builder.
 		def.ApiKey = tp.ApiKey
 		def.Uninstalled = tp.Uninstalled
 		def.Hidden = tp.Hidden
@@ -607,22 +610,33 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	// it. The description is the STORE's own text, installed verbatim from
 	// the app's shipped property table — for `layout` it reads "Anytype
 	// layout ID(from pb enum)", which is the sentence that sends a reader to
-	// write the ordinal. The prose fix belongs in that table, upstream, and
-	// NOT in vocabulary/relations.json: the snapshot here is one side of the
+	// write the ordinal, and for the participant pair it reads "Possible
+	// values: models.ParticipantPermissions", a pointer to a Go symbol the
+	// bundle does not ship. Both are unusable in the same way and neither is
+	// fixable here: the prose fix belongs in that table, upstream, and NOT
+	// in vocabulary/relations.json, whose snapshot is one side of the
 	// identity check that decides whether a space's copy has diverged from
-	// the shipped table, so rewriting it would publish all 500 corpus
-	// entries for these keys as a user edit no user made
+	// the shipped table. Rewriting it would publish all 658 corpus entries
+	// for these nine keys as a user edit no user made — every one of them
+	// carries the shipped text byte for byte today, and none is flagged
+	// bundled_diverged
 	// (TestValueNames_TheInwardDescriptionIsTheShippedTablesToFix). What this
 	// format can do is state the vocabulary beside the description, and
 	// refuse the number the description invites.
-	if names, named := namedEnumValueNames(string(def.Key)); named {
+	if names, named := namedEnumValueNames(string(def.Key), def.Format); named {
 		m.set(memberValueNames, stringsToAny(names))
 	}
-	// the dictionary's own members, written here rather than by the shared
-	// renderer so that the shape's other two homes cannot emit them: on a
-	// type's declaration each would describe nothing (§2f). True only — a
-	// false flag is the absent form, the omit-default canon for a flag
-	// that is not a property value.
+	// the entry's own members, written here rather than by the shared
+	// renderer so that the shape's other homes cannot emit them: on a
+	// type's declaration api_key, hidden and bundled_diverged would each
+	// describe nothing (§2f). `uninstalled` is written by BOTH homes that
+	// mean it — a type's declaration has its own writer for it
+	// (buildTypeProperties), because a declaration is a complete standalone
+	// definition and may not present a removed property as live (§15 #22) —
+	// and by neither through the shared renderer, which is what keeps a
+	// property document's settings refusing it. True only — a false flag is
+	// the absent form, the omit-default canon for a flag that is not a
+	// property value.
 	m.setNonEmpty(memberApiKey, def.ApiKey)
 	m.setNonEmpty(memberUninstalled, def.Uninstalled)
 	m.setNonEmpty(memberHidden, def.Hidden)
@@ -631,17 +645,29 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 }
 
 // undefinedPropertyEntryOmap renders the entry for a key NOTHING could define
-// (§2f): identity, a name where the export had one, and the `unknown`
-// sentinel. Nothing else, and an entry asked to carry anything else is an
-// ERROR rather than a silent trim — the caller building it has a definition
-// in hand and a member it set is a member it meant, so dropping one would
-// publish less than the composer believed it had published, which is the
-// class of silent loss this file exists to end.
+// (§2f): identity and the `unknown` sentinel. Nothing else, and an entry
+// asked to carry anything else is an ERROR rather than a silent trim — the
+// caller building it has a definition in hand and a member it set is a
+// member it meant, so dropping one would publish less than the composer
+// believed it had published, which is the class of silent loss this file
+// exists to end.
+//
+// `name` is refused with the rest, and it used to be written. The member
+// was documented as carrying a name "where the export had one to give (a
+// legend line, a type's declaration)" and no writer ever gave one: the
+// composer sets the key and the sentinel and nothing else. Both of the
+// named sources now land elsewhere or nowhere — a type's declaration states
+// a format beside its name, so it produces a REAL entry a rung earlier
+// (bundle.declaredDefinition), and a legend line binds a spelling to a
+// stored key and carries no name at all. An unreachable member is a promise
+// the format cannot keep, and a name beside `unknown` would describe a
+// definition the entry has just said it does not have.
 func undefinedPropertyEntryOmap(m *omap, def PropertyDefinition) (*omap, error) {
 	for _, stated := range []struct {
 		member string
 		set    bool
 	}{
+		{"name", def.Name != ""},
 		{"options", len(def.Options) > 0},
 		{"object_types", len(def.ObjectTypes) > 0},
 		{"description", def.Description != ""},
@@ -660,18 +686,21 @@ func undefinedPropertyEntryOmap(m *omap, def PropertyDefinition) (*omap, error) 
 				"property really has", def.Key, propertyFormatUnknown, stated.member)
 		}
 	}
-	m.setNonEmpty("name", def.Name)
 	m.set("format", propertyFormatUnknown)
 	return m, nil
 }
 
 // memberValueNames is the dictionary entry's published vocabulary (§2f, §3):
 // every name a value of this property can be, for the keys whose stored
-// NUMBER this format writes as a name. READ-facing, and deliberately not an
-// authoring surface — five of the six keys are hidden or readonly in the
-// shipped table, and the sixth (layoutAlign) is set by the alignment UI, so
-// the member says what a value MEANS, never what a caller may choose. The
-// authoring subset refuses it along with every other export-written member.
+// NUMBER this format writes as a name, and only where the entry itself
+// states format "number" — a diverged copy of such a key states its own
+// format, and the pair a reader is told to read together must agree.
+//
+// READ-facing, and deliberately not an authoring surface — all nine named
+// keys are hidden, readonly or both in the shipped table (seven hidden, five readonly, the union all of them:
+// TestValueNames_EveryNamedKeyIsANumberTheUserDoesNotType), so the member
+// says what a value MEANS, never what a caller may choose. The authoring
+// subset refuses it along with every other export-written member.
 const memberValueNames = "value_names"
 
 // memberUninstalled is the dictionary entry's removal flag (§2f).

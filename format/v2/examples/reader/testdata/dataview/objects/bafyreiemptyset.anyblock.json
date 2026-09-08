@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreiemptyset",
+  "type": "Set",
+  "type_internal_key": "set",
+  "properties": {
+    "Name": "A set whose `Set of` is an empty list",
+    "Set of": []
+  },
+  "blocks": [
+    {
+      "id": "dataview",
+      "type": "dataview",
+      "views": [{ "id": "v1", "name": "All" }]
+    }
+  ]
+}

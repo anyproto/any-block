@@ -1107,9 +1107,22 @@ func (imp *importer) propertyValue(key, slug string, v any) *types.Value {
 		return &types.Value{Kind: &types.Value_NullValue{}}
 	}
 	// a name-over-number key is named in the format, stored as a number
-	// (§3). A number is still accepted so legacy documents keep importing
-	// unchanged; a string that is not a vocabulary name never reaches here —
-	// validation refused the document.
+	// (§3). The number that still arrives from a DOCUMENT is the one the
+	// vocabulary cannot name (I1): it has no name to write, so it falls
+	// through below and round-trips. A nameable number no longer arrives
+	// that way at all — Unmarshal runs validateToDoc before any of this
+	// (above), and that pass refuses it, which is the break json.go records
+	// on the participant pair and `anyblock to-v1` reproduces on a real
+	// corpus participant: `"Participant permissions": 1` fails the
+	// conversion, naming "writer". Nor does a string outside the vocabulary
+	// arrive from a document; validation refuses that too.
+	//
+	// The VALUE-level door is the exception, and the only one: it is handed
+	// no document, so it runs no validation pass.
+	// UnmarshalPropertyValue("participantPermissions", 1, …) still stores
+	// the 1, and the same call with "bogus" still stores the string on a
+	// number key. That asymmetry is the price of an entry point that takes
+	// a value instead of bytes, not a legacy-document allowance.
 	if vocab, named := namedEnumProperty(key); named {
 		if s, isStr := v.(string); isStr && vocab.has(s) {
 			return &types.Value{Kind: &types.Value_NumberValue{
@@ -1132,6 +1145,47 @@ func (imp *importer) propertyValue(key, slug string, v any) *types.Value {
 		return wrapToList(mapJSONStrings(v, func(name string) string { return imp.resolveOption(key, slug, name) }))
 	case model.RelationFormat_object, model.RelationFormat_file:
 		return wrapToList(mapJSONStrings(v, imp.objectRef))
+	}
+	// Every OTHER format that holds more than one value is stored as a list
+	// too, and the predicate is read rather than its membership restated,
+	// because the cases above are not the fact — they are four spellings of
+	// it plus a per-format mapping. `relations` (the `properties` format) had
+	// no case, and it still has no mapping — but not for want of one. Its
+	// values ARE property keys, and every other slot that names a property
+	// resolves the term it was spelled with through the §3 chain
+	// (propertyKey at `/properties`, propertyKeyAt everywhere else); this
+	// one does not, and one document shows both halves of the asymmetry.
+	// Export writes the stored key raw here while spelling the SAME key by
+	// name in a property block beside it, legend entry and all — one key,
+	// two spellings, in one document. Import mirrors it: with
+	// `property_internal_keys: {"priority": "67abc"}` present, a property
+	// block's `"property": "priority"` resolves to `67abc` and this slot's
+	// `["priority"]` stores the literal string "priority".
+	//
+	// So what the wrap below settles is the LIST SHAPE alone. Without it the
+	// value fell through to jsonToProtoValue and a document's bare
+	// `"MyProps": "tag"` stored a StringValue where `["tag"]` stored a
+	// ListValue — two stored values for one meaning, on the one format
+	// nobody had a document to notice it on (0 of the 79-bundle corpus
+	// declares the format, over every `format` member of all 24,889
+	// documents and all 5,385 dictionary entries). Applying the key mapping
+	// is a separate change and is deliberately not made here. Deriving the
+	// wrap from MultiValuedFormat (omittedrelation.go) is what stops the
+	// next format added there from repeating the shape half.
+	//
+	// The two lists are NOT the same set and the derivation runs one way
+	// only. List-SHAPED is the wider notion: `status` is stored as a list of
+	// one option id, and it is in the switch above while MultiValuedFormat
+	// calls it single-valued — rightly, since that predicate answers whether
+	// a `max_count` exists (§2a), and on a select it does not. So every
+	// multi-valued format is list-shaped; not every list-shaped format is
+	// multi-valued.
+	//
+	// Export needs no matching case: a stored list of plain strings renders
+	// as the JSON array through protoValueToJSON's fall-through, which is the
+	// value's own shape, so the round trip closes on the list this produces.
+	if MultiValuedFormat(format) {
+		return wrapToList(jsonToProtoValue(v))
 	}
 	return jsonToProtoValue(v)
 }

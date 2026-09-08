@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreioptionids",
+  "type": "Field note",
+  "properties": {
+    "Name": "Two option values, one of them a name",
+    "Tag": [
+      "archive",
+      "bafyreitagoptionidnotinthisentry"
+    ],
+    "Status": "bafyreistatusoptionidwithnooptions",
+    "Mood": []
+  }
+}

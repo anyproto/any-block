@@ -208,6 +208,25 @@ type Composer struct {
 	// (UsedPropertyKeysFromBytes, design §1.1).
 	used map[string]bool
 
+	// declared is what the TYPE documents this emit wrote say about the
+	// properties they declare (§2a) — the composer's third and last source
+	// of a definition, read back out of the same bytes the used-key census
+	// reads (anyblockjson.TypeDeclarationsOf). Keyed by stored key, holding
+	// the SET of distinct declarations observed for it.
+	//
+	// A set rather than a winner, the spaceSettings rule again: two types
+	// may declare one property — over the 79-bundle corpus 1,651 (bundle,
+	// key) pairs are declared by two or more type documents, no more than
+	// 33 in any one space, and not one of them states two declarations that
+	// differ in anything but `section` — and where two declarations DO
+	// differ there is no way to choose between them that is not the emit
+	// schedule. A key with
+	// one distinct declaration takes it; a key with two takes neither and
+	// stays a key nothing could define, which is the honest answer (no
+	// single definition could be established) and the only one that does
+	// not depend on which worker finished first.
+	declared map[string]map[declaredProperty]bool
+
 	// documentIds are the envelope ids of the documents the emit actually
 	// WROTE, in the spelling the bundle publishes — FoldDocumentId, the same
 	// function Marshal used to write them, rather than a second opinion that
@@ -249,6 +268,7 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 		optionsByKey: map[string][]storedOption{},
 		seenOptions:  map[optionIdentity]anyblockjson.OptionDefinition{},
 		used:         map[string]bool{},
+		declared:     map[string]map[declaredProperty]bool{},
 		documentIds:  map[string]bool{},
 		spaceSettings: spaceSettingsCandidates{
 			names:        map[string]struct{}{},
@@ -427,14 +447,25 @@ func (c *Composer) observeRelation(sbType model.SmartBlockType, base *model.Smar
 }
 
 // ObserveWritten records one emitted document: the property keys its bytes
-// reference (the dictionary's used-only census, §2f). A document's place
+// reference (the dictionary's used-only census, §2f), and the property
+// definitions a TYPE document declares (§2a), which are the composer's
+// third source of one. A document's place
 // in the bundle is not the composer's to record: a document is found by
 // its id (§2c, §15 #26), and the one binding a reader cannot derive — a file
 // document's blob — is ObserveFileBlob's.
+//
+// Both censuses run on the BYTES, before the write and outside the mutex,
+// for the same reason: a zip export cannot re-read its own entries before
+// Close, so whatever the composition needs to know about a document it has
+// to take from the bytes it is about to write (design §1.1).
 func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase, doc []byte) error {
 	used, err := UsedPropertyKeysFromBytes(doc)
 	if err != nil {
 		return fmt.Errorf("scan used property keys: %w", err)
+	}
+	declared, err := anyblockjson.TypeDeclarationsOf(doc)
+	if err != nil {
+		return fmt.Errorf("scan type property declarations: %w", err)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -452,7 +483,50 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 	for key := range used {
 		c.used[key] = true
 	}
+	// a declaration binds through the SAME §3 chain the used census runs —
+	// resolveUsedTerm, one implementation — so the key a type declares and
+	// the key a value is stored under cannot come out different for one
+	// spelling. A stated `internal_key` skips the chain: a stored id is
+	// its own address (§3).
+	for _, d := range declared.Declared {
+		key := d.Term
+		if !d.TermIsStoredKey {
+			key = resolveUsedTerm(declared.Legend, key)
+		}
+		if key == "" {
+			continue
+		}
+		stated := c.declared[key]
+		if stated == nil {
+			stated = map[declaredProperty]bool{}
+			c.declared[key] = stated
+		}
+		stated[declaredProperty{
+			name:        d.Name,
+			format:      d.Format,
+			uninstalled: d.Uninstalled,
+		}] = true
+	}
 	return nil
+}
+
+// declaredProperty is what one type document's §2a entry says about the
+// PROPERTY it declares, reduced to the members a dictionary entry can take
+// from it. Comparable on purpose: two types declaring one property
+// contribute one member to the key's set when they agree and two when they
+// do not, which is the whole of how the composer decides whether a
+// declaration defines anything (Composer.declared).
+//
+// The removal is part of what has to agree. Two types that name one
+// property alike but disagree about whether the user REMOVED it are
+// disagreeing about the property, not about their own use of it, and there
+// is no entry that states both halves — so, like a disagreement about the
+// name or the format, it defines nothing rather than letting the emit
+// schedule decide whether a deleted property comes back.
+type declaredProperty struct {
+	name        string
+	format      model.RelationFormat
+	uninstalled bool
 }
 
 // storedInternalKey reads the stored identity a document states as its
@@ -681,6 +755,18 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 			entries[key] = def
 			continue
 		}
+		// the last rung, and the only one that reads THIS bundle rather
+		// than the space behind it: a type document the emit wrote
+		// declares the property (§2a), and its declaration states a name
+		// and a format. It ranks below the three above because they are
+		// the property's own definition and a declaration is a type saying
+		// how it uses the property — but above nothing at all, which is
+		// what the composer used to write while its own type document one
+		// file over said "Release Date", format date.
+		if def, ok := declaredDefinition(key, c.declared); ok {
+			entries[key] = def
+			continue
+		}
 		orphans = append(orphans, key)
 	}
 	sort.Strings(orphans)
@@ -688,9 +774,13 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// the select vocabulary travels with the property that owns it: a
 	// bundle carries no option documents at all (§2f, §15 #21), so once the
 	// option snapshots are omitted the dictionary entry is the only place
-	// left in THIS bundle for the vocabulary to travel — a type's §2a
-	// definition may state one too, but the composer does not write those —
-	// and an entry this loop does not write states it nowhere.
+	// left in THIS bundle for the vocabulary to travel, and an entry this
+	// loop does not write states it nowhere. A type's §2a declaration may
+	// state a vocabulary too, and the rung above reads such a declaration
+	// for the name and the format it states — but never for its options:
+	// the vocabulary this loop writes is the space's OWN, lifted from the
+	// option snapshots the emit observed, and a declared copy beside it
+	// would either duplicate it or contradict it.
 	var refusedOptions []string
 	for key, stored := range c.optionsByKey {
 		def, haveEntry := entries[key]
@@ -825,10 +915,14 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// nothing about them, so the key resolved to NOTHING in the dictionary a
 	// reader opens, and a reader could not tell "the writer had nothing to
 	// say" from "I failed to look". Measured on the audited 3,286-document
-	// space: 238 keys over the whole reference census, 155 of them in a
-	// document's top-level `properties` map across 324 documents (640 value
-	// occurrences); over the 79-bundle corpus, 361 entries naming 265
-	// distinct keys.
+	// space, with the type-declaration rung above in force: 236 keys over
+	// the whole reference census, 153 of them in a document's top-level
+	// `properties` map across 313 documents (628 value occurrences); over
+	// the 79-bundle corpus, 357 entries naming 262 distinct keys. Without
+	// that rung the same census gives 238 / 155 / 324 / 640 and 361 / 265.
+	// The difference is the four keys a type document declares — four
+	// ENTRIES but only three keys, because one of the four is an orphan in
+	// a second bundle as well, where no type declares it.
 	//
 	// Written AFTER the vocabulary loop above, which is not cosmetic: an
 	// orphan key may still own observed options, and that loop drops them
@@ -842,11 +936,18 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// identity and the sentinel and nothing else, which is the whole
 	// content of the claim.
 	//
-	// Nothing is inferred to fill the hole. A name guessed from a dataview
-	// column or a type's declaration would be a definition the space does
-	// not have, and the value stays what it was —
-	// `"68cda76ee9223c9dc7ce5e92": 1755471600` could be a date, a count or
-	// an id, and the entry says so by saying nothing.
+	// Nothing is inferred to fill the hole. A format cached on a dataview's
+	// `properties[]` entry says how that view treats the key and is not a
+	// definition — it carries no name and no vocabulary — so it is not
+	// promoted, and the value stays what it was:
+	// `"66602dc5e5672d06c0e19245": 1717538400` could be a date, a count or
+	// an id, and the entry says so by saying nothing. That key is the
+	// honest example, verified in the audited space: no dictionary entry,
+	// no type declaration, and its one legend line spells the key as
+	// itself. A type document's DECLARATION is a different thing and is
+	// not a guess — it states a name and a format outright — which is why
+	// it is a rung above (declaredDefinition) rather than an inference
+	// refused here.
 	for _, key := range orphans {
 		entries[key] = anyblockjson.PropertyDefinition{
 			Key:           domain.RelationKey(key),
@@ -1241,6 +1342,72 @@ func resolvedDefinition(key string, opts anyblockjson.Options) (anyblockjson.Pro
 		if def, ok := r.PropertyById(id); ok {
 			return def, true
 		}
+	}
+	return anyblockjson.PropertyDefinition{}, false
+}
+
+// declaredDefinition is the composer's third and last source of a
+// definition: the §2a declaration a TYPE document of this same bundle
+// states about the property (Composer.declared). It is reached only for a
+// key no relation snapshot, no resolver and no bundled table could define,
+// and it exists because that combination is REAL rather than theoretical:
+// an exporter's resolver answers "what is the property with this object
+// id" — which is how the type document got the name and the format — for
+// keys it can no longer answer "which property has this stored key" about,
+// and the composer asks it only the second question. Over the 79-bundle
+// corpus 4 keys are in exactly that state, and for each of them the bundle
+// used to publish `format: "unknown"` beside a type document stating the
+// answer.
+//
+// It takes the members that are facts about the PROPERTY — its name, its
+// format, and `uninstalled`, the user having REMOVED the property from the
+// space (§15 #22) — and drops the rest. The cut is by what a member is
+// ABOUT: `section` says where the property sits on THIS type and is the
+// type's own member, while a removal is the property's, which is why the
+// §2a entry states it in the first place (buildTypeProperties) and why an
+// entry here that dropped it would publish a live property while the type
+// document one file away said it was gone.
+//
+// The shape's remaining members — `options`, `object_types`,
+// `description`, `include_time`, `max_count`, `readonly` and
+// `default_value` — are facts about the property too, and this rung drops
+// them anyway. The select vocabulary has a reason of its own: the entry
+// the space's OWN option snapshots fill is the one the vocabulary loop
+// below writes, and a declared copy would either duplicate it or
+// contradict it. The others are dropped for want of a case — over the
+// 79-bundle corpus the four keys that reach this rung state identity, a
+// name, a format and, on two of them, a section, and nothing else, so no
+// bundle is known to lose anything by it. (5,529 declarations elsewhere in
+// that corpus DO state `object_types`; none of them is for a key on this
+// rung.)
+//
+// That evidence covers those members and cannot cover `uninstalled`: the
+// corpus was exported before the member existed — `"uninstalled"` appears
+// nowhere in its 24,889 documents, neither on a declaration nor in a
+// dictionary entry — so what it says about the member is silence, not that
+// writers do not write it. The removal travels because of what it is
+// about, and the corpus is not asked.
+//
+// A key two type documents declare DIFFERENTLY gets nothing, and stays a
+// key nothing could define. There is no way to pick between them that is
+// not the emit schedule, and this composer's contract is that scheduling
+// cannot choose what a bundle publishes.
+func declaredDefinition(key string, declared map[string]map[declaredProperty]bool) (anyblockjson.PropertyDefinition, bool) {
+	stated := declared[key]
+	if len(stated) != 1 {
+		return anyblockjson.PropertyDefinition{}, false
+	}
+	for d := range stated {
+		return anyblockjson.PropertyDefinition{
+			Key: domain.RelationKey(key),
+			// the key came from a declaration's `internal_key`, or from a
+			// spelling the §3 chain bound to a stored key: either way it
+			// is the stored id, not a name awaiting one
+			KeyIsInternal: true,
+			Name:          d.name,
+			Format:        d.format,
+			Uninstalled:   d.uninstalled,
+		}, true
 	}
 	return anyblockjson.PropertyDefinition{}, false
 }

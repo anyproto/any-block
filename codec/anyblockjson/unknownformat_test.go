@@ -5,11 +5,14 @@ package anyblockjson
 //
 // A bundle's documents reference property keys the space no longer holds a
 // definition for — mostly relations the user deleted. In the audited space
-// that is 640 values across 324 documents naming 155 such keys, and their
-// values are uninterpretable on sight: `"68cda76ee9223c9dc7ce5e92":
-// 1755471600` could be a date, a count, or an id. Today those keys resolve
-// to NOTHING in properties.json, so a reader cannot tell "the writer had
-// nothing to say" from "I failed to look".
+// that is 628 values across 313 documents naming 153 such keys, and their
+// values are uninterpretable on sight: `"66602dc5e5672d06c0e19245":
+// 1717538400` could be a date, a count, or an id, and nothing in that
+// bundle can tell — it has no dictionary entry, no type declaration, no
+// format cached on a dataview column, and one legend line spelling the key
+// as itself. Today those keys resolve to NOTHING in properties.json, so a
+// reader cannot tell "the writer had nothing to say" from "I failed to
+// look".
 //
 // `format: "unknown"` is that distinction, made once. It is a dictionary
 // member and not a property format: it names the absence of a definition,
@@ -33,13 +36,13 @@ import (
 
 func TestUnknownFormat_AnEntryForAKeyNothingCanDefine(t *testing.T) {
 	data := []byte(`{"formatVersion":"2.0","properties":[` +
-		`{"property":"68cda76ee9223c9dc7ce5e92","internal_key":"68cda76ee9223c9dc7ce5e92","format":"unknown"}]}`)
+		`{"property":"66602dc5e5672d06c0e19245","internal_key":"66602dc5e5672d06c0e19245","format":"unknown"}]}`)
 
 	got, err := UnmarshalPropertyDictionary(data, Options{})
 	require.NoError(t, err, "an entry that says nothing can be said is a legal entry")
 	require.Len(t, got.Properties, 1)
 	def := got.Properties[0]
-	assert.Equal(t, "68cda76ee9223c9dc7ce5e92", string(def.Key))
+	assert.Equal(t, "66602dc5e5672d06c0e19245", string(def.Key))
 	assert.True(t, def.FormatUnknown,
 		"the reader must carry the absence: with only Format to look at, longtext is what a "+
 			"consumer would see, and it would create a text property that never existed")
@@ -59,8 +62,20 @@ func TestUnknownFormat_AnEntryForAKeyNothingCanDefine(t *testing.T) {
 // The claim's whole content is that nothing could be said, so an entry that
 // states it may state nothing else. Both doors refuse the same thing (§11
 // I1's shape at the bundle level).
+//
+// `name` is in the list, and it is the one that had to be argued. The
+// member used to be admitted here, documented as carrying a name "where the
+// export had one to give (a legend line, a type's declaration)" — and no
+// writer ever gave one: the only writer sets the key and the sentinel, and
+// a type's declaration reaches a REAL entry now (bundle.declaredDefinition)
+// because a declaration states a format beside its name and an entry with a
+// format is not this shape. A legend line binds a spelling to a stored key
+// and carries no name at all. So the member was unreachable prose, and an
+// entry carrying a name beside `unknown` would be describing a definition
+// it has just said it does not have.
 func TestUnknownFormat_StatesNothingElse(t *testing.T) {
 	for _, member := range []string{
+		`"name":"Release Date"`,
 		`"description":"a guess"`,
 		`"options":["one"]`,
 		`"object_types":["type-page"]`,
@@ -76,7 +91,7 @@ func TestUnknownFormat_StatesNothingElse(t *testing.T) {
 	} {
 		t.Run(member, func(t *testing.T) {
 			data := []byte(`{"formatVersion":"2.0","properties":[` +
-				`{"internal_key":"68cda76ee9223c9dc7ce5e92","format":"unknown",` + member + `}]}`)
+				`{"internal_key":"66602dc5e5672d06c0e19245","format":"unknown",` + member + `}]}`)
 			err := unmarshalDictionaryErr(data)
 			require.Error(t, err, "an entry that could say this had a definition to state")
 		})
@@ -93,12 +108,19 @@ func unmarshalDictionaryErr(data []byte) error {
 // rather than from JSON.
 func TestUnknownFormat_TheWriterRefusesADefinitionThatSaysMore(t *testing.T) {
 	in := &PropertyDictionary{Properties: []PropertyDefinition{{
-		Key: "68cda76ee9223c9dc7ce5e92", FormatUnknown: true, Description: "a guess",
+		Key: "66602dc5e5672d06c0e19245", FormatUnknown: true, Description: "a guess",
 	}}}
 	_, err := MarshalPropertyDictionary(in, Options{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "description")
 	assert.Contains(t, err.Error(), "unknown")
+
+	named := &PropertyDictionary{Properties: []PropertyDefinition{{
+		Key: "66602dc5e5672d06c0e19245", FormatUnknown: true, Name: "Release Date",
+	}}}
+	_, err = MarshalPropertyDictionary(named, Options{})
+	require.Error(t, err, "a name is a definition member like any other")
+	assert.Contains(t, err.Error(), "name")
 }
 
 // "unknown" is not a property FORMAT: it is the dictionary's way of saying

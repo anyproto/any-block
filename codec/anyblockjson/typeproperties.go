@@ -115,9 +115,15 @@ type PropertyDefinition struct {
 	// because something references the key (§2f), so those values are the
 	// normal case rather than the corner.
 	//
-	// A member of the dictionary home only (§2f): on a type's declaration
-	// or a property document's settings it would say nothing, and both
-	// refuse it, the way the dictionary refuses `section`.
+	// Two of the shape's three homes state it (§2f, §15 #22): a dictionary
+	// entry, and a type's property_definitions entry, each of which is a
+	// COMPLETE standalone definition — a type read on its own would
+	// otherwise present a removed property as a live one. The third refuses
+	// it: a property document's settings mirror stored presence member for
+	// member (§2d), and the removal is not one of the three that travel
+	// there. It is off the shared shape for exactly that reason, which is
+	// also why ApiKey, Hidden and BundledDiverged below stay the
+	// dictionary's alone — those say nothing a type's declaration says.
 	Uninstalled bool
 	// ApiKey is the property's public API key (stored `apiObjectKey`) — the
 	// spelling callers address it by on the API surface, which is NOT a slug
@@ -132,18 +138,20 @@ type PropertyDefinition struct {
 	// place the stored value can travel; without it the API addresses a
 	// restored property by something its callers never wrote.
 	//
-	// Dictionary-owned, like the flags above: a type's declaration says how
-	// THAT type uses a property, and the property's public address is not
-	// one of the things it says.
+	// Dictionary-owned, unlike Uninstalled above: a type's declaration says
+	// how THAT type uses a property, and the property's public address is
+	// not one of the things it says.
 	ApiKey string
 	// Hidden records that the store hides this property from every listing
 	// (stored `isHidden` true). With no property document in a bundle
 	// (§15 #23) the dictionary entry is the only place the fact can travel,
-	// so it is the entry's own member exactly as Uninstalled is — refused
-	// on the shape's other two homes and by the authoring subset, written
-	// `true` only. It is distinct from a type declaration's Section, which
-	// says where a property sits on ONE type; Hidden says whether the
-	// property is shown at all.
+	// so it is the entry's own member — refused on the shape's other two
+	// homes and by the authoring subset, written `true` only. Uninstalled
+	// travels on a type's declaration as well and this does not, for the
+	// reason the distinction from a type declaration's Section makes plain:
+	// Section says where a property sits on ONE type, and Hidden says
+	// whether the property is shown at all, which is a fact about the
+	// store's listings rather than about any type's definition of it.
 	Hidden bool
 	// BundledDiverged records that the space's copy of a BUNDLED property
 	// — a key the shipped table names — had DIVERGED from the table when
@@ -156,9 +164,10 @@ type PropertyDefinition struct {
 	// member and not a derivation. Absent says "not a bundled property, or
 	// bundled and not diverged"; the table lookup a reader already runs (§15
 	// #24) tells those apart, so this is NOT a `bundled` flag. The last of
-	// the four dictionary-owned members (§2f, §15 #25), on Uninstalled's
-	// footing: refused on the shape's other two homes and by the authoring
-	// subset, written `true` only.
+	// the three dictionary-owned members (§2f, §15 #25): refused on the
+	// shape's other two homes and by the authoring subset, written `true`
+	// only. A type's declaration never states it — a type saw no space and
+	// no shipped table, so it holds no verdict about either.
 	BundledDiverged bool
 }
 
@@ -356,6 +365,15 @@ func (e *exporter) buildTypeProperties() ([]any, error) {
 				// convention. A rejected entry itself is not appended.
 				return nil, fmt.Errorf("%s/%d: %w", typePropertyDefinitionsPath, len(out), err)
 			}
+			// the one member of the shape that is a fact about the
+			// PROPERTY and not about this type's use of it: the user
+			// removed the property, and an entry that is a complete
+			// standalone definition (§2e) may not present it as live
+			// (§15 #22). Written here rather than by the shared renderer
+			// because the shape's third home refuses it: a property
+			// document's settings mirror stored presence, and the removal
+			// is not one of the members that travel there.
+			m.setNonEmpty(memberUninstalled, def.Uninstalled)
 			m.setNonEmpty("section", l.section)
 			out = append(out, m)
 		}
@@ -431,19 +449,27 @@ type TypeProperty struct {
 	DefaultValue    any         `json:"default_value"`
 	DefaultValueSet bool        `json:"-"`
 	Section         string      `json:"section"`
-	// Uninstalled is the first of the dictionary's four owned members, as
-	// Section is the type-owned one; each home's schema refuses the other's
-	// before this decode runs (§2f).
+	// Uninstalled says the user REMOVED the property from the space (§15
+	// #22). It is the one member both this home and the dictionary entry
+	// state: an entry here is a complete standalone definition (§2e), so a
+	// reader building this type's property list has to be told, or it
+	// builds a removed property as a live one. The dictionary's other three
+	// owned members — ApiKey, Hidden, BundledDiverged — say nothing a type's
+	// declaration says, and each home's schema refuses the other's before
+	// this decode runs (§2f).
 	Uninstalled bool `json:"uninstalled"`
-	// ApiKey is the dictionary's second owned member (§2f): the property's
+	// ApiKey is the first of the dictionary's three owned members (§2f): the property's
 	// stored `apiObjectKey`, which no restore re-derives
-	// (PropertyDefinition.ApiKey). The only one of the four that is not a
-	// flag.
+	// (PropertyDefinition.ApiKey). The only one of the four members this
+	// struct carries beyond `section` that is not a flag — the three here
+	// and Uninstalled above.
 	ApiKey string `json:"api_key"`
-	// Hidden is the dictionary's third owned member (§2f, §15 #23), on the
-	// same footing as Uninstalled.
+	// Hidden is the dictionary's second owned member (§2f, §15 #23): the
+	// store's own listing bit, which a type's declaration does not speak
+	// for — Section says where a property sits on ONE type, never whether
+	// the property is shown at all.
 	Hidden bool `json:"hidden"`
-	// BundledDiverged is the dictionary's fourth owned member (§2f, §15
+	// BundledDiverged is the dictionary's third owned member (§2f, §15
 	// #25): the space's copy of a bundled property diverged from the shipped
 	// table at export time, so the entry outranks the reader's table.
 	BundledDiverged bool `json:"bundled_diverged"`
@@ -610,6 +636,15 @@ func (tp TypeProperty) definition(key string, format model.RelationFormat, targe
 		Readonly:        tp.Readonly,
 		DefaultValue:    tp.DefaultValue,
 		DefaultValueSet: tp.DefaultValueSet || tp.DefaultValue != nil,
+		// the removal travels through the seam with the rest of the
+		// definition (§15 #22): the wiring that CREATES a property from
+		// this entry is the one reader that must not create a live one,
+		// and a member the seam drops is a member that reader never sees.
+		// What it does with the mark is its own decision — reproducing it
+		// is the restore that does not work
+		// (PropertyDefinition.Uninstalled) — but it cannot decide what it
+		// was not told.
+		Uninstalled: tp.Uninstalled,
 	}
 }
 
@@ -797,4 +832,131 @@ func (imp *importer) applyTypeProperties(details *types.Struct) error {
 		}
 	}
 	return nil
+}
+
+//
+// ---- what a type document DECLARES, read back from its bytes ----
+//
+
+// TypeDeclaredProperty is one §2a declaration read back out of a written
+// document: the property the entry names, and the three things the entry
+// says about the PROPERTY itself rather than about the type's use of it —
+// its name, its format, and whether the user REMOVED it.
+//
+// The cut is by what a member is ABOUT. `section` says where the property
+// sits on THIS type and is not a fact about the property at all, so it
+// stops here. The shape's remaining members — `options`, `object_types`,
+// `description`, `include_time`, `max_count`, `readonly`,
+// `default_value` — ARE facts about the property and are left out anyway:
+// the caller this reader exists for holds its own vocabulary for the first
+// and has no observed case for the rest, and that reasoning is written
+// where the choice is made (bundle.declaredDefinition). `uninstalled` is
+// carried on none of that evidence — the 79-bundle corpus predates the
+// member and states it nowhere — but because a removal is a fact about the
+// property, and an entry is a complete standalone definition (§2e): a
+// caller not told builds a removed property as a live one.
+type TypeDeclaredProperty struct {
+	// Term is the entry's identity as the document states it, with the
+	// entry's own precedence (TypeProperty.authoredIdentity): its
+	// `property` spelling, else its `internal_key`, else the `name` the
+	// spelling derives from.
+	Term string
+	// TermIsStoredKey says Term came from `internal_key` and IS the stored
+	// key, so it resolves verbatim: a stored id is always its own address
+	// (§3). A Term from either other source is a SPELLING, and the caller
+	// runs it through the §3 chain — the document's own legend below, then
+	// the bundled table — exactly as it does for every other property term.
+	TermIsStoredKey bool
+	Name            string
+	// Format is the declared format, already resolved from its §3 name. An
+	// entry that states no name in the vocabulary is not reported at all: a
+	// definition says what the property HOLDS, and a declaration that
+	// cannot say that declares nothing this shape can carry.
+	Format model.RelationFormat
+	// Uninstalled is the entry's `uninstalled`: the user REMOVED the
+	// property from the space (§15 #22). The third fact about the PROPERTY
+	// the shape states, and the reason buildTypeProperties writes it here
+	// as well as in the dictionary — an entry is a complete standalone
+	// definition (§2e), so a caller that builds the property out of a
+	// declaration and is not told builds a removed property as a live one.
+	Uninstalled bool
+}
+
+// TypeDeclarations is what one document's bytes say about the properties a
+// type declares (§2a): the entries, plus the document's own property legend
+// so a caller resolves their spellings through the SAME §3 chain it runs
+// over every other property term. The shape mirrors PropertyTerms
+// deliberately — the codec reads what the document states, the caller binds
+// the spellings — so a declaration and a reference cannot disagree about
+// which stored key one spelling names.
+type TypeDeclarations struct {
+	Declared []TypeDeclaredProperty
+	Legend   map[string]string
+}
+
+// TypeDeclarationsOf reads the §2a property declarations out of one
+// document's bytes. A document that is not a type document declares
+// nothing and comes back empty.
+//
+// It exists because a type document's declaration is a SOURCE of a property
+// definition that only the written bytes hold: an exporter's property
+// resolver can answer "what is the property with this object id" for a key
+// it can no longer answer "which property has this stored key" about, and
+// when it does, the name and format reach the type document and reach
+// nothing else. Over the 79-bundle corpus that is 4 keys — the whole of
+// what this reader adds — and for each of them the bundle would otherwise
+// publish `format: "unknown"` beside a type document stating the answer
+// (bundle.Composer.Finish).
+//
+// Shape-tolerant for PropertyTermsOf's reason, and with the same one error:
+// bytes that are not JSON at all. A legend that is not spelling→key binds
+// nothing, and an entry the shape cannot decode declares nothing; neither
+// is this reader's to refuse, because Validate has already run or is about
+// to.
+func TypeDeclarationsOf(doc []byte) (TypeDeclarations, error) {
+	var envelope struct {
+		Legend       json.RawMessage `json:"property_internal_keys"`
+		TypeSettings json.RawMessage `json:"type_settings"`
+	}
+	if err := json.Unmarshal(doc, &envelope); err != nil {
+		return TypeDeclarations{}, err
+	}
+	out := TypeDeclarations{}
+	if len(envelope.Legend) > 0 {
+		var legend map[string]string
+		if json.Unmarshal(envelope.Legend, &legend) == nil {
+			out.Legend = legend
+		}
+	}
+	if len(envelope.TypeSettings) == 0 {
+		return out, nil
+	}
+	var settings struct {
+		PropertyDefinitions []json.RawMessage `json:"property_definitions"`
+	}
+	if json.Unmarshal(envelope.TypeSettings, &settings) != nil {
+		return out, nil
+	}
+	for _, raw := range settings.PropertyDefinitions {
+		var tp TypeProperty
+		if json.Unmarshal(raw, &tp) != nil {
+			continue
+		}
+		term, source := tp.authoredIdentity()
+		if term == "" {
+			continue
+		}
+		format, named := FormatByName(tp.Format)
+		if !named {
+			continue
+		}
+		out.Declared = append(out.Declared, TypeDeclaredProperty{
+			Term:            term,
+			TermIsStoredKey: source == propertyIdentityInternalKey,
+			Name:            tp.Name,
+			Format:          format,
+			Uninstalled:     tp.Uninstalled,
+		})
+	}
+	return out, nil
 }
