@@ -363,7 +363,6 @@ func TestMissingReference_PropertyValueLists(t *testing.T) {
 		// export that read that as nonexistence would drop live references
 		var warnings []Issue
 		opts := missingRefOptions(&warnings)
-		opts.RefNames = true // the name IS asked for — and answers no
 
 		// when
 		data, err := Marshal(model.SmartBlockType_Page, withRelated(strList(untitledCid)), opts)

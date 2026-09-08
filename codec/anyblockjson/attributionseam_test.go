@@ -1,6 +1,7 @@
 package anyblockjson
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gogo/protobuf/types"
@@ -11,10 +12,8 @@ import (
 )
 
 // answeringNamer answers every id with one name, including a blank one — the
-// shape the exported ParticipantResolver contract permits but the format's own
-// rule forbids. The shipped storeresolver never answers blank; a third-party
-// implementation may, because the interface only says a resolver that cannot
-// answer returns false.
+// shape the exported ParticipantResolver contract permits. It exists to prove
+// that no answer of any kind reaches a document.
 type answeringNamer struct{ name string }
 
 func (a answeringNamer) ParticipantName(string) (string, bool) { return a.name, true }
@@ -32,42 +31,35 @@ func attributedSnapshot() *model.SmartBlockSnapshotBase {
 	}
 }
 
-// §3's rule is "a name or nothing after the `#`, never a blank": a dangling
-// `#` costs bytes, says less than its absence, and reads to a model as a
-// name that exists and is empty. Enforcing it inside the shipped resolver is
-// not enough — the seam every resolver passes through has to hold it
-// (refNameLabel), or one third-party implementation puts a dangling `#` on
-// every object in an export. The id half is unaffected either way: it is
-// the resolvable content and is written bare.
+// §3's rule was once "a name or nothing after the `#`, never a blank", and
+// the seam enforced it so no third-party resolver could hang a dangling `#`
+// on every object in an export. The rule is stronger now and needs no
+// enforcement at all: the seam does not ask for a name, so no answer any
+// resolver gives — blank, whitespace, or a perfectly good display name —
+// can reach the document. The id is the whole value.
 //
-// This can only fail if the seam stops filtering: it drives the real Marshal
-// with a resolver that answers, so a rule enforced only in storeresolver would
-// not save it.
-func TestExport_AResolverThatAnswersBlankWritesABareId(t *testing.T) {
+// This can only fail if the attribution seam starts consulting the resolver
+// again: it drives the real Marshal with resolvers that answer, so a rule
+// enforced only in storeresolver would not save it.
+func TestExport_NoResolverAnswerReachesAnAttributionValue(t *testing.T) {
 	for name, answer := range map[string]string{
-		"empty":           "",
-		"a single space":  " ",
-		"only whitespace": " \t\n ",
+		"empty":            "",
+		"a single space":   " ",
+		"only whitespace":  " \t\n ",
+		"a real full name": "Alice",
 	} {
 		t.Run(name, func(t *testing.T) {
 			data, err := Marshal(model.SmartBlockType_Page, attributedSnapshot(),
 				Options{ResolveParticipants: answeringNamer{name: answer}})
 			require.NoError(t, err)
 			assert.Contains(t, string(data), `"Created by": "_participant_a_b_C"`,
-				"the bare id: resolvable, and blank-name-proof")
-			assert.NotContains(t, string(data), "#", "a blank name is not a name — no dangling separator")
+				"the id: resolvable, and the whole of the value")
+			assert.NotContains(t, string(data), "#", "nothing follows a reference")
+			assert.NotContains(t, strings.ToLower(string(data)), "alice",
+				"and no name the resolver knows reaches the document")
 			require.NoError(t, Validate(data, Options{}))
 		})
 	}
-
-	// the control: a real name still lands as the suffix, so the rule above
-	// cannot pass by dropping the suffix machinery altogether
-	t.Run("a real name still lands", func(t *testing.T) {
-		data, err := Marshal(model.SmartBlockType_Page, attributedSnapshot(),
-			Options{ResolveParticipants: answeringNamer{name: "Alice"}})
-		require.NoError(t, err)
-		assert.Contains(t, string(data), `"Created by": "_participant_a_b_C#alice"`)
-	})
 }
 
 // MarshalPropertyValue and UnmarshalPropertyValue are twins: whatever one

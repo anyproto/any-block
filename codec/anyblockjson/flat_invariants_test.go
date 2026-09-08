@@ -362,7 +362,7 @@ var (
 	hostileIdentity = testfixtures.AccountIdentity
 )
 
-// hostileObjectNames names EVERY id, including the ones no caption can
+// hostileObjectNames names EVERY id, including the ones no export can
 // survive — an empty answer, a name that normalizes to nothing, and the
 // hostile reference shapes above. A resolver this eager is the adversarial
 // case: it is the export side's own guards, not the resolver's restraint,
@@ -787,12 +787,12 @@ func TestInvariant_MarshalOutputValidates(t *testing.T) {
 		"compact":      {write: Options{CompactBlockLabels: true}},
 		"omitIds":      {write: Options{OmitIds: true}},
 		"hostileVocab": {write: Options{Keys: hostileVocab{}}},
-		// the read shape (§9): every reference captioned and every
-		// participant folded. Without this variant no invariant run ever
-		// sees a `#name` suffix or a folded identity — the corpus would stop
-		// reaching the code under test, which is how a green invariant lies.
-		"refNames": {write: Options{
-			RefNames:           true,
+		// the read shape (§9): every participant folded, and a resolver
+		// wired that can name every id. Without this variant no invariant
+		// run ever sees a folded identity, and none ever proves that naming
+		// an object still changes nothing — the corpus would stop reaching
+		// the code under test, which is how a green invariant lies.
+		"foldedRefs": {write: Options{
 			ResolveObjectNames: hostileObjectNames{},
 			SpaceId:            hostileSpaceId,
 		}, readSpaceId: hostileSpaceId},

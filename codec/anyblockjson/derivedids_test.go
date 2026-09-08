@@ -102,7 +102,7 @@ func TestDerivedIds_ParticipantOwnEnvelopeId(t *testing.T) {
 // A bare identity is still accepted on INPUT — documents written before the
 // prefix carry it, and the classifier is exact — but never written.
 func TestDerivedIds_BareIdentityIsInputOnly(t *testing.T) {
-	doc := `{"formatVersion": "2.0", "properties": {"assignee": ["` + foldIdentity + `#alice_ko"]}}`
+	doc := `{"formatVersion": "2.0", "properties": {"assignee": ["` + foldIdentity + `"]}}`
 	_, snap, err := Unmarshal([]byte(doc), foldOptions())
 	require.NoError(t, err)
 	assert.Equal(t, []string{foldComposite}, valueStringList(snap.GetDetails().GetFields()["assignee"]))

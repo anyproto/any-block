@@ -2618,21 +2618,6 @@ func wrongShapeForFormat(key string, v any) (string, bool) {
 		if _, isStr := v.(string); !isStr {
 			return fmt.Sprintf("%q is a text property: a non-string reads as empty", key), true
 		}
-	case model.RelationFormat_object, model.RelationFormat_file:
-		// a reference is an id, optionally followed by `#name` (§9). A value
-		// that BEGINS at the separator has no id half, so it addresses
-		// nothing — and the reader will not repair it: splitRefName refuses
-		// to split at index 0 precisely so import never invents an empty id,
-		// which means the value is stored exactly as written and dangles
-		// forever. It is the shape a writer produces copying only the
-		// readable half of `id#name`.
-		for _, ref := range stringsOf(v) {
-			if strings.HasPrefix(ref, refNameSep) {
-				return fmt.Sprintf("%q is an object property: %q has no id before its %q, "+
-					"so it names no object — a reference is an id, optionally followed by %q",
-					key, ref, refNameSep, refNameSep+"name"), true
-			}
-		}
 	}
 	return "", false
 }
