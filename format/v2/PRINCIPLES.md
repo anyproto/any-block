@@ -250,9 +250,59 @@ whole address (§9).
 An id is unguessable: a model must fetch before it can write, or it invents
 one — the hallucination surface in its purest form. A name is already in the
 request. Import creates missing options by name, as the CSV importer and
-the public API already do. The cost is accepted and listed:
-same-named options collapse; renaming an option breaks the link on
-reimport (§3).
+the public API already do.
+
+The cost is accepted and listed. **Two options of one property that share a
+display name collapse to one on reimport**: the document spells an option by
+name and `option_ids` is keyed by name, so one entry per name is all a
+property has room for, and both slots come back on the option that entry
+carries (§3). Renaming an option breaks the link the same way — nothing
+answers the stale name, and the wiring mints a fresh option under it.
+
+**Properties collide too and lose nothing, and that asymmetry is the reason
+the option loss stays accepted rather than closed.** A contested property
+spelling degrades to something the document can still spell — the stored key
+verbatim where it is readable, else `<name> (<tail6>)`, else the stored key
+whatever it looks like — and `property_internal_keys` carries that key beside
+the spelling, so every claimant keeps its identity (§3). An option has no
+such rung to fall to **on the writing path** — and the reason is plumbing, not
+the data model, which is what keeps this loss closable rather than inherent.
+
+An option does have a stable stored key. The bundle carries it: `internal_key`
+on every dictionary option entry, bson-minted for **1,964** of the corpus's
+**2,490** entries, and DISTINCT for all **19** same-named groups — the two
+options named `books` are `663acb5a9be5e0697095370c` and
+`663acb4c9be5e0697095370a`. It would disambiguate every ambiguous case this
+corpus holds, and a reader could join it to `properties.json` in the same
+bundle.
+
+What the exporter cannot do is reach it. `OptionResolver` offers
+`OptionName(key, id)` and `OptionId(key, name)` and nothing else, so at the
+moment a document's value is written the key is not in hand; it arrives in the
+bundle by a different road, where the composer reads it off the option's own
+snapshot. The `1,681` dictionary keys and the `1,424` ids carried in
+`option_ids` legends intersect in **zero** for exactly that reason — they are
+two identifiers for the same options, written by two different paths, not
+evidence that an option lacks a key.
+
+Closing it therefore means widening that seam so the writing path can ask for
+the key, and spelling the key where the name is ambiguous. Until then the
+collapse stands. What was tried and withdrawn is the shortcut that avoids the
+seam: SYNTHESISING a readable identifier — a minted `books (yfirst)` term
+reads as an option name nobody chose, and a bundle installed into a space that
+never saw those ids resolves it by name and MINTS an option actually called
+that.
+
+Both populations, measured on the 24,905-document corpus. Properties: **31**
+same-name pairs in 13 of the 79 bundle dictionaries — `Cuisine Type`,
+`Location`, `Status` and `Created by` among them — and where the degradation
+fires it is written and resolvable, **127** `<name> (<tail6>)` spellings
+across 81 documents beside **5,706 of 43,785** legend entries already spelled
+as the stored key. Options: **4 properties in 4 bundles** hold same-named
+options, and **8 value slots across 7 documents** spell one of those names.
+What the loss costs a reader is the other half of why it is accepted — the
+two options are NAMED THE SAME, so an object that showed `books, books,
+book, read` shows `books, book, read`.
 
 ### 7. A document stands alone
 

@@ -3102,6 +3102,24 @@ at all, because it is identity rather than compaction.
 A reader with no option resolver (§13) has no space in which to ask either
 question and stops at step 3, exactly as it did before this legend existed.
 
+**What the legend does not close, and is not meant to.** `option_ids` is
+keyed by NAME, so one property has room for exactly one entry per name in a
+document — and the value slot spells the option by that name too. An object
+sitting on BOTH options of a same-named pair therefore writes the name twice
+against a single id, and on reimport both slots resolve to that id: the
+object comes back on one option where it was on two, with nothing in the
+bytes to say so, because the export it carries is the evidence destroyed.
+That is an **accepted loss**, listed as one in PRINCIPLES rule 6, which also
+says why the same collision costs a *property* nothing, and why the fallback
+that makes it free there is not available on the writing path today: an
+option HAS a stored key — `internal_key`, on its dictionary entry, distinct
+for every same-named pair in this corpus — but `OptionResolver` (§13) cannot
+be asked for it at the moment the value is written. Corpus at out-57f4add:
+**4 properties across 4 bundles** hold same-named options, and **8 value
+slots across 7 documents** spell one of those names — the widest is
+`"Tag": ["books","books","book","read"]`, whose two `books` are different
+options and come back as one.
+
 **The legends do not answer to one rule, and the difference is deliberate.**
 A `property_internal_keys` value — and the `type_internal_key` scalar (§2) —
 is **authoritative**: the reader takes it as the stored key, unchecked. Liveness-checking it would re-open the fault
