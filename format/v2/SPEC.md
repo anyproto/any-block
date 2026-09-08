@@ -3112,9 +3112,10 @@ bytes to say so, because the export it carries is the evidence destroyed.
 That is an **accepted loss**, listed as one in PRINCIPLES rule 6, which also
 says why the same collision costs a *property* nothing, and why the fallback
 that makes it free there is not available on the writing path today: an
-option HAS a stored key — `internal_key`, on its dictionary entry, distinct
-for every same-named pair in this corpus — but `OptionResolver` (§13) cannot
-be asked for it at the moment the value is written. Corpus at out-57f4add:
+option usually HAS a stored key — `internal_key`, on its dictionary entry,
+carried by 2,479 of the corpus's 2,490 option entries and separating 16 of
+its 19 same-named pairs — but `OptionResolver` (§13) cannot be asked for it
+at the moment the value is written. Corpus at out-57f4add:
 **4 properties across 4 bundles** hold same-named options, and **8 value
 slots across 7 documents** spell one of those names — the widest is
 `"Tag": ["books","books","book","read"]`, whose two `books` are different

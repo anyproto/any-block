@@ -268,13 +268,16 @@ the spelling, so every claimant keeps its identity (§3). An option has no
 such rung to fall to **on the writing path** — and the reason is plumbing, not
 the data model, which is what keeps this loss closable rather than inherent.
 
-An option does have a stable stored key. The bundle carries it: `internal_key`
-on every dictionary option entry, bson-minted for **1,964** of the corpus's
-**2,490** entries, and DISTINCT for all **19** same-named groups — the two
-options named `books` are `663acb5a9be5e0697095370c` and
-`663acb4c9be5e0697095370a`. It would disambiguate every ambiguous case this
-corpus holds, and a reader could join it to `properties.json` in the same
-bundle.
+An option usually does have a stable stored key. The bundle carries it as
+`internal_key` on the dictionary option entry — **2,479** of the corpus's
+**2,490** entries have one, **1,964** of them bson-minted — and it separates
+**16** of the **19** same-named groups: the two options named `books` are
+`663acb5a9be5e0697095370c` and `663acb4c9be5e0697095370a`, and a reader could
+join either to `properties.json` in the same bundle. It is not a universal
+answer. **11** entries carry no key at all, and in **3** groups — every one of
+them the `Status` property of a single bundle — one member of the pair is
+among those 11, so the key separates nothing there. A fix built on it would
+close most of this loss and would have to say what it does with the rest.
 
 What the exporter cannot do is reach it. `OptionResolver` offers
 `OptionName(key, id)` and `OptionId(key, name)` and nothing else, so at the
