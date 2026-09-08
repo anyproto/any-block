@@ -96,25 +96,23 @@ func TestPlainTextImplementsTheFourDialectRules(t *testing.T) {
 	}
 }
 
-// A caption is a display hint, never an address.
-func TestReferenceDropsTheCaption(t *testing.T) {
-	id, caption := reference("bafyreinote#Ridge_End")
-	if id != "bafyreinote" || caption != "Ridge_End" {
-		t.Fatalf("got %q, %q", id, caption)
-	}
-	if id, caption := reference("bafyreinote"); id != "bafyreinote" || caption != "" {
-		t.Fatalf("a bare id must stay whole: %q, %q", id, caption)
-	}
-	// SPEC §13 is normative about WHICH `#`: split at the FIRST one and use the
-	// left half. A caption is prose and may hold as many as it likes.
-	if id, caption := reference("bafyreinote#Ridge #2#end"); id != "bafyreinote" || caption != "Ridge #2#end" {
-		t.Fatalf("the split is at the first #, and the rest is caption: %q, %q", id, caption)
-	}
-	// A degenerate `#name` with no id half addresses nothing and is stored as
-	// written (§13), so the whole string is the id — there is no left half to
-	// take, and a reader that took one would address a different object.
-	if id, caption := reference("#Ridge_End"); id != "#Ridge_End" || caption != "" {
-		t.Fatalf("a leading # is not a caption marker: %q, %q", id, caption)
+// A reference is an id and nothing else: there is no caption to take off, so
+// this reader has no split step and a `#` is simply part of an id that names
+// nothing. The three shapes below used to be the split's edge cases; each is
+// now one id, looked up as it stands.
+func TestReferenceIsTheWholeString(t *testing.T) {
+	b := &bundle{docs: map[string]*document{
+		"bafyreinote": {path: "objects/note.anyblock.json"},
+	}}
+	for _, tc := range []struct{ in, want string }{
+		{"bafyreinote", `bafyreinote -> "" in objects/note.anyblock.json`},
+		{"bafyreinote#Ridge_End", "bafyreinote#Ridge_End (not in this bundle)"},
+		{"bafyreinote#Ridge #2#end", "bafyreinote#Ridge #2#end (not in this bundle)"},
+		{"#Ridge_End", "#Ridge_End (not in this bundle)"},
+	} {
+		if got := b.describeReference(tc.in); got != tc.want {
+			t.Errorf("describeReference(%q)\n got %q\nwant %q", tc.in, got, tc.want)
+		}
 	}
 }
 

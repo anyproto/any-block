@@ -13,7 +13,7 @@ lost    1 property keys the export could not define
   type  Field note   -> type-fieldnote in types/type-fieldnote.anyblock.json
 
 properties
-  Created by               [objects]      participant-A11111111111111111111111111111111111111111111111 (not in this bundle; the export captioned it "SYNTHETIC_member")
+  Created by               [objects]      participant-A11111111111111111111111111111111111111111111111 (not in this bundle)
   Creation date            [date]         "2026-03-14T07:12:00Z"
   Name                     [text]         "Ridge, first thaw"
   Origin                   [number]       "usecase"   (one of 10 published names)

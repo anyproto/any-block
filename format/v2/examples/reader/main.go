@@ -299,16 +299,6 @@ func label(def *definition, spelling string) string {
 
 // ------------------------------------------------------------ reading values
 
-// reference splits an object reference into the id that addresses a document
-// and the caption that does not. The caption after the first '#' is a display
-// hint written by the exporter; nothing resolves it.
-func reference(v string) (id, caption string) {
-	if i := strings.Index(v, "#"); i > 0 {
-		return v[:i], v[i+1:]
-	}
-	return v, ""
-}
-
 // values normalises a property value to a slice. On a list-valued format a bare
 // value and a one-element array are the same value, so a reader that always
 // widens is always right.
@@ -406,17 +396,17 @@ func (b *bundle) describePropertyKey(key string) string {
 	return fmt.Sprintf("%s -> %q [%s]", key, def.Name, def.Format)
 }
 
-// describeReference is the whole of "follow a reference": take the caption off,
-// look the id up, and say plainly when the bundle does not carry it.
-func (b *bundle) describeReference(raw string) string {
-	id, caption := reference(raw)
+// describeReference is the whole of "follow a reference": look the id up, and
+// say plainly when the bundle does not carry it. There is no step before the
+// lookup — a reference is an id, the whole string, with nothing to strip off
+// it (§9) — which is why a NAME for a reference is only ever something this
+// function finds, never something the reference told it.
+func (b *bundle) describeReference(id string) string {
 	switch {
 	case strings.HasPrefix(id, "_"):
 		return id + " " + reservedID(id)
 	case b.docs[id] != nil:
 		return fmt.Sprintf("%s -> %q in %s", id, b.title(b.docs[id]), b.docs[id].path)
-	case caption != "":
-		return fmt.Sprintf("%s (not in this bundle; the export captioned it %q)", id, caption)
 	default:
 		return fmt.Sprintf("%s (not in this bundle)", id)
 	}
@@ -634,7 +624,7 @@ const membersListed = 5
 // whatever its query matches when it runs, so no bundle can answer it and a
 // reader that promises to is lying.
 func (b *bundle) dataviewSource(host *document, blk block) []string {
-	if id, _ := reference(blk.ObjectID); id != "" {
+	if id := blk.ObjectID; id != "" {
 		target, ok := b.docs[id]
 		switch {
 		case !ok:
@@ -714,8 +704,7 @@ func (b *bundle) querySource(d *document) (string, bool) {
 
 // describeQueryType names a type target: every object OF that type is in the
 // set.
-func (b *bundle) describeQueryType(ref string) string {
-	id, _ := reference(ref)
+func (b *bundle) describeQueryType(id string) string {
 	if target, ok := b.docs[id]; ok {
 		return fmt.Sprintf("objects of type %q (%s)", b.title(target), id)
 	}
