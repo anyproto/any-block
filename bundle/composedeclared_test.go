@@ -83,7 +83,7 @@ func pageSnapshot() *model.SmartBlockSnapshotBase {
 func TestComposer_ATypeDocumentsDeclarationIsADefinition(t *testing.T) {
 	const key = "68cda76ee9223c9dc7ce5e92"
 
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 		declaringTypeDoc(key, "Release Date", "date")))
 	page := pageSnapshot()
@@ -121,7 +121,7 @@ func TestComposer_ATypeDocumentsDeclarationIsADefinition(t *testing.T) {
 func TestComposer_ADeclarationIsTheLastRungNotTheFirst(t *testing.T) {
 	const key = "dueDate"
 
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	// the bundled table names dueDate "Due date"; the type declares it
 	// under a name of its own
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
@@ -153,7 +153,7 @@ func TestComposer_TypeDocumentsThatDisagreeDefineNothing(t *testing.T) {
 	const key = "68cda76ee9223c9dc7ce5e92"
 
 	t.Run("agreeing declarations still define", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 			declaringTypeDoc(key, "Release Date", "date")))
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
@@ -169,7 +169,7 @@ func TestComposer_TypeDocumentsThatDisagreeDefineNothing(t *testing.T) {
 	})
 
 	t.Run("disagreeing declarations do not", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 			declaringTypeDoc(key, "Release Date", "date")))
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
@@ -198,7 +198,7 @@ func TestComposer_TypeDocumentsThatDisagreeDefineNothing(t *testing.T) {
 func TestComposer_ADeclaredSelectCarriesTheObservedVocabulary(t *testing.T) {
 	const key = "68cdaa41e9223c9dc7ce5f30"
 
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	opt := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafyurgent"), "relationKey": strVal(key),
 		"name": strVal("urgent"), "relationOptionColor": strVal("red"),
@@ -245,7 +245,7 @@ func TestComposer_ADeclarationCarriesTheRemovalItStates(t *testing.T) {
 
 	compose := func(t *testing.T, doc []byte) anyblockjson.PropertyDefinition {
 		t.Helper()
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(), doc))
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, pageSnapshot(),
 			[]byte(`{"formatVersion":"2.0","id":"bafypage",`+
@@ -295,7 +295,7 @@ func TestComposer_ADeclarationCarriesTheRemovalItStates(t *testing.T) {
 func TestComposer_DeclarationsThatDisagreeAboutRemovalDefineNothing(t *testing.T) {
 	const key = "68cda76ee9223c9dc7ce5e92"
 
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),
 		declaringTypeDocWith(key, "Release Date", "date", `,"uninstalled":true`)))
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnapshot(),

@@ -114,7 +114,7 @@ func assertEntryStatesTable(t *testing.T, def anyblockjson.PropertyDefinition, k
 func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 	const key = "67e31405450a5dcab2fa75aa"
 	t.Run("a space-minted property, referenced", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, mintedRelation(key, nil))
 		require.True(t, omitted, "a bundle writes no property document (§15 #23)")
 		require.Empty(t, issues, "an ordinary property carries nothing the entry cannot state")
@@ -140,7 +140,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.Equal(t, 1, stats.OmittedDocs)
 	})
 	t.Run("a space-minted property, unreferenced", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, mintedRelation(key, nil))
 		require.True(t, omitted)
 		require.Empty(t, issues, "an unreferenced property is not a loss to report")
@@ -154,7 +154,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.Empty(t, stats.OrphanUsedKeys)
 	})
 	t.Run("hidden is written true only", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		omitted, _ := c.Observe(model.SmartBlockType_STRelation, mintedRelation(key, map[string]*types.Value{"isHidden": boolVal(false)}))
 		require.True(t, omitted)
 		referencePage(t, c, key)
@@ -166,7 +166,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.NotContains(t, string(dictData), `"hidden"`)
 	})
 	t.Run("a divergent installed copy, referenced", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		copy := testInstalledCopy(t, "dueDate")
 		copy.Details.Fields["name"] = strVal("Deadline")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
@@ -198,7 +198,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		// identical verdict even when every definition member matches, and
 		// the flag follows the verdict — the entry it points at then equals
 		// the table, so taking it costs a reader nothing
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		copy := testInstalledCopy(t, "dueDate")
 		copy.Details.Fields["isFavorite"] = boolVal(true)
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
@@ -215,7 +215,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.Equal(t, "Due date", byKey["dueDate"].Name)
 	})
 	t.Run("a divergent installed copy, unreferenced", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		copy := testInstalledCopy(t, "dueDate")
 		copy.Details.Fields["name"] = strVal("Deadline")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
@@ -230,7 +230,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.Zero(t, stats.DictionaryEntries)
 	})
 	t.Run("an identical installed copy, referenced", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, "dueDate"))
 		require.True(t, omitted)
 		require.Empty(t, issues, "the reconstruction from the table is verified, and loses nothing")
@@ -254,7 +254,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		// count and include-time, and `name` is hidden — each a member the
 		// reduced form left for the reader's table to supply
 		for _, key := range []string{"createdDate", "name"} {
-			c := NewComposer(anyblockjson.Options{}, "Corpus")
+			c := newComposer(t, anyblockjson.Options{}, "Corpus")
 			omitted, issues := c.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, key))
 			require.True(t, omitted)
 			require.Empty(t, issues)
@@ -278,7 +278,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		// stores nothing, the table says 1, and the format says 1 — no
 		// divergence, no Issue from the reconstruction check, and no
 		// `max_count` on the entry either way (§2a, §15 #25)
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		copy := testInstalledCopy(t, "dueDate")
 		delete(copy.Details.Fields, "relationMaxCount")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, copy)
@@ -296,7 +296,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		// the Finish fallback: nothing observed, the shipped table is the
 		// source — and the entry it writes is the SAME entry an observed
 		// identical copy produces, byte for byte. One shape (§15 #25).
-		fromTable := NewComposer(anyblockjson.Options{}, "Corpus")
+		fromTable := newComposer(t, anyblockjson.Options{}, "Corpus")
 		referencePage(t, fromTable, "createdDate")
 		_, tableData, stats, err := fromTable.Finish()
 		require.NoError(t, err)
@@ -305,7 +305,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		require.Contains(t, byKey, "createdDate")
 		assertEntryStatesTable(t, byKey["createdDate"], "createdDate")
 
-		fromCopy := NewComposer(anyblockjson.Options{}, "Corpus")
+		fromCopy := newComposer(t, anyblockjson.Options{}, "Corpus")
 		omitted, _ := fromCopy.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, "createdDate"))
 		require.True(t, omitted)
 		referencePage(t, fromCopy, "createdDate")
@@ -314,7 +314,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		assert.Equal(t, string(copyData), string(tableData), "observed or not, a bundled property that matches the table is one entry")
 	})
 	t.Run("an identical installed copy, unreferenced", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, "dueDate"))
 		require.True(t, omitted)
 		require.Empty(t, issues)
@@ -331,7 +331,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 		resolver := composerPropertyResolver{def: anyblockjson.PropertyDefinition{
 			Key: key, Name: "What the resolver says", Format: model.RelationFormat_date,
 		}}
-		c := NewComposer(anyblockjson.Options{ResolveProperties: resolver}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{ResolveProperties: resolver}, "Corpus")
 		omitted, _ := c.Observe(model.SmartBlockType_STRelation, mintedRelation(key, nil))
 		require.True(t, omitted)
 		referencePage(t, c, key)
@@ -357,7 +357,7 @@ func TestComposerOmitsEveryRelationDocument(t *testing.T) {
 func TestComposerReportsWhatAnOmittedRelationsEntryCannotState(t *testing.T) {
 	const key = "67e31405450a5dcab2fa75aa"
 	t.Run("an importer-minted property is an ordinary property", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Imported")
+		c := newComposer(t, anyblockjson.Options{}, "Imported")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, mintedRelation(key, map[string]*types.Value{
 			"origin": numVal(3), "importType": numVal(0), "addedDate": numVal(1690000000), "apiObjectKey": strVal("deadline"),
 		}))
@@ -365,7 +365,7 @@ func TestComposerReportsWhatAnOmittedRelationsEntryCannotState(t *testing.T) {
 		assert.Empty(t, issues, "install and import provenance is already classified, on the same verdicts")
 	})
 	t.Run("user intent and page content are named", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		rel := mintedRelation(key, map[string]*types.Value{"isFavorite": boolVal(true)})
 		rel.Blocks = []*model.Block{{Id: "dv", Content: &model.BlockContentOfDataview{Dataview: &model.BlockContentDataview{}}}}
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, rel)
@@ -383,7 +383,7 @@ func TestComposerReportsWhatAnOmittedRelationsEntryCannotState(t *testing.T) {
 		assert.Contains(t, byKey, key, "the property travels; only what the entry cannot state is reported")
 	})
 	t.Run("a snapshot stating no key cannot be carried", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		rel := mintedRelation(key, nil)
 		delete(rel.Details.Fields, "relationKey")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelation, rel)
@@ -415,7 +415,7 @@ func TestComposerReportsWhatAnOmittedRelationsEntryCannotState(t *testing.T) {
 func TestComposerFlagsAResolvedBundledCopyThatDiverged(t *testing.T) {
 	compose := func(t *testing.T, def anyblockjson.PropertyDefinition, spelling string) anyblockjson.PropertyDefinition {
 		t.Helper()
-		c := NewComposer(anyblockjson.Options{ResolveProperties: composerPropertyResolver{def: def}}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{ResolveProperties: composerPropertyResolver{def: def}}, "Corpus")
 		referencePage(t, c, spelling)
 		_, dictData, stats, err := c.Finish()
 		require.NoError(t, err)

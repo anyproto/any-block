@@ -45,7 +45,7 @@ import (
 func TestComposer_ANamedKeyNothingCanDefineStillGetsAnEntry(t *testing.T) {
 	const orphan = "66602dc5e5672d06c0e19245"
 
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafypage"),
 	})}
@@ -85,7 +85,7 @@ func TestComposer_ANamedKeyNothingCanDefineStillGetsAnEntry(t *testing.T) {
 func TestComposer_AnUndefinedKeyCarriesNoVocabulary(t *testing.T) {
 	const orphan = "66602dc5e5672d06c0e19245"
 
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	opt := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafyurgent"), "relationKey": strVal(orphan),
 		"name": strVal("urgent"), "relationOptionColor": strVal("red"),
@@ -129,7 +129,7 @@ func TestComposer_AnUndefinedKeyCarriesNoVocabulary(t *testing.T) {
 func TestComposer_AComposedBundleAnswersForEveryKeyItNames(t *testing.T) {
 	const orphan = "66602dc5e5672d06c0e19245"
 
-	c := NewComposer(anyblockjson.Options{}, "Corpus")
+	c := newComposer(t, anyblockjson.Options{}, "Corpus")
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafypage"),
 	})}

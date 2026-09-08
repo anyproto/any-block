@@ -29,7 +29,7 @@ import (
 // supplied (nothing was dropped: the census asked for it).
 func TestComposerNamesEveryPropertyTheCensusDropped(t *testing.T) {
 	build := func(t *testing.T) *Composer {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		// a select whose vocabulary is lifted, and a number that owns none
 		for _, rel := range []*model.SmartBlockSnapshotBase{
 			{Details: detFields(map[string]*types.Value{
@@ -90,7 +90,7 @@ func TestComposerNamesEveryPropertyTheCensusDropped(t *testing.T) {
 
 	t.Run("a key only the table can define is an orphan, not a drop", func(t *testing.T) {
 		// given: nothing observed a snapshot for `tag`, and a page uses it
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafyp")})}
 		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
 			[]byte(`{"formatVersion":"2.0","properties":{"Tag":["urgent"]}}`)))
@@ -107,7 +107,7 @@ func TestComposerNamesEveryPropertyTheCensusDropped(t *testing.T) {
 	t.Run("an option of a property no snapshot described is named too", func(t *testing.T) {
 		// given: the option is observed, the owning relation never is, and
 		// nothing references the key
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
 			optionSnapshot("bafyhigh", "6a83296f61fab2265263ae34", "high", "orange", "cccc3333"))
 		require.True(t, omitted)

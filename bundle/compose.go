@@ -259,7 +259,14 @@ type Composer struct {
 // not safe for concurrent use is fine HERE — but it must then be a dedicated
 // instance, not one an emit worker also uses. spaceName is the fallback for a
 // space whose own document states no name.
-func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
+//
+// It refuses Options this package cannot compose a bundle from (options.go),
+// at construction rather than at Finish: a caller told at Finish has already
+// emitted every document and can do nothing with the news.
+func NewComposer(opts anyblockjson.Options, spaceName string) (*Composer, error) {
+	if err := refuseDocumentOnlyOptions(opts, "new bundle composer"); err != nil {
+		return nil, err
+	}
 	return &Composer{
 		opts:         opts,
 		spaceName:    spaceName,
@@ -276,7 +283,7 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 			homepages:    map[string]struct{}{},
 			icons:        map[string]*anyblockjson.Icon{},
 		},
-	}
+	}, nil
 }
 
 // Observe classifies one snapshot for the composition. For an omitted

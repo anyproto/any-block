@@ -71,8 +71,10 @@ type Plan struct {
 }
 
 // BuildPlan fixes every path before the first emit task starts, under the
-// same Options the emit runs with. It refuses an id that cannot be a
-// filename stem — empty, path separators, a dot-only component — because
+// same Options the emit runs with. It refuses Options a bundle cannot be
+// composed from (options.go) ahead of every path, so a caller learns it has
+// asked for an impossible shape while it still holds every document. Then it
+// refuses an id that cannot be a filename stem — empty, path separators, a dot-only component — because
 // such an id would escape the bundle root; the corpus's two id populations
 // (lowercase-base32 CIDs, base58 participant identities) can never trip it,
 // so a refusal here means the store handed us something that is not an
@@ -96,6 +98,9 @@ type Plan struct {
 // identity, would otherwise be planned onto one path and the second emit
 // would overwrite the first in silence.
 func BuildPlan(opts anyblockjson.Options, docs []DocMeta) (*Plan, error) {
+	if err := refuseDocumentOnlyOptions(opts, "plan document paths"); err != nil {
+		return nil, err
+	}
 	p := &Plan{
 		docPaths:  make(map[string]string, len(docs)),
 		blobPaths: map[string]string{},

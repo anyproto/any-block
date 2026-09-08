@@ -5,6 +5,182 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- `Options.NoDerivedTypeIds` is scoped to a SINGLE DOCUMENT, and the bundle
+  seam refuses it (`bundle/options.go`, `bundle/plan.go`, `bundle/compose.go`,
+  SPEC §9, §2c, §15 #26/#27/#28, READING.md step 6, `index.schema.json` and
+  `object.schema.json`). The mode exists so a consuming API can address a
+  type by the controlled key its own vocabulary mints or by the store id its
+  object endpoint resolves — `type-<stored_key>` is neither — and that is a
+  fact about ONE document handed to ONE such API. A bundle is the one context
+  where the derived id is load-bearing: `type_internal_key` states the key on
+  every typed document (§15 #28), the type document is filed at `type-<key>`,
+  and since `manifest.types` was retired (§15 #26) that pair is the only road
+  from an object to its type document. `bundle.BuildPlan` and
+  `bundle.NewComposer` now refuse the Options at CONSTRUCTION — both, because
+  they take Options separately and a boundary either door can be walked
+  around is not one, and at construction because a caller told at `Finish`
+  has already emitted every document of the space. `NewComposer` returns
+  `(*Composer, error)`; that is the only exported-signature change.
+
+  The refusal is a measurement. All 79 bundles of the 24,889-document corpus
+  were composed both ways and `bundle.Validate`'s verdict diffed line by
+  line: `type_internal_key → missing type document` 104 → 4,373 (+4,269),
+  `template_for → missing type document` 39 → 0 (−39), `object_types →
+  missing type document` 0 → 21 (+21), and nothing else moves (1,662
+  installed copies of a bundled type, 2,519 participant permissions written
+  as numbers, 151 index/manifest references to a missing object, 361 used
+  property keys the dictionary misses — all unchanged). The +4,269 is 4,269
+  documents over 133 space-minted keys in 27 of the 79 bundles, min 1 /
+  median 4 / max 27 keys per affected bundle, each one an export that
+  validates clean now and would not. The +21 is `properties.json` alone:
+  `MarshalPropertyDictionary` writes `object_types` through
+  `dictionaryTypeSpelling`, which takes no `Options` and cannot consult the
+  mode, so 34 entries in 5 bundles naming 21 distinct types would go on
+  spelling `type-<key>` while every document beside them spelled the
+  vocabulary word — one type, two spellings, one bundle, which is what the
+  mode exists to prevent. The −39 is the subtle one and the reason the
+  boundary is not merely conservative: `derivedTypeUses` rightly skips a
+  spelling that is not a derived id, so under the mode `template_for` stops
+  being an address and 39 REAL dangling targets stop being reported. The
+  mode does not fix them; it silences them. Widening the check instead —
+  a second road from `type_internal_key` through a type document's own
+  `internal_key` — answers the first row only: it cannot make
+  `properties.json` agree with the documents beside it, and it cannot give
+  `template_for` back the address the mode removed.
+
+  Two figures the round that measured this first got wrong, corrected here
+  by re-derivation. The census behind the loud half reads 4,269 documents /
+  133 keys / 27 bundles / median 4 on the shape §15 #27 produces; 4,255 /
+  124 / 26 / median 3.5 is the RAW corpus's census, against a baseline of 118
+  rather than 104, and the two pairs were mixed in one paragraph — which is
+  why 104 + 4,255 missed 4,373. And `object_types` DOES move: the earlier
+  table recorded no class moving but `type_internal_key` and `template_for`,
+  and the +21 it missed is the two-spellings finding arriving as a refusal.
+
+  Nothing at the codec changed. A single document exported with the mode
+  writes exactly what it wrote before — the five tests in
+  `codec/anyblockjson/noderivedtypeids_test.go` are untouched — and import
+  was never gated in either direction. What changed is everything published
+  that described a NoDerivedTypeIds BUNDLE: §9 is rescoped and carries the
+  boundary's reason and figures in one place, §2c's derived-type check and
+  §15 #26 name the measurement rather than leaving two readings open, §9's
+  proposal of an `index.json` `"conventions"` member is CLOSED (the index is
+  a bundle file and a bundle is never in the mode, so the member's only
+  honest value is the default), READING.md's fallback is attributed to
+  AUTHORED bundles where it belongs, and `index.schema.json` and
+  `object.schema.json` stop promising a bundle shape that cannot exist.
+
+- A run can decline derived TYPE ids, and the format says so
+  (`Options.NoDerivedTypeIds`; `codec/anyblockjson/export.go`,
+  `codec/anyblockjson/refs.go`, SPEC §9, §13). A type is two things at once:
+  a KIND, named by a key that means the same thing in every space, and an
+  OBJECT, named by an id that exists in one. An API consumer addresses each
+  half by its own handle — the controlled key its own vocabulary mints, the
+  store id its object endpoint resolves — and `type-<stored_key>` is
+  neither, so a document written for one spelled a type three ways:
+  `"type": "bug"` in the envelope, beside `"template_for":
+  "type-68f1a9c…"`, beside a `Set of` carrying the prefix again. With the
+  mode set the two families of slot move in OPPOSITE directions, which is
+  the whole point. Type-KEY slots — `template_for`, every `object_types` —
+  fall back to `writableTypeSlug`, the vocabulary the envelope `type`
+  already goes through, so one type is one word in every slot that names it
+  as a KIND — not across the whole document, since a document that also
+  names that type as an OBJECT carries the store id there, which 526 of the
+  corpus's 24,889 documents do; a
+  raw-key fallback would have spelled it a second way for every key the
+  vocabulary renames. Reference slots and the type document's own envelope
+  id keep the store id, and `FoldDocumentId` declines alongside them rather
+  than on its own gate — so the FILENAME follows the envelope id and a type
+  document is filed under its store id. That is one decision and not two: a
+  document is found by the id inside it and by nothing else (§2c), the path
+  plan derives the file's stem from the very function the envelope id goes
+  through, and a document that kept `type-<key>` while every reference kept
+  the store id is precisely the dead link §9's gates exist to make
+  unrepresentable. Import is untouched in both directions — declining to
+  write a derived id is not declining to read one, so a document already
+  carrying `type-<key>` still resolves — and the participant fold, armed by
+  `Options.SpaceId` alone, is unaffected. Zero value is the old behaviour,
+  so every existing caller is byte-stable.
+
+  Nothing published had mentioned it, while SPEC stated in a dozen normative
+  places that the derived id is THE spelling of a type. §9 gets the mode's
+  home and each of those sentences is qualified where it stands: the
+  envelope's `template_for` and `type_internal_key` rows, §2a's and §2d's
+  `object_types`, §2c twice, §2g, §3 three times, §3a, §6.2's dataview
+  source table, §9's own reference table and two of its Derived-ids bullets,
+  §9a, §13's `Options` and `FoldDocumentId`, and §15 #26, #27 and #28. Three
+  costs a DOCUMENT pays are stated rather than left to be discovered, and a
+  fourth that lands on a set of documents is the entry above this one. The
+  object → type document road closes, and a reader rebuilds by
+  `internal_key` the table `manifest.types` used to ship (§2c, §15 #26). A
+  type-KEY slot becomes a spelling to
+  resolve, through the §3 chain and under §3's ambiguity refusal, which is
+  the path an authored document's `template_for` already takes (§2g) — and
+  what that chain cannot do is recognise a stored key the READER does not
+  hold, so a fourth cost stands beside it: a type-KEY slot can resolve to a
+  DIFFERENT type, silently. `type-<key>` carried the key in its own text and
+  was read before any vocabulary; the mode's spelling re-enters the chain,
+  where a bare stored key falls through to the name tables. `chat` is the
+  shipped case — a legacy space-minted key against bundled `chatDerived`,
+  whose Name is "Chat" — so `TypeSlug("chat")` answers `chat` and
+  `TypeKey("chat")` answers `chatDerived`, and a template exported with the
+  mode comes back belonging to another type, with no warning. The envelope
+  `type` meets the same collision and is safe because `type_internal_key`
+  stands beside it (§15 #28); the two key slots the mode moves have no
+  companion key, so §5's "a spelling shared with another key costs nothing"
+  is a claim about the envelope and not about them. Of the 212 distinct type
+  keys the corpus names in a type-KEY slot exactly one fails to invert, 8
+  bundles carry a `chat` type document, and 1 of the 24,889 documents
+  changes state — small here and unbounded in principle, since a
+  space-backed vocabulary knows more names than the bundled table.
+  `TestNoDerivedTypeIds_AKeySlotCanResolveToADifferentType` pins it; the two
+  repairs (write the raw stored key, or refuse a spelling that does not
+  invert) both cost something the mode's design was choosing between, so
+  neither is taken here. And a
+  BUNDLE composed with the mode is refused by its own validator — measured
+  here first, and settled by the entry above this one, which scopes the mode
+  to a single document and refuses those Options at the bundle seam.
+
+  Which mode produced a document is judged and answered NO, with the limits
+  named rather than a signal offered. A non-derived `template_for` has three
+  possible producers: this mode, an authored document (§2g), and a
+  default-shape export of a gate-refused key. And a document that names no
+  type in any reference slot is byte-identical under both modes, so there
+  the question has no answer at all. The scale the mode would move, if it
+  were ever let near a whole space, is what makes the boundary's figures
+  legible: 11,055 `type-<key>` occurrences across the 79 corpus bundles,
+  being 1,793 type document ids + 6,636 type-KEY slot occurrences (5,544
+  `object_types`, 423 `template_for`, 669 of 730 in the dictionaries) +
+  2,626 reference-slot occurrences. READING.md's step 6 carries the
+  reader-side repair for a bundle that does not fold — index the type
+  documents by `internal_key` as well as by `id` on the same walk, and fall
+  back to that map when `type-<key>` finds nothing.
+
+- API v2 and AnyBlock v2 spell participant permissions differently, on
+  purpose, and this is where that is written down. SPEC §3 and the entry
+  below already record WHY the REST API's `role` vocabulary was not
+  borrowed; what neither says is what it means for a consumer reading both
+  surfaces. AnyBlock writes the proto's own identifiers snake_cased —
+  `reader · writer · owner · no_permissions · admin`. The API's `role` maps
+  `Reader→"viewer"`, `Writer→"editor"` and `Admin→"admin"`, falling back to
+  the snake_cased proto name for the other two
+  (`core/api/service/member.go`). So three of the five names agree and two
+  do not: what AnyBlock calls `reader` the API calls `viewer`, and what
+  AnyBlock calls `writer` the API calls `editor`. The vocabulary could not
+  be borrowed because its inverse (`mapMemberRole`) sends every name outside
+  those three back to `Reader` — `owner` and `no_permissions` included — so
+  `mapMemberRole(mapMemberPermissions(Owner))` is `Reader`, and a name that
+  does not round-trip to the number it came from is not a name this format
+  can write (§3). The divergence is therefore not an oversight awaiting
+  reconciliation: reconciling it would mean adopting a vocabulary that loses
+  two of its five values on the way back. A consumer reading both surfaces
+  maps between them and treats neither spelling as the other's. Re-derived
+  over the 79-bundle, 24,889-document corpus: 2,519 participant documents
+  carry the key — Writer 1,888 · NoPermissions 566 · Owner 48 · Reader 13 ·
+  Admin 4 — so the two names that differ cover 1,901 of the 2,519 values,
+  and `owner`, one of the three that agree, is exactly the value the API's
+  own inverse loses.
+
 - The reading guide's dictionary is found where the index says it is, and its
   two corpus figures are held by arithmetic (`format/v2/READING.md`). Step 3
   was titled with the default filename and never named `manifest.properties`,

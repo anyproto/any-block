@@ -511,6 +511,9 @@ func typeKeyFoldable(key string) bool {
 // by one run never sits beside references a resolver-less run could not
 // fold. A key the fold gate refuses keeps the id.
 func (o Options) foldTypeRef(id string) string {
+	if o.NoDerivedTypeIds {
+		return id
+	}
 	tr, ok := o.ResolveProperties.(TypeResolver)
 	if !ok || id == "" {
 		return id
@@ -810,6 +813,13 @@ func FoldDocumentId(opts Options, sbType model.SmartBlockType, id, internalKey s
 	case sbType == model.SmartBlockType_Participant:
 		return opts.foldParticipantRef(id)
 	case isTypeSmartBlock(sbType):
+		// NoDerivedTypeIds declines here as it declines in every reference
+		// slot: the type document's id and the references naming it are one
+		// decision, and splitting them is the dead link this function was
+		// written to close.
+		if opts.NoDerivedTypeIds {
+			return id
+		}
 		// typeRef applies the §9 fold gate and answers "" for a key it
 		// refuses; the document then keeps its store id, exactly as every
 		// reference that names that key keeps the key verbatim.

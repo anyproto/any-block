@@ -36,7 +36,7 @@ func TestComposerCanonicalizesCustomDictionaryTypeTargetsWithItsVocabulary(t *te
 			ObjectTypes: []string{typeKey},
 		}},
 	}
-	composer := NewComposer(opts, "Rituals")
+	composer := newComposer(t, opts, "Rituals")
 	page := &model.SmartBlockSnapshotBase{Details: &types.Struct{Fields: map[string]*types.Value{
 		"id": strVal("ritual-page"),
 	}}}
@@ -105,7 +105,7 @@ func orderedOptionSnapshot(id, key, name, orderId string, created float64) *mode
 // vocabulary vanish and Stats reports the key as unused); lift the entry but
 // gate the options on a census of its own.
 func TestComposerLiftsVocabularyReferencedOnlyByADataview(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Board")
+	c := newComposer(t, anyblockjson.Options{}, "Board")
 	omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
 		optionSnapshot("bafytodo", "status", "To Do", "grey", "aaaa1111"))
 	require.True(t, omitted)
@@ -157,7 +157,7 @@ func TestComposerLiftsVocabularyReferencedOnlyByADataview(t *testing.T) {
 // OptionsDropped stay empty and §11's "stated rather than silent" is false).
 func TestComposerVocabularyOnADivergentInstalledCopyFollowsTheEntry(t *testing.T) {
 	build := func(t *testing.T) *Composer {
-		c := NewComposer(anyblockjson.Options{}, "Corpus")
+		c := newComposer(t, anyblockjson.Options{}, "Corpus")
 		divergent := testInstalledCopy(t, "tag")
 		divergent.Details.Fields["name"] = strVal("Labels")
 		omitted, _ := c.Observe(model.SmartBlockType_STRelation, divergent)
@@ -226,7 +226,7 @@ func TestComposerVocabularyOnADivergentInstalledCopyFollowsTheEntry(t *testing.T
 func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 	const key = "67e31405450a5dcab2fa75aa"
 	build := func(t *testing.T) *Composer {
-		c := NewComposer(anyblockjson.Options{}, "Chat")
+		c := newComposer(t, anyblockjson.Options{}, "Chat")
 		for _, name := range []string{"news", "fav"} {
 			omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
 				optionSnapshot("bafy"+name, key, name, "grey", "k_"+name))
@@ -303,7 +303,7 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 // vocabularies state no order at all, and the bundle alphabetizes them).
 func TestComposerOrdersAVocabularyTheWayTheAppListsIt(t *testing.T) {
 	key := "status"
-	c := NewComposer(anyblockjson.Options{}, "Board")
+	c := newComposer(t, anyblockjson.Options{}, "Board")
 	// the user reordered a subset, which is how a partial order arises;
 	// observed in an order matching neither answer
 	for _, o := range []struct {
@@ -353,7 +353,7 @@ func TestComposerDropsAnUnstatableVocabularyRatherThanTheBundle(t *testing.T) {
 	checkbox := anyblockjson.PropertyDefinition{
 		Key: "completion_status", Name: "Completion status", Format: model.RelationFormat_checkbox,
 	}
-	c := NewComposer(anyblockjson.Options{
+	c := newComposer(t, anyblockjson.Options{
 		ResolveProperties: composerPropertyResolver{def: checkbox},
 	}, "Berlin Basics")
 	for _, name := range []string{"Completed", "In Progress", "Not Started"} {
@@ -385,7 +385,7 @@ func TestComposerDropsAnUnstatableVocabularyRatherThanTheBundle(t *testing.T) {
 // A colour outside the palette costs its own option, not the vocabulary:
 // each option is probed alone before the array is given up.
 func TestComposerSalvagesTheOptionsAWriterCanStill(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Board")
+	c := newComposer(t, anyblockjson.Options{}, "Board")
 	good := optionSnapshot("bafygood", "status", "To Do", "grey", "k_good")
 	bad := optionSnapshot("bafybad", "status", "Done", "crimson", "k_bad")
 	for _, o := range []*model.SmartBlockSnapshotBase{good, bad} {
@@ -432,7 +432,7 @@ func TestComposerReportsWhatAnOmittedOptionsEntryCannotCarry(t *testing.T) {
 		return base
 	}
 	t.Run("an importer-minted option is an ordinary option", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Imported")
+		c := newComposer(t, anyblockjson.Options{}, "Imported")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption, withDetails(map[string]*types.Value{
 			"origin": numVal(3), "importType": numVal(0), "addedDate": numVal(1690000000),
 			"createdDate": numVal(1700000000), "layout": numVal(11), "resolvedLayout": numVal(11),
@@ -442,7 +442,7 @@ func TestComposerReportsWhatAnOmittedOptionsEntryCannotCarry(t *testing.T) {
 		assert.Empty(t, issues, "install and import provenance is already classified, on the same verdicts")
 	})
 	t.Run("user intent is named", func(t *testing.T) {
-		c := NewComposer(anyblockjson.Options{}, "Imported")
+		c := newComposer(t, anyblockjson.Options{}, "Imported")
 		omitted, issues := c.Observe(model.SmartBlockType_STRelationOption,
 			withDetails(map[string]*types.Value{"isUninstalled": boolVal(true)}))
 		assert.True(t, omitted, "still omitted: a kept option would put options/ back in the layout")
@@ -463,7 +463,7 @@ func TestComposerReportsWhatAnOmittedOptionsEntryCannotCarry(t *testing.T) {
 // fixed and is not).
 func TestComposerCarriesAPropertysApiKey(t *testing.T) {
 	minted := "68ba835996ab900b9b0231ac"
-	c := NewComposer(anyblockjson.Options{}, "Restaurants")
+	c := newComposer(t, anyblockjson.Options{}, "Restaurants")
 	rel := &model.SmartBlockSnapshotBase{Key: minted, Details: detFields(map[string]*types.Value{
 		"id": strVal("bafyrel"), "relationKey": strVal(minted), "name": strVal("Location"),
 		"relationFormat": numVal(0), "apiObjectKey": strVal("restaurant_location"),

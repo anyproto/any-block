@@ -313,7 +313,7 @@ Fields, in **canonical order** (§4):
 | `kind` | string | no | System-level object kind, snake_case (`page`, `profile_page`, `template`, `archive`, `widget`, `chat`, …) — from `model.SmartBlockType`. `chat` is `ChatDerivedObject`: a standalone chat object whose identity is `internal_key`, like a type's; its messages live in the CRDT store, not in snapshots, so it always imports empty. (`chat_object` is the deprecated predecessor; `discussion` is a hidden type.) **Omitted whenever derivable**: absent means `page`. It is the SOLE authority on whether a document is a template — `template_for` is admitted on it, the second type slot exists on it, and no type spelling implies it (§3). A template therefore always spells its kind. An unrecognized value is a validation error listing the allowed values. |
 | `id` | string | no | Envelope object identity. Written by export and preserved by import: when present it is validated and claimed, and the implicit root block uses that same id; only an absent envelope id is generated. It is retained by `OmitIds`, never compacted, and written in full like every object reference (§9, §9a). This is distinct from document-local block/table/view ids. |
 | `type` | string | no | The object's type **document spelling**, canonically its NFC display name (`Page`, `Task`, `Property`) — the key vocabulary of §3, not the stored `ot-`-prefixed key and not a derived API slug. Legacy derived slugs such as `object_type` remain input-only compatibility spellings; canonical re-export uses the display name. Maps to `object_types[0]` in the snapshot. Absent when the snapshot has no object types (legacy/system objects). **The stored key stands beside it in `type_internal_key`, on every typed document**, so a reader resolves the key and shows the spelling; only a document that states no key — an authored one — has its `type` inverted through the §3 chain in the type namespace (the vocabulary in force: the bundled table offline, the space's stored names and compatibility spellings inside a node), and the resulting stored key is handed to the wiring, which resolves it — matching an existing type or creating one (the Markdown importer's behavior). A term the chain does not know passes through verbatim — an exact stored key is always its own address (§3). No spelling is reserved: `template` is an ordinary type term that a key or vocabulary may bind wherever it likes, because `kind` — a field no chain touches — is the sole template authority. With no `kind`, even a literal `"type": "template"` is an ordinary page type (§10). |
-| `template_for` | string | no | Only for templates: the target type (`object_types[1]`), written as the type's **derived id** `type-<internal_key>` (§9) — a reference by key, the same spelling every id-valued slot folds a type to, so a template names its type the way a filter or a `Set of` value does and a reader never resolves a spelling here. On input a display name (`"Task"`, `"Habit"` for a type this bundle declares) or the legacy `ot-<key>` is accepted through the §3 chain, for authoring (§2g); canonical export writes the derived id. Admitted on `kind: "template"` and nothing else — present without it, or without a `type` beside it to be `object_types[0]`, is a validation error. Note what this is NOT keyed off: the template's own type. A template whose `object_types` do not begin with the template key is a shape the model permits. The target does not depend on what `object_types[0]` holds. |
+| `template_for` | string | no | Only for templates: the target type (`object_types[1]`), written as the type's **derived id** `type-<internal_key>` (§9) — a reference by key, the same spelling every id-valued slot folds a type to, so a template names its type the way a filter or a `Set of` value does and a reader never resolves a spelling here. That describes the DEFAULT shape; a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode spells the vocabulary here instead — the same word the envelope `type` writes — and a reader resolves it through the §3 chain. No bundle carries that shape: the mode is scoped to one document and the `bundle` package refuses it (§9). On input a display name (`"Task"`, `"Habit"` for a type this bundle declares) or the legacy `ot-<key>` is accepted through the §3 chain, for authoring (§2g); canonical export writes the derived id. Admitted on `kind: "template"` and nothing else — present without it, or without a `type` beside it to be `object_types[0]`, is a validation error. Note what this is NOT keyed off: the template's own type. A template whose `object_types` do not begin with the template key is a shape the model permits. The target does not depend on what `object_types[0]` holds. |
 | `internal_key` | string | no | Identity key of *system* objects (types, properties). This is the STORED identity key (a `uniqueKey`'s internal part), written verbatim: unlike every key slot in §3 it is **not** translated, so for an object whose stored key is a minted BSON it does not match the slug the public API serves as that object's `key`. The name says what the value is — an id the app MINTS (a bson for a custom definition, the camelCase bundled key for a bundled one), never something an author derives — where the word `key` used to name this stored id AND a property definition's spelling one level down, one word for two concepts (§15 #14). Because it is verbatim, its charset is whatever the store already holds: a relation option's key is built from the option's *name*, so `completion_status_Not Started`, `…_C/C++` and `…_тогглы` are all real stored keys. The rule is therefore a deny rule — non-empty — not an allowlist. An allowlist was tried and falsified: it failed 59 objects of a 36 808-object account, every one a relation option. Length and charset are not bounded either: the app mints an option's key from the option's name, and the name is whatever an import carried, so any bound here makes an object the store already holds unexportable. `Marshal` never emits what `Validate` rejects (§11) is the stronger promise. Never emitted for ordinary documents. |
 | `property_settings` | object | on `kind: "property"` | Only for property documents, where it is **required**: the definition of the property this document IS — one `propertyDefinition` (§2d, §2e). Carries `format` (required, a §3 format NAME — never a raw enum number; stands for the stored `relationFormat` key, which `properties` refuses), `include_time` and `object_types`, each present exactly when its stored key is, value included. Illegal on every other kind. |
 | `icon` | object | no | The object's icon — ONE object whose `format` selects the variant (§2b). Stands for the stored `iconEmoji` / `iconImage` / `iconName` / `iconOption` keys, which `properties` refuses. |
@@ -321,7 +321,7 @@ Fields, in **canonical order** (§4):
 | `properties` | object | no | The object's properties, §3. |
 | `type_settings` | object | no | Only for type documents (`kind: "object_type"`, `"bundled_object_type"`): everything that defines the TYPE, in one gated subtree — `layout`, `api_key`, `plural_name`, `default_template`, `default_view`, and `property_definitions` (§2a). Present on any other kind → validation error. The root spelling `type_properties` is refused with the repair named. |
 | `property_internal_keys` | object | no | Legend: the stored property key each spelling in this document names (§3). Written for every spelling the **bundled table does not bind to the key being written** — a spelling the table cannot invert (a space's own key) *and* the **identity entry**, which is the ordinary case: a custom key written verbatim names itself, because nothing else in the document says the term is a stored key rather than somebody's display-name spelling. A reader consults it **before** its own vocabulary and takes the value as **authoritative**: it is not liveness-checked, deliberately (§3). Absent only from a document whose every spelling is bundled. |
-| `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. A document carrying the map is refused with the repair named (§10). |
+| `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. (In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode those two slots spell the vocabulary rather than the derived id; the type namespace carries no legend either way, and a bundle refuses that mode — §9.) A document carrying the map is refused with the repair named (§10). |
 | `option_ids` | object | no | Legend: the id of the option each select/multi_select **name** in this document stands for — nested, `{property spelling: {option name: option id}}` (§3, §9a). Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the name resolves exactly as it did before the legend existed. |
 | `blocks` | array | no | The document's blocks as a **flat pre-order array**; nesting via `indent` (§4). |
 | `items` | array | no | For collection objects: member object ids, in order (from the internal collection store key `objects`). Present on a non-collection document → validation error — enforced by the import *wiring* (collection-ness resolves against the space's types, not offline); the package's `Validate` checks structure only (implementation decision). |
@@ -487,7 +487,7 @@ style.
 | `name` | string | no | Display name. Import uses it only when the property must be **created**; an existing property keeps its own name. Every bundled key already exists, so a name given for one is inert — `{"property": "Description", "name": "Summary"}` renders as *Description*. Validation warns. If the label is the point, mint a custom key instead of reusing a bundled one. |
 | `format` | string | no | Property format (§3 names). Same import rule as `name`; a conflict with an existing property's format is an error at the wiring level (the package cannot see the space). |
 | `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** whenever the option declares no color, the object form otherwise — the same rule cells follow in §6.1. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`. Declaring them lets the wiring create each one up front with an order id. The app's own vocabulary listing puts every option carrying an `orderId` first, those ascending, then the ones carrying none, `createdDate` descending — the picker's subscription sorts `orderId` ascending with no empty-placement, which lists the order-less ones first, and the picker then re-sorts the received rows so that an option with an order id precedes one without. Since a new option is minted with the smallest order id of its siblings, ascending order ids and descending creation dates agree on newest-first. Two options tying on both — a `createdDate` is a whole-second stamp — are then ordered by the option's own id, ascending: a third key the app never needs and a writer does, without which two options minted in the same second swap places between runs. A bundle writes the array in the RENDERED order, with that tie-break (§2f). (Sorting objects by their tag COLUMN is a different feature with a different rule, `[orderId, name]` concatenated per record — `pkg/lib/database.BuildOrderMap`; it says nothing about how a vocabulary lists.) Names discovered from usage rather than declared are ordered after the declared ones. The object form takes two more members, `internal_key` and `api_key` — the option's STORED key, which the app mints and an author never writes, and its public API key (stored `apiObjectKey`), the spelling callers address it by. Export states each where the store holds one. The stored key is what lets a bundle STATE a vocabulary rather than describe it (§2f, where the dictionary entry states a vocabulary in these same members — the dictionary's entry and a type's are the two homes of this shape that admit them, since no option document carries either). The api key is not a slug of the name: it does not follow a rename and nothing rewrites it, and it travels because no restore mints one (§15 #21). Only meaningful on `select`/`multi_select`; duplicate names are a validation error in a TYPE's definition, across both forms — authoring resolves an option by its name and so cannot state one twice. The property dictionary is the exception: its entries carry explicit `internal_key`s, which tell same-named twins apart, and real spaces hold them (§2f). |
-| `object_types` | string[] | no | The types an `objects`/`files` property may point at, in priority order, each written as the type's **derived id** `type-<internal_key>` (§9) — one spelling of a type everywhere, so a reader never resolves a type spelling in this slot. On input a display name (`"Task"`, or the `Name` of a type this bundle declares, §2g) or the legacy `ot-<key>` is accepted through the §3 chain; a term the chain does not know passes through verbatim, its own address; canonical export writes the derived id. A key the §9 fold gate refuses is written VERBATIM: the type namespace carries no legend and no term ledger, so the stored key is the only spelling every reader lands on the same key from (§3, §15 #28). Empty means any object — an untargeted property will happily accept a random page as a task's assignee. Listing the built-in `participant` alongside a bundle's own people type is what makes the current-user filter value usable on that property (§6.2) while still allowing the seeded people as values; the client only offers it when the relation's targets include Participant. The wiring resolves each key to an id the way it resolves properties: a type the batch defines by the id its own document carries, a bundled type by its bundled url (`_ot<key>`). Only meaningful on `objects`/`files`. |
+| `object_types` | string[] | no | The types an `objects`/`files` property may point at, in priority order, each written as the type's **derived id** `type-<internal_key>` (§9) — one spelling of a type everywhere, so a reader never resolves a type spelling in this slot. That is the DEFAULT shape: in a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode this slot spells the vocabulary and a reader resolves it through the §3 chain; a bundle refuses that mode (§9). On input a display name (`"Task"`, or the `Name` of a type this bundle declares, §2g) or the legacy `ot-<key>` is accepted through the §3 chain; a term the chain does not know passes through verbatim, its own address; canonical export writes the derived id. A key the §9 fold gate refuses is written VERBATIM: the type namespace carries no legend and no term ledger, so the stored key is the only spelling every reader lands on the same key from (§3, §15 #28). Empty means any object — an untargeted property will happily accept a random page as a task's assignee. Listing the built-in `participant` alongside a bundle's own people type is what makes the current-user filter value usable on that property (§6.2) while still allowing the seeded people as values; the client only offers it when the relation's targets include Participant. The wiring resolves each key to an id the way it resolves properties: a type the batch defines by the id its own document carries, a bundled type by its bundled url (`_ot<key>`). Only meaningful on `objects`/`files`. |
 | `description` | string | no | The property's own description (its relation object's `description` detail). Same import rule as `name`: read when the property is created, inert on an existing one. |
 | `include_time` | bool \| null | no | Whether a date property's values carry a time of day. Same import rule as `name`. **A `date`'s member only**: on any other format the knob does not exist, so export writes none whatever the store holds (8,375 production relations carry a false one against a non-date format) and import reads none. On a date the three states are three declarations — `true`, `false`, `null` — and absent is a fourth. |
 | `max_count` | int | no | How many values the property holds. Same import rule as `name`. **Exists only on a format that can hold more than one value** — `multi_select`, `files`, `objects`, `properties` — where absent (or 0) means unlimited, the stored default. On every other format (`text`, `number`, `select`, `date`, `checkbox`, `url`, `email`, `phone`, `emoji`, `map`) a document states none: export writes none whatever the store holds (the app stamps `relationMaxCount: 1` on a select and nothing on a date), import reads none, and a reader assumes one. On most of them the format itself fixes the count at one and there is no knob to state. **`text` is the one to say plainly, because there the store's knob is not a count**: heart holds a text property's `maxLength` under `relationMaxCount`. v2 models a SINGLE `text` format — `shorttext` folds into it (§3) — and has no length concept at all, and nothing in the app enforces such a cap, so the value is DELIBERATELY not exported rather than absent for want of a slot; either way no behaviour changes. Its absence states nothing, exactly as `include_time`'s absence off a date states nothing. Measured on the shipped table: 160 of its 194 relations store `maxCount: 1`, and the rule omits 143 of those and keeps the 17 `objects`/`files` properties capped at one link, where the cap is real (§15 #25). |
@@ -859,6 +859,13 @@ document (the dictionary) and the bytes a file document stands for.
   `type-<internal_key>` (§9), and every object states that key outright in
   `type_internal_key` (§2, §3), so the path is a function of what the
   object already says and the table was a second statement of one binding.
+  (`Options.NoDerivedTypeIds` gives that road up, which is exactly why §9
+  scopes it to a single document and the `bundle` package refuses it: this
+  road is the one the table's removal left. An AUTHORED bundle can still
+  file a type document under an id that is not `type-<key>`, and a reader
+  that wants to survive one puts the walk back by indexing the type
+  documents by their `internal_key` — READING.md says when and in what
+  order.)
   And it was a legend-less spelling surface, which this format says
   elsewhere cannot be read back (§2f): its keys were canonical spellings
   resolved through the shipped ladder, and the ladder's fold is not
@@ -952,7 +959,16 @@ while a minted key like `type-68c2a23c96ab900e02935111` means nothing to
 anyone but the bundle that carries the document. Nothing performed this
 check between the retirement of `manifest.types` (§15 #26) and its
 reinstatement here, which is how a bundle could carry a template pointing
-at a type document sitting beside it under a different id.
+at a type document sitting beside it under a different id. The check reads a
+KEY, and the one shape that would defeat it is the shape §9 keeps out of
+bundles: with `Options.NoDerivedTypeIds` every type document is filed under
+its store id, so no `type-<key>` document exists and every document naming a
+space-minted type is reported — 104 refusals become 4,373 across the corpus,
+while 39 real dangling `template_for` targets stop being reported at all.
+That measurement is why the `bundle` package refuses those Options at
+construction (§9). An AUTHORED bundle can still carry a type document under
+a non-derived id, and this check is what tells its author so: the report
+names the id nothing carries, which is the repair.
 
 **This exporter's convention** (the "one exporter's convention" slot,
 recorded so a reader of OUR bundles knows the layout without reverse-
@@ -1232,7 +1248,7 @@ Exactly **three stored details lift**, and no others:
 |---|---|---|
 | `relationFormat` | `format` | a §3 format NAME — **required**. Export refuses to write a relation whose stored format it cannot name (corrupt data only: `formatNames` is total over the model enum, test-pinned), because the fallback — writing `"text"` for a format that is not text — would import as a permanent silent format rewrite, the exact disease this lift kills. `"text"` resolves per key on the way back in, through the envelope `internal_key`, exactly as a property-definition entry's format does (§3): a bundled short-text relation keeps its stored format across a round trip. |
 | `relationFormatIncludeTime` | `include_time` | `true` \| `false` \| `null`. Meaningful on `date` only; a `true` against any other format is a **warning**, carried unread. |
-| `relationFormatObjectTypes` | `object_types` | the target types, in priority order — a type-key slot exactly like `property_definitions[].object_types` (§2a): each written as the derived id `type-<key>` (§9), a display name or `ot-<key>` accepted on input. Non-empty against a format other than `objects`/`files` is a **warning**. Meaningful entries: `[]` is a cleared target set, `null` a stored null. |
+| `relationFormatObjectTypes` | `object_types` | the target types, in priority order — a type-key slot exactly like `property_definitions[].object_types` (§2a): each written as the derived id `type-<key>` (§9), a display name or `ot-<key>` accepted on input. Written as the vocabulary spelling instead in a single document exported under `NoDerivedTypeIds`, a mode a bundle refuses (§9). Non-empty against a format other than `objects`/`files` is a **warning**. Meaningful entries: `[]` is a cleared target set, `null` a stored null. |
 
 **Presence mirrors presence.** Each member is present exactly when its
 stored key is present, and carries its value — `false`, `[]` and `null` all travel
@@ -2054,9 +2070,14 @@ objects/files property definitions may write it too, in `template_for` and
 that type document's stored `internal_key` before importing dependent
 documents — but those two slots are reference-by-key slots, and their
 canonical spelling is the type's derived id, `type-<internal_key>` (§9):
-an author may write `"Habit"` there, and export writes `"type-habit"`. Thus
-a type with `"internal_key": "habit"` and `"Name": "Habit"` is referenced
-as `"Habit"` in `type` and as `"type-habit"` everywhere else; an exact
+an author may write `"Habit"` there, and export writes `"type-habit"`.
+(A single document exported with `NoDerivedTypeIds` writes `"Habit"` back:
+that mode makes these two slots' canonical spelling the same vocabulary
+spelling an author writes. It is scoped to one document and a bundle refuses
+it, so this is a shape a reader meets one document at a time — §9.) Thus a
+type with `"internal_key": "habit"` and `"Name": "Habit"` is referenced as
+`"Habit"` in `type` and as
+`"type-habit"` everywhere else; an exact
 stored key or legacy derived slug remains accepted input compatibility, and
 canonical re-export writes the display name in `type` (§2a, §3).
 
@@ -2296,7 +2317,10 @@ the bundled table, its stored-key set.
    property slots (identity entries included), and for the type namespace
    the scalar `type_internal_key` beside the envelope `type`, or the
    derived id `type-<key>` a type-key slot spells (§9) — the only
-   statement the *document* makes about its spellings.
+   statement the *document* makes about its spellings. (Where it spells one:
+   in a single document exported under `NoDerivedTypeIds` a type-key
+   slot carries a vocabulary term instead, and the chain runs on from step
+   2 — §9.)
 2. **An exact stored key — verbatim-first.** A term that names a stored key
    means that key, always; the name tables apply only to terms that are
    *not* stored keys. A node-backed reader answers this step from its store
@@ -2346,7 +2370,10 @@ without a map at all: the envelope carries **two legends and one scalar**
 (§9a), the scalar `type_internal_key` states the type's stored key outright,
 and every other type reference is the derived id `type-<key>` — so export
 runs ONE term ledger, in the property namespace, and none in the type
-namespace (§15 #28).
+namespace (§15 #28). In a single document exported under
+`NoDerivedTypeIds` the other type references carry a vocabulary spelling and
+there is still no ledger — which is precisely what that mode costs, stated
+as such in §9.
 
 **The document carries its own inverse: `property_internal_keys`.** The name
 layer is a re-spelling of key identity, and like every compaction in this
@@ -2557,7 +2584,18 @@ document, bundled or not (§2, §15 #28). Every other slot that names a type
 `type-<key>` (§9), which names its key without a table. So there is no term
 ledger in this namespace and nothing to invert: a spelling shared with a
 stored key, or with another type's name, costs nothing, because no reader
-resolves the spelling. A custom type stored as `object_type`, beside bundled
+resolves the spelling. That last clause is the default shape's: in a single
+document exported under `NoDerivedTypeIds` the type-KEY slots spell the
+vocabulary too, so a reader DOES resolve a spelling in them — through the
+chain above, with no legend to shortcut it — and there a shared spelling
+does NOT cost nothing. The chain's
+verbatim-first step can only recognise a stored key the READER already
+holds, so a space-minted key its tables do not carry falls through to the
+name tables and can be claimed by another type's display name: the slot
+resolves, to the wrong type, with no ambiguity to refuse and no warning. The
+envelope keeps costing nothing because `type_internal_key` stands beside it;
+the two key slots have no companion key. §9 names the shipped case and
+measures it. A custom type stored as `object_type`, beside bundled
 `objectType`, exports `"type": "object_type", "type_internal_key":
 "object_type"`, and a package-only reader lands on the stored key rather
 than the bundled twin because it read the key, not the name. What the
@@ -3326,7 +3364,9 @@ settle it.
 The TYPE namespace runs no such ladder and needs none: an object's type key
 is stated outright beside the spelling in `type_internal_key`, and every
 other reference to a type is the derived id `type-<key>` (§2, §9), which
-carries the key in its own text.
+carries the key in its own text. (In a single document exported under
+`NoDerivedTypeIds` the type-KEY slots carry a spelling rather than a key and
+do run a ladder; the envelope's own `type_internal_key` is unaffected — §9.)
 
 **Half two — stored key to definition.** One lookup: the dictionary entry
 whose `internal_key` is that key (§2f). The entry is the whole answer and is
@@ -3739,7 +3779,7 @@ source. Counts are the 2,560 dataview blocks of the 79-bundle corpus:
 
 | The block says | Its records are | Where that is stated | Count |
 |---|---|---|---|
-| `object_id` naming a **type** document (`kind: "object_type"`) | the objects of that type — the listing a type carries a view for | the target's own `internal_key`; the reference already spells it, `type-<key>` (§9) | 1,786, of which 1,776 are a type document's own block naming ITSELF |
+| `object_id` naming a **type** document (`kind: "object_type"`) | the objects of that type — the listing a type carries a view for | the target's own `internal_key`; the reference already spells it, `type-<key>` (§9), or — in an authored bundle — names the type document by whatever id that document carries, and then the target document answers | 1,786, of which 1,776 are a type document's own block naming ITSELF |
 | `object_id` naming a **set** object that states a query | every object matching that set's query | the target's `Set of` property, below | 77 |
 | `object_id` naming a **set** object that states none | nothing anything can name: the target carries `Set of` and it holds no value, so no query exists to run | the target's `Set of`, empty | 1 |
 | `object_id` naming a **collection** object | exactly the ids the target lists, in that order | the target document's `items` (§2) | 11 (10 of them also flag `is_collection`) |
@@ -4509,7 +4549,12 @@ the shape is, where it turns up, how to resolve it, and — the question a
 reader actually gets stuck on — what it means when it resolves to nothing.
 Counts are from the audited 3,286-document space unless the row says
 otherwise; they are there to say which shapes a real export puts in front of
-a reader, not to bound what is legal.
+a reader, not to bound what is legal. The `type-<internal_key>` row
+describes what an export of this format composes. A SINGLE DOCUMENT exported
+with `NoDerivedTypeIds` (below) carries none — but no bundle does, because
+the `bundle` package refuses that mode; an authored bundle may still name a
+type by a display name or by the id its own type document carries, and the
+rows below cover both.
 
 **Resolving anything at all takes three steps**, once, before the table
 matters: index every document in the bundle by its envelope `id`; take a
@@ -4676,6 +4721,9 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   id-valued reference a resolver-less run leaves as a CID names a document
   the bundle addresses differently, so it dangles — but it dangled before
   the fold existed too, and it never contradicts a document that folded.
+  `NoDerivedTypeIds` declines this fold along with every reference's, which
+  is the one way the document id and the references naming it move together
+  rather than apart (below).
 - **The type-KEY slots spell the same id.** `template_for` and every
   `object_types` — a type document's `property_definitions` (§2a), a
   property document's `property_settings` (§2d), a dictionary entry (§2f)
@@ -4684,7 +4732,9 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   resolves a type spelling in any of them. A display name is still read
   there (a `type` this bundle declares by its `Name`, a bundled name), and
   so is the platform's own `ot-<key>`, as input for authoring (§2g); export
-  writes the derived id.
+  writes the derived id. Except in a single document exported under
+  `NoDerivedTypeIds`, where export writes the vocabulary spelling in these
+  slots and the derived id nowhere (below).
 - **The prefixes are reserved.** An id that wears `type-` belongs to a
   type document whose `internal_key` is the remainder, and one that wears
   `participant-` to a participant document whose remainder is an account
@@ -4748,6 +4798,263 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   slot carry an object id no resolver could translate. So the readability
   the fold buys is complete in the key slots and partial in the id slots,
   and a reader must still expect a bare CID in the latter.
+
+### Declining the type fold (`NoDerivedTypeIds`), on ONE document
+
+`Options.NoDerivedTypeIds` is a documented **export mode**, off by default,
+under which a run writes no `type-<key>` anywhere. **Its scope is a single
+document.** `bundle.BuildPlan` and `bundle.NewComposer` refuse the Options
+outright, so no bundle this format composes is in the mode, and the refusal
+is at construction rather than at the end — a caller told at the end has
+already emitted every document of the space. *Why a bundle refuses it* below
+states the reason once and measures it.
+
+It exists for one kind of consumer, and the reason is best stated in the
+negative. A type is two things at once: a KIND, named by a key that means
+the same thing in every space, and an OBJECT, named by an id that exists in
+one. An API addresses
+each half by its own handle — the controlled key its own vocabulary mints,
+the store id its object endpoint resolves — and the derived id is neither of
+them. A document written for such a consumer spelled one type three ways:
+`"type": "bug"` in the envelope, beside `"template_for": "type-68f1a9c…"`,
+beside a `Set of` carrying the prefix a third time.
+
+So the mode sends the two families of slot in OPPOSITE directions, which is
+the whole of it:
+
+| slot | default | `NoDerivedTypeIds` |
+|---|---|---|
+| the type-KEY slots — `template_for`, every `object_types` (§2a, §2d, §2f) | `type-<key>`, by a pure function of the key, no resolver | the VOCABULARY spelling — the same word the envelope `type` writes for that type |
+| the reference slots — `Set of`, `Template's Type`, `Default type id`, a view's `default_type_id`, filter values, link and dataview `object_id`s, mention targets, the index's widget targets and auto-widget ledger | `type-<key>`, under a `TypeResolver` | the STORE id |
+| a type document's own envelope `id`, and the name a caller writing that one document gives the file | `type-<key>` | the STORE id |
+| the participant fold | `participant-<identity>`, under `Options.SpaceId` | unchanged: `participant-<identity>`, under `Options.SpaceId` |
+
+**The key slots go to the vocabulary, not to the raw stored key.** That is
+what makes one type ONE word in every slot that names it as a KIND, which is
+the point of the mode and not a detail of it: the envelope `type` already
+goes through `writableTypeSlug`, so routing `template_for` and
+`object_types` through the same function makes those three slots agree by
+construction. Not across the whole DOCUMENT, and the difference is the
+mode's own design rather than a shortfall of it: a document that also names
+that type as an OBJECT carries the store id there, so it holds two spellings
+where the default shape held one derived id for both families. 526 of the
+corpus's 24,889 documents, in all 79 bundles, name one type in both. A raw-key
+fallback would have spelled the type a second way for every key the
+vocabulary renames — with `wine` stored and spelled `vino`, the envelope
+would say `vino` and the template's target `wine`. Offline, where the
+vocabulary is the bundled table and knows no space-minted key, that same
+function answers with the stored key, which is still the one word the
+envelope writes for that type — and is the case in which the round trip can
+break, because a reader offered a stored key its own tables do not carry
+resolves it as a name (*what the mode costs*, below).
+
+**A NAME follows the id, so a caller that writes the document to a file
+names it after the store id** — `bafyrei….anyblock.json`, not
+`type-bug.anyblock.json`. This is one decision and not two. A document is
+found by the `id` inside it and by nothing else; there is no path convention
+to follow and no name matching anywhere in the reader flow (§2c), and
+`FoldDocumentId` (§13) is the very function the envelope id goes through, so
+a caller that names a file with it cannot disagree with the document inside.
+Choosing the id chooses the name. A name that kept `type-<key>` over a
+document declaring the store id would be the exact shape the fold gates
+exist to prevent — a document nothing that names the type could reach.
+
+The bundle path plan never exercises any of this, because `BuildPlan`
+refuses the mode before it fixes a path; the branch exists in
+`FoldDocumentId` for a caller writing ONE document to ONE file.
+
+**Import is unchanged, in both directions.** Declining to WRITE a derived id
+is not declining to READ one. A document already carrying `type-<key>`
+resolves exactly as before, in a key slot and in a reference slot alike, and
+so does one carrying the vocabulary spelling or the legacy `ot-<key>` in a
+key slot — the same posture the participant fold takes toward the pre-prefix
+bare identity (below). No reader needs the flag to READ what the mode wrote,
+and none needs it turned off to read what the default wrote. What a reader
+does need it for is stated under *what it costs* below, and it is one thing:
+reaching a type DOCUMENT from an object.
+
+**The participant fold is untouched.** It is armed by `Options.SpaceId`
+alone and says nothing about types, so a run may decline the type fold and
+go on folding participants. A test pins that, because the two folds share an
+entry point (`foldRef`) and gating the shared one would have taken the
+participant half down with it.
+
+**What the mode costs, and where the cost lands.** Three things stop
+holding for a mode-on DOCUMENT, and each is qualified at the sentence that
+states it, elsewhere in this document, and not only here. A fourth cost
+lands on a set of documents rather than on one, and it is the boundary:
+*Why a bundle refuses it*, after the three.
+
+- **The object → type document road closes**, which is why the mode stops
+  at one document. §2c retired `manifest.types` because the derived id made
+  the path a function of what the object already says: `"type_internal_key":
+  "task"` names the document whose id is `type-task`, with no walk and no
+  table. Under the mode nothing in an object names its type document's id.
+  On ONE document that costs nothing — there is no other document to reach,
+  and the consumer the mode is for has its own endpoint for the store id it
+  finds. Across a set of documents it is the whole of bundle navigation, and
+  *Why a bundle refuses it* below is that cost, measured.
+- **A type-KEY slot becomes a spelling to resolve.** The default shape's
+  claim — a reader never resolves a type spelling — holds because the slot
+  carries the key in its own text. Under the mode the slot carries a
+  vocabulary spelling and the type namespace has no legend to invert it
+  (§3), so it resolves through the §3 chain, verbatim-first: an exact stored
+  key, then the name tables, and an ambiguity that survives is §3's loud
+  refusal rather than a guess. That is the path an AUTHORED document's
+  `template_for` already takes (§2g), which is why the reading half needed
+  no new rule for it. What the chain cannot do is recognise a stored key the
+  READER does not hold, and that is the next cost below.
+- **A type-KEY slot can resolve to a DIFFERENT type, silently.** The
+  vocabulary the key slots go through is not required to INVERT, and the
+  bundled one does not for every key. `type-<key>` carried the key in its
+  own text, so it was read before any vocabulary was consulted; the mode's
+  spelling re-enters the §3 chain, where a bare stored key the chain cannot
+  recognise as one may be claimed by ANOTHER type's display name. The
+  shipped case is `chat`: a legacy space-minted key, against the bundled
+  type `chatDerived` whose Name is "Chat". `TypeSlug("chat")` answers
+  `chat` — the table carries no spelling for a key it does not hold — and
+  `TypeKey("chat")` answers `chatDerived`, so a template exported with the
+  mode comes back belonging to a different type, with no warning, because
+  the chain resolved to something. The envelope `type` meets the same
+  collision and is safe, and the difference is the whole shape of this:
+  `type_internal_key` stands beside it and import takes that as
+  authoritative without resolving the spelling (§15 #28). The two key slots
+  the mode moves have no companion key, so §5's "a spelling shared with
+  another key costs nothing" — true of the envelope — is not true of them.
+  Measured over the corpus: of the 212 distinct type keys its documents name
+  in a type-KEY slot, exactly one fails to invert; 8 bundles carry a `chat`
+  type document, and 1 of the 24,889 documents changes state. Small on this
+  corpus and unbounded in principle, since a space-backed vocabulary knows
+  more names than the bundled table. Two repairs are open and this section
+  takes neither — write the raw stored key (which spells the type a second
+  way for every key the vocabulary renames, the thing the mode's design
+  rejects) or refuse a spelling that does not invert (which keeps one word
+  per type and costs the export a slot) — and a test pins the behaviour so
+  that settling it either way is a visible change.
+
+**Why a bundle refuses it.** The three costs above are what one document
+pays, and its consumer accepts them by asking for the mode. A BUNDLE pays
+something else, and cannot accept it on anyone's behalf: the derived id is
+the only road it has from an object to its type document. `manifest.types`
+was retired precisely because `"type_internal_key": "task"` plus a document
+filed at `type-task` made the table a second statement of one binding (§2c,
+§15 #26) — so removing the second half of that pair removes the road, and
+`bundle.BuildPlan` and `bundle.NewComposer` refuse the Options rather than
+compose a bundle nothing can navigate.
+
+The refusal is a measurement, not a preference. Every one of the 79 bundles
+of the 24,889-document corpus was composed both ways and `bundle.Validate`'s
+verdict diffed line by line:
+
+| off | on | delta | finding |
+|---|---|---|---|
+| 104 | 4,373 | **+4,269** | `type_internal_key` → missing type document |
+| 39 | 0 | **−39** | `template_for` → missing type document |
+| 0 | 21 | **+21** | `object_types` → missing type document |
+| 1,662 | 1,662 | +0 | PRE-EXISTING: installed copy of a bundled type |
+| 2,519 | 2,519 | +0 | PRE-EXISTING: participant permissions as a number |
+| 151 | 151 | +0 | PRE-EXISTING: index/manifest names a missing object |
+| 361 | 361 | +0 | PRE-EXISTING: dictionary misses a used property key |
+
+- **+4,269, the loud half.** The type namespace's cross-document check (§2c)
+  derives `type-<type_internal_key>` from every typed document and requires
+  a document carrying it, a bundled key excepted. 4,373 of the corpus's
+  24,889 documents state a non-bundled `type_internal_key`, over 169 distinct
+  minted keys; 104 of them (36 keys, 6 bundles) name a type document their
+  bundle does not carry and are refused today already. The mode ADDS the
+  other 4,269 — 133 keys across 27 of the 79 bundles, min 1 / median 4 /
+  max 27 keys per affected bundle — every one an export that validates clean
+  now and would not.
+
+- **+21, one type spelled two ways.** `properties.json` writes its
+  `object_types` through `dictionaryTypeSpelling`, which takes no `Options`
+  and so cannot consult the mode: 34 entries in 5 bundles, naming 21 distinct
+  types, would go on spelling `type-<key>` while every document in the same
+  bundle spelled the vocabulary word. One type, two spellings, one bundle —
+  which is exactly what the mode exists to prevent. (The documents' own
+  `object_types` slots hold 12 space-minted derived ids corpus-wide, and none
+  of them dangle: the contradiction is the dictionary's alone.)
+
+- **−39, the quiet half, and the subtle one.** `derivedTypeUses` skips a
+  spelling that is not a derived id — a display name or a bare stored key is
+  authoring input the wiring resolves (§2g, §3), never an address the bundle
+  must carry. That rule is right, and under the mode `template_for` stops
+  being an address, so a template pointing at a type document the bundle DOES
+  NOT HAVE has nothing left to look up. The 39 are real dangling targets a
+  default-shape export names. The mode does not fix them: it silences them.
+  A cost that makes a validator quieter is the one worth naming loudest.
+
+Widening the check instead — giving it a second road from
+`type_internal_key` to a type document, through that document's own
+`internal_key` — was the alternative, and it answers only the first row.
+It cannot make `properties.json` agree with the documents beside it, and it
+cannot give `template_for` back the address the mode took away. The scope
+ruling answers all three.
+
+An AUTHORED bundle is a different matter and is not refused: it may file a
+type document under any id and name types by display name (§2g), and the
+check reports what it cannot reach, which is the report its author wants.
+What a bundle may not do is be COMPOSED in a mode that guarantees the report.
+
+**Which mode produced a document is not determinable from its bytes**, and
+now that the mode reaches one document at a time, that is the only form the
+question takes. A reader holding a document has circumstantial evidence at
+best:
+
+- A non-derived spelling in `template_for` or `object_types` is weak
+  evidence, because three different producers write one: this mode, an
+  authored document (§2g), and a DEFAULT-shape export of a key the fold gate
+  refuses, which writes the stored key verbatim (§2a).
+- And a document can be byte-identical under both modes. A page that carries
+  no `template_for`, declares no `object_types` and names no type in any
+  reference slot differs in nothing: the envelope `type` and
+  `type_internal_key` are what they always were. There the question has no
+  answer at all, and a reader asking it is asking about a document on which
+  the mode had no effect.
+
+The mode is therefore a fact about the WRITER — like the space id the format
+deliberately does not carry, and like the resolvers a run was wired with —
+and a reader that does not know the writer should treat the type spelling it
+finds as authoritative and not as evidence about the run. An earlier draft
+proposed that the writer STATE it, in an optional index member along the
+lines of `"conventions": {"derived_type_ids": false}`, on the precedent of
+`unresolved` (§2c). **That proposal is closed by the scope ruling**: the
+index is a bundle file, a bundle is never in the mode, and a member whose
+only honest value is the default is a grammar change (§10) bought for
+nothing. A consumer that needs the answer for a document has it from the
+thing that set the mode — its own export request.
+
+**Measured over the 79-bundle, 24,889-document corpus**: what the mode would
+have moved, had it been let near a whole space, and the arithmetic that
+closes it. This is the scale the boundary is drawn around — it is what makes
+the +4,269 above a real number rather than a small one — and not a
+description of any artifact this format composes. 1,793 type document ids +
+6,636 type-KEY slot occurrences + 2,626 reference-slot occurrences = 11,055,
+every `type-<key>` the corpus holds.
+
+- **Type documents: 1,808**, of which 1,793 carry a `type-<key>` id today
+  and would change both id and name. The other 15 hold a CID because this
+  corpus predates deriving the document id from the key rather than from a
+  resolver (§15 #27 records why that changed); all 15 of their keys pass the
+  fold gate, so under the current rule the figure is 1,808 of 1,808.
+- **Type-KEY occurrences: 6,636** — 5,544 `object_types` entries in type
+  documents' `property_definitions`, 423 `template_for`, and 669 of the 730
+  `object_types` entries in the property dictionaries (the other 61 are the
+  object ids §2d lets that slot carry). Each changes to the vocabulary
+  spelling.
+- **Reference-slot occurrences: 2,626** — 1,787 block `object_id`s, 373
+  `Template's Type`, 188 filter values, 136 `Set of`, 34 `Default type id`,
+  13 view `default_type_id`, 2 `Collection of`, 2 `Created in context`, and
+  in the indexes 39 widget targets and 52 auto-widget ledger entries. Each
+  would go back to a store id — the readability *What it buys, measured*
+  above puts a number on, handed back in these slots deliberately, because
+  the store id is the handle this mode's consumer wants there.
+
+**Zero value is the old behaviour**, so every caller that does not ask for
+the mode is byte-stable, and a mode-on document is itself byte-stable across
+a round trip through import and back (§11) wherever the vocabulary that
+spelled a key slot can invert it — the same resolver-dependence option names
+and the `#name` suffix already carry (§3).
 
 ### The participant fold
 
@@ -4904,25 +5211,24 @@ indirection. Each answers one question the rest of the document cannot:
 | `type_internal_key` | the `type` spelling → its stored type key | which type is this object? (§2, §3) |
 | `option_ids` | property spelling → (option name → option id) | which option does this name mean? (§3) |
 
-The type statement is a scalar, not a map, because an object has exactly
-one type and every other type reference is the derived id `type-<key>`
-(§9), which needs no legend; it used to be a map (`type_internal_keys`),
-retired by §15 #28. Two maps rather than one, and `option_ids` nested
-rather than flat, for one reason stated twice at two scales: **a name in
-this format is arbitrary user text, so no character can be reserved to
-join it to its scope.** The property and type namespaces are disjoint
-claim domains and a space may give a property and a type the same
-display-name spelling (§3), so a single spelling→key map would have held
-two answers for it. One step down, an option name may contain anything a
-JSON string may, and so may the property spelling that owns it — under raw
-naming a property really is named `C#`, and its spelling is exactly that. A
-flat map keyed
-`<name>#<property>` therefore had no representable entry at all for an
-option of a property named `C#` — the escape hatch was unreachable exactly
-where it was needed — and re-opening that after the freeze costs a version
-(§10).
-Nesting removes the separator, and with it the split rule, the key admission
-rule, the two charsets, and the joined key's length bound.
+The type statement is a scalar, not a map, because an object has exactly one
+type and every other type reference is the derived id `type-<key>` (§9),
+which needs no legend; it used to be a map (`type_internal_keys`), retired
+by §15 #28. (In a single document exported under `NoDerivedTypeIds` those
+references carry a vocabulary spelling, which has no legend either — §9.)
+Two maps rather than one, and `option_ids` nested rather than flat, for one
+reason stated twice at two scales: **a name in this format is arbitrary user
+text, so no character can be reserved to join it to its scope.** The property and type namespaces are
+disjoint claim domains and a space may give a property and a type the same
+display-name spelling (§3), so a single spelling→key map would have held two
+answers for it. One step down, an option name may contain anything a JSON
+string may, and so may the property spelling that owns it — under raw naming
+a property really is named `C#`, and its spelling is exactly that. A flat
+map keyed `<name>#<property>` therefore had no representable entry at all
+for an option of a property named `C#` — the escape hatch was unreachable
+exactly where it was needed — and re-opening that after the freeze costs a
+version (§10). Nesting removes the separator, and with it the split rule,
+the key admission rule, the two charsets, and the joined key's length bound.
 
 **`option_ids`.**
 
@@ -6131,8 +6437,8 @@ type ScopedKeyVocabulary interface {
 // of, so a fragment entry point runs the §3 chain from step 1 rather than
 // from the reader's vocabulary. Marshal and Unmarshal ignore it: a whole
 // document carries its own. The zero value is "no legend". The type
-// namespace has none to carry: a fragment names a type only by its derived
-// id (§9).
+// namespace has none to carry: a fragment names a type only by an id — its
+// derived id, or, under NoDerivedTypeIds, the store id (§9).
 type Legend struct {
     PropertyKeys map[string]string            // spelling → stored relation key (§3)
     OptionIds    map[string]map[string]string // {spelling: {option name: id}} (§9a)
@@ -6185,6 +6491,14 @@ type Options struct {
                                        // rendered cell text (§6.1). Default off, for the same reason
                                        // RefNames is; a read surface turns it on to link a human
                                        // header name to the column id table edits take.
+    NoDerivedTypeIds  bool             // export of a SINGLE DOCUMENT only: write no type-<key> anywhere
+                                       // (§9). Default off. The type-KEY slots fall back to the vocabulary
+                                       // spelling the envelope `type` uses; the reference slots and the
+                                       // type document's own envelope id keep the STORE id. Import is
+                                       // untouched in both directions, and the participant fold, armed by
+                                       // SpaceId, is unaffected. bundle.BuildPlan and bundle.NewComposer
+                                       // REFUSE these Options: the derived id is a bundle's only road from
+                                       // an object to its type document (§2c, §15 #26).
     Keys              KeyVocabulary    // optional; nil = BundledKeyVocabulary (§3). Options{} (or an equivalent
                                       // non-widening bundled vocabulary) has exact Validate/Unmarshal agreement;
                                       // a wider/store-backed vocabulary may add path-addressed semantic refusals.
@@ -6341,7 +6655,13 @@ their inputs are: a participant id is a composite only `Options.SpaceId`
 can be shown to rebuild, so no `SpaceId` means no fold, while a type folds
 from the key it already states — no resolver is consulted, and a key the §9
 gate refuses keeps the store id. That is what keeps the envelope id and the
-type-KEY slots (`template_for`, every `object_types`) one function.
+type-KEY slots (`template_for`, every `object_types`) one function. Under
+`NoDerivedTypeIds` (§9) both decline, in the two directions that section
+states — the envelope id to the store id, the key slots to the vocabulary —
+and `FoldDocumentId` reads the flag off the same `Options` the marshaller
+does, so a caller naming a file after a document cannot disagree with the
+document inside it. The bundle path plan never reaches that branch:
+`BuildPlan` refuses the mode before it fixes a path (§9, §13).
 
 The dictionary's Go surface is `[]PropertyDefinition` — the same struct the
 resolvers speak and both doors of the §2a array build — rather than a
@@ -7039,7 +7359,11 @@ being true.
   all. §2c reinstates it on the reference itself, which is where it
   belongs — a `template_for`, a `type_internal_key` and every
   `object_types` entry spelling a derived id must find the document
-  carrying it, a bundled key excepted.
+  carrying it, a bundled key excepted. This check is also what settled the scope of
+  `Options.NoDerivedTypeIds`: a bundle written with it would spell no
+  derived id and carry no document under one, taking 104 refusals to 4,373
+  and silencing 39 real dangling `template_for` targets. §9 measures that,
+  and the `bundle` package refuses the mode, so no such bundle exists.
 
 - **#27 Derived ids** — settled: **a participant document is
   `participant-<identity>` and a type document `type-<internal_key>`, in
@@ -7074,7 +7398,14 @@ being true.
   same pure function and read a display name or `ot-<key>` as input. Only
   the id-valued slots need the store's id↔key answer (`TypeResolver`), and
   without it they keep the store id, as the participant fold keeps the
-  composite without `Options.SpaceId`.
+  composite without `Options.SpaceId`. A later addition sits on top of this
+  decision rather than reopening it: `Options.NoDerivedTypeIds` (§9)
+  declines the type half of the fold for a consumer that addresses a type by
+  its own key or by its store id and by nothing in between, and it declines
+  the document id and the references together — because #27's whole finding
+  is that those two may not disagree. It is scoped to a SINGLE DOCUMENT, for
+  the reason #26 above supplies: the derived id is the only road left from an
+  object to its type document, so a bundle refuses the mode.
 
   Routing the document id through the resolver as well was the original
   shape, and it was wrong in the one way that matters: the two gates could
@@ -7105,7 +7436,9 @@ being true.
   resolved only by a reader matching the `type` spelling against a type
   document's `Name`, a route the format never promised. The scalar removes
   the table from the reader's path: it resolves the key, shows the spelling,
-  and opens `type-<key>` (#27). A
+  and opens `type-<key>` (#27) — the step a single document exported under
+  `NoDerivedTypeIds` gives up, which is why §9 keeps that mode out of a
+  bundle, where the step is the only one there is. A
   scalar rather than the map because an object has exactly one type, and
   under #27 every other type reference is a derived id that needs no
   legend — the map had one entry left to hold. Cost, by construction on the
