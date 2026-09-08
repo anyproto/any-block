@@ -300,29 +300,10 @@ in 9 of the 79 bundles**.
 So: match the value against the entry's `options` first, and where it matches
 nothing, show it as the unresolved id it is — the same courtesy step 6 pays a
 reference the bundle does not carry. A document may also carry `option_ids` —
-`{property spelling: {written term: option id}}` — which is a *hint* for an
+`{property spelling: {option name: option id}}` — which is a *hint* for an
 importer re-binding to a live space, not a lookup table for anything in the
-bundle, and it does not answer this: it maps terms to ids, and here it is the
+bundle, and it does not answer this: it maps names to ids, and here it is the
 id you are holding.
-
-**One value shape is neither a name nor an id: `<name> (<tail6>)`.** Where two
-options of one property share a name, export writes that for EVERY claimant —
-the name, then the option id's last six characters — so that the legend can
-carry an id for each (§3). Strip a trailing ` (` + six characters + `)` and
-check the stem: where the entry names **more than one** option that stem, this
-is that shape, and the name is what to render. Where it names one or none, it
-is an ordinary value that happens to end in a parenthesis, and the exact match
-above already caught it.
-
-What the entry can tell you then is the name and the fact that there are two;
-it cannot tell you WHICH. The tail is the option's **object** id and a
-dictionary entry states its **stored key** (`internal_key`) — two different
-identifiers for one option, and nothing in the bundle joins them — so a colour
-is only honest where the same-named options agree on one. Rendering the term
-verbatim, as though it were a name nobody chose, hides exactly the thing the
-term was written to report. In the 79-bundle corpus four properties hold
-same-named options, one `Tag` vocabulary among them with 327 options and six
-ambiguous names.
 
 **Presence is meaningful.** `false`, `0`, `""`, `[]` and `null` are values a
 person set, written verbatim. Absent means absent. (Block attributes are the

@@ -162,48 +162,6 @@ func TestAKeyBeatsANameTable(t *testing.T) {
 	}
 }
 
-// A value spelled `<name> (<tail6>)` is a term the export DEGRADED because two
-// options of that property share a name (SPEC §3): both claimants take one, so
-// the legend can carry an id for each and the object stops losing a tag. A
-// reader that does not know the shape prints it as an unknown option name and
-// hides the very thing the term is reporting. Measured on the 24 905-document
-// corpus at out-57f4add: 4 properties across 4 bundles hold same-named
-// options, and one document sits on both members of a pair.
-//
-// What a reader can and cannot say is the point of the second case. The name
-// is recoverable; WHICH of the same-named options this is, is not — the tail
-// is the option's OBJECT id and a dictionary entry states its STORED key, two
-// different identifiers for one option — so a colour is only honest where the
-// twins agree on one.
-func TestADegradedOptionTermIsRenderedAsItsName(t *testing.T) {
-	b, err := open(filepath.Join("testdata", "optionids"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc, ok := b.docs["bafyreioptionids"]
-	if !ok {
-		t.Fatal("fixture lost bafyreioptionids")
-	}
-	for _, tc := range []struct{ name, spelling, want string }{
-		{"twins that disagree about colour name no colour",
-			"Shelf", `books (one of the 2 options this entry names "books"), ` +
-				`books (one of the 2 options this entry names "books"), ` +
-				`reference (blue)`},
-		{"twins that agree keep it",
-			"Room", `attic (grey, one of the 2 options this entry names "attic")`},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			def, _ := b.resolve(doc, tc.spelling)
-			if def == nil {
-				t.Fatalf("fixture: no dictionary entry answers for %q", tc.spelling)
-			}
-			if got := b.renderValue(def, doc.Properties[tc.spelling]); got != tc.want {
-				t.Errorf("renderValue(%s)\n got %s\nwant %s", tc.spelling, got, tc.want)
-			}
-		})
-	}
-}
-
 // An export run without an option resolver lets option values through as ids
 // (§13). Measured: 74 of the 22,019 select/multi_select values in the 79-bundle
 // corpus are such an id, in 9 bundles; in one audited space 12 of 31 (39%),
