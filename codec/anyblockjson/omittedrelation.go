@@ -277,7 +277,7 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 			// `creator` and `lastModifiedBy` are in strippedDetailKeys, but
 			// unlike the rest of that set they are NOT absent from a
 			// document: export writes the §3 attribution spelling
-			// `<id>#<name>` for both, so a written copy of this relation
+			// the folded participant id for both, so a written copy of this relation
 			// would have carried them and an omitted one does not. Every
 			// one of the 10,617 corpus relation documents holds a `creator`.
 			//

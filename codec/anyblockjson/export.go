@@ -266,9 +266,9 @@ var wellKnownPropertyOrder = []string{"name", "description"}
 // under this key's spelling, or drop it and accept name resolution knowingly.
 //
 // The derived attribution keys — `creator`, `lastModifiedBy` — return the
-// §3 spelling `<id>#<name>` as a plain string (the folded participant id,
-// the member's name as the informative suffix where a resolver names them),
-// or **nil** when the stored value holds no id. A row surface cannot omit a
+// folded participant id as a plain string, or **nil** when the stored value
+// holds no id. They carry no name: a reference is an id and rendering one is
+// a lookup (§9). A row surface cannot omit a
 // value its caller asked for, so nil is where the document's "omit it"
 // lands; a caller that wants the property absent rather than null drops it
 // on nil.
@@ -1840,8 +1840,8 @@ func strippedDetailKeys() map[string]bool {
 	}
 	// the attribution keys are stripped as VALUES — the raw stored value
 	// never reaches a document through the ordinary details walk. What export
-	// writes under those keys is the §3 attribution spelling `<id>#<name>`,
-	// put there by buildProperties, and that is not this list's business:
+	// writes under those keys is the folded participant id, put there by
+	// buildProperties, and that is not this list's business:
 	// this list is about stored values (§3).
 	for k := range derivedAttributionProperties {
 		stripped[k] = true
@@ -1969,9 +1969,9 @@ func (e *exporter) buildProperties() *omap {
 	for k := range e.snapshot.Details.Fields {
 		if isAttributionProperty(k) {
 			// stripped as a VALUE like every other derived key, and written
-			// as `<id>#<name>` — whenever the stored value holds an id at
-			// all. The name is a caption a resolver may or may not supply;
-			// the id is complete without it (§3, §9).
+			// as the folded participant id — whenever the stored value holds
+			// an id at all. The id is the whole reference; a reader that
+			// wants a name looks it up (§3, §9).
 			if _, ok := e.attributionRef(k); !ok {
 				continue
 			}
