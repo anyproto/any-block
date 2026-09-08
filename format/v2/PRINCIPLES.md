@@ -241,11 +241,26 @@ needs a lookup or a reasoning step to mean something.
 
 Select options are names — in values, filter values and custom orders alike
 (§3, §6.2). Properties and types are addressed by their display names,
-layouts and block types by name. Only objects keep ids, because nothing
-else about an object is unique — and even those may carry an informative
-`#name` suffix (`bafyrei…#alice`) that import trims without ever resolving
-it, so a reader sees what a reference points at while the id stays the
-whole address (§9).
+layouts and block types by name. **Objects are the exception, and they are
+ids only**, because nothing else about an object is unique: a reference is
+the id, the whole string, with no name after it and nothing to strip off it
+(§9). Showing a reader what a reference points at is a LOOKUP — index the
+bundle by envelope `id`, read the target's `Name` — not a second thing the
+reference carries.
+
+That exception used to be softer: a reference could carry an informative
+`#name` after the id, which import trimmed unread. It is removed, and the
+reason is this principle read honestly rather than halfway. A caption is a
+name that does not resolve, so it bought readability by putting a second,
+unresolvable spelling of the target in a slot whose whole job is to be an
+address — and it did so unpredictably. In the 79-bundle corpus 44,865
+references carried one and all but three sat on `Created by` /
+`Last modified by`, while 979 references to those same members carried none;
+one member is captioned in an attribution slot and bare in a user-facing one
+in 435 documents. A rule a reader cannot derive from a value, only from a
+property's NAME, is not "the format carries the name" — it is the format
+carrying it sometimes. (A per-object dependency map resolving referenced ids
+to a name and an icon is filed as GO-7504 and is not part of this release.)
 
 An id is unguessable: a model must fetch before it can write, or it invents
 one — the hallucination surface in its purest form. A name is already in the

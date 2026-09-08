@@ -74,43 +74,11 @@ type OptionResolver interface {
 	OptionId(key domain.RelationKey, name string) (string, bool)
 }
 
-// ParticipantResolver names the space member a participant id stands for.
-// The derived attribution properties — `creator` and `lastModifiedBy` — are
-// written as the member's RESOLVABLE id with the name riding as the
-// informative `#name` suffix: `<identity>#<name>` (§3, §9).
-//
-// The id is the primary content and the name is a caption, which is the
-// general §9 reference shape and a deliberate reversal of the earlier
-// name-only spelling. Name-only broke the API v2 contract — a consumer that
-// wants the author's avatar or profile needs an id to resolve, and two
-// members sharing a display name are indistinguishable by it (76 of 2,478
-// production participants share one). The participant fold keeps the
-// readable half honest: the id is ~48 characters, not the 135 the composite
-// was.
-//
-// It has ONE direction on purpose: there is no `ParticipantId(name)`. A
-// display name is a label, not an address, so nothing could invert it
-// honestly — and nothing needs to. Both properties are `source: derived`,
-// `maxCount: 1`, `readonly: true`: their value is recovered from the object
-// tree root's own signature on every rebuild, and import DROPS both keys
-// whatever they carry (§3).
-//
-// A resolver that cannot answer returns false and the id is written bare —
-// resolvable either way, just without the caption. Nil resolver, same
-// answer, everywhere.
-type ParticipantResolver interface {
-	ParticipantName(id string) (string, bool)
-}
-
 // Options configures Marshal and Unmarshal (§13).
 type Options struct {
 	ResolveFormat     FormatResolver   // optional; nil = bundle-only resolution (§3)
 	ResolveOptions    OptionResolver   // optional; nil = option values pass through as ids
 	ResolveProperties PropertyResolver // optional; nil = type documents keep raw recommended-relation ids (§2a)
-	// ResolveParticipants names the member behind a participant id, for the
-	// derived attribution properties only (export; nil = `creator` and
-	// `lastModifiedBy` are omitted, §3).
-	ResolveParticipants ParticipantResolver
 	// ResolveObjectNames is the export-side seam onto the space's object
 	// index. Nothing asks it for a NAME — a reference is an id (§9) — and a
 	// name-only implementation therefore changes no byte of any export. It

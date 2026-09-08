@@ -202,9 +202,7 @@ func exportedProperties(t *testing.T, snap *model.SmartBlockSnapshotBase, opts O
 // equality fails; append the resolver's name again and every equality fails
 // with a `#alice_ko` the format no longer has.
 func TestAttribution_ExportWritesTheParticipantId(t *testing.T) {
-	resolver := &nameResolver{names: map[string]string{testParticipantId: "Alice Ko"}}
 	opts := testOptions()
-	opts.ResolveParticipants = resolver
 	opts.SpaceId = testAttribSpaceId
 
 	t.Run("creator is a plain string: the folded id, bare", func(t *testing.T) {
@@ -250,7 +248,6 @@ func TestAttribution_ExportWritesTheParticipantId(t *testing.T) {
 	t.Run("without a space id the composite survives whole", func(t *testing.T) {
 		// given the fold is off (§9) — no SpaceId, no fold, either direction
 		bare := testOptions()
-		bare.ResolveParticipants = resolver
 		snap := attributionSnapshot(map[string]*types.Value{"creator": strList(testParticipantId)})
 
 		// when
@@ -280,13 +277,11 @@ func TestAttribution_BareIdWhenThereIsNoName(t *testing.T) {
 		"a resolver that cannot name this member": func() Options {
 			o := testOptions()
 			o.SpaceId = testAttribSpaceId
-			o.ResolveParticipants = &nameResolver{names: map[string]string{}}
 			return o
 		}(),
 		"a member whose profile name is empty": func() Options {
 			o := testOptions()
 			o.SpaceId = testAttribSpaceId
-			o.ResolveParticipants = &nameResolver{names: map[string]string{testParticipantId: ""}}
 			return o
 		}(),
 	} {
@@ -353,7 +348,6 @@ func TestAttribution_ExportLeavesUserChosenParticipantsAlone(t *testing.T) {
 	// given
 	opts := testOptions()
 	opts.SpaceId = testAttribSpaceId
-	opts.ResolveParticipants = &nameResolver{names: map[string]string{testParticipantId: "Alice Ko"}}
 	snap := attributionSnapshot(map[string]*types.Value{
 		"creator":  strList(testParticipantId),
 		"assignee": strList(testParticipantId),
@@ -383,7 +377,6 @@ func TestAttribution_CensusReservesTheSpellingItWrites(t *testing.T) {
 	// given a space that slugs a custom relation onto `creator`
 	opts := testOptions()
 	opts.SpaceId = testAttribSpaceId
-	opts.ResolveParticipants = &nameResolver{names: map[string]string{testParticipantId: "Alice Ko"}}
 	// the custom key sorts BEFORE `creator`, so it reaches the term ledger
 	// first and claims the spelling unless the census has reserved it
 	opts.Keys = slugVocabulary{"aCustomKey": "creator"}
@@ -440,7 +433,6 @@ func TestAttribution_DoesNotSurviveARoundTrip(t *testing.T) {
 	// given
 	opts := testOptions()
 	opts.SpaceId = testAttribSpaceId
-	opts.ResolveParticipants = &nameResolver{names: map[string]string{testParticipantId: "Alice Ko"}}
 	snap := attributionSnapshot(map[string]*types.Value{"creator": strList(testParticipantId)})
 
 	// when

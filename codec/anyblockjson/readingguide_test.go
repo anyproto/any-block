@@ -166,8 +166,13 @@ func TestReadingGuideStatesTheRulesAReaderRunsOn(t *testing.T) {
 		"A value may be written bare or as a one-element array, and the two are the same value",
 		"on a single-valued format an array is *not* unwrapped",
 		"never read the `description`",
-		// Step 6: references.
-		"Split at the first `#` and throw the tail away",
+		// Step 6: references. A reference is an id, so the rule the reader
+		// implements is that there is NO step before the lookup — the guide
+		// has to say so, or a reader who has met a caption-era document
+		// invents a split of its own.
+		"A reference is an id. That is the whole rule",
+		"**Look the id up** in the map from step 2. There is no step before it.",
+		"A reference never tells you the target's name",
 		// Step 7: nesting.
 		"every prefix of the array is itself a valid document",
 		// Step 1: the three states of the file manifest.

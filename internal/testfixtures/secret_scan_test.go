@@ -1053,7 +1053,9 @@ func TestDocumentedSyntheticIdentitySentinelsPreserveShapesAndReferences(t *test
 	}
 
 	spec := read("format/v2/SPEC.md")
-	assert.Equal(t, 2, strings.Count(spec, account+"#SYNTHETIC_member"),
+	assert.Equal(t, 0, strings.Count(spec, account+"#SYNTHETIC_member"),
+		"a reference carries no caption, so the documented attribution values are ids alone (§9)")
+	assert.Equal(t, 2, strings.Count(spec, "participant-"+account),
 		"creator and modifier retain the same synthetic participant reference")
 
 	design := read("bundle/DESIGN.md")

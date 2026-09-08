@@ -311,16 +311,30 @@ opposite: there, absent means default.)
 
 ## 6. Follow a reference
 
-A reference is an id, optionally followed by `#` and a display hint:
+A reference is an id. That is the whole rule: the value is the address, all
+of it, and there is no second half to take off first.
 
 ```json
-"Created by": "participant-A9H5JFnd…#moonlit_joker"
+"Created by": "participant-A9H5JFnd…"
 ```
 
-1. **Split at the first `#` and throw the tail away.** It is informative,
-   nothing resolves it, and no id this format writes contains a `#`. In
-   Community, 4,510 of 7,781 reference values carry one.
-2. **Look the id up** in the map from step 2.
+1. **Look the id up** in the map from step 2. There is no step before it.
+
+**A reference never tells you the target's name.** If you want to SHOW one —
+"Created by moonlit_joker" rather than a 60-character id — that is the
+lookup's answer, not the reference's: follow it, and read the target
+document's `Name`. Every id in this section resolves to a document in the
+bundle or to one of the two things below that are not documents, so the name
+is there whenever the target travelled, and honestly absent when it did not.
+
+> Older documents may carry `participant-A9H5JFnd…#moonlit_joker`, with a
+> display name after a `#`. A pre-release draft of this format wrote that,
+> and it is gone: nothing splits at a `#` any more, so such a value is simply
+> an id that no space mints and that resolves to nothing. Re-export the
+> bundle and it comes back as the id alone. (A per-object map from referenced
+> ids to a name and an icon — so one exported object can be rendered with
+> readable links — is planned separately as GO-7504. It is not part of this
+> release, and nothing in the format anticipates it.)
 
 Four kinds of id you will meet:
 

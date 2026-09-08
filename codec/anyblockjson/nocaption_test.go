@@ -72,7 +72,6 @@ func TestAttributionReference_IsTheParticipantIdAlone(t *testing.T) {
 	// given a resolver that knows exactly who the member is
 	opts := testOptions()
 	opts.SpaceId = testAttribSpaceId
-	opts.ResolveParticipants = &nameResolver{names: map[string]string{testParticipantId: "Alice Ko"}}
 	snap := attributionSnapshot(map[string]*types.Value{
 		"creator":        strList(testParticipantId),
 		"lastModifiedBy": strList(testParticipantId),

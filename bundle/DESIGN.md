@@ -354,8 +354,8 @@ without replacing it with anything.
 
 **Two bonuses, both secondary to the argument above:** archives are
 rename-stable (a renamed object keeps its path, so backup diffs show only
-the content change — the same property SPEC §9 chose for `RefNames`,
-default off, "the backup shape stays minimal and rename-stable"); and the
+the content change — the same property references have, now that they carry
+no display name to go stale: SPEC §9); and the
 plan phase (§1.1) no longer performs collision resolution at all — the path
 is a per-document pure function, and plan's remaining naming job is just
 the manifest table.
