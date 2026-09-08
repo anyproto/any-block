@@ -186,6 +186,9 @@
         "$ref": "#/$defs/block"
       }
     },
+    "query_source": {
+      "$ref": "#/$defs/querySource"
+    },
     "items": {
       "type": "array",
       "items": {
@@ -313,6 +316,31 @@
     }
   ],
   "$defs": {
+    "querySource": {
+      "type": "object",
+      "description": "For a SET object \u2014 a live query \u2014 what it ranges over (\u00a76.2), promoted out of the stored `setOf` detail onto the root. Two lists because a query source is two different things: a TYPE target matches every object OF that type, and a PROPERTY target matches every object that CARRIES that property \u2014 presence, not a non-empty value, so an object holding it empty belongs to the set. Several targets, in either list, combine with OR: the value is a union, which is why the order across the two lists carries no meaning and export writes types first. Inside one list the order is the stored order. THREE STATES, like `manifest.files` in index.json: ABSENT means this document states no query; PRESENT AND EMPTY (`{}`) means a query that names no source, which is a different thing from a query matching nothing \u2014 a reader has nothing to run and nothing to say; POPULATED is the query. Either list may be absent, and an absent list and an empty one say the same thing. Present on a document that is not a set is a validation error neither this schema nor the byte-only `Validate` can see, exactly as for `items`: set-ness resolves against the space's types, so the import wiring enforces it (\u00a72). A set cannot be rendered from the bundle at all \u2014 the objects a query matches are whatever the space holds when it runs; the bundle ships the definition and evaluating it is the reader's.",
+      "properties": {
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Type targets: every object of the type is in the set. Each is written as the type's derived id `type-<internal_key>` (\u00a79) \u2014 the same spelling `template_for` and every `object_types` write, and the id the type's own document carries, so a reader joins an entry to that document by string equality with no rule to apply (\u00a72c). A display name or the legacy `ot-<key>` is accepted on input; canonical export writes the derived id \u2014 except in a single document exported under the `NoDerivedTypeIds` mode (\u00a79, a mode a bundle refuses), where this slot carries the VOCABULARY spelling instead, the same word the envelope `type` writes. One further spelling reaches this list and only by degradation: an entry no resolver could classify keeps the store id it was written with, and export warns \u2014 types is where such an entry goes because the stored slot's declared targets are types and every path that builds a view from a source reads the first entry as one."
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\u0000-\u001f]+$"
+          },
+          "description": "Property targets: every object that CARRIES the property is in the set, whatever its value \u2014 an object holding it empty belongs. Each is written as the property's STORED internal key, bare (`lastModifiedDate`, `6a83296f61fab2265263ae34`) \u2014 the same spelling `internal_key` carries everywhere else. Bare, and never a derived id, because a property has no address to derive one from: a bundle carries no property documents (\u00a715 #23), so a property travels as a dictionary entry and every slot in this format that identifies one holds either a display-name spelling or this key. A reader resolves an entry in two steps: the shipped bundled property table, which every reader carries; then this bundle's `properties.json`, by `internal_key` \u2014 the dictionary's used-key census counts an entry here, so a key the bundle mints is defined there. `NoDerivedTypeIds` does not touch this list: a stored key is not a derived id."
+        }
+      },
+      "additionalProperties": false
+    },
     "cardStyle": {
       "enum": [
         "text",
@@ -1217,11 +1245,11 @@
             "properties": {
               "object_id": {
                 "type": "string",
-                "description": "The object this view takes its records FROM — the source, and the only member that names one. A dataview carries no rows: it carries a view definition (`properties`, and `views` with their columns, sorts and filters), and what the records ARE follows from what the target is, not from anything else in this block (§6.2). A TYPE document means the objects of that type — the ordinary case, because the listing block a type document carries names ITSELF; the reference is normally already the type's derived id `type-<internal_key>`, but this is an id-valued slot, so a resolver-less export can leave a bare CID here (§9). A SET object means every object matching that set's query, and the query is stated on the TARGET, in its `Set of` property (§3), never here. A COLLECTION object means exactly the ids the target lists in its own `items`, in that order. Absent is not 'no source': it means THIS document is the source, and `is_collection` says in which of the two ways. A target the exporting space no longer holds is written as the `_missing_object` sentinel rather than left out — the slot cannot say 'no target' by being empty without deleting the block (§9) — and a target the bundle merely does not carry stays spelled as it is, reported nowhere: `index.json`'s `unresolved.targets` covers only the ids the index itself names (§2c)."
+                "description": "The object this view takes its records FROM — the source, and the only member that names one. A dataview carries no rows: it carries a view definition (`properties`, and `views` with their columns, sorts and filters), and what the records ARE follows from what the target is, not from anything else in this block (§6.2). A TYPE document means the objects of that type — the ordinary case, because the listing block a type document carries names ITSELF; the reference is normally already the type's derived id `type-<internal_key>`, but this is an id-valued slot, so a resolver-less export can leave a bare CID here (§9). A SET object means every object matching that set's query, and the query is stated on the TARGET, in its root `query_source` member (§6.2), never here. A COLLECTION object means exactly the ids the target lists in its own `items`, in that order. Absent is not 'no source': it means THIS document is the source, and `is_collection` says in which of the two ways. A target the exporting space no longer holds is written as the `_missing_object` sentinel rather than left out — the slot cannot say 'no target' by being empty without deleting the block (§9) — and a target the bundle merely does not carry stays spelled as it is, reported nowhere: `index.json`'s `unresolved.targets` covers only the ids the index itself names (§2c)."
               },
               "is_collection": {
                 "type": "boolean",
-                "description": "Whether this view's records are a curated LIST rather than the result of a query. It says which KIND of source, never where the source lives (§6.2). With no `object_id` it is the discriminator for the block's own document: set, the ids are THIS document's `items`, in that order — the block belongs to the collection it shows, and a host carrying no `items` is an empty collection, not a broken one; unset, the block belongs to a SET and shows every object matching this document's own `Set of` query (§3). Beside an `object_id` it decides nothing, because what the target IS already did: a collection target is written both with the flag and without it, so a reader must never read its absence as licence to ignore `object_id`."
+                "description": "Whether this view's records are a curated LIST rather than the result of a query. It says which KIND of source, never where the source lives (§6.2). With no `object_id` it is the discriminator for the block's own document: set, the ids are THIS document's `items`, in that order — the block belongs to the collection it shows, and a host carrying no `items` is an empty collection, not a broken one; unset, the block belongs to a SET and shows every object matching this document's own root `query_source` (§6.2). Beside an `object_id` it decides nothing, because what the target IS already did: a collection target is written both with the flag and without it, so a reader must never read its absence as licence to ignore `object_id`."
               },
               "source": {
                 "type": "array",

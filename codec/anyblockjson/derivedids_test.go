@@ -123,7 +123,7 @@ func typeRefOptions() Options {
 }
 
 // typeRefSnapshot puts a type object id in every slot the census found
-// them in (§9): `Set of` and `Template's Type` values, a filter on the
+// them in (§9): a `Template's Type` value, the query source, a filter on the
 // `type` property, a view's `default_type_id`, a link block, a mention,
 // and `items`.
 func typeRefSnapshot() *model.SmartBlockSnapshotBase {
@@ -185,7 +185,8 @@ func TestDerivedIds_TypePrefixOnEverySlot(t *testing.T) {
 
 	assert.NotContains(t, doc, "typeid-", "no slot keeps a type object's own id")
 	for _, want := range []string{
-		`"Set of": [
+		`"query_source": {
+    "types": [
       "type-page"`,
 		`"Template's Type": [
       "type-wine"`,
@@ -224,10 +225,13 @@ func TestDerivedIds_TypeFoldIsOffWithoutAResolver(t *testing.T) {
 	assert.NotContains(t, string(data), TypeRefPrefix)
 	assert.Contains(t, string(data), `"typeid-page"`)
 
-	// and a type-<key> reference read without a resolver stays as written
-	_, snap, err := Unmarshal([]byte(`{"formatVersion":"2.0","properties":{"Set of":["type-page"]}}`), opts)
+	// and a type-<key> reference read without a resolver stays as written.
+	// `Template's Type` rather than the query source: the query source is a
+	// type-KEY slot now (§6.2), and a key slot reads the key out of the
+	// derived id with no resolver at all, which is the sibling case below.
+	_, snap, err := Unmarshal([]byte(`{"formatVersion":"2.0","properties":{"Template's Type":["type-page"]}}`), opts)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"type-page"}, valueStringList(snap.GetDetails().GetFields()["setOf"]))
+	assert.Equal(t, []string{"type-page"}, valueStringList(snap.GetDetails().GetFields()["targetObjectType"]))
 }
 
 // The type document's own id folds, the bundle's path plan agrees, and the
@@ -509,7 +513,7 @@ func TestDerivedIds_OnlyTheReservedPrefixUnfoldsInAReferenceSlot(t *testing.T) {
 		for name, tc := range map[string]struct{ doc, path string }{
 			"the envelope id": {`{"formatVersion":"2.0","id":"ot-wine","properties":{"Name":"Notes"}}`, "id"},
 			"a property value": {
-				`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["ot-wine"]}}`, "setOf"},
+				`{"formatVersion":"2.0","id":"page-a","properties":{"Template's Type":["ot-wine"]}}`, "targetObjectType"},
 			"a link target": {
 				`{"formatVersion":"2.0","id":"page-b","blocks":[{"id":"l","type":"link","object_id":"ot-wine"}]}`, "link"},
 		} {
@@ -520,8 +524,9 @@ func TestDerivedIds_OnlyTheReservedPrefixUnfoldsInAReferenceSlot(t *testing.T) {
 				switch tc.path {
 				case "id":
 					assert.Equal(t, "ot-wine", snap.GetDetails().GetFields()["id"].GetStringValue())
-				case "setOf":
-					assert.Equal(t, []string{"ot-wine"}, valueStringList(snap.GetDetails().GetFields()["setOf"]))
+				case "targetObjectType":
+					assert.Equal(t, []string{"ot-wine"},
+						valueStringList(snap.GetDetails().GetFields()["targetObjectType"]))
 				case "link":
 					assert.Equal(t, "ot-wine", snap.Blocks[1].GetLink().TargetBlockId)
 				}
@@ -626,7 +631,7 @@ func TestDerivedIds_TypeRefWithoutAResolverIsReported(t *testing.T) {
 
 	t.Run("a reference slot", func(t *testing.T) {
 		assert.True(t, coded(collect(Options{},
-			`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["type-page"]}}`)))
+			`{"formatVersion":"2.0","id":"page-a","properties":{"Template's Type":["type-page"]}}`)))
 	})
 	t.Run("a view's default type", func(t *testing.T) {
 		assert.True(t, coded(collect(Options{}, `{"formatVersion":"2.0","id":"page-b","blocks":[{"id":"dv",`+
@@ -642,20 +647,23 @@ func TestDerivedIds_TypeRefWithoutAResolverIsReported(t *testing.T) {
 	})
 	t.Run("silent once a resolver is wired", func(t *testing.T) {
 		assert.False(t, coded(collect(typeRefOptions(),
-			`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["type-page"]}}`)),
+			`{"formatVersion":"2.0","id":"page-a","properties":{"Template's Type":["type-page"]}}`)),
 			"the resolver serves this key")
 		assert.False(t, coded(collect(typeRefOptions(),
-			`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["type-unserved"]}}`)),
+			`{"formatVersion":"2.0","id":"page-a","properties":{"Template's Type":["type-unserved"]}}`)),
 			"a key the space does not serve is a bundle-local id the wiring relinks (§2c), not a fault")
 	})
 	t.Run("a key slot is not a reference and does not report", func(t *testing.T) {
 		assert.False(t, coded(collect(Options{},
 			`{"formatVersion":"2.0","kind":"template","type":"Template","template_for":"type-page"}`)),
 			"template_for holds a key, which needs no resolver to read")
+		assert.False(t, coded(collect(Options{},
+			`{"formatVersion":"2.0","id":"page-a","query_source":{"types":["type-page"]}}`)),
+			"query_source.types holds a key too (§6.2), and reads with no resolver")
 	})
 	t.Run("a space-less read is not reading into a space and does not report", func(t *testing.T) {
 		var got []Issue
-		_, _, err := Unmarshal([]byte(`{"formatVersion":"2.0","id":"page-a","properties":{"Set of":["type-habit"]}}`),
+		_, _, err := Unmarshal([]byte(`{"formatVersion":"2.0","id":"page-a","properties":{"Template's Type":["type-habit"]}}`),
 			Options{GenerateId: seqIds("g"), OnWarning: func(i Issue) { got = append(got, i) }})
 		require.NoError(t, err)
 		assert.False(t, coded(got),
@@ -671,7 +679,8 @@ func TestDerivedIds_TypeRefWithoutAResolverIsReported(t *testing.T) {
 // values, `items`, block targets, marks) kept the folded string.
 //
 // How this can fail: put the type unfold back behind the SpaceId early
-// return and `Set of` and `default_type_id` disagree about the same type.
+// return and `Template's Type` and `default_type_id` disagree about the same
+// type.
 func TestDerivedIds_TypeUnfoldDoesNotDependOnSpaceId(t *testing.T) {
 	opts := typeRefOptions()
 	opts.SpaceId = "" // a TypeResolver, and no space
@@ -682,7 +691,7 @@ func TestDerivedIds_TypeUnfoldDoesNotDependOnSpaceId(t *testing.T) {
 
 	_, back, err := Unmarshal(data, opts)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"typeid-page"}, valueStringList(back.GetDetails().GetFields()["setOf"]),
+	assert.Equal(t, []string{"typeid-wine"}, valueStringList(back.GetDetails().GetFields()["targetObjectType"]),
 		"a property value is a reference slot like any other")
 	assert.Equal(t, []string{"typeid-wine"}, valueStringList(back.GetCollections().GetFields()[storeKeyItems]))
 	assert.Equal(t, "typeid-page", back.Blocks[1].GetLink().TargetBlockId)

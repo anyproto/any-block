@@ -369,6 +369,12 @@ type exporter struct {
 	relTargets      []string
 	relTargetsBuilt bool
 
+	// querySourceValue is the classified §6.2 query source, memoized for the
+	// same reason relTargets is: building it WARNS about the entries no
+	// resolver could classify.
+	querySourceValue querySource
+	querySourceBuilt bool
+
 	localIds map[string]string // block/row/column/view id -> short label (§9a)
 
 	// optionRefs is the second `refs` population: the option id behind every
@@ -1644,7 +1650,7 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	if sbType == model.SmartBlockType_Template && len(typeKeys) > 1 {
 		// the target type is a reference by key (§9): `type-<key>`, the
 		// same spelling every id-valued slot folds to, so a template names
-		// its type the way a filter or a `Set of` value does
+		// its type the way a filter or a `query_source.types` entry does
 		doc.setNonEmpty("template_for", e.typeKeyRef(typeKeys[1]))
 	}
 	doc.setNonEmpty(memberInternalKey, e.snapshot.Key)
@@ -1688,6 +1694,15 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 		doc.setNonEmpty("option_ids", sortedNestedOmap(e.buildOptionIds()))
 	}
 	doc.setNonEmpty("blocks", blocks)
+
+	// the §6.2 source pair, adjacent because a reader meets them as
+	// alternatives: `query_source` is where a SET's records come from and
+	// `items` is where a COLLECTION's do, and no document states both. The
+	// group is set, never setNonEmpty: an empty one says "a query naming no
+	// source", which is not the same as stating no query (querysource.go)
+	if qs := e.buildQuerySource(); qs != nil {
+		doc.set(memberQuerySource, qs)
+	}
 
 	items, store := e.buildStore()
 	doc.setNonEmpty("items", items)
@@ -1856,6 +1871,14 @@ func (e *exporter) envelopeLiftedKeys() map[string]bool {
 		lifted[k] = true
 	}
 	for k := range propertySettingsLiftedDetailKeys() {
+		lifted[k] = true
+	}
+	// the §6.2 query source, on EVERY kind — the format's first
+	// unconditional detail lift, because unlike §2a's and §2d's there is no
+	// population where a flat `Set of` means something other than a query
+	// (querysource.go). On a type document the key never reaches here at
+	// all: §2a's provenance drop takes it first.
+	for k := range querySourceLiftedDetailKeys() {
 		lifted[k] = true
 	}
 	// the five type_settings members, on TYPE documents only (§2a): off one,

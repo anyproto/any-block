@@ -93,3 +93,66 @@ func TestValidateChecksDerivedTypeReferences(t *testing.T) {
 		require.NoError(t, Validate(fsys), "a display name is authoring input the wiring resolves (§2g)")
 	})
 }
+
+// A §6.2 `query_source.types` entry is a derived type id like every other,
+// and the bundle is the only place it can be checked. It joined the type
+// namespace when the query source left `properties`: a set stating
+// `type-ritual` in the property bag was invisible to this check, because the
+// bag holds VALUES and nothing reads a value as an address (§9's own census
+// found the same hole for the flat `Set of`, and it stayed open under it).
+//
+// How this can fail: leave derivedTypeUses reading the four envelope slots
+// and a bundle whose only set points at a type it does not carry validates
+// clean — the set then shows nothing, with nothing having said so.
+func TestValidateChecksQuerySourceTypeReferences(t *testing.T) {
+	base := func() fstest.MapFS {
+		return fstest.MapFS{
+			"index.json": &fstest.MapFile{Data: []byte(`{"formatVersion":"2.0"}`)},
+			"types/habit.json": &fstest.MapFile{Data: []byte(
+				`{"formatVersion":"2.0","id":"type-habit","kind":"object_type","internal_key":"habit",` +
+					`"type":"Object type","properties":{"Name":"Habit"}}`)},
+		}
+	}
+
+	t.Run("a query over a type the bundle carries", func(t *testing.T) {
+		fsys := base()
+		fsys["objects/all.json"] = &fstest.MapFile{Data: []byte(
+			`{"formatVersion":"2.0","id":"all","query_source":{"types":["type-habit"]}}`)}
+		require.NoError(t, Validate(fsys))
+	})
+
+	t.Run("a query over a type the bundle does not carry", func(t *testing.T) {
+		fsys := base()
+		fsys["objects/all.json"] = &fstest.MapFile{Data: []byte(
+			`{"formatVersion":"2.0","id":"all","query_source":{"types":["type-ritual"]}}`)}
+		err := Validate(fsys)
+		require.ErrorContains(t, err, `query_source.types references type "type-ritual"`)
+	})
+}
+
+// The other half of the same question: a query source's PROPERTY entry is a
+// stored key, and the dictionary is where a stored key is defined (§2f). The
+// used-key census counts the entry, so an undefined one is reported by the
+// check that already reports every other undefined key — no second mechanism.
+//
+// How this can fail: leave the census reading spellings only and a bundle
+// whose set queries a minted property ships with nothing that says what the
+// property is.
+func TestValidateChecksQuerySourcePropertyKeys(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.json": &fstest.MapFile{Data: []byte(`{"formatVersion":"2.0"}`)},
+		"objects/all.json": &fstest.MapFile{Data: []byte(
+			`{"formatVersion":"2.0","id":"all","query_source":{"properties":["6a32d4856761631534b22f85"]}}`)},
+	}
+	err := Validate(fsys)
+	require.ErrorContains(t, err,
+		`bundle has no property dictionary defining stored property key "6a32d4856761631534b22f85"`)
+
+	bundled := fstest.MapFS{
+		"index.json": &fstest.MapFile{Data: []byte(`{"formatVersion":"2.0"}`)},
+		"objects/all.json": &fstest.MapFile{Data: []byte(
+			`{"formatVersion":"2.0","id":"all","query_source":{"properties":["lastModifiedDate"]}}`)},
+	}
+	require.NoError(t, Validate(bundled),
+		"a bundled key needs no entry — every reader ships the table (§2f)")
+}

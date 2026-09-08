@@ -91,7 +91,8 @@ const (
 // and PropertyId does not.
 //
 // TypeKeyById/TypeIdByKey are the TypeResolver half, which is what arms the
-// §9 type fold: it is what turns the store id in `Set of` into `type-bug`.
+// §9 type fold: it is what turns the store id in the page's stored `setOf`
+// into `type-bug` in its `query_source.types` (§6.2).
 type noDerivedPropertyResolver struct{}
 
 func (noDerivedPropertyResolver) PropertyById(id string) (anyblockjson.PropertyDefinition, bool) {

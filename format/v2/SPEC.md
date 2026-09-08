@@ -324,6 +324,7 @@ Fields, in **canonical order** (§4):
 | `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. (In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode those two slots spell the vocabulary rather than the derived id; the type namespace carries no legend either way, and a bundle refuses that mode — §9.) A document carrying the map is refused with the repair named (§10). |
 | `option_ids` | object | no | Legend: the id of the option each select/multi_select **name** in this document stands for — nested, `{property spelling: {option name: option id}}` (§3, §9a). Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the name resolves exactly as it did before the legend existed. |
 | `blocks` | array | no | The document's blocks as a **flat pre-order array**; nesting via `indent` (§4). |
+| `query_source` | object | no | For SET objects: what the live query ranges over (§6.2), in two typed lists — `types` (type targets, each the type's derived id `type-<internal_key>`, §9) and `properties` (property targets, each a bare stored key). Stands for the stored `setOf` key, which `properties` refuses. THREE states: absent (this document states no query), present and EMPTY (a query naming no source), populated. Present on a document that is not a set → validation error, enforced by the import *wiring* for the same reason `items` is. |
 | `items` | array | no | For collection objects: member object ids, in order (from the internal collection store key `objects`). Present on a non-collection document → validation error — enforced by the import *wiring* (collection-ness resolves against the space's types, not offline); the package's `Validate` checks structure only (implementation decision). |
 | `store` | object | no | Escape hatch: remaining internal store content as a free-form JSON object, with the `objects` key lifted into `items`. Output-only (§4a). (Named `store` — its internal name — to avoid colliding with the collection concept.) |
 | `root` | object | no | Escape hatch for non-default root-block attributes (`fields`, `background_color`); absent in the common case. Output-only (§4a). |
@@ -440,7 +441,10 @@ happened — on ordinary objects origin is real provenance and stays),
 `addedDate` (epoch-zero on 1,600 of 1,627), and `setOf` — which is the
 type document's **own id** on 1,756 of 1,757, re-stamped by
 `WithForcedDetail` from the object's id on every init, so it is a function
-of the id rather than a fact about the type.
+of the id rather than a fact about the type. This drop runs BEFORE the
+query-source lift (§6.2) and is the only kind test that lift makes: on a
+type document there is nothing left to lift, so a type document carries no
+`query_source` either, and one that states it is refused.
 
 Seven candidates FAILED the admission test, and six of them stay in
 `properties`: `is_hidden` (cannot be proven install-only),
@@ -3780,27 +3784,127 @@ source. Counts are the 2,560 dataview blocks of the 79-bundle corpus:
 | The block says | Its records are | Where that is stated | Count |
 |---|---|---|---|
 | `object_id` naming a **type** document (`kind: "object_type"`) | the objects of that type — the listing a type carries a view for | the target's own `internal_key`; the reference already spells it, `type-<key>` (§9), or — in an authored bundle — names the type document by whatever id that document carries, and then the target document answers | 1,786, of which 1,776 are a type document's own block naming ITSELF |
-| `object_id` naming a **set** object that states a query | every object matching that set's query | the target's `Set of` property, below | 77 |
-| `object_id` naming a **set** object that states none | nothing anything can name: the target carries `Set of` and it holds no value, so no query exists to run | the target's `Set of`, empty | 1 |
+| `object_id` naming a **set** object that states a query | every object matching that set's query | the target's `query_source`, below | 77 |
+| `object_id` naming a **set** object that states none | nothing anything can name: the target states a `query_source` and it names nothing, so no query exists to run | the target's `query_source`, empty | 1 |
 | `object_id` naming a **collection** object | exactly the ids the target lists, in that order | the target document's `items` (§2) | 11 (10 of them also flag `is_collection`) |
 | no `object_id`, `is_collection: true` | exactly the ids THIS document lists — the block belongs to the collection it shows | this document's own `items` | 430, on 331 host documents — 167 of the 331 carry an `items`; in the other 164 the collection is empty |
 | no `object_id`, no `is_collection`, on a **type** document | the objects of that type — the first row's listing, written without the self-reference 1,776 blocks spell out | the HOST's own `internal_key` | 32 |
-| no `object_id`, no `is_collection`, on any other document | every object matching THIS document's query — the block belongs to the set it shows | this document's own `Set of` | 142, of which 132 state one; 9 state no `Set of` and 1 states an empty one |
+| no `object_id`, no `is_collection`, on any other document | every object matching THIS document's query — the block belongs to the set it shows | this document's own `query_source` | 142, of which 132 state one; 9 state no `query_source` and 1 states an empty one |
 | no `object_id`, `source` present | a legacy detached inline set | `source`, output-only (§4a) | 48 |
 | `object_id` naming a document the bundle does not carry | nothing resolvable here | §9's reference table | 33 |
 
-**`Set of` is the query.** It is an ordinary property on the set object —
-bundled key `setOf`, spelled `Set of` (§3) — and its value is what the query
-ranges over. Measured corpus-wide: 175 documents carry the key, and of the
-174 values in them 136 are a type's derived id `type-<key>` and 38 are bare
-CIDs a resolver-less export could not fold (§9) — one naming a type document
-in its own bundle, 37 naming nothing there. The 175th carries the key and NO
-value: an empty `Set of` is a set that states no query, which is a different
-thing from a query that matches nothing, and a reader has nothing to run and
-nothing to say — the table above gives it a row because one dataview block
-in the corpus names such a set. On a TYPE document the same stored key means
-something else entirely and is dropped on export: there it is the type's own
-id, re-stamped on every init (§2a).
+**`query_source` is the query.** It is a ROOT member of the set object,
+promoted out of the stored `setOf` detail, and it holds two typed lists:
+
+```json
+"query_source": {
+  "types": ["type-habit"],
+  "properties": ["lastModifiedDate"]
+}
+```
+
+**Why two lists, and why on the root.** `setOf` holds two different kinds of
+thing under one grammar — type object ids AND property object ids — and a
+flat list of ids cannot say which an entry is. Measured corpus-wide: 175
+documents carry the stored key, and of the 174 values in them 136 are a
+type's derived id `type-<key>` and 38 are bare CIDs a resolver-less export
+could not fold (§9). Of those 38, ONE names a type document in its own
+bundle, ELEVEN name tombstoned types, and **twenty-six are property
+objects** — `lastModifiedDate` 16, `addedDate` 4, `isArchived` 2, `type` 2,
+`tag` 1, `createdDate` 1, every one of them a bundled key. (An earlier
+revision of this section called all 37 unresolved values types "a
+resolver-less export could not fold". Twenty-six were properties, which no
+type fold could ever have folded; the classification above is measured
+against the source spaces' own object stores.) A reader holding the bundle
+could not tell the two apart, and 13 of those 26 documents already
+contradict themselves — a dataview block spelling `rel-lastModifiedDate`
+beside a `Set of` holding an opaque CID for the same property.
+
+The position is what makes the grammar statable. Inside `properties` the
+value is a member of the generic property bag, and the published schema's
+`propertyMap` accepts anything at all — no shape, no element type, nothing a
+reader holding only the export and the schemas can check. On the root it is
+a named member with a declared shape, and each list carries its own element
+type and its own description.
+
+**What each list holds.**
+
+- `types` — the type's **derived id** `type-<internal_key>` (§9). A type-KEY
+  slot, like `template_for` and every `object_types`: it names a type as a
+  KIND, and the id it spells is the one the type's own document carries, so a
+  reader joins entry to document by string equality (§2c). A display name or
+  the legacy `ot-<key>` is accepted on input; the `NoDerivedTypeIds` mode
+  writes the vocabulary spelling here, like every other key slot (§9).
+- `properties` — the property's **stored internal key**, bare
+  (`lastModifiedDate`, `6a83296f61fab2265263ae34`). Bare, and never a derived
+  id, because a property has no address to derive one from: a bundle carries
+  no property documents (§15 #23), so a property travels as a dictionary
+  entry and every slot in this format that identifies one already holds
+  either a display-name spelling or this key. A reader resolves an entry in
+  two steps — the shipped bundled table, then this bundle's `properties.json`
+  by `internal_key`. Measured: all 26 corpus targets resolve at step one, and
+  17 of the 18 distinct (space, key) pairs also appear in their own bundle's
+  dictionary; the 18th is `type`, which no dictionary carries (0 of 79,
+  because the key is lifted to the envelope `type` and no document spells it)
+  and which the shipped table answers. The dictionary's used-key census
+  counts an entry here, so a key a bundle MINTS is defined in its
+  `properties.json` and `bundle.Validate` reports it when it is not.
+
+**What a source MEANS.** A type target matches objects **of** that type. A
+property target matches objects that **carry** that property — presence, not
+a non-empty value, so an object holding it empty belongs to the set. Several
+targets, in either list, combine with **OR**: the value is a union. Because
+it is a union the order ACROSS the two lists carries no meaning, which is
+what lets one stored list become two; within a list the stored order is
+kept, and the rebuild puts types first (§11).
+
+**Two degradations on the property list, both I1 guards.** Nothing gates a
+stored PROPERTY key the way §9's fold gate gates a type key — the §3 legend
+accepts any control-character-free string — so a space can hold one that this
+list may not spell: a key wearing the reserved `type-` prefix (which the
+wrong-list refusal would then reject on the way back in), or one with no
+written form at all (a control character, or past the 128-rune member bound).
+Either way the entry keeps the property's object id, which is what the stored
+slot held anyway, and export warns. It stays in `properties` regardless: the
+resolver already said it is a property, and the id round-trips exactly.
+
+A `query_source` and an `items` are alternatives in meaning — one document is
+a set or a collection, not both — but neither surface refuses the pair, and
+that is measured rather than lenient: ONE of the 175 corpus documents
+carrying a query source also carries an `items`, so a refusal would reject
+real stored state and export would then emit what `Validate` rejects (§11
+I1). A reader meeting both should read the block that names them (the table
+above) and not guess.
+
+**Three states, not two.** ABSENT means this document states no query.
+PRESENT AND EMPTY — `"query_source": {}` — means a query that names no
+source, which is a different thing from a query that matches nothing: a
+reader has nothing to run and nothing to say, and the table above gives it a
+row because one dataview block in the corpus names such a set. POPULATED is
+the query. Only the writer can tell the first two apart, so the group is
+written whenever the stored key is present, empty or not — the same
+three-state rule `manifest.files` states in §2c, and the same trap: an
+omit-empty on the enclosing member would drop the statement before the lists
+could make it. Within the group the §4 canon applies as usual, so an empty
+list is not written and an absent list and an empty one say the same thing.
+
+**The lift is unconditional, and it is the format's first.** Every other
+detail lift is kind-scoped — §2a's five type settings, §2d's three
+definition members — because for each of them there is a population where
+the flat spelling is real data meaning something else (`apiObjectKey` is an
+ordinary property on 9,725 relation documents). `setOf` has no such
+population. Measured, the documents carrying it off a type document are 174
+with no `kind` and `type_internal_key: "set"`, plus ONE template (whose
+target type is `set`, and whose own source is one of the 26 property
+targets) — every one of them a query. The obvious gate,
+`type_internal_key == "set"`, would be WORSE than none: it misses the
+template and splits one population into 174 documents stating a
+`query_source` and 1 stating a flat `Set of`. So the key is lifted on every
+kind, and `Set of` in `properties` is REFUSED on every kind, with the repair
+named. On a TYPE document the stored key means something else entirely and
+§2a's provenance drop takes it first (there it is the type's own id,
+re-stamped on every init), so nothing reaches the lift and a type document
+carries no `query_source` at all.
 
 **What a view may do to its source, and what it may not.** `filters` narrow
 what the source yields and `sorts` order it; neither can widen it, and
@@ -4565,7 +4669,7 @@ found by its id and by nothing else (§2c).
 | Form | Where it occurs | How to resolve it | When it resolves to nothing |
 |---|---|---|---|
 | `bafyrei…` — a bare object id (a CID, lowercase base32; older spaces also hold 24-hex bson ids) | every reference slot: object/file property values, `items`, block `object_id`s, filter values, sort `custom_order`, `object_orders`, icon/cover `file`, index `entrypoint`/`homepage`/widget `target` | the document whose envelope `id` is that string | the object exists in its space and did not travel, or the space deleted it — **the bundle cannot tell you which**, and neither can a reader. Measured: 1,265 of 10,053 reference occurrences in a deliberately narrow census (property values, `items`, block targets, icon/cover) name no document here, over 723 distinct ids. For the ids `index.json` itself names, the export says so: `unresolved.targets` (§2c) |
-| `type-<internal_key>` — a type, by its stored key (§9 *Derived ids*) | a type document's own `id`; `template_for`; every `object_types`; the `Set of`, `Template's Type` and `Default type id` values; a view's `default_type_id`; a filter `value`; a link or dataview block's `object_id`; a widget `target` | the document whose `id` is that string. The key is the text after the prefix, so the reference says WHICH type without any lookup at all | a **bundled** key (`type-page`) needs no document — every reader has it in the shipped table, and `bundle.Validate` exempts it. A minted key (`type-68c2…`) that finds no document is a real dangling reference. Measured: 354 occurrences across nine slots; 92 typed documents (29 distinct keys) name a `type-<key>` no document here carries |
+| `type-<internal_key>` — a type, by its stored key (§9 *Derived ids*) | a type document's own `id`; `template_for`; every `object_types`; `query_source.types` (§6.2); the `Template's Type` and `Default type id` values; a view's `default_type_id`; a filter `value`; a link or dataview block's `object_id`; a widget `target` | the document whose `id` is that string. The key is the text after the prefix, so the reference says WHICH type without any lookup at all | a **bundled** key (`type-page`) needs no document — every reader has it in the shipped table, and `bundle.Validate` exempts it. A minted key (`type-68c2…`) that finds no document is a real dangling reference. Measured: 354 occurrences across nine slots; 92 typed documents (29 distinct keys) name a `type-<key>` no document here carries |
 | `participant-<identity>` — a space member, by account identity (§9 *The participant fold*) | a participant document's own `id`, the two attribution properties, and any slot whose VALUE passes the identity's checksum — the classifier is the value's shape, never the property's name | the participant document with that id. An importer rebuilds the store's composite `_participant_<spaceId>_<identity>` against its own `Options.SpaceId` | a reader that sets no `SpaceId` stores the folded id, which addresses nobody; it is told so once per document (§13). Measured: 6,569 occurrences |
 | `id#caption` — any object reference MAY carry an informative name after a `#` | wherever a resolver supplied a name. Measured: 4,510 here, all on `Created by`/`Last modified by`, whose suffix rides the participant resolver; corpus-wide 44,828, every one a participant, because the ordinary suffix rides `Options.RefNames` and that defaults OFF | **split at the FIRST `#` and use the left half.** The right half is informative: nothing resolves it, nothing requires it, two objects may share it. No id this format writes contains a `#` | a bare id is exactly as valid and imports identically. A degenerate `#name` with no id half addresses nothing, is stored as written, and is warned about where the format is visible (§9 below) |
 | `_missing_object` — the space's own sentinel for a reference it could not serve | singular slots only: a block `object_id`, a `<mention>` target. A list slot drops the entry instead of writing the sentinel | it does not resolve — **it is the answer.** The link or mention existed and its target does not | already nothing: which object it was is gone. Measured: 12 |
@@ -4698,7 +4802,7 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   document AND in every reference, so the two never disagree. A participant
   folds under the classifier the participant fold always used (below).
 - **Every reference slot folds, and only under a resolver.** A type
-  reference in an id-valued slot — a filter `value`, `Set of`, `Template's
+  reference in an id-valued slot — a filter `value`, `Template's
   Type`, a view's `default_type_id`, a link block, a mention, `items`, the
   index's widget targets — holds a space-local CID, so folding it needs the
   store to say which key that id names (`TypeResolver.TypeKeyById`, §2d,
@@ -4777,7 +4881,8 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   resolved as a display name.
 - **What it buys, measured.** In one real export, 131 references in
   ordinary documents named a type by its CID — 73 filter values, 34
-  `Template's Type`, 19 `Set of`, 3 link blocks, 2 `default_type_id` — and
+  `Template's Type`, 19 `Set of` (the query source, before it left
+  `properties` — §6.2), 3 link blocks, 2 `default_type_id` — and
   a reader learned which type only by opening the file the CID named, when
   it was there: 86 of 120 templates and 45 of 47 `default_type_id`s in that
   export pointed at a type document the bundle did not carry. Written as
@@ -4817,17 +4922,23 @@ each half by its own handle — the controlled key its own vocabulary mints,
 the store id its object endpoint resolves — and the derived id is neither of
 them. A document written for such a consumer spelled one type three ways:
 `"type": "bug"` in the envelope, beside `"template_for": "type-68f1a9c…"`,
-beside a `Set of` carrying the prefix a third time.
+beside a query source carrying the prefix a third time.
 
 So the mode sends the two families of slot in OPPOSITE directions, which is
 the whole of it:
 
 | slot | default | `NoDerivedTypeIds` |
 |---|---|---|
-| the type-KEY slots — `template_for`, every `object_types` (§2a, §2d, §2f) | `type-<key>`, by a pure function of the key, no resolver | the VOCABULARY spelling — the same word the envelope `type` writes for that type |
-| the reference slots — `Set of`, `Template's Type`, `Default type id`, a view's `default_type_id`, filter values, link and dataview `object_id`s, mention targets, the index's widget targets and auto-widget ledger | `type-<key>`, under a `TypeResolver` | the STORE id |
+| the type-KEY slots — `template_for`, every `object_types` (§2a, §2d, §2f), `query_source.types` (§6.2) | `type-<key>`, by a pure function of the key, no resolver — except `query_source.types`, whose STORED form is an object id, so it needs a `TypeResolver` to reach the key at all | the VOCABULARY spelling — the same word the envelope `type` writes for that type |
+| the reference slots — `Template's Type`, `Default type id`, a view's `default_type_id`, filter values, link and dataview `object_id`s, mention targets, the index's widget targets and auto-widget ledger | `type-<key>`, under a `TypeResolver` | the STORE id |
 | a type document's own envelope `id`, and the name a caller writing that one document gives the file | `type-<key>` | the STORE id |
 | the participant fold | `participant-<identity>`, under `Options.SpaceId` | unchanged: `participant-<identity>`, under `Options.SpaceId` |
+
+**`query_source.properties` is untouched by the mode**, and that is the
+answer to the question the mode raises for the group's other half: a stored
+property key is not a derived id, so there is nothing here to decline. The
+mode exists because `type-68f1a9c…` names a type no `/types` route can
+address; a property key is exactly what every route addresses a property by.
 
 **The key slots go to the vocabulary, not to the raw stored key.** That is
 what makes one type ONE word in every slot that names it as a KIND, which is
@@ -5029,7 +5140,7 @@ have moved, had it been let near a whole space, and the arithmetic that
 closes it. This is the scale the boundary is drawn around — it is what makes
 the +4,269 above a real number rather than a small one — and not a
 description of any artifact this format composes. 1,793 type document ids +
-6,636 type-KEY slot occurrences + 2,626 reference-slot occurrences = 11,055,
+6,772 type-KEY slot occurrences + 2,490 reference-slot occurrences = 11,055,
 every `type-<key>` the corpus holds.
 
 - **Type documents: 1,808**, of which 1,793 carry a `type-<key>` id today
@@ -5037,13 +5148,14 @@ every `type-<key>` the corpus holds.
   corpus predates deriving the document id from the key rather than from a
   resolver (§15 #27 records why that changed); all 15 of their keys pass the
   fold gate, so under the current rule the figure is 1,808 of 1,808.
-- **Type-KEY occurrences: 6,636** — 5,544 `object_types` entries in type
-  documents' `property_definitions`, 423 `template_for`, and 669 of the 730
+- **Type-KEY occurrences: 6,772** — 5,544 `object_types` entries in type
+  documents' `property_definitions`, 423 `template_for`, 669 of the 730
   `object_types` entries in the property dictionaries (the other 61 are the
-  object ids §2d lets that slot carry). Each changes to the vocabulary
-  spelling.
-- **Reference-slot occurrences: 2,626** — 1,787 block `object_id`s, 373
-  `Template's Type`, 188 filter values, 136 `Set of`, 34 `Default type id`,
+  object ids §2d lets that slot carry), and 136 query sources (measured in
+  the corpus under their pre-lift spelling, `Set of`; §6.2). Each changes to
+  the vocabulary spelling.
+- **Reference-slot occurrences: 2,490** — 1,787 block `object_id`s, 373
+  `Template's Type`, 188 filter values, 34 `Default type id`,
   13 view `default_type_id`, 2 `Collection of`, 2 `Created in context`, and
   in the indexes 39 widget targets and 52 auto-widget ledger entries. Each
   would go back to a store id — the readability *What it buys, measured*
@@ -5586,6 +5698,24 @@ section that owns it:
   template, the target type — with keyless entries (`ot-`, `""`) dropped
   first, so the remaining entries close ranks rather than lose the slot a
   keyless one would have silenced (§3).
+- **A query source that interleaved type and property targets comes back
+  PARTITIONED** — every type in order, then every property in order (§6.2).
+  The stored `setOf` is one ordered list and the group is two, so the
+  interleaving between them has nowhere to go; it carries no meaning, because
+  several targets combine with OR and the value is a union. The movement
+  converges in ONE generation, like the missing-reference rewrite below:
+  import stores the partitioned list, and every export after the first is
+  byte-identical, so guarantees 2 and 3 are untouched. Measured: 0 of the
+  corpus's 175 documents carrying the key hold more than one value (174 hold
+  exactly one, the 175th holds none), so no document written today is
+  re-ordered by this at all. Two residues sit beside it, both the ones
+  `object_types` already states for the same shape (§2d): an entry no
+  resolver could classify keeps its stored id and is written in `types`,
+  with a warning, since the slot's declared targets are types and every path
+  that builds a view from a source reads the first entry as one; and a
+  `type-<key>` read WITHOUT a `TypeResolver` comes back as the bare key,
+  because `query_source.types` is a type-KEY slot and a key the space does
+  not serve stays a key for the wiring to reconcile.
 - Restrictions rebuilt (§4).
 - Empty strings/arrays/objects and default scalars dropped from block
   attributes and envelope fields — but never from property values, whose
@@ -6003,6 +6133,15 @@ fail neither test belong in authoring guidance and in review.
   property this document never spells** (§9a — a warning: the entry can never
   be consulted and the value degrades to name resolution; a key-set
   comparison against the document's property census, not a parse of the key),
+  the **`query_source` group** (§6.2 — a `types` entry wearing the reserved
+  `type-` prefix whose tail is not a stored type key, a `types`-shaped entry
+  sitting in `properties` instead, a `properties` entry that is not a
+  writable stored key, and the group on a TYPE document, which states no
+  query at all; each mirrors the import seam refusal for refusal. What is
+  NOT checked here is which list an ordinary entry belongs in: a bare stored
+  key and a store id look alike to bytes, which is why `types` states the
+  derived id and only the prefixed direction is catchable — and neither
+  surface can know whether the document is a set, exactly as for `items`),
   and
   **inline-markup parsing** (§8) — grammar errors report the block's JSON
   path and the offending snippet. The indent bound [0, 32] lives in the
@@ -7455,6 +7594,46 @@ being true.
   key occurred in the four measured exports, so the residual is recorded
   here rather than paid for with a legend every document would carry for
   it. A document carrying the map is refused with the repair named (§10).
+
+- **#29 `query_source`** — settled: **a set states its query in a root
+  member with two typed lists, and the stored `setOf` key is refused in
+  `properties` on every kind** (§2, §6.2, §9, §11). The stored slot holds
+  type object ids AND property object ids — the platform's own v2 refusal
+  says so in its error text, three public RPCs write it from an unvalidated
+  client id list, and three separate readers resolve each entry by trying it
+  as a type and then as a relation — so a flat list of ids is two grammars
+  with no marker. Measured over the 79-bundle corpus: 175 documents carry
+  the key, 174 values in them, 136 already a derived type id and 38 bare
+  CIDs, of which 26 are PROPERTY objects (`lastModifiedDate` 16, `addedDate`
+  4, `isArchived` 2, `type` 2, `tag` 1, `createdDate` 1), 11 tombstoned
+  types and 1 a type document in its own bundle. Thirteen of the 26 already
+  contradict themselves inside one document — a dataview block spelling
+  `rel-lastModifiedDate` beside a `Set of` holding an opaque CID for that
+  same property — and before this change the codec passed a property target
+  through as a raw CID with both `Validate` and `bundle.Validate` silent.
+  Two lists rather than a prefix inside one, because the list a target sits
+  in IS the marker and needs no third form of a property: `types` states the
+  derived id `type-<internal_key>` (a type IS a document, and that is its
+  document's id), `properties` states the bare stored key (a property is NOT
+  a document — §15 #23 took them out of bundles — so there is nothing for an
+  address to address). The ROOT rather than `properties`, because inside the
+  property bag `propertyMap` accepts anything and the published schema can
+  say nothing about the value at all; on the root each list carries its own
+  element type and description, and a reader holding only the export and the
+  schemas can check both. The lift is UNCONDITIONAL — the format's first —
+  and that is measured, not stylistic: the population carrying `setOf` off a
+  type document is 174 sets plus one template, all queries, and the obvious
+  `type_internal_key == "set"` gate would miss the template and split the
+  population. Cost: one ordered stored list becomes two, so an interleaved
+  value comes back partitioned (§11) — 0 of 175 corpus documents are
+  multi-valued, and the partition converges in one generation. Migration is
+  a CLEAN BREAK, which the pre-release posture allows: a document written the
+  old way is refused with the repair named, no coexistence. What goes with
+  the change: `setOf`'s dictionary entry, which all 79 corpus bundles carry
+  today and none will, because no document spells the key any more — and
+  with it the "Set of" → "Query source" display-name rename, which is MOOT
+  once the property leaves documents, sparing a bundled-relation `revision`
+  bump and a space-by-space reviser pass.
 
 ### Deferred past 2.0
 

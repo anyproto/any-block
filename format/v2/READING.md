@@ -444,6 +444,18 @@ indent of 5.
   bundle at all: ship the definition, say the rows are not here, do not invent
   them. SPEC §6.2 has all seven shapes and which member says which.
 
+  The set's definition is its own top-level member, `query_source`, and it
+  is worth reading even though you cannot run it, because it says what the
+  set is FOR. Two lists: `types` names types, each as the derived id
+  `type-<internal_key>` — the id the type's own document in this bundle
+  carries, so you look it up by string equality — and `properties` names
+  properties by their bare stored key, which you resolve against the bundled
+  table first and this bundle's `properties.json` second. A type target
+  means "every object of this type"; a property target means "every object
+  that CARRIES this property", whatever its value; several targets combine
+  with OR. An empty `query_source` is a set that names no source, which is
+  not the same as no `query_source` at all.
+
   Getting this backwards is expensive in exactly the wrong direction. **90 of
   Community's 205 dataviews are collection-sourced, and 87 of those carry no
   filter in any view** — so "run the query" runs an unfiltered one and renders

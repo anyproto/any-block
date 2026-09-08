@@ -83,8 +83,13 @@ type jsonDoc struct {
 	OptionIds map[string]map[string]string `json:"option_ids"`
 	Blocks    []*jsonBlock                 `json:"blocks"`
 	Items     []string                     `json:"items"`
-	Store     map[string]any               `json:"store"`
-	Root      *jsonRootEscape              `json:"root"`
+	// QuerySource is the §6.2 group. A POINTER, because the member has
+	// three states and only a pointer distinguishes them: absent (this
+	// document states no query), present and empty (a query naming no
+	// source), populated (querysource.go).
+	QuerySource *jsonQuerySource `json:"query_source"`
+	Store       map[string]any   `json:"store"`
+	Root        *jsonRootEscape  `json:"root"`
 }
 
 // jsonPropertySettings is the decoded `property_settings` group (§2d). The
@@ -1003,6 +1008,9 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		return 0, nil, err
 	}
 	if err := imp.applyTypeSettings(details, sbType); err != nil {
+		return 0, nil, err
+	}
+	if err := imp.applyQuerySource(details, sbType); err != nil {
 		return 0, nil, err
 	}
 

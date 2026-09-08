@@ -99,6 +99,31 @@
       },
       "description": "The document's content, top to bottom, as one flat array. Nesting is the per-block `indent`. No ids — the app assigns them."
     },
+    "query_source": {
+      "type": "object",
+      "description": "Sets only (type \"Set\"): what the live query ranges over (SPEC \u00a76.2). Two lists, because a query source is two different things \u2014 a TYPE target matches every object OF that type, a PROPERTY target matches every object that CARRIES that property, whatever its value. Several targets combine with OR. An empty group (`{}`) is a set that states no query, which is a different thing from omitting the member; omit it on a document that is not a set.",
+      "properties": {
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Type targets, each written as the type's derived id `type-<internal_key>` (\"type-habit\" for a type document whose internal_key is \"habit\") or as its NFC display name (\"Habit\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC \u00a79)."
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\u0000-\u001f]+$"
+          },
+          "description": "Property targets, each written as the property's stored internal key, bare (\"lastModifiedDate\") \u2014 the same key `properties.json` states as `internal_key`. Bare and never prefixed: a bundle carries no property documents, so a property has no derived id. A key this bundle mints must be defined in properties.json."
+        }
+      },
+      "additionalProperties": false
+    },
     "items": {
       "type": "array",
       "items": {

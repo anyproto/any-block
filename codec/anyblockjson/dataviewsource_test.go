@@ -52,8 +52,11 @@ func dataviewBlockBranch(t *testing.T, schema map[string]any) map[string]any {
 	return nil
 }
 
-// sourceModelDescriptions returns the four members that carry the §6.2
-// source model, by their description text.
+// sourceModelDescriptions returns the five members that carry the §6.2
+// source model, by their description text. `query_source` joined them when
+// the query left `properties`: inside the property bag the schema could say
+// nothing about it at all (`$defs/propertyMap` accepts anything), which is
+// half the reason it was promoted.
 func sourceModelDescriptions(t *testing.T) map[string]string {
 	t.Helper()
 	object := decodedSchema(t, SchemaJSON())
@@ -69,17 +72,23 @@ func sourceModelDescriptions(t *testing.T) map[string]string {
 	require.True(t, ok, "the envelope declares `items`")
 	text, _ := items["description"].(string)
 	out["items"] = text
+	query, ok := schemaAt(t, object, "$defs", "querySource").(map[string]any)
+	require.True(t, ok, "the schema defines $defs/querySource")
+	text, _ = query["description"].(string)
+	out["query_source"] = text
 	return out
 }
 
 func TestDataviewSource_TheSchemaStatesWhereTheRecordsComeFrom(t *testing.T) {
 	docs := sourceModelDescriptions(t)
 
-	t.Run("all four are described at all", func(t *testing.T) {
+	t.Run("all five are described at all", func(t *testing.T) {
 		// `object_id`, `is_collection` and `source` were bare type nodes and
 		// `items` was `{"type":"array","items":{"type":"string"}}` — four
-		// members a reader must interpret and could not.
-		for _, member := range []string{"object_id", "is_collection", "source", "items"} {
+		// members a reader must interpret and could not. `query_source` was
+		// worse than undescribed: it was a value in the open property bag,
+		// where no description could attach to it.
+		for _, member := range []string{"object_id", "is_collection", "source", "items", "query_source"} {
 			assert.NotEmpty(t, strings.TrimSpace(docs[member]),
 				"%s carries no description, so the schema does not state the source model", member)
 		}
@@ -97,7 +106,7 @@ func TestDataviewSource_TheSchemaStatesWhereTheRecordsComeFrom(t *testing.T) {
 			// the three target kinds, and what absence means
 			"object_id": {
 				"the objects of that type",
-				"`Set of`",
+				"`query_source`",
 				"the target lists in its own `items`",
 				"THIS document is the source",
 				"_missing_object",
@@ -106,8 +115,15 @@ func TestDataviewSource_TheSchemaStatesWhereTheRecordsComeFrom(t *testing.T) {
 			"is_collection": {
 				"curated LIST",
 				"THIS document's `items`",
-				"`Set of`",
+				"`query_source`",
 				"decides nothing",
+			},
+			// the query the other members point at, and its three states
+			"query_source": {
+				"a TYPE target matches every object OF that type",
+				"CARRIES that property",
+				"combine with OR",
+				"THREE STATES",
 			},
 			// legacy, verbatim, output-only
 			"source": {

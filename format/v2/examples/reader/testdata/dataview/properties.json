@@ -9,11 +9,10 @@
       "format": "text"
     },
     {
-      "property": "Set of",
-      "internal_key": "setOf",
-      "name": "Set of",
-      "format": "objects",
-      "object_types": ["type-objectType"]
+      "property": "Last modified date",
+      "internal_key": "lastModifiedDate",
+      "name": "Last modified date",
+      "format": "date"
     }
   ]
 }
