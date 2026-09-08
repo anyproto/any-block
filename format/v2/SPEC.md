@@ -4995,13 +4995,14 @@ each rules out a weaker fix:
 - **It was a parsing obligation on every conforming reader, and defaulting
   it off did not discharge it.** Re-exporting the same 24,905 documents
   through the READ shape — every resolver wired, which is what a read
-  surface does — puts a caption on **90,555** references across 18 distinct
-  slots, block `object_id`s (19,504) and `Created in context` (9,767) and
-  `Recommended properties` (7,371) and filter values and `object_orders`
-  among them. A reader that had only ever met bare ids breaks the first day
-  one of those is emitted. Removing the grammar is the only choice that
-  actually ends the obligation, which is why it was removed rather than
-  defaulted off.
+  surface does — puts a caption on **105,600** references across 22 distinct
+  slots: block `object_id`s (19,504), `Created in context` (9,767), the four
+  recommended-property lists (7,431 + 5,368 + 5,239 + 2,420), `items`
+  (3,202), `Picture` (1,958), filter values (736), `object_orders` (295),
+  a table cell's target (8). A reader that had only ever met bare ids breaks
+  the first day one of those is emitted. Removing the grammar is the only
+  choice that actually ends the obligation, which is why it was removed
+  rather than defaulted off.
 
 **It is removed rather than refused, and that distinction is load-bearing.**
 A document carrying `id#name` in a reference slot is VALID: `#` is legal as
