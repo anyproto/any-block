@@ -5,6 +5,541 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **`OptionResolver`'s contract stops pairing one method with one
+  direction** (SPEC §13, `OptionResolver`). The interface summarised itself
+  as "maps option ids to names on export and names to ids on import", which
+  names `OptionName` as the export half — while `OptionName` is also the
+  liveness question every `option_ids` entry is checked against on IMPORT
+  (§3 step 1, `optionrefs.go`), and nothing else asks that question, so a
+  resolver stubbing it gives up the legend entirely. A consumer implementing
+  the frozen interface from §13 alone could read the summary and wire only
+  the export direction.
+
+  Both copies — the Go doc and §13's published block — now state, per method
+  and per direction, what is asked and what stubbing it costs. `OptionName`
+  has a duty on each side; `OptionId` has one, on import: name resolution,
+  §3's step 2, answering the FIRST id where two options of the property share
+  a name, which is one of the two losses `option_ids` exists to close. The
+  two costs are not symmetric and the text says so: no `OptionName` loses
+  both the written name and the whole legend, while no `OptionId` leaves
+  export untouched and drops import to the legend alone, every value it does
+  not cover falling through §3's step 3 for the wiring to create.
+
+  Scoped to what the code does. An earlier draft of this entry also
+  documented an EXPORT-side duty on `OptionId` — an existence test behind the
+  degraded-option avoid-set — and that call site went with the
+  option-degradation scheme; `grep -rn "\.OptionId(" --include='*.go' .`
+  now finds one production caller, `resolveOption` on the import path. The
+  two tests that pinned the export-side ask went with it, having no subject
+  left.
+
+- **§11 stops restating the verbatim rule §2d retired, and the two sections
+  cite ONE measured population** (SPEC §2d, §11). Commit a97ce35 replaced
+  §2d's "passes through **verbatim in both directions**" with the three steps
+  a legacy bare target type key actually takes, and pointed §2d at §11 — while
+  §11's own paragraph still said "export passes the key through verbatim (it
+  is no id the resolver serves)". Export does not: `relationformat.go` wraps
+  the target keys in `typeKeyRefs`, so `page` crosses as `type-page` under
+  every wiring including none at all, which the batch-2 test already asserted
+  for exactly this input. A reader landing in §11 first — which is where §2d
+  now sends them — got the retired rule back.
+
+  The pair also stated one population twice and disagreed about it: §2d "21
+  production entries", §11 "27 corpus relations" — different numbers in
+  different units for what reads as the same thing, and neither derivable
+  from the 24,905-document, 79-bundle corpus at out-57f4add, which carries no
+  property documents at all, because a bundle writes none (§15 #23). §11 now
+  cites §2d's figure in §2d's unit — 21 bare-key entries in
+  `relationFormatObjectTypes` beside 1,301 object ids, in the
+  38,061-document account sweep §2d names — and says outright that a bundle
+  corpus can never re-derive it. §2d says what the 21 are entries OF, and
+  states the no-resolver case exactly: the stored IDS pass through verbatim,
+  while a bare key still crosses as `type-<key>` and comes back that key.
+
+- **A second root in a table cell's array form is refused, where it used to
+  be admitted and then quietly reparented** (SPEC §6.1, `checkFlatRun`).
+  §6.1 defines the array form as one cell block at indent 0 followed by its
+  descendants. Validation checked the first element for an id and a
+  transparent type and then ran the ordinary flat-run rules, which let a
+  later element sit at indent 0 and start a fresh root — a shape import
+  cannot build. `flatSubtree` never pops its initial entry, so the second
+  root became a CHILD of the first, and the cell
+  `[{"type":"divider"},{"type":"paragraph","text":"KEEP_ME"}]` validated,
+  imported, and re-exported with the text gone and no warning; with a `row`
+  as the first element, `Marshal` succeeded and returned a document this
+  package's own `Validate` rejects. The refusal names the offending element
+  (`/blocks/0/rows/0/cells/0/1`), covers the omitted `indent` whose default
+  is 0, and is an error under `NormalizeIndent` too — clamping the second
+  root to indent 1 IS the silent reparenting, not a repair of it.
+
+  Corpus at out-57f4add: **0 of 24,905 documents newly fail** — the whole
+  corpus validates, imports and re-exports byte-identically before and
+  after. Re-derived, the reason is that no exported cell can hold this
+  shape: 26,951 cells across 1,473 tables in 981 documents, of which 26,669
+  are the string shorthand, 162 `null`, 120 a bare block object, and **0 the
+  array form**. This guards hand-authored and API input — heart's `set_cell`
+  puts its `value` straight into the table JSON and reimports it with
+  `UnmarshalBlock`, carrying no structural constraint of its own.
+
+- **An unknown block discriminator is refused or reported, never a silent
+  subtree delete** (SPEC §10, `blockToJSON`, `blockEmissionShape`). A block's
+  kind is decided by three stored discriminators — the content oneof, a
+  `layout` block's style, a file block's type — and the three disagreed about
+  a value this build has no name for. The oneof warned. A layout style did
+  not: `Layout{Style: 99}` wrapping a paragraph left `Marshal` returning
+  success, ZERO warnings, and a document with no `blocks` array at all, which
+  then re-validated `ok` — because a dropped block drops its subtree, and the
+  drop was unconditional. A file type was written out as `"type": "file"`,
+  stating a content kind the block does not have; the `file` spelling belongs
+  to the stored `None` and to nothing else. Both are §10's closed regime,
+  where the SPEC already said a content discriminator refuses the whole
+  document rather than misrepresent content.
+
+  All three now share one answer (`unmappedDiscriminator`): refuse, naming the
+  block, or — with an `OnWarning` sink, the read path — drop it and REPORT the
+  drop. The four named layout styles are enumerated where the default used to
+  stand, so `Div`/`Header`/`TableRows`/`TableColumns` drop exactly as before
+  (§7, §7a); the table preflight census follows the file rule too, or an
+  export is refused over the grid of a table it never writes. Nothing in the
+  corpus moves: all 24,905 documents at out-57f4add validate, import and
+  re-export byte-identically before and after — every one of their 17,013
+  file-family blocks and 1,814 row/column blocks carries a named
+  discriminator. What the fix buys is the day heart adds one that is not.
+
+- **The full-format example carries an installed bundled type, and the
+  full-format validator runs on it** (`format/v2/examples/exported_space`,
+  `bundle/exportedspaceexample_test.go`, READING.md). The example a reader is
+  shown first held one type document, a custom one, and nothing ran
+  `bundle.Validate` over the bundle at all — so the tree contained no instance
+  of the shape 1,650 of the corpus's 1,808 type documents have, and a
+  validator that refused all 79 real exports reached a freeze with a green
+  suite. The space's installed Page type (`internal_key: "page"`,
+  `Name: "Page"`) now stands beside the custom Field note, `bundle.Validate`
+  runs on the example, and a second test asserts the shape is still there so
+  the first cannot pass vacuously once someone tidies the type away. A third
+  asserts the other side of the split: the same bytes are an export, so
+  `bundle.ValidateAuthoring` refuses them. The reader example's census moves
+  from 4 documents to 5.
+
+- **Whole-bundle validation stops applying an authoring rule to exports**
+  (SPEC §2c, §2g, §13, `bundle.Validate`, `bundle.ValidateAuthoring`,
+  `PlanAuthoringTypeVocabulary`). `bundle.Validate` planned every bundle's
+  type declarations under the AUTHORING rule, which refuses a declaration
+  that takes a bundled stored key or a bundled/duplicated caption. An export
+  writes exactly that shape and means the opposite by it: an `object_type`
+  document keyed `task` and named `Task` is the space's INSTALLED Task, not a
+  proposal to shadow it, and two of a space's own types may carry one caption
+  because the app lets a user make both. Re-derived on the 24,905-document,
+  79-bundle corpus at out-57f4add: **all 79 bundles were refused**, on 1,650
+  installed bundled types spread across every one of them, 12 caption
+  collisions across 6 (Recipe ×3 — one with a trailing space — plus Page,
+  Goal, and a Space that folds onto two bundled keys at once), and 2 same-caption
+  custom types in 1 — and the refusals sorted FIRST, so the line a reader met
+  before any real defect was `stored type key "task" conflicts with bundled
+  type key "task"`, which is not a defect at all.
+
+  The rule is not deleted, it is placed. `bundle.Validate` now plans the
+  namespace as INSTALLED: every declaration is admitted whatever it is keyed,
+  and EVERY claimant of a contested caption is recorded, so the spelling has
+  several answers rather than one and the refusal lands where the format
+  already puts it — at the slot that has to RESOLVE the caption, which names
+  the slot and says how many types claim the word. An exported document never
+  reaches it, because `type_internal_key` stands beside every spelling (§2).
+  The five dependent type slots stay guarded, each now reporting its own JSON
+  pointer instead of the type document's. The new `bundle.ValidateAuthoring`
+  keeps the strict plan, together with the per-document authoring subset: an
+  author writes SPELLINGS, so a declaration keyed `task` captures every
+  dependent `"type": "Task"` written for the built-in — silently, since the
+  spelling then resolves to one key with no ambiguity left to refuse — and
+  refusing the declaration is the only place that is visible. Which surface a
+  bundle is on is not readable from its bytes and is stated by the caller,
+  the way `NoDerivedTypeIds` is (§9).
+
+  **Measured, both directions.** Corpus validation goes from **0 of 79
+  bundles passing to 17**, and **0 bundles newly fail**; all 62 that still
+  fail do so on the dangling `entrypoint`/`homepage`/widget targets (61) and
+  dangling `type-<key>` references (9) they already carried, and on nothing
+  else. Exactly one issue LINE is new corpus-wide, in a bundle that fails
+  either way and whose issue count is unchanged at 118: with the plan no
+  longer failing first, the property half of it runs, and it refuses a type
+  entry that states `{"property": "Tag", "internal_key": "tag"}` in a space
+  where a second live property is also named "Tag" — telling it to "state
+  internal_key", which it does. That is a real, separate defect (an entry's
+  own `internal_key` is ignored whenever its `property` spelling is
+  contested, in the binding pass as much as in the plan) and it is left where
+  it stands: fixing it is a change to how the codec resolves a type
+  declaration, owed its own corpus verification. **Not a tightening**: per-document conformance is
+  untouched — `Validate`, `Unmarshal` and every warning over all 24,905
+  documents hash byte-identically before and after
+  (`b1fd1827a1319fe0a8b1f5a5463514c8269c09402b48e616dcfe0f9fd261f3bd`).
+
+  `bundle.ValidateAuthoring` deliberately does not run the index and
+  dictionary subset SCHEMAS over their files: `authoring/index.schema.json`
+  forbids `manifest`, while §2c blesses a manifest in an authored bundle in
+  as many words. Which of the two gives is its own question, and refusing a
+  bundle the SPEC calls legal is the defect this change exists to stop
+  making, not one to commit somewhere else.
+
+- **One stored type key, one type document — the unnamed shell included**
+  (SPEC §2c, `bundle.Validate`).
+  A type document's address is a pure function of its key,
+  `type-<internal_key>` (§9), so two type documents sharing an
+  `internal_key` are two definitions of one identity: they canonicalize to
+  the same id, `BuildPlan` files them under the same path, and composition
+  keeps whichever it planned last. Nothing refused them. Document
+  uniqueness is checked by ENVELOPE id, and the two documents have
+  different raw ids until they canonicalize; the authoring vocabulary owns
+  a key only for a type that declares a display `Name`, and it skips a type
+  document without one *before* it records any ownership at all. An
+  object-type SHELL with no `Name` is a legal exported shape — **12 across
+  the corpus's 1,808 type documents** — so naming it is not the repair.
+
+  `bundle.Validate` now owns the stored type key per type DOCUMENT PATH,
+  independently of the display-name planner, and refuses a bundle where two
+  claim one key, naming every path that claims it: the repair is a choice
+  between them, so the reader is shown the candidates. Reported after the
+  walk over sorted keys, so the diagnostic does not depend on filesystem
+  order. §2c states the rule, because no schema can compare two files and a
+  consumer holding only the export and the schemas could not derive it.
+
+  A TIGHTENING, measured before shipping: **0 of 24,905 corpus documents
+  and 0 of 79 corpus bundles newly fail**. Re-derived over out-57f4add: all
+  1,808 type documents are `kind: "object_type"`, they carry **178 distinct
+  internal keys**, and **no bundle has two type documents sharing one**.
+  Sweeping both surfaces before and after the change gives byte-identical
+  verdicts — 25,063 document-level subjects and all 79 bundle-level ones —
+  and the new diagnostic fires **0 times** on the corpus.
+
+- **No two bundle entries may fold together, and the design stops arguing
+  case-safety for a population it never counted** (SPEC §2c,
+  `bundle/DESIGN.md`).
+  A bundle is extracted onto whatever filesystem the reader has, and APFS
+  and NTFS fold case. Two entries that collapse under NFC + case folding are
+  two documents and one file: the second write wins, the first document's
+  bytes are gone, and the survivor still validates, because document
+  uniqueness is checked by envelope id and nothing counts paths. §2c now
+  states the rule — **no two entries in one bundle may be equal after NFC
+  normalization and Unicode case folding**, across documents, `index.json`,
+  the dictionary and every `manifest.files` blob, path COMPONENTS included
+  so directory aliases and file/directory conflicts are collisions too.
+
+  `DESIGN.md` argued path safety from **two** id populations and gave each
+  its own case argument. Filename stems are ENVELOPE ids, and the §9 folds
+  make **three**: re-derived over the corpus this release was cut against
+  (79 bundles, 24,905 documents, out-57f4add) — **20,578 lowercase-base32
+  CIDs** of 59 characters, **2,519 `participant-<identity>`** stems of 60,
+  and **1,808 `type-<internal_key>`** stems of 8 to 29. The third had no
+  case argument anywhere, and it is the one that needs one: a stored type
+  key may carry uppercase for an ordinary reason (`typeKeyFoldable` admits
+  `[A-Za-z0-9_]`; the shipped table itself ships `chatDerived`,
+  `objectType`, `relationOption`, `spaceView` — 4 of the corpus's 178
+  distinct keys, 316 documents), so `type-Recipe` beside `type-recipe` is
+  ordinary, not astronomical. The section now counts three and argues each.
+
+  **2.0 states this rule and does not enforce it**, and §2c says so rather
+  than leaving a reader to credit `bundle.Validate` with a census it does
+  not run. The two halves are on different clocks: the RULE removes bundles
+  from the legal set, so it had to be stated before the freeze; the CENSUS
+  refuses only what the rule already forbids and can land in any later
+  patch. A test pins the gap and must be inverted in the commit that closes
+  it.
+
+  A TIGHTENING, measured before shipping: **0 of 24,905 corpus documents
+  newly fail** — nothing enforces the rule yet, and nothing would if it
+  did: **0 case/NFC-fold collisions across all 79 bundles and their 25,063
+  entries**, **0 entries that are not already NFC**, and **0 type keys
+  anywhere in the corpus that differ only by case**. Which is the whole
+  argument for stating it now: free today, and paid for in real exports if
+  it waits.
+
+- **A bare account identity is a participant's address, so no other
+  document may wear one** (SPEC §9, `object.schema.json`,
+  `authoring/object.schema.json`, `reservedIdViolation`).
+  A participant is read under two spellings — `participant-<identity>` and
+  the bare `<identity>` documents written before the prefix used — and
+  `participantRefIdentity` classifies both by the identity's own CRC16, so
+  an object reference spelled either way rebuilds into
+  `_participant_<spaceId>_<identity>`. The envelope `id` was not held to
+  that: a page whose `id` was a checksum-valid identity validated, its own
+  self-link validated, and under `Options{SpaceId: …}` the id stayed put
+  while the link left for the participant. The page was addressable by
+  nothing that named it.
+
+  The reservation now covers the bare spelling beside the two prefixes: an
+  envelope id that classifies as an account identity belongs to a
+  participant document, and on any other kind is refused at `/id` by
+  `Validate`, by `ValidateAuthoring` and by `bundle.Validate`, and refused
+  by `Marshal` rather than written (§11 I1). A participant document still
+  READS its legacy bare id; export still writes the prefixed form. Unlike
+  the two prefixes, this half cannot be delegated to the published grammar
+  — the classifier is a CRC16 over a base58 payload — so both schemas state
+  it in the description of `id` and say that the reader enforces it.
+
+  A TIGHTENING, and measured before shipping: **0 of 24,905 corpus
+  documents (79 bundles, out-57f4add) newly fail**, because **0 carry a
+  bare account identity as their envelope id** — every envelope id in the
+  corpus is a CID (20,578), `participant-<identity>` (2,519) or
+  `type-<internal_key>` (1,808), and none is absent. The
+  full document sweep is byte-identical before and after across all 25,063
+  validated subjects (24,905 documents, 79 indexes, 79 dictionaries).
+
+- **A manifest-bound `.json` path is an attachment, and the reading guide
+  stops sending consumers into one** (`format/v2/READING.md`).
+  Step 2 told consumers to read every `.json` file that is not `index.json`
+  and not the dictionary. `manifest.files` maps a file object's id to the path
+  holding that file's BYTES, and those bytes can themselves be JSON, which the
+  extension cannot distinguish from a document. The format's own validator
+  agrees: it collects every manifest-bound path and skips it *before* it looks
+  for documents by extension. So a bundle whose
+  `manifest.files["file-json"] = "attachments/data.json"` holds `[1,2,3]`
+  passes `bundle.Validate`, and a consumer following the guide chokes on it.
+
+  Step 2 now says the manifest is the authority and the suffix is not, and —
+  while it is true — warns that the shipped example reader has not caught up:
+  on that bundle it exits with `attachments/data.json: json: cannot unmarshal
+  array into Go value of type main.document`. Repairing the example is a code
+  fix (F055/F056's batch); the guide had to stop being wrong first.
+
+  Prose only; no schema, no code, no behaviour change, and **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**. No corpus
+  bundle exercises the hazard — all **79 carry no `manifest.files` member at
+  all**, the metadata-only mode of §2c — but **12 of the corpus's file objects
+  carry the `json` extension**, so a FAT export of one of those spaces
+  produces it.
+
+- **The link-destination bound says what it counts, and the docs stop
+  promising a byte-stability the two surfaces do not have**
+  (SPEC §8.2, `format/v2/INLINE_MARKUP.md`).
+  "2048 UTF-16 code units" never said *of what* — the escaped spelling, the
+  decoded destination, or the source code points — and the two surfaces
+  answer differently. The parser bounds the destination **as spelled**, in
+  Unicode **code points** (escape backslashes counted, the angle form's `<`
+  inside the count so only 2047 fit between the delimiters). Export bounds
+  the **decoded** destination in **UTF-16 code units**, before escaping.
+
+  The reading rule is now stated on the spelling, which is what a reader can
+  apply to the bytes in front of it with nothing decoded first, and the
+  export measurement is recorded as the defect it is, with the two cases
+  where the answers differ:
+
+  - a 2048-unit destination containing one `&` escapes to a 2049-code-point
+    spelling; export emits it and the parser refuses it, so `[click](…)`
+    comes back as prose with the link gone, the caption swallowed and the
+    escapes resolved — the bytes do not survive either;
+  - a destination of 1,019 astral characters after a 13-character prefix is
+    1,032 code points but 2,051 UTF-16 units, so export drops the mark while
+    a hand-written document spelling it IS read as a link.
+
+  Prose only; no schema, no code, no behaviour change, and **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**. Nothing
+  measured is near either number: the longest of **40,694 link destination
+  spellings** in the corpus is **443 code points**, and none exceeds 2048
+  under either count. Repairing export — measuring the spelling it is about
+  to write — is a later code fix; it drops marks it currently emits and
+  invalidates no conformant document, so it does not block the freeze.
+
+- **A filter group with no live children is dropped, and the drop is not a
+  no-op** (SPEC §6.2, `codec/anyblockjson/dataview.go` comment).
+  §6.2 listed such a group among the "contentless filter nodes ... [that] are
+  no-ops and are dropped on export", and the exporter's own comment said the
+  same. The drop is real; the no-op is not. Heart's query engine reads an
+  empty `FiltersAnd` and an empty `FiltersOr` alike as **TRUE**
+  (`pkg/lib/database/filter.go`: the AND's loop over nothing returns true, the
+  OR returns true for `len == 0`), so under an enclosing OR the branch matches
+  everything and deleting it narrows the view to its siblings.
+  `OR(AND[], Done == true)` round-trips to `OR(Done == true)`: a view that
+  matched every object comes back matching only the done ones.
+
+  §6.2 now says what the drop does, keeps the "no-op" word for the two cases
+  that earn it (a leaf carrying at most an id, a sort with no property key —
+  the engine skips both), and says why the repair is not a narrowing of the
+  document: an empty group is a shape 2.0 accepts, `filters` carries no
+  `minItems` deliberately, and the fix belongs in the simplifier, which has to
+  read the enclosing operator before deleting a true branch.
+
+  Prose and one code comment; no schema, no behaviour change. **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**, and none carries
+  the shape: **0 of the 18 filter groups in the corpus is empty**. The new
+  regression is also the only test in the suite that fails when `minItems: 1`
+  is added to `$defs/filterNode` — the wrong repair, which would invalidate
+  documents this version accepts.
+
+- **A legacy bare target type key is respelled, not passed through, and §2d
+  says so** (SPEC §2d).
+  §2d promised that a bare type key a legacy import stored directly in
+  `relationFormatObjectTypes` "passes through **verbatim in both
+  directions**"; §11 described the identical stored value as a normalization
+  — it "comes back as this space's type object id". A reader implementing §2d
+  keeps a key where the importer stores an id, and a round-trip verifier
+  following §2d reports the documented normalization as data loss.
+
+  §11 is right, and neither direction is verbatim. Measured on the stored
+  value `["page"]`: canonical export writes `["type-page"]`, the key's
+  derived reference (§9), under every resolver state — so the export
+  direction is a respelling too — and import stores `typeidpage` when the
+  `TypeResolver` capability answers for `page`, `page` when no resolver can.
+  §2d now states those three steps and points at §11 instead of contradicting
+  it.
+
+  Prose only; no schema, no code, no behaviour change, and **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**.
+
+- **The option shorthand has one criterion, and it is all three members**
+  (SPEC §2a, §2f).
+  §2a made the bare option name canonical "whenever the option declares no
+  color" — in the same table cell that admits `internal_key` and `api_key`
+  and says export states each where the store holds one. Implemented
+  literally, that rule canonicalizes a colorless option carrying a stored key
+  down to its bare name, erasing the option's stored identity and the
+  spelling its API callers address it by; neither is derivable from the name,
+  and no restore mints either. §2f stated a second, closer criterion
+  ("neither a color nor a stored key") that still omitted `api_key`, and its
+  option-member inventory listed three members where the shape admits four.
+
+  One serializer writes both homes (`checkedPropertyOptions`) and its
+  criterion is **all three**: a bare name only when `color`, `internal_key`
+  and `api_key` are all absent, an object stating every member otherwise.
+  Both sections now say that, and §2f's inventory lists `api_key`.
+
+  Prose only; no schema, no code, no behaviour change. The schema already
+  admitted all four members (`$defs/vocabularyOption`), so **0 of 24,905
+  corpus documents (79 bundles, out-57f4add) change verdict**. What the
+  retired §2a rule would have cost, measured on the same corpus: of **2,490
+  option entries across the 79 property dictionaries, every one is an
+  object** and 2,461 carry a color — the **29 colorless ones would each have
+  been stripped to a bare name**, losing 29 stored keys and 5 api keys.
+
+- **An absent `format` is not a declaration of `text`, and §2a stops saying
+  it is** (SPEC §2a).
+  §2a said the `property_definitions` entry's `format` "defaults to `text`
+  when absent on input"; §3 said of the SAME slot that an absent format "is
+  NOT a declaration of `text`" and resolves through the chain. Two rules, one
+  slot, and an implementer who read §2a first pins a bundled DATE property to
+  text and its filters stop being dates.
+
+  The runtime settles it and §3 was right: `declaredFormatWith` runs the §3
+  chain for an empty name — the bundled table, then the caller's resolver —
+  and reaches `longtext` only where nothing answers. Both doors into the
+  array do it, the document and `BuildRecommendedLists`.
+  `{"property": "due_date"}` resolves to `date` through each.
+
+  Prose only; no schema, no code, no behaviour change. `Validate` is
+  untouched, so **0 of 24,905 corpus documents (79 bundles, out-57f4add)
+  change verdict**. The sentence had no corpus incidence to begin with:
+  canonical export always writes a format, and **all 20,458
+  `property_definitions` entries in the corpus carry one** — an absent
+  `format` only ever arrives from a hand-written document, which is exactly
+  the population the wrong sentence addressed.
+
+- **The icon colour's raw-number escape is bounded, and the exporter checks
+  the bound before it narrows** (`object.schema.json`,
+  `codec/anyblockjson/iconcover.go`, SPEC §2b, §11).
+  `{"icon": {"format": "color", "color": 1e20}}` is now refused at
+  `/icon/color`.
+
+  The schema admitted any integer ≥ 1 with no upper bound, and the exporter
+  then narrowed the stored float64 to int64 before choosing the palette or
+  the raw-number branch — a conversion Go leaves **implementation-defined**
+  outside the int64 range. Measured on the same accepted document:
+  darwin/arm64 saturated to MaxInt64 and `Marshal` refused the object,
+  darwin/amd64 went to MinInt64, fell through the "not a colour" arm, and
+  exported the object SUCCESSFULLY with the icon gone. One document, two
+  architectures, two answers, neither of them the value.
+
+  **The bound is 2^53-1**, the same number `size` already carries: at or
+  below it every integer is a float64 exactly and its decimal literal denotes
+  that float, so the value survives the numeric transport policy in both
+  directions. Above it the codec was already partial well below int64 —
+  `4611686018427388000` passed `Validate` and `Unmarshal` and then failed
+  `Marshal` on the exporter's own output.
+
+  The exporter enforces the same number on the way out, range-checking the
+  stored float BEFORE the narrowing exactly as `formatDateValue` does, and
+  **dropping** a value above it with a warning rather than refusing the
+  object: `Marshal` must never emit what `Validate` rejects (§11, I1), and
+  one stored number a generator got wrong must not make an object
+  unexportable (§12).
+
+  `iconColor` also stops being a `oneOf`. §12's one-fault-one-issue rule
+  governs every discriminated union in this schema, and this one was the
+  leftover: a wrong number reported the palette enum beside the range
+  verdict, and `12.5` was told to be `"grey"`. As a type dispatch each of
+  those is one issue, and the right one.
+
+  **Corpus:** 0 of 25,063 files (24,905 documents, 79 `index.json`, 79
+  `properties.json`; 79 bundles, out-57f4add) newly fail. Every numeric
+  colour in the corpus is on the INDEX surface — 12, 13 and 15, in six
+  `index.json` files, all inside the bound — and `index.json`'s `icon` is a
+  `$ref` into this same definition (§2c), so the bound reaches it without a
+  second copy. No object document in the corpus carries a numeric colour at
+  all.
+
+- **`added_at` states its grammar, and a date the calendar refuses is an
+  error rather than a zero** (`object.schema.json`,
+  `codec/anyblockjson/validate.go`, SPEC §5, §12).
+  `{"type": "file", "object_id": "f", "added_at": "2026-02-30T12:00:00Z"}` is
+  now refused at `/blocks/0/added_at`.
+
+  The member was typed `{"type": "string"}` and nothing else, so a date that
+  does not exist — and a locale-formatted one, `07/09/2026` — validated,
+  imported with **zero warnings**, and re-exported with the member gone.
+  `BlockContentFile.AddedAt` is an int64 of unix seconds; `fileFromJSON`
+  assigned nothing when `parseDate` refused and had no refusal branch, so
+  there is no preserving reading to fall back to.
+
+  **The grammar is §3's, not a third convention.** The schema carries a
+  `pattern` for the shape — four-digit year (the whole range a unix second
+  can be written back out in), months 01-12, days 01-31, an optional RFC 3339
+  time with `T`/`Z` upper case, fractional seconds, and an offset — and the
+  reader's semantic pass asks the calendar, which no regular expression can:
+  `2026-02-30`, `2026-04-31` and a leap day in a non-leap year all satisfy
+  every character class. The predicate is the importer's own `parseDate`, so
+  `Validate` and `Unmarshal` cannot disagree (§12, I2). An empty string goes
+  with them: an absent timestamp is stated by leaving the member out.
+
+  The schema's own `pattern` verdict renders as the expression, and `added_at`
+  is the one slot in this schema whose pattern an author writes by hand, so
+  it is re-worded where it is raised.
+
+  **Corpus:** 0 of 24,905 documents (79 bundles, out-57f4add) newly fail. All
+  9,301 `added_at` values in it are the full UTC form export writes, and all
+  9,301 parse.
+
+- **An embed's `url` is a service-processor input alias, and never sits beside
+  `text`** (`object.schema.json`, `codec/anyblockjson/validate.go`, SPEC §5,
+  §5.2). `{"type": "embed", "processor": "mermaid", "url": "graph TD; A-->B"}`
+  is now a validation error at `/blocks/0/url`.
+
+  It used to validate, import with **zero warnings**, and re-export as
+  `{"type": "embed", "processor": "mermaid"}` — a successful round trip that
+  lost the diagram. There is no code fix: `BlockContentLatex` has exactly two
+  fields, `Text` and `Processor`, so a renderer's source written under `url`
+  has no slot to be stored in, and §5.2 already said `url` was an alias for
+  the URL a SERVICE processor embeds. The schema said otherwise — one branch
+  admitted `url` for every processor, the omitted default (`latex`) included.
+
+  **Both halves of the rule are now in the published schema**, so a reader
+  holding only the export and the schemas reaches the same verdict: `url` is
+  admissible only when `processor` is present and is not one of the seven
+  renderers, and a block stating `text` and `url` together is refused rather
+  than having one of them dropped (import keeps `text`, so the second URL in
+  a document carrying two disappeared silently).
+
+  The schema's own verdicts — `property "url" is not allowed` and a bare
+  `'not' failed` — both point at deleting a member, and on an embed the
+  member IS the block, so `embedSourceSlotIssues` words them the way
+  `propertyNameIssues` and `derivedIdSlotIssue` word theirs: *rename it to
+  `text` and keep its value*. It judges the same condition the schema does,
+  at every position a block can occupy, cells included, and the renderer set
+  is derived from the importer's own `sourceProcessors` rather than restated.
+  A branch of an `anyOf` whose every leaf another pass spoke for no longer
+  merges into a verdict about the instance's SHAPE — a table cell holding
+  such an embed was reported as `got object, want string, null, array`.
+
+  **Corpus:** 0 of 24,905 documents (79 bundles, out-57f4add) newly fail. No
+  export has ever written `url` on an embed — export writes `text`, always —
+  and none of the corpus's 160 embed blocks carries one.
+
 - **A query states its source on the ROOT, in two typed lists, and the stored
   `setOf` key is refused in `properties` on every kind** (`codec/anyblockjson/querysource.go`,
   `object.schema.json` + its authoring subset, SPEC §2/§6.2/§9/§11/§15 #29,

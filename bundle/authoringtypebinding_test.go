@@ -32,12 +32,17 @@ func TestBundleValidationPlansCustomTypesBeforeDependentDocuments(t *testing.T) 
 	}
 	require.NoError(t, Validate(allSlots), "one planned vocabulary must serve every dependent bundle slot")
 
+	// A caption two live types claim is not refused when it is DECLARED — a
+	// space may hold both, and this is the full format (§2g). It is refused
+	// at the slot that has to resolve it, which names the slot rather than
+	// the declaration.
 	var want string
 	for i := 0; i < 100; i++ {
 		err := Validate(authoringTypeBundle("Task", "custom_task", "Task"))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "/properties/Name")
-		assert.Contains(t, err.Error(), "bundled type")
+		assert.Contains(t, err.Error(), "objects/o1.json: type binding:")
+		assert.Contains(t, err.Error(),
+			`/type: the spelling "Task" names 2 live types in this space`)
 		if i == 0 {
 			want = err.Error()
 		} else {
@@ -46,36 +51,44 @@ func TestBundleValidationPlansCustomTypesBeforeDependentDocuments(t *testing.T) 
 	}
 }
 
-func TestBundledTypeCollisionIsRejectedForEveryDependentTypeSlot(t *testing.T) {
+// Every slot that spells a type by name refuses a contested caption, and the
+// refusal names the SLOT — the reader has to know which of the five it was.
+func TestContestedTypeCaptionIsRefusedAtEveryDependentTypeSlot(t *testing.T) {
 	dependents := map[string]struct {
-		path string
-		data []byte
-		dict []byte
+		path    string
+		data    []byte
+		dict    []byte
+		pointer string
 	}{
 		"type": {
 			"objects/dependent.json",
 			[]byte(`{"formatVersion":"2.0","id":"dependent","type":"Task"}`),
 			nil,
+			"/type",
 		},
 		"template_for": {
 			"objects/dependent.json",
 			[]byte(`{"formatVersion":"2.0","kind":"template","id":"dependent","type":"template","template_for":"Task"}`),
 			nil,
+			"/template_for",
 		},
 		"property definition object_types": {
 			"objects/dependent.json",
 			[]byte(`{"formatVersion":"2.0","kind":"object_type","id":"dependent","internal_key":"host","properties":{"Name":"Host"},"type_settings":{"layout":"basic","property_definitions":[{"internal_key":"related","name":"Related","format":"objects","object_types":["Task"]}]}}`),
 			[]byte(`{"formatVersion":"2.0","properties":[{"property":"related","internal_key":"related","format":"objects"}]}`),
+			"/type_settings/property_definitions/0/object_types/0",
 		},
 		"property settings object_types": {
 			"objects/dependent.json",
 			[]byte(`{"formatVersion":"2.0","kind":"property","id":"dependent","internal_key":"related","property_settings":{"format":"objects","object_types":["Task"]}}`),
 			[]byte(`{"formatVersion":"2.0","properties":[{"property":"related","internal_key":"related","format":"objects"}]}`),
+			"/property_settings/object_types/0",
 		},
 		"dictionary object_types": {
 			"objects/dependent.json",
 			[]byte(`{"formatVersion":"2.0","id":"dependent","type":"Page"}`),
 			[]byte(`{"formatVersion":"2.0","properties":[{"property":"related","internal_key":"related","format":"objects","object_types":["Task"]}]}`),
+			"/properties/0/object_types/0",
 		},
 	}
 	for name, dependent := range dependents {
@@ -91,7 +104,8 @@ func TestBundledTypeCollisionIsRejectedForEveryDependentTypeSlot(t *testing.T) {
 				}
 				err := Validate(fsys)
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "conflicts with bundled type")
+				assert.Contains(t, err.Error(), dependent.pointer+
+					`: the spelling "Task" names 2 live types in this space`)
 			}
 		})
 	}

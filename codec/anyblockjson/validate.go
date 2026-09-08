@@ -253,6 +253,12 @@ func validateToDocInScope(data []byte, lenient bool, warn func(Issue), scope val
 	// that the remainder is this document's own internal_key, no schema can
 	// state at all. One fault, one issue, worded by the pass that knows both.
 	derivedIdSlotIssue(doc, &spoken)
+	// the embed source slot (§5.2), the fourth: the schema refuses a `url`
+	// on a renderer embed and refuses `text` beside it on a service one, but
+	// says only "not allowed" and "'not' failed" — and on an embed the
+	// member IS the block, so both verdicts point at deleting the one thing
+	// it holds.
+	embedSourceSlotIssues(doc, &spoken)
 	if err := sch.Validate(doc); err != nil {
 		return nil, &ValidationError{Issues: append(spoken.issues, schemaIssues(err, spoken)...)}
 	}
@@ -703,6 +709,14 @@ func branchLeaves(e *jsonschema.ValidationError, printer *message.Printer, spoke
 		// a branch that failed only on the instance's own type is a branch
 		// the instance was never a candidate for
 		types := branchTypeErrors(c)
+		// a branch that failed and left NO leaf at all is one another pass
+		// spoke for, at its own pointer. Merging the alternatives now would
+		// say the instance has the wrong SHAPE — a table cell holding an
+		// embed reported as `got object, want string, null, array` — when
+		// what is wrong is one member of it, already on the page.
+		if len(leaves) == 0 && len(types) == 0 {
+			return nil
+		}
 		if len(types) == len(leaves) && allAt(leaves, at) {
 			inapplicable = append(inapplicable, types...)
 			continue
@@ -952,6 +966,21 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 			}
 		}
 	}
+	// a `pattern` verdict renders as the expression itself, which is the
+	// shipped statement of the rule but not a repair. `added_at` is the one
+	// slot in this schema that carries a pattern the AUTHOR writes by hand —
+	// every other one bounds an id or a key the app mints — and a reader
+	// told only `does not match '^[0-9]{4}-(0[1-9]|1[0-2])-…'` has to read a
+	// regular expression to learn that RFC 3339 was wanted.
+	if k, isPattern := e.ErrorKind.(*kind.Pattern); isPattern {
+		if toks := e.InstanceLocation; len(toks) > 0 && toks[len(toks)-1] == "added_at" {
+			return fmt.Sprintf("added_at %q is not an RFC 3339 timestamp: write the full UTC "+
+				"form, \"2026-07-06T15:04:05Z\", which is what export writes; an offset form, "+
+				"\"2026-07-06T17:04:05+02:00\"; or the bare date \"2026-07-06\", which means UTC "+
+				"midnight (§3, §5). The year is four digits, `T` and `Z` are upper case, and "+
+				"an absent timestamp is stated by leaving the member out, not by writing \"\"", k.Got)
+		}
+	}
 	return e.ErrorKind.LocalizedString(printer)
 }
 
@@ -1006,6 +1035,11 @@ func unknownPropertyMessage(prop string) string {
 		return `property "children" is not allowed — the flat format has no children; nest with indent instead`
 	case "refs":
 		return `property "refs" is not allowed — the object-reference legend was removed: every object id is now written in full, on every shape, with no legend. This document was written by an older exporter; replace each short label it uses with the id "refs" maps that label to, then drop "refs". Dropping it alone leaves labels that address nothing`
+	case "url":
+		// reached where the walked positions do not: a `url` on a block type
+		// that has none, or on the envelope. The embed positions are worded
+		// by embedSourceSlotIssues, which knows the processor
+		return `property "url" is not allowed here — a url is carried by a bookmark block, and by an embed block whose processor is a SERVICE processor (youtube, figma, spotify, …), where it is an input alias for the block's "text". A renderer embed (latex, mermaid, chart, graphviz, kroki, excalidraw, drawio) carries its source in "text" instead`
 	case memberTypeInternalKeys:
 		return `property "type_internal_keys" is not allowed — the type legend was retired (§2, §15 #28): an object has exactly one type, so the stored key of "type" is the scalar "type_internal_key" beside it, written on every typed document; a template's target and every object_types entry are the type's derived id, type-<internal_key> (§9), and need no legend. This document was written by an older exporter; write "type_internal_key": "<the key the map bound the type spelling to>" and drop the map`
 	}
@@ -1036,6 +1070,101 @@ func derivedIdSlotIssue(doc map[string]any, r *keySlotReport) {
 		return
 	}
 	r.rejectValueAt("/id", msg)
+}
+
+// embedRendererProcessors is sourceProcessors written in the format's own
+// spelling: the embed processors whose payload is SOURCE CODE and so has no
+// reading as a URL (§5.2). Derived from the one map the importer reads rather
+// than restated beside it, so the alias rule cannot come to mean two things;
+// TestEmbedRendererProcessorsMatchTheSchema pins it to the schema's own list.
+var embedRendererProcessors = func() map[string]bool {
+	out := make(map[string]bool, len(sourceProcessors))
+	for p := range sourceProcessors {
+		out[processorNames.name(p)] = true
+	}
+	return out
+}()
+
+// embedSourceSlotIssues words the two refusals the `url` input alias carries
+// (§5.2), for the same trade propertyNameIssues and derivedIdSlotIssue make:
+// the rule stays in the published schema — an external validator runs that
+// and nothing else (§12) — and is restated here because the schema's own
+// verdicts are `property "url" is not allowed` and a bare `'not' failed`.
+// Both point at deleting a member, and on an embed the member IS the block:
+// a mermaid embed whose source was written under `url` validated, imported
+// with no warning, and came back out as `{"type":"embed","processor":
+// "mermaid"}` with the diagram gone, because BlockContentLatex has one text
+// slot and nothing put the url in it. The refusal exists to stop that, so it
+// has to say "rename it", not "drop it".
+//
+// It fires exactly where the schema refuses, which is what lets it silence
+// the schema there: an absent `processor` means `latex` and so refuses the
+// alias; a processor that is present but not a renderer name — including a
+// misspelling the enum will refuse on its own line — takes the alias, and
+// refuses `text` beside it.
+func embedSourceSlotIssues(doc map[string]any, r *keySlotReport) {
+	check := func(block map[string]any, path string) {
+		if typ, _ := block["type"].(string); typ != "embed" && typ != "equation" {
+			return
+		}
+		if _, hasURL := block["url"]; !hasURL {
+			return
+		}
+		raw, stated := block["processor"]
+		name, isName := raw.(string)
+		if !stated || (isName && embedRendererProcessors[name]) {
+			spelled := "with no `processor`, which means `latex`,"
+			if stated {
+				spelled = fmt.Sprintf("whose processor is `%s`", name)
+			}
+			r.rejectValueAt(path+"/url", fmt.Sprintf(
+				"an embed %s carries SOURCE CODE, and it goes in \"text\" (§5.2): "+
+					"`url` is an input alias for the URL a SERVICE processor embeds, and this is "+
+					"not one. Rename the member to \"text\" and keep its value — the stored model "+
+					"has one slot for an embed's payload, so a source written here is not stored at all",
+				spelled))
+			return
+		}
+		if _, hasText := block["text"]; hasText {
+			r.rejectValueAt(path, "an embed states its payload once: \"url\" is an input "+
+				"alias for \"text\" (§5.2), the two are one stored slot, and this block writes both. "+
+				"Keep whichever holds the URL and remove the other")
+		}
+	}
+	// every position a block can occupy: the document's flat run, and a
+	// table cell in either of its forms (§6.1). A table cannot nest, so
+	// there is no deeper level to reach.
+	for i, raw := range blocksOf(doc) {
+		block, _ := raw.(map[string]any)
+		if block == nil {
+			continue
+		}
+		base := fmt.Sprintf("/blocks/%d", i)
+		check(block, base)
+		rows, _ := block["rows"].([]any)
+		for j, rawRow := range rows {
+			row, _ := rawRow.(map[string]any)
+			if row == nil {
+				continue
+			}
+			cells, _ := row["cells"].([]any)
+			for k, rawCell := range cells {
+				cellPath := fmt.Sprintf("%s/rows/%d/cells/%d", base, j, k)
+				switch cell := rawCell.(type) {
+				case map[string]any:
+					check(cell, cellPath)
+				case []any:
+					for n, rawInner := range cell {
+						inner, _ := rawInner.(map[string]any)
+						if inner == nil {
+							continue
+						}
+						check(inner, fmt.Sprintf("%s/%d", cellPath, n))
+					}
+				}
+			}
+		}
+	}
 }
 
 // textBearing reports whether the block type's text is parsed for inline
@@ -1586,6 +1715,7 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 		if typ == "code" && codeLangConflict(block) {
 			addIssue(path, "language and fields.lang are both set")
 		}
+		checkAddedAt(block, path, addIssue)
 		if typ == "table" {
 			walkTable(block, path, claimId, addIssue, checkInline, walkBlock, checkFlatRun)
 		}
@@ -1639,6 +1769,19 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 					addIssue(path, "indent %d follows indent %d — a block can be at most one level deeper than its predecessor", k, prev)
 				}
 				k = prev + 1
+			}
+			// §6.1: a cell's array form is ONE block and its descendants, not
+			// a run of roots. Import cannot represent a second root — it
+			// rebuilds every later element under the first (flatSubtree never
+			// pops its initial entry) — so admitting one hands the text to a
+			// parent the document never named: under a leaf root the next
+			// export drops it, under a `row` root the next export writes a
+			// document this same Validate rejects. The offending element is
+			// addressed rather than the cell, and it is an ERROR in lenient
+			// mode too, because clamping it to indent 1 is the silent
+			// reparenting itself and not a repair of it.
+			if inCell && i > 0 && k == 0 {
+				addIssue(path, "indent 0 makes this a second cell root — a cell's array form is one block and its descendants (§6.1), so every element after the first is indented under it")
 			}
 			for len(stack) > 0 && stack[len(stack)-1].indent >= k {
 				stack = stack[:len(stack)-1]
@@ -2601,6 +2744,36 @@ func sortedMapKeys(m map[string]any) []string {
 func escapeJSONPointer(token string) string {
 	token = strings.ReplaceAll(token, "~", "~0")
 	return strings.ReplaceAll(token, "/", "~1")
+}
+
+// checkAddedAt is the half of the file block's timestamp grammar no schema can
+// state: the pattern in `added_at` fixes the SHAPE — four-digit year, months
+// 01-12, days 01-31, an optional RFC 3339 time with a real hour, minute and
+// second — and no regular expression can then ask the calendar whether the day
+// exists. `2026-02-30T12:00:00Z` and `2026-04-31` satisfy every character
+// class and name no instant.
+//
+// The destination is int64 unix seconds (`BlockContentFile.AddedAt`), so there
+// is no preserving reading of a string that does not parse: fileFromJSON
+// assigned nothing, the block imported with the field at zero, and the next
+// export wrote no `added_at` at all — a successful round trip that dropped
+// the author's timestamp with neither an error nor a warning. Refusing is the
+// only verdict that keeps the value in the author's hands.
+//
+// The predicate is parseDate, the importer's own, so Validate and Unmarshal
+// cannot reach different verdicts on the same string (§12, I2).
+func checkAddedAt(block map[string]any, path string, addIssue func(path, format string, args ...any)) {
+	stamp, isString := block["added_at"].(string)
+	if !isString || stamp == "" {
+		return
+	}
+	if _, ok := parseDate(stamp); ok {
+		return
+	}
+	addIssue(path+"/added_at", "added_at %q names no instant: the shape is right and "+
+		"the calendar refuses it. The stored field is a unix second, so a string that "+
+		"does not parse has no number to become — it imported as zero and was gone from "+
+		"the next export, said by nothing", stamp)
 }
 
 // codeLangConflict reports a code block carrying both the first-class

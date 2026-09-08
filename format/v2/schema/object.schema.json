@@ -49,7 +49,8 @@
       ]
     },
     "id": {
-      "type": "string"
+      "type": "string",
+      "description": "This document's own address: the string every reference to it spells (§9). Three spellings are RESERVED and say what the document IS. `type-<internal_key>` is a type document's id, and belongs only to the type whose `internal_key` is that remainder. `participant-<identity>` is a participant document's id — and so is the BARE `<identity>` on its own: a base58 account identity, 48 characters carrying a version byte and a CRC16 checksum, the spelling documents written before the prefix used and the one an object-reference slot still reads as that member. No other kind may carry a bare account identity here, for that reason: a reference written that way rebuilds into `_participant_<space>_<identity>`, so the document would be addressed by nothing that names it. The checksum makes that half semantic — no schema can verify a CRC16 — so it is stated here and enforced by the reader, while the two prefixes are refused by the conditions below. Every other id is an ordinary address, and a `-` elsewhere (`page-welcome`) is an ordinary slug."
     },
     "type": {
       "type": "string",
@@ -292,7 +293,7 @@
       }
     },
     {
-      "$comment": "The same reservation for participants: `participant-<identity>` is a participant document's id. That the remainder is a real account identity — a base58 strkey with its version byte and CRC16 checksum — is semantic, as no schema can express a checksum.",
+      "$comment": "The same reservation for participants: `participant-<identity>` is a participant document's id. That the remainder is a real account identity — a base58 strkey with its version byte and CRC16 checksum — is semantic, as no schema can express a checksum. The BARE identity, the spelling written before the prefix and still read as one, is reserved for participant documents by the same rule and for the same reason; it is semantic in whole, so it appears in the description of `id` and nowhere in this grammar.",
       "if": {
         "properties": {
           "kind": {
@@ -414,16 +415,21 @@
       "description": "The id of an object in this space, a bundle-local slug, or a raw content CID. Never a URL and never a filesystem path — this format does no I/O, so it can only name an object or content the reader can resolve. To supply an image by URL, use a layer that can fetch it: it uploads the image, mints the file object and writes that object's id here. An object id uses the dag-cbor CID codec (normally beginning `bafyrei`); a raw or dag-pb content CID normally begins `bafybei` and resolves against content storage rather than the bundle's object documents."
     },
     "iconColor": {
-      "description": "One of the ten palette colours — the same palette select options use (§2a) — or, for a stored value the palette has no name for, its raw number.",
-      "oneOf": [
-        {
-          "$ref": "#/$defs/optionColor"
-        },
-        {
-          "type": "integer",
-          "minimum": 1
-        }
-      ]
+      "description": "One of the ten palette colours — the same palette select options use (§2a) — or, for a stored value the palette has no name for, its raw number. That escape is bounded at 9007199254740991 (2^53-1), the same bound `size` carries: it is the largest integer this format moves through a v1 float value and writes back out denoting the same number, and the reference exporter drops a stored value above it with a warning rather than emitting one this schema refuses.",
+      "type": [
+        "string",
+        "integer"
+      ],
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "$ref": "#/$defs/optionColor"
+      },
+      "else": {
+        "minimum": 1,
+        "maximum": 9007199254740991
+      }
     },
     "opaqueName": {
       "type": "string",
@@ -1039,11 +1045,51 @@
               },
               "text": {
                 "type": "string",
-                "description": "The block's text. Formatting is expressed INLINE, inside this string — this format has no `marks` array and no offsets (§8). A CommonMark-inline subset plus a small tag whitelist, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` — an external link\n  `[text](anytype://object?objectId=<id>)` — a link to an object in this space\n  `<mention object_id=\"<id>\">text</mention>` — a decorated object reference (icon + name)\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no HTML beyond those tags. `\\n` is a soft line break within the block. A literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` in prose is backslash-escaped."
-              },
-              "url": {
-                "type": "string"
+                "description": "The embed's payload, and the ONLY slot the stored model has for one. LITERAL: no inline markup is read here and none is written (\u00a78.4). What it holds is decided by `processor` \u2014 SOURCE CODE for a renderer (`latex`, the default, `mermaid`, `chart`, `graphviz`, `kroki`, `excalidraw`, `drawio`), the URL to embed for a service processor (every other value), where `url` is accepted as an input alias for this member and nowhere else."
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "embed",
+                  "equation"
+                ]
+              },
+              "processor": {
+                "not": {
+                  "enum": [
+                    "latex",
+                    "mermaid",
+                    "chart",
+                    "graphviz",
+                    "kroki",
+                    "excalidraw",
+                    "drawio"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "type",
+              "processor"
+            ]
+          },
+          "then": {
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "INPUT ALIAS for `text`, and only on a SERVICE processor (\u00a75.2). Export never writes it \u2014 it writes `text` \u2014 and the two are ONE stored slot, so a block stating both is refused rather than having one of them silently dropped. A RENDERER processor (`latex`, `mermaid`, `chart`, `graphviz`, `kroki`, `excalidraw`, `drawio`) refuses this member outright, and so does an absent `processor`, which means `latex`: their payload is source code, the model has nowhere to put a second string, and a document written that way lost its diagram on import."
+              }
+            },
+            "not": {
+              "required": [
+                "text",
+                "url"
+              ]
             }
           }
         },
@@ -1088,7 +1134,9 @@
                 ]
               },
               "added_at": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9]))?$",
+                "description": "When the file was added, an RFC 3339 timestamp \u2014 the same grammar a `date` property value carries (\u00a73). Export always writes the full UTC form, `2026-07-06T15:04:05Z`; input also takes a non-UTC offset (converted to UTC), fractional seconds (truncated to whole seconds) and a bare date, `2026-07-06`, which means UTC midnight. The stored field is a UNIX SECOND, not a string, so a value this pattern admits but the CALENDAR does not \u2014 `2026-02-30T12:00:00Z` \u2014 is refused by the reader's semantic pass rather than accepted: it has no number to become, and it used to import as zero and be gone from the next export with nothing said. The year is four digits because that is the whole range a unix second can be written back out in (\u00a73)."
               },
               "hash": {
                 "type": "string"

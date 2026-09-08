@@ -490,7 +490,7 @@ style.
 | `internal_key` | string | no* | The property's STORED internal key, verbatim — never run through the §3 ladder, because a stored id is its own address and the bundled fold would rebind a slug-shaped one (`due_date` onto `dueDate`). Export writes it beside `property` for fidelity; an author never needs it, and cannot produce a correct one for a custom property (the app mints those — a bson id). *An entry must state an identity: `property`, or `internal_key`, or a `name` the spelling derives from; when both `property` and `internal_key` are present the spelling wins, and export writes an agreeing pair. A custom property whose entry states no `internal_key` gets a FRESH minted internal key from the import wiring's create path, the way the app mints one when a user creates a property — the spelling must not silently become the stored key. |
 | `name` | string | no | Display name. Import uses it only when the property must be **created**; an existing property keeps its own name. Every bundled key already exists, so a name given for one is inert — `{"property": "Description", "name": "Summary"}` renders as *Description*. Validation warns. If the label is the point, mint a custom key instead of reusing a bundled one. |
 | `format` | string | no | Property format (§3 names). Same import rule as `name`; a conflict with an existing property's format is an error at the wiring level (the package cannot see the space). |
-| `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** whenever the option declares no color, the object form otherwise — the same rule cells follow in §6.1. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`. Declaring them lets the wiring create each one up front with an order id. The app's own vocabulary listing puts every option carrying an `orderId` first, those ascending, then the ones carrying none, `createdDate` descending — the picker's subscription sorts `orderId` ascending with no empty-placement, which lists the order-less ones first, and the picker then re-sorts the received rows so that an option with an order id precedes one without. Since a new option is minted with the smallest order id of its siblings, ascending order ids and descending creation dates agree on newest-first. Two options tying on both — a `createdDate` is a whole-second stamp — are then ordered by the option's own id, ascending: a third key the app never needs and a writer does, without which two options minted in the same second swap places between runs. A bundle writes the array in the RENDERED order, with that tie-break (§2f). (Sorting objects by their tag COLUMN is a different feature with a different rule, `[orderId, name]` concatenated per record — `pkg/lib/database.BuildOrderMap`; it says nothing about how a vocabulary lists.) Names discovered from usage rather than declared are ordered after the declared ones. The object form takes two more members, `internal_key` and `api_key` — the option's STORED key, which the app mints and an author never writes, and its public API key (stored `apiObjectKey`), the spelling callers address it by. Export states each where the store holds one. The stored key is what lets a bundle STATE a vocabulary rather than describe it (§2f, where the dictionary entry states a vocabulary in these same members — the dictionary's entry and a type's are the two homes of this shape that admit them, since no option document carries either). The api key is not a slug of the name: it does not follow a rename and nothing rewrites it, and it travels because no restore mints one (§15 #21). Only meaningful on `select`/`multi_select`; duplicate names are a validation error in a TYPE's definition, across both forms — authoring resolves an option by its name and so cannot state one twice. The property dictionary is the exception: its entries carry explicit `internal_key`s, which tell same-named twins apart, and real spaces hold them (§2f). |
+| `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** only when the option carries NONE of `color`, `internal_key` and `api_key`; any one of the three present makes the object form canonical, and export writes every member it holds. The criterion is all three because the object form is the only one that can STATE what it holds: a bare name for an option carrying a stored key or an api key would erase the option's stored identity and the spelling its API callers address it by, and neither is derivable from the name (below). A scalar for the simple case and an object for the enriched one is the SHAPE cells follow in §6.1; the criterion is this one, and it is the same one §2f's dictionary entry uses — one serializer writes both homes. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`. Declaring them lets the wiring create each one up front with an order id. The app's own vocabulary listing puts every option carrying an `orderId` first, those ascending, then the ones carrying none, `createdDate` descending — the picker's subscription sorts `orderId` ascending with no empty-placement, which lists the order-less ones first, and the picker then re-sorts the received rows so that an option with an order id precedes one without. Since a new option is minted with the smallest order id of its siblings, ascending order ids and descending creation dates agree on newest-first. Two options tying on both — a `createdDate` is a whole-second stamp — are then ordered by the option's own id, ascending: a third key the app never needs and a writer does, without which two options minted in the same second swap places between runs. A bundle writes the array in the RENDERED order, with that tie-break (§2f). (Sorting objects by their tag COLUMN is a different feature with a different rule, `[orderId, name]` concatenated per record — `pkg/lib/database.BuildOrderMap`; it says nothing about how a vocabulary lists.) Names discovered from usage rather than declared are ordered after the declared ones. The object form takes two more members, `internal_key` and `api_key` — the option's STORED key, which the app mints and an author never writes, and its public API key (stored `apiObjectKey`), the spelling callers address it by. Export states each where the store holds one. The stored key is what lets a bundle STATE a vocabulary rather than describe it (§2f, where the dictionary entry states a vocabulary in these same members — the dictionary's entry and a type's are the two homes of this shape that admit them, since no option document carries either). The api key is not a slug of the name: it does not follow a rename and nothing rewrites it, and it travels because no restore mints one (§15 #21). Only meaningful on `select`/`multi_select`; duplicate names are a validation error in a TYPE's definition, across both forms — authoring resolves an option by its name and so cannot state one twice. The property dictionary is the exception: its entries carry explicit `internal_key`s, which tell same-named twins apart, and real spaces hold them (§2f). |
 | `object_types` | string[] | no | The types an `objects`/`files` property may point at, in priority order, each written as the type's **derived id** `type-<internal_key>` (§9) — one spelling of a type everywhere, so a reader never resolves a type spelling in this slot. That is the DEFAULT shape: in a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode this slot spells the vocabulary and a reader resolves it through the §3 chain; a bundle refuses that mode (§9). On input a display name (`"Task"`, or the `Name` of a type this bundle declares, §2g) or the legacy `ot-<key>` is accepted through the §3 chain; a term the chain does not know passes through verbatim, its own address; canonical export writes the derived id. A key the §9 fold gate refuses is written VERBATIM: the type namespace carries no legend and no term ledger, so the stored key is the only spelling every reader lands on the same key from (§3, §15 #28). Empty means any object — an untargeted property will happily accept a random page as a task's assignee. Listing the built-in `participant` alongside a bundle's own people type is what makes the current-user filter value usable on that property (§6.2) while still allowing the seeded people as values; the client only offers it when the relation's targets include Participant. The wiring resolves each key to an id the way it resolves properties: a type the batch defines by the id its own document carries, a bundled type by its bundled url (`_ot<key>`). Only meaningful on `objects`/`files`. |
 | `description` | string | no | The property's own description (its relation object's `description` detail). Same import rule as `name`: read when the property is created, inert on an existing one. |
 | `include_time` | bool \| null | no | Whether a date property's values carry a time of day. Same import rule as `name`. **A `date`'s member only**: on any other format the knob does not exist, so export writes none whatever the store holds (8,375 production relations carry a false one against a non-date format) and import reads none. On a date the three states are three declarations — `true`, `false`, `null` — and absent is a fourth. |
@@ -520,7 +520,13 @@ property (including the `_missing_object` sentinel of already-dangling
 references); legacy lists that store bare property **keys** instead of ids
 resolve through the reverse lookup, falling back to the bundle for system
 properties. The canonical form writes `property`, `internal_key`, `name` and `format` on
-every entry (`format` defaults to `text` when absent on input), and writes the
+every entry — and the `format` it writes is the **resolved** one, because an
+absent `format` on input is **not a declaration of `text`**: it says nothing,
+and the answer to nothing is the §3 chain, which reaches `text` only where
+nothing can answer (the rule §3 states for every slot carrying `format`, this
+array included — `{"property": "due_date"}` resolves to `date`, not to
+`text`). Canonical export therefore always writes a format, so an absent one
+only ever arrives from a hand-written document. Export also writes the
 `property_definitions` array **even when empty** — its presence is what tells
 import to rebuild the lists. Import then rebuilds all four id lists — empty
 sections become explicit empty lists, matching how type objects store them —
@@ -587,13 +593,30 @@ object**, whose `format` member says which kind it is:
   value is one of the ten palette names §2a already mandates for select
   options, mapped positionally from the stored number: `iconOption: n` is
   `palette[n-1]`.
-- **`color` also admits a raw integer ≥ 1**, for a stored value the palette
-  has no name for. This is not decoration: two generators in this repo
-  disagree about the range (`rand.Intn(16)+1` in the pb importer,
+- **`color` also admits a raw integer, 1 to 9007199254740991**, for a stored
+  value the palette has no name for. This is not decoration: two generators in
+  this repo disagree about the range (`rand.Intn(16)+1` in the pb importer,
   `rand.Intn(10)+1` in the markdown one), so 12, 13 and 15 exist in real
   data. It is the same escape §3 already gives a layout number outside the
   enum. `iconOption: 0` is the proto zero, **not** the first color — 145
-  production objects carry it and none of them is grey.
+  production objects carry it and none of them is grey. The escape is used on
+  the INDEX surface in practice: all six numeric colours in the 79-bundle
+  corpus are a space icon in `index.json`, whose `icon` is a `$ref` into this
+  same definition (§2c), and no object document in that corpus carries one.
+
+  The upper bound is 2^53-1, the same bound `size` carries (§5) and the
+  largest integer this format moves through a v1 float value and writes back
+  out denoting the same number. Above it the escape stopped working in two
+  different ways at once, and both were reachable from one accepted document:
+  `{"icon": {"format": "color", "color": 1e20}}` validated and imported, and
+  then the float→int64 narrowing the exporter does is **implementation-defined
+  in Go** for a value outside int64 — measured, on the same bytes,
+  darwin/arm64 saturated to MaxInt64 and made `Marshal` refuse the object,
+  darwin/amd64 went to MinInt64, fell through the "not a colour" arm, and
+  exported the object successfully with the icon gone. The schema states the
+  bound; the exporter range-checks the stored float BEFORE narrowing, as it
+  does for a date (§3), and drops a value above it with a warning rather than
+  emitting a number its own `Validate` would reject (§11, I1).
 - **`name` is an OPEN string with a shape rule, not a closed enum.** The
   ~397-name vocabulary lives in `core/api/model/icon.go`, which `pkg/lib` may
   not import, and closing the enum would break §11's Marshal-never-emits rule
@@ -974,6 +997,58 @@ construction (§9). An AUTHORED bundle can still carry a type document under
 a non-derived id, and this check is what tells its author so: the report
 names the id nothing carries, which is the repair.
 
+**One stored type key, one type document: no two type documents in one
+bundle may share an `internal_key`, whether the type carries a display
+`Name` or not.** A type document's address is a pure function of its key —
+`type-<internal_key>` (§9) — so two documents claiming one key are two
+definitions of a single identity: they canonicalize to the same id, the
+path plan files them under the same name, and composition keeps whichever
+it planned last. Nothing else catches it. Document uniqueness is checked by
+ENVELOPE id, and the two documents have different raw ids until they are
+canonicalized; the authoring vocabulary owns a key only for a type that
+declares a display `Name`, and an object-type SHELL with no `Name` is a
+legal exported shape (12 across the corpus's 1,808 type documents). So the
+key is owned per type DOCUMENT, independently of the name, and
+`bundle.Validate` refuses the bundle naming every path that claims the key
+— the repair is a choice between them, so the reader is shown the
+candidates. The bundled table is a separate rule and is stated above: a
+bundled key names a type every reader already has.
+
+**Entry paths must survive a case-insensitive filesystem: no two entries
+in one bundle may be equal after NFC normalization and Unicode case
+folding.** A bundle is a directory or a ZIP, and both are extracted onto
+whatever filesystem the reader has — APFS and NTFS fold case by default,
+and macOS normalizes. Two entries that collapse under that fold are two
+documents and one file: the second write wins, the first document's bytes
+are gone, and the survivor still validates, because document uniqueness is
+checked by envelope id and nothing counts paths. So a bundle that carries
+such a pair is not a bundle a reader can be handed. The rule covers every
+entry — documents, `index.json`, the dictionary, and every blob a
+`manifest.files` entry binds — and it covers path COMPONENTS, so a
+directory alias (`objects/` beside `Objects/`) and a file/directory
+conflict are collisions too.
+
+The rule is about what a bundle MAY contain, and this exporter's own
+output cannot produce a violation of it: a stem is a lowercase-base32 CID,
+`participant-<identity>`, or `type-<internal_key>`, and ids are unique per
+space. An AUTHORED bundle can, and a legacy or hand-minted stored type key
+can: `type-` stems are the one population whose tail may carry uppercase
+(`typeKeyFoldable` admits `[A-Za-z0-9_]`), so `type-Recipe` beside
+`type-recipe` is two legal type documents and one file.
+
+**2.0 states this rule and does not enforce it.** `bundle.Validate` checks
+individual manifest targets for exact spelling but runs no census over
+entry paths, so a colliding bundle is admitted today and the loss happens
+at extraction time. The gap is stated rather than left to be discovered
+because the two halves belong to different clocks: the RULE removes
+bundles from the legal set, so it must be stated before the format freezes
+or it can never be stated at all, while the CENSUS refuses only what the
+rule already forbade and can land in any later patch. A reader that needs
+the guarantee today must run the fold itself. Measured on the corpus this
+release was cut against: **zero collisions across all 79 bundles and their
+25,063 entries**, and zero entries that are not already NFC — which is why
+the rule costs nothing now and would cost real exports later.
+
 **This exporter's convention** (the "one exporter's convention" slot,
 recorded so a reader of OUR bundles knows the layout without reverse-
 engineering it; none of it is format — a reader must still walk and index,
@@ -1316,10 +1391,18 @@ and a bundled-bound spelling needs no legend entry.
 keys. The translation is the optional `TypeResolver` capability of
 `Options.ResolveProperties` (storeresolver implements it from the same one
 bounded type listing the §3 vocabulary budgets): export inverts id → key, import key →
-this space's id, so a resolver-wired round trip is id-exact. A bare key
-legacy imports stored directly (21 production entries) passes through
-**verbatim in both directions**, its own address (§3): a key is vocabulary,
-and a vocabulary miss is never evidence of nonexistence. What no longer
+this space's id, so a resolver-wired round trip is id-exact. A bare KEY
+that a legacy import stored directly — 21 such entries in the sweep below,
+against 1,301 object ids — is not an id, and
+does not pass through verbatim: it takes **three steps**. The stored key
+DENOTES that type; canonical export writes its derived reference
+`type-<key>` (§9), the one spelling of a type every slot writes; and import
+resolves that key to **this space's type object id** whenever the capability
+can answer — the §11 normalization, a respelling and not a rebinding, since
+the id is the store's own spelling for the same type. Only a key nothing can
+answer for stays a key, and that is where a key is its own address (§3): a
+key is vocabulary, and a vocabulary miss is never evidence of nonexistence,
+so the term survives rather than dropping. What no longer
 passes is an entry the space's own store disowns (§9): the
 `_missing_object` sentinel, and an object id the wired existence capability
 says names no row — 56 production properties carry one, type ids from the
@@ -1328,10 +1411,11 @@ every space while a type key does not. Both drop, the real id with a warning
 naming it; `object_types` is a list, and a list expresses absence by being
 shorter. Note the store answers for CORPSES too: an uninstalled type still
 has a row and still inverts through `TypeKeyById` (its id names something),
-so only an id with no row at all drops. Without any resolver the whole list
-passes through verbatim and the offline round trip is byte-exact — an id
-the store merely could not be asked about is still the stored value's
-meaning, and a backup format that deleted it on export would be
+so only an id with no row at all drops. Without any resolver every stored ID
+passes through verbatim, and the offline round trip is byte-exact for every
+entry alike: a bare key still crosses as `type-<key>` and comes back that
+key, and an id the store merely could not be asked about is still the stored
+value's meaning, so a backup format that deleted it on export would be
 disqualifying.
 
 Corpus facts the design rests on (38,061 documents, 10,617 relation
@@ -1664,7 +1748,7 @@ property (§2a), which travels as the type document's own. The `Status`
 entry above is the whole of that property's vocabulary as the dictionary
 states it; there is no option file to correlate.
 
-An option entry carries three things and one more by where it sits:
+An option entry carries four things and one more by where it sits:
 
 - **`name`** — what the option is called, and the only address a select
   value ever spells (§3).
@@ -1680,12 +1764,23 @@ An option entry carries three things and one more by where it sits:
   carries — non-empty, no allowlist — for the same measured reason (§2).
   Carrying it is what makes the entry a complete statement of the option
   rather than a description of one.
+- **`api_key`** — the option's PUBLIC api key (stored `apiObjectKey`), the
+  spelling callers address it by, which is not a slug of the name: it does
+  not follow a rename and nothing rewrites it. Export states it where the
+  store holds one, and it travels because no restore mints one (§2a,
+  §15 #21). It is the dictionary's member as much as the type
+  declaration's — the two homes share one serializer, so a member one admits
+  the other admits.
 - **its ORDER, as array position** — see below.
 
-The bare string form stands for an option with neither a color nor a
-stored key, exactly as in a type's declaration (§2a): `"options": ["To do",
+The bare string form stands for an option with no color, no stored key AND
+no api key — the same three-member criterion a type's declaration uses
+(§2a), because one serializer writes both homes. `"options": ["To do",
 "Done"]` is a vocabulary an author wrote, and the object form is what a
-space's own vocabulary exports to.
+space's own vocabulary exports to: of 2,490 option entries across the
+corpus's 79 dictionaries, every one is an object, 2,461 carry a color, and
+the remaining **29 are colorless entries that a bare-name canonicalization
+would strip** — 24 of a stored key, 5 of a stored key and an api key.
 
 **Order is ARRAY POSITION, and nothing else.** The array is written in the
 order the space shows — `Status` really reads To do → In progress → Done —
@@ -2121,6 +2216,15 @@ rule — it is a rule with holes in it. Both had one.
 The schema keeps its literal list — it is what an agent actually reads, and
 it carries both spellings of each — and a test pins the list against the
 enforced set in both directions, so neither can rot again.
+
+`bundle.ValidateAuthoring` is the cross-document half, and the only thing
+that distinguishes an authored bundle from an exported one anywhere in this
+format: same walk as `bundle.Validate`, plus each document through the
+subset, plus the STRICT type-declaration plan the surface split above
+describes (§2c). It deliberately does NOT run the index and dictionary
+subset schemas over their files — `authoring/index.schema.json` forbids
+`manifest`, which §2c blesses in an authored bundle in as many words, and a
+walk is not the place to settle which of the two gives.
 
 `ValidateAuthoring`, `ValidateAuthoringIndex` and
 `ValidateAuthoringPropertyDictionary` (§13) run the FULL validation first —
@@ -2711,6 +2815,49 @@ from what a type key is — and one rule above that deliberately does
   published a space's spelling→key mapping for a type the document never
   mentioned is gone with the ledger that fed it (§15 #28).
 
+**A bundle's type declarations are planned as one set, and what a COLLISION
+means in that set depends on which surface asked.** The type documents are
+read before any document that spells a type is decoded, so the namespace is
+complete before anything binds and walk order cannot matter
+(`PlanAuthoringTypeVocabulary`). What the plan does with two declarations
+that collide splits in two, and the split is not readable out of the bytes —
+the two surfaces write the same document.
+
+- **A full export** describes a space that EXISTS. Its installed bundled
+  types are ordinary `object_type` documents keyed with the bundled key —
+  `internal_key: "task"`, `Name: "Task"`, or whatever the space renamed it
+  to — and two of a space's own types may carry one caption, because the app
+  lets a user make both. Neither is a thing an export may be refused for:
+  the identity is not proposed here, it is reported. So every declaration is
+  admitted and EVERY claimant of a contested caption is recorded, leaving the
+  spelling with several answers instead of one — and the refusal where the
+  format already puts it, at the slot that has to RESOLVE the caption, which
+  refuses it by name and says how many claim it. An exported document never
+  reaches that slot, because `type_internal_key` stands beside every spelling
+  (§2). This is `bundle.Validate`.
+- **An authored bundle** PROPOSES its identities, and there one collision is
+  silent in a way no later check can see. A declaration keyed `task`, or
+  captioned "Task", captures every dependent `"type": "Task"` its author
+  wrote for the built-in: the spelling resolves, to exactly one key, with no
+  ambiguity to refuse and no warning to give. Refusing the DECLARATION is the
+  only place that is visible, so the plan refuses it — stored key, display
+  name and legacy derived alias alike, against the bundled table and against
+  each other. This is `bundle.ValidateAuthoring`.
+
+Which of the two a bundle is is a fact about the CALLER, like the
+`NoDerivedTypeIds` mode and like the space id this format does not carry
+(§9). Applying the authoring rule to exports was the shipped behaviour and it
+refused **all 79 bundles of the 24,905-document corpus**: 1,650 installed
+bundled types across every one of them (1,643 keyed exactly like a bundled
+type, 10 keyed `chat` beside bundled `chatDerived`, less 3 unnamed shells the
+plan already skipped), 12 caption collisions across 6 bundles — Recipe ×3,
+one of them with a trailing space, plus Page, Goal, and a Space that folds
+onto `space` and `spaceView` at once — and 2 same-caption custom types in 1. And it refused them
+FIRST, because issues sort alphabetically, so the line a reader met before
+any real defect was `stored type key "task" conflicts with bundled type key
+"task"`, which is not a defect at all. Lifting it takes the corpus from 0 of
+79 bundles validating to 17, and no bundle newly fails.
+
 **What is not a key slot.** The vocabulary applies where
 a document NAMES a type or property, and nowhere else. Envelope and DTO field
 names, enum *values* (`kind: "object_type"`, layout and view-type names), the
@@ -2954,6 +3101,25 @@ at all, because it is identity rather than compaction.
 
 A reader with no option resolver (§13) has no space in which to ask either
 question and stops at step 3, exactly as it did before this legend existed.
+
+**What the legend does not close, and is not meant to.** `option_ids` is
+keyed by NAME, so one property has room for exactly one entry per name in a
+document — and the value slot spells the option by that name too. An object
+sitting on BOTH options of a same-named pair therefore writes the name twice
+against a single id, and on reimport both slots resolve to that id: the
+object comes back on one option where it was on two, with nothing in the
+bytes to say so, because the export it carries is the evidence destroyed.
+That is an **accepted loss**, listed as one in PRINCIPLES rule 6, which also
+says why the same collision costs a *property* nothing, and why the fallback
+that makes it free there is not available on the writing path today: an
+option usually HAS a stored key — `internal_key`, on its dictionary entry,
+carried by 2,479 of the corpus's 2,490 option entries and separating 16 of
+its 19 same-named pairs — but `OptionResolver` (§13) cannot be asked for it
+at the moment the value is written. Corpus at out-57f4add:
+**4 properties across 4 bundles** hold same-named options, and **8 value
+slots across 7 documents** spell one of those names — the widest is
+`"Tag": ["books","books","book","read"]`, whose two `books` are different
+options and come back as one.
 
 **The legends do not answer to one rule, and the difference is deliberate.**
 A `property_internal_keys` value — and the `type_internal_key` scalar (§2) —
@@ -3569,14 +3735,14 @@ mapping:
 | `toggle` | Text/Toggle | `color`, `text` |
 | `callout` | Text/Callout | `icon` (§2b, `emoji` or `file` only), `color`, `text` |
 | `toggle_heading_1` … `toggle_heading_3` | Text/ToggleHeader1..3 | `color`, `text` |
-| `file` `image` `video` `audio` `pdf` | File (Type enum promoted; `Type_None` → `file` with no `object_id`) | `object_id` (target file object), `name`, `mime_type`, `size` (bytes), `style` (`auto · link · embed`), `added_at` (RFC 3339; omitted with a warning when the stored timestamp is outside the representable years, §3 — unlike a property value there is no number form to fall back to). Legacy `hash` accepted on input. On export, a block with only the legacy `hash` set writes it as `object_id` (the hash migrates on round-trip, §11); when both are set, `object_id` wins and the hash is dropped. `state` is not serialized: import sets `Done` when `object_id`/`hash` is present, `Empty` otherwise. File blocks are leaves in the editor, but legacy data can nest real blocks under them — indented descendants are allowed and round-trip verbatim |
+| `file` `image` `video` `audio` `pdf` | File (Type enum promoted; `Type_None` → `file` with no `object_id`) | `object_id` (target file object), `name`, `mime_type`, `size` (bytes), `style` (`auto · link · embed`), `added_at` (RFC 3339, the same grammar a `date` property value carries, §3 — the published schema states the shape as a `pattern` and the reader's semantic pass asks the calendar, so `"2026-02-30T12:00:00Z"` is refused rather than imported as zero and dropped; omitted with a warning when the stored timestamp is outside the representable years, §3 — unlike a property value there is no number form to fall back to). Legacy `hash` accepted on input. On export, a block with only the legacy `hash` set writes it as `object_id` (the hash migrates on round-trip, §11); when both are set, `object_id` wins and the hash is dropped. `state` is not serialized: import sets `Done` when `object_id`/`hash` is present, `Empty` otherwise. File blocks are leaves in the editor, but legacy data can nest real blocks under them — indented descendants are allowed and round-trip verbatim |
 | `bookmark` | Bookmark | `url`, `object_id` (target bookmark object). `state` handled like file blocks. Deprecated preview fields and `type` (derivable) are dropped — preview data lives on the target object |
 | `link` | Link | `object_id` (target object), `card_style` (`text · card · inline`), `icon_size` (`none · small · medium`), `description` (`none · manual · content`), `properties` (string array: the **spellings** of the properties shown on the card, inverted through `property_internal_keys` like every other key slot — not stored keys, which is what a value on the `properties` FORMAT holds instead, §3). Deprecated `style` is dropped. The legacy `fields` copies of four of these — `cardStyle`, `iconSize`, `description`, `relations` — are **not** dropped: they stay in the output-only bag, where they can be stale (§5.3) |
 | `divider` | Div | `style` (`line · dots`, default `line`) |
 | `row` / `column` | Layout/Row, Layout/Column | — none first-class; descendants carry the content, and a `row` contains only `column`s (§4 containment, read on the lifted tree, §7a). A **column**'s width is the one thing these blocks carry of their own, and it is in `fields` (§5.3) |
 | `group` | Layout/Div (legacy) | — **accepted on input only; lifted** (§7a). No export ever writes one |
 | `table` | Table (+ structural children) | `columns`, `rows` — see §6.1 |
-| `embed` | Latex | `processor`, `text` (**literal**, §8.4) — see §5.2 |
+| `embed` | Latex | `processor`, `text` (**literal**, §8.4). `url` is accepted as an input alias for `text` on a SERVICE processor only, and is refused on a renderer processor and beside `text` — see §5.2 |
 | `table_of_contents` | TableOfContents | — |
 | `property` | Relation | `property` (the property's spelling, the member every property-naming slot uses; renders the property inline) |
 | `dataview` | Dataview | fully specified in §6.2 |
@@ -3620,6 +3786,27 @@ set.
 `chart`, `graphviz`, `kroki`, `excalidraw`, `drawio`) and a **URL** for
 service processors (everything else); for service processors import also
 accepts the URL under a `url` key as an input alias.
+
+**`url` is admissible only there, and never beside `text`.** Both halves are
+validation errors, stated in the published schema, not conventions a reader
+enforces on its own:
+
+- On a **renderer** processor — and on a block with no `processor`, which
+  means `latex` — `url` is refused. `BlockContentLatex` has exactly two
+  fields, `Text` and `Processor`, so there is no slot a second string could
+  go in: `{"type": "embed", "processor": "mermaid", "url": "graph TD; A-->B"}`
+  used to validate, import with no warning, and come back out of that
+  successful import as `{"type": "embed", "processor": "mermaid"}` with the
+  diagram gone. The repair is to rename the member to `text`, which is what
+  the refusal says.
+- On a **service** processor, a block stating both `text` and `url` is
+  refused. They are one stored slot written two ways, import keeps `text`,
+  and a document holding two different URLs would lose one of them without
+  saying so.
+
+Export writes `text`, always, on every processor; no export has ever written
+`url`, and none of the 160 embed blocks in the 79-bundle, 24,905-document
+corpus carries one.
 
 Standalone math is `{ "type": "embed", "processor": "latex", "text": "…" }`;
 import accepts `equation` as a type alias for it (what Notion-trained
@@ -3708,7 +3895,17 @@ machinery:
   `indent` (validation error if present). The **array form** exists for the
   legacy case of a cell block with descendants: the cell block first at
   indent 0, its descendants following per the §4 rules; export uses it only
-  when descendants exist (single-block cells stay bare — canonical). Cells
+  when descendants exist (single-block cells stay bare — canonical).
+  **One root, and the rest are its descendants**: after the first element,
+  indent 0 — including the indent an element does not spell, whose default is
+  0 — is a validation error naming that element. A cell is a POSITION, not a
+  run, so a second root has nowhere to be: import rebuilds every later element
+  under the first, which turns the second root into a child the document never
+  said it was, and from there the text is dropped (under a leaf root) or
+  re-emitted as a document this Validate rejects (under a `row` root). It is
+  an error under `NormalizeIndent` too, unlike a V1 violation: clamping the
+  second root to indent 1 performs that reparenting rather than repairing it.
+  Cells
   **never carry `id`** — cell ids are derived (`<rowId>-<colId>`); an `id`
   on a cell block (bare, or first element of the array form) is a
   validation error. Cell blocks (and their array-form descendants) **cannot
@@ -4134,12 +4331,29 @@ import rehydrates it from the dataview `properties` list and `bundle`
 
 Proto-default edge cases (implementation decisions): a leaf whose proto
 condition is `None` (0) omits `condition` — absent means `None`; a proto
-group node with operator `No` (0) exports as `"and"`; contentless filter
-nodes (groups with no live children, leaves carrying at most an id) and
-sorts without a property key are no-ops and are dropped on export;
-out-of-range proto enum values are omitted rather than serialized (an
-unknown *text style* is an export error — silently restyling content would
-be worse).
+group node with operator `No` (0) exports as `"and"`; a leaf carrying at
+most an id, and a sort without a property key, are genuine **no-ops** and
+are dropped on export — the query engine returns nothing for a `None`
+condition and the enclosing group skips it, so the drop cannot change what
+a view matches; out-of-range proto enum values are omitted rather than
+serialized (an unknown *text style* is an export error — silently
+restyling content would be worse).
+
+A **group with no live children is dropped too, and that drop is NOT a
+no-op.** The engine reads an empty `FiltersAnd` and an empty `FiltersOr`
+alike as **TRUE** (`pkg/lib/database/filter.go`), so such a branch is inert
+under an enclosing AND — the top-level array included, which is an implicit
+AND — and matches EVERYTHING under an enclosing OR. `OR(AND[], Done ==
+true)` therefore exports as `OR(Done == true)`, and a view that matched
+every object comes back matching only the done ones. The drop is reported,
+though through the nameless-leaf warning rather than one of its own. This
+is a stated defect of the export normalization, not a repair the document
+shape should make: an empty group is a shape 2.0 admits — `filters` carries
+no `minItems`, deliberately — so refusing it would invalidate documents
+this version accepts, and the fix belongs in the simplifier, which has to
+read the enclosing operator before deleting a true branch. Nothing measured
+is affected: 0 of the 18 filter groups across the 79 corpus bundles is
+empty.
 
 #### 6.2.1 Compact filter syntax — shipped grammar, reserved document field
 
@@ -4500,13 +4714,40 @@ attribute values on input. `_` delimiter runs parse exactly like `*` runs
 (so `__x__` is bold — liberal input; canonical output always uses stars).
 
 **Resource bounds** (implementation decision — deterministic local rules
-that keep parsing linear on the untrusted-document boundary): link
-destinations longer than 2048 UTF-16 code units, destinations surrounded by
-more than 32 whitespace characters, and link labels nested more than 32
-deep are not recognized — the `[` stays literal. Export drops Link/Object
-marks whose rendered destination would exceed the bound, and Emoji marks
-whose param exceeds 64 code units, as invalid (§8.3 step 1), so round trips
-stay byte-stable.
+that keep parsing linear on the untrusted-document boundary): a link
+destination longer than **2048 Unicode code points AS SPELLED IN THE
+DOCUMENT**, a destination surrounded by more than 32 whitespace characters,
+and link labels nested more than 32 deep are not recognized — the `[` stays
+literal.
+
+**What the 2048 counts is the spelling, not the destination it decodes to.**
+Every escape backslash counts as its own code point (`\&` is two), an entity
+counts as the characters it is written with, and an astral character counts
+**once** — one code point, not the two UTF-16 units it becomes. The scan
+admits 2048 code points starting at the destination's first character, and
+in the angle-wrapped form that first character is the `<` itself, so a
+wrapped destination gets **2047** between the delimiters. Stated on the
+spelling because that is what a reader can apply to the bytes in front of
+it, with nothing decoded first, and because it is what bounds the work.
+
+**Export bounds a different measurement, and the two do not agree.** It
+drops a Link or Object mark whose **decoded** destination exceeds 2048
+**UTF-16 code units** — measured before escaping and wrapping — and an Emoji
+mark whose param exceeds 64 code units, as invalid (§8.3 step 1). Where the
+two coincide, which is every destination needing no escape and carrying no
+astral character, round trips are byte-stable. Where they do not, they are
+not, and it fails silently in both directions: a 2048-unit destination
+containing one `&` renders to a 2049-code-point spelling that export emits
+and the parser then refuses, so `[click](…)` reparses as literal prose with
+the link gone, its caption swallowed and its escapes resolved — not even the
+bytes survive; and a destination of 1,019 astral
+characters after a 13-character prefix is 1,032 code points but 2,051 UTF-16
+units, so export drops the mark while the parser reads a hand-written one as
+a link. This is a **stated defect, not a licence** — export has to measure
+the spelling it is about to write, and until it does, a writer that keeps
+destinations inside BOTH numbers is byte-stable. Nothing measured is near
+either: across the 79 corpus bundles the longest of 40,694 link destination
+spellings is **443 code points**, and none exceeds 2048 under either count.
 
 ### 8.3 Canonical rendering (the round-trip contract for marks)
 
@@ -4669,7 +4910,7 @@ found by its id and by nothing else (§2c).
 | Form | Where it occurs | How to resolve it | When it resolves to nothing |
 |---|---|---|---|
 | `bafyrei…` — a bare object id (a CID, lowercase base32; older spaces also hold 24-hex bson ids) | every reference slot: object/file property values, `items`, block `object_id`s, filter values, sort `custom_order`, `object_orders`, icon/cover `file`, index `entrypoint`/`homepage`/widget `target` | the document whose envelope `id` is that string | the object exists in its space and did not travel, or the space deleted it — **the bundle cannot tell you which**, and neither can a reader. Measured: 1,265 of 10,053 reference occurrences in a deliberately narrow census (property values, `items`, block targets, icon/cover) name no document here, over 723 distinct ids. For the ids `index.json` itself names, the export says so: `unresolved.targets` (§2c) |
-| `type-<internal_key>` — a type, by its stored key (§9 *Derived ids*) | a type document's own `id`; `template_for`; every `object_types`; `query_source.types` (§6.2); the `Template's Type` and `Default type id` values; a view's `default_type_id`; a filter `value`; a link or dataview block's `object_id`; a widget `target` | the document whose `id` is that string. The key is the text after the prefix, so the reference says WHICH type without any lookup at all | a **bundled** key (`type-page`) needs no document — every reader has it in the shipped table, and `bundle.Validate` exempts it. A minted key (`type-68c2…`) that finds no document is a real dangling reference. Measured: 354 occurrences across nine slots; 92 typed documents (29 distinct keys) name a `type-<key>` no document here carries |
+| `type-<internal_key>` — a type, by its stored key (§9 *Derived ids*) | a type document's own `id`; `template_for`; every `object_types`; `query_source.types` (§6.2); the `Template's Type` and `Default type id` values; a view's `default_type_id`; a filter `value`; a link or dataview block's `object_id`; a widget `target` | the document whose `id` is that string. The key is the text after the prefix, so the reference says WHICH type without any lookup at all | a **bundled** key (`type-page`) needs no document — every reader has it in the shipped table, and `bundle.Validate` exempts it. A minted key (`type-68c2…`) that finds no document is a real dangling reference. Measured over the audited space (3,286 documents), which is the population every figure in this row counts: 354 occurrences across nine slots; 92 typed documents (29 distinct keys) name a `type-<key>` no document here carries |
 | `participant-<identity>` — a space member, by account identity (§9 *The participant fold*) | a participant document's own `id`, the two attribution properties, and any slot whose VALUE passes the identity's checksum — the classifier is the value's shape, never the property's name | the participant document with that id. An importer rebuilds the store's composite `_participant_<spaceId>_<identity>` against its own `Options.SpaceId` | a reader that sets no `SpaceId` stores the folded id, which addresses nobody; it is told so once per document (§13). Measured: 6,569 occurrences |
 | `id#caption` — any object reference MAY carry an informative name after a `#` | wherever a resolver supplied a name. Measured: 4,510 here, all on `Created by`/`Last modified by`, whose suffix rides the participant resolver; corpus-wide 44,828, every one a participant, because the ordinary suffix rides `Options.RefNames` and that defaults OFF | **split at the FIRST `#` and use the left half.** The right half is informative: nothing resolves it, nothing requires it, two objects may share it. No id this format writes contains a `#` | a bare id is exactly as valid and imports identically. A degenerate `#name` with no id half addresses nothing, is stored as written, and is warned about where the format is visible (§9 below) |
 | `_missing_object` — the space's own sentinel for a reference it could not serve | singular slots only: a block `object_id`, a `<mention>` target. A list slot drops the entry instead of writing the sentinel | it does not resolve — **it is the answer.** The link or mention existed and its target does not | already nothing: which object it was is gone. Measured: 12 |
@@ -4856,6 +5097,22 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   semantic, because no schema can compare a member against a substring of
   another or verify a checksum. A `-` anywhere else in an id — `page-welcome` — is an ordinary
   bundle-local slug.
+- **So is the bare identity, and for the same reason.** A participant is
+  read under two spellings, `participant-<identity>` and the bare
+  `<identity>` older documents wrote (*The participant fold*), and a
+  reference slot resolves BOTH to that member. An envelope id that is a
+  bare account identity therefore belongs to a participant document too:
+  on any other kind the document declares an address that nothing naming
+  it can reach — its own self-link leaves for
+  `_participant_<spaceId>_<identity>` while the id stays put — so it is
+  refused at `/id` beside the two prefixes. A participant document keeps
+  the spelling on input, as it always has; export writes the prefixed form.
+  This half is semantic in WHOLE, not in part: the classifier is a CRC16
+  over a base58 payload, which no schema can compute, so unlike the
+  prefixes it cannot be delegated to `object.schema.json` — the grammar
+  states it in the description of `id` and the reader enforces it. A
+  third-party reader that wants the guarantee must run the checksum
+  itself; every other id in this format can be compared as a string.
 - **Import rebuilds through the same capability.** `type-<key>` in an
   id-valued slot becomes the type object the target space serves for that
   key (`TypeIdByKey`); a key the space does not serve stays as written —
@@ -5180,7 +5437,9 @@ base58 string means a member" is a rule a reader has to know; `participant-`
 says it — and it is the same rule a type document's id follows
 (`type-<internal_key>`, *Derived ids* below). A bare identity is still
 READ, as input compatibility with documents written before the prefix (the
-checksum classifier is exact either way), and never written.
+checksum classifier is exact either way), and never written. Because it is
+read as a member, it is reserved as one: no document but a participant's
+may carry a bare identity as its own `id` (*Derived ids* below).
 
 Every slot folds, not only the ones a property census found participants
 in: object/file-format property values, `items`, block `object_id`s,
@@ -5553,6 +5812,19 @@ JSON implementation.
   default, because the slot has a safe default and no raw form (§6.2); and a
   content discriminator — `kind`, a block `type`, a relation `format` —
   REFUSES the whole document at export rather than misrepresent content.
+
+  **A block's `type` is decided by three stored discriminators, and all three
+  answer alike.** The content oneof, a `layout` block's STYLE (which decides
+  `row` vs `column` vs structural, §7/§7a), and a file block's TYPE (`file` /
+  `image` / `video` / `audio` / `pdf`, §5) each name a kind of content, so a
+  value none of this build's tables holds refuses the document, naming the
+  block. The one relaxation is the read path: with an `Options.OnWarning` sink
+  installed the block is DROPPED — with its subtree, since the flat encoding
+  has no place for a child whose parent was not written (§4) — and the drop is
+  REPORTED, never silent. Two things are therefore never done to an unknown
+  discriminator: it is not written as some other kind (a future file type is
+  not `file`; the `file` spelling answers for the stored `None` and nothing
+  else), and its subtree does not leave a SUCCESSFUL export with nothing said.
 - The `$schema` URL carries the same `major.minor` identity
   (`https://schemas.anytype.io/anyblock/<version>/object.schema.json`) and is
   **decorative for validity**: it is optional and no reader gates compatibility
@@ -5667,7 +5939,9 @@ section that owns it:
     all nine relations being `hidden: true`, so no property row exists for
     presence to be meaningful to (1,358 production objects carry only empty
     sources and end up with no icon and no cover at all);
-  - (c) `iconOption: 0` is the proto zero, not a color, and is dropped;
+  - (c) `iconOption: 0` is the proto zero, not a color, and is dropped; so
+    is a stored value above 2^53-1, with a warning — there is no number the
+    format can write for it (§2b);
   - (d) `iconImage` entries beyond the first are dropped with a warning
     (never observed — the relation is `maxCount: 1`);
   - (e) a `file` value that is not id-shaped is dropped with a warning,
@@ -5774,14 +6048,25 @@ and **`object_types` entries take the §3 list normalizations** — a
 scalar-stored value wraps, empty-string entries drop — while the id↔key
 translation is exact for every id the store actually speaks: ids out, ids
 back under the `TypeResolver` capability, verbatim both ways without it.
-One residue, measured at 27 corpus relations: **a legacy bare type KEY
+One residue: **a legacy bare type KEY
 stored where the store speaks object ids comes back as this space's type
-object id** — export passes the key through verbatim (it is no id the
-resolver serves), and import writes the id the key names, which is the
-store's own spelling for the same type. A respelling, not a rebinding — the
-comparator normalizes both sides to keys through the same capability, the
-treatment the recommended lists already get, so only a change of the type
-NAMED reports.
+object id**.
+Export does not pass it through: it writes the key's derived
+reference `type-<key>` (§9), the one spelling of a type every slot writes —
+with a resolver or without one — and import writes the id that key names,
+which is the store's own spelling for the same type. §2d states all three
+steps and this is the same rule, not a second one. A respelling, not a
+rebinding — the comparator normalizes both sides to keys through the same
+capability, the treatment the recommended lists already get, so only a change
+of the type NAMED reports.
+
+Its population is §2d's, measured once:
+**21 bare-key entries in `relationFormatObjectTypes`**, beside 1,301 object
+ids and 9 sentinels, in the 38,061-document account sweep that section names.
+It is not re-derivable from the 24,905-document, 79-bundle corpus at
+out-57f4add, and never will be from a bundle corpus: a bundle writes no
+property document at all (§15 #23), so the documents this residue lives in
+are not in one.
 
 The deleted-icon rule (§9) adds one normalization of its own, armed only
 when the wiring supplies the `ObjectDeletionResolver` capability (§13):
@@ -6109,8 +6394,10 @@ fail neither test belong in authoring guidance and in review.
   against the tree §7a's lift builds and naming the effective parent), id
   uniqueness over the whole document (§4), table shape and cell rules
   (§6.1, including the inclusive 100,000 row×column implicit-grid limit,
-  with empty cells counted, and a cell block that is a transparent container
-  included), envelope combinations (`items`/`template_for`/`kind`, §2),
+  with empty cells counted, a cell block that is a transparent container, and
+  a SECOND root in a cell's array form — an element after the first at indent
+  0, which is one root too many for a position that holds one),
+  envelope combinations (`items`/`template_for`/`kind`, §2),
   **property-key admission on the resolved stored key** (§3 — each
   `properties` spelling resolves through the §3 chain before the deny rule,
   the enum-name check and the format-shape warning run; validation
@@ -6129,7 +6416,15 @@ fail neither test belong in authoring guidance and in review.
   so the reader states the alternatives, reading them out of the published
   schema rather than restating them, and the schema's own verdict at that
   pointer is suppressed so the document still gets one fault, one issue),
-  `language`-vs-`fields.lang` conflicts, an **`option_ids` key naming a
+  `language`-vs-`fields.lang` conflicts, **an `added_at` the calendar
+  refuses** (§5 — the schema's `pattern` fixes the shape and cannot ask
+  whether the day exists, so `2026-02-30T12:00:00Z` reaches this pass; the
+  predicate is the importer's own `parseDate`, and the destination is a unix
+  second, so a string that does not parse used to import as zero and vanish
+  from the next export), the **`url` alias on an embed** (§5.2 — refused by
+  the schema on a renderer processor and beside `text`, and re-worded here
+  for the same reason the missing `format` is: both schema verdicts point at
+  deleting the block's only content), an **`option_ids` key naming a
   property this document never spells** (§9a — a warning: the entry can never
   be consulted and the value degrades to name resolution; a key-set
   comparison against the document's property census, not a parse of the key),
@@ -6410,11 +6705,30 @@ application pipeline.
 // Bundle properties are resolved internally; the resolver covers custom keys.
 type FormatResolver func(key domain.RelationKey) (model.RelationFormat, bool)
 
-// OptionResolver maps select/multi_select option ids to names on export and
-// names to ids on import (creating options is the import wiring's job).
-// OptionName carries a second duty on the import side: it is the liveness
-// question `option_ids` is checked against — it answers for an id exactly
-// when that id is an option of that relation here (§3, §9a).
+// OptionResolver answers both directions of "which option is this?" for
+// select/multi_select values. Creating a missing option is the import
+// wiring's job, never this interface's.
+//
+// The pairing is NOT one method per direction: OptionName is asked on BOTH
+// sides and asks something different on each, while OptionId is asked on
+// import only.
+//
+//   - OptionName, on export, is what the document writes for a value; on
+//     import it is the liveness question `option_ids` is checked against —
+//     it answers for an id exactly when that id is an option of that
+//     relation here (§3, §9a).
+//   - OptionId is name resolution, §3's step 2: the id a value's name stands
+//     for, and the FIRST of them where two options of the property share
+//     that name, which is one of the two losses `option_ids` exists to
+//     close.
+//
+// Stubbing either costs something, and the costs are not symmetric. No
+// OptionName: no name is written on export, and on import the legend is
+// given up entirely, because the liveness check every entry must pass has
+// nothing to answer it. No OptionId: export is unaffected, since nothing on
+// the export side asks it; on import only the legend answers, and every
+// value it does not cover falls through §3's step 3 for the wiring to
+// create.
 type OptionResolver interface {
     OptionName(key domain.RelationKey, id string) (string, bool)
     OptionId(key domain.RelationKey, name string) (string, bool)
@@ -6845,7 +7159,9 @@ The inline codec is implemented locally because canonical, byte-stable
 rendering needs stricter guarantees than a best-effort import parser while
 remaining syntax-compatible with the application surface (§8.1).
 
-The root `bundle` package owns composition and cross-document validation.
+The root `bundle` package owns composition and cross-document validation,
+through two entry points that differ in one question — `Validate` for the
+full format and `ValidateAuthoring` for a bundle an author wrote (§2c, §2g).
 Anytype Heart supplies store-backed format, option, property, participant,
 object-name, existence, and deletion resolvers at the integration boundary.
 The application's own export path (`core/block/export/anyblock`) is the

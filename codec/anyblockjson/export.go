@@ -20,10 +20,16 @@ import (
 // properties are resolved internally; the resolver covers custom keys (§3).
 type FormatResolver func(key domain.RelationKey) (model.RelationFormat, bool)
 
-// OptionResolver maps select/multiSelect option ids to names on export and
-// names to ids on import (creating options is the import wiring's job, §3).
+// OptionResolver answers both directions of "which option is this?" for
+// select/multiSelect values. Creating a missing option is the import wiring's
+// job, never this interface's (§3).
 //
-// OptionName has TWO duties, and the second one is not an export call:
+// The pairing is NOT one method per direction — it was documented that way
+// ("ids to names on export and names to ids on import") and the import path
+// contradicted it. OptionName is asked on BOTH sides, and asks something
+// different on each; OptionId is asked on import only.
+//
+// OptionName:
 //
 //  1. export — what is this option id called? The name is what the document
 //     writes for the value (§3), and the id it stood for rides along in the
@@ -35,17 +41,34 @@ type FormatResolver func(key domain.RelationKey) (model.RelationFormat, bool)
 //     precisely what "still serves" means. Nothing else asks it, so a
 //     resolver's answer here is the whole of the check.
 //
-// A resolver that cannot answer OptionName gives up the legend entirely: it
-// says "no id is live", so every entry fails step 1 of §3's chain and every
-// value falls back to name resolution, exactly as it did before `option_ids`
-// existed — including the two losses the legend was added to close, a name
-// shared by two options of one property (the first one answers) and an option
-// renamed since the export (nothing answers, and the wiring mints a second
-// option under the stale name). That is a legitimate position for a resolver
-// with no option store to consult, and returning false is then the honest
-// answer; it is not a stub to leave in place unexamined, because it disables
-// a feature for everything that reader imports, silently. `OptionId` without
-// `OptionName` is the shape to look at twice.
+// OptionId — one duty, on import:
+//
+//  1. import — name resolution, §3's step 2: the id the value's name stands
+//     for, and the FIRST of them where two options of the property share the
+//     name, which is one of the two losses `option_ids` exists to close.
+//
+// Stubbing either method costs something, and the two costs are not
+// symmetric.
+//
+// No OptionName: no name is written on export (values go out as bare ids,
+// and no legend is recorded, since the legend is written at the substitution
+// itself), and on import the legend is given up entirely — every entry fails
+// step 1 of §3's chain and every value falls back to name resolution, exactly
+// as it did before `option_ids` existed, including the two losses the legend
+// was added to close: a name shared by two options of one property (the first
+// one answers) and an option renamed since the export (nothing answers, and
+// the wiring mints a second option under the stale name).
+//
+// No OptionId: export is unaffected, because nothing on the export side asks
+// it; on import the legend still answers for an id the space serves, and
+// every value it does not cover falls through §3's step 3 unchanged, which is
+// what the wiring then creates.
+//
+// Either is a legitimate position for a resolver with no option store to
+// consult, and returning false is then the honest answer; neither is a stub
+// to leave in place unexamined, because each disables a feature silently.
+// `OptionId` without `OptionName` is the shape to look at twice: it is the
+// combination that keeps the least.
 type OptionResolver interface {
 	OptionName(key domain.RelationKey, id string) (string, bool)
 	OptionId(key domain.RelationKey, name string) (string, bool)
@@ -1393,8 +1416,13 @@ func (e *exporter) canonicalEmissionPlan() *exportEmissionPlan {
 // side effects.
 func blockEmissionShape(b *model.Block) (emits, descends bool) {
 	switch content := b.Content.(type) {
-	case *model.BlockContentOfText, *model.BlockContentOfFile:
+	case *model.BlockContentOfText:
 		return true, true
+	case *model.BlockContentOfFile:
+		// blockToJSON drops a file type it has no name for (§10), so the
+		// census must not claim the block or its children for a table.
+		named := namedFileType(orEmpty(content.File).Type)
+		return named, named
 	case *model.BlockContentOfBookmark, *model.BlockContentOfLink, *model.BlockContentOfDiv,
 		*model.BlockContentOfTable, *model.BlockContentOfLatex, *model.BlockContentOfTableOfContents,
 		*model.BlockContentOfDataview, *model.BlockContentOfChat, *model.BlockContentOfFeaturedRelations,
@@ -2440,9 +2468,17 @@ func (e *exporter) blockToJSON(b *model.Block, depth int) (*omap, bool, error) {
 			return nil, false, err
 		}
 	case *model.BlockContentOfFile:
+		f := orEmpty(c.File)
+		// the `file` spelling belongs to Type_None, the one value that means
+		// "unset" (§5). Spending it on every OTHER unmapped value writes a
+		// future `archive` into the document as an ordinary `file` — a
+		// content discriminator misrepresented, which §10 refuses.
+		if !namedFileType(f.Type) {
+			return e.unmappedDiscriminator(b, fmt.Sprintf("file type %v", f.Type))
+		}
 		// file blocks are leaves in the editor, but legacy data holds real
 		// text children under them — dropping those would be silent loss
-		e.fileToJSON(m, orEmpty(c.File))
+		e.fileToJSON(m, f)
 	case *model.BlockContentOfBookmark:
 		bm := orEmpty(c.Bookmark)
 		m.set("type", "bookmark")
@@ -2474,17 +2510,26 @@ func (e *exporter) blockToJSON(b *model.Block, depth int) (*omap, bool, error) {
 		}
 		withChildren = false
 	case *model.BlockContentOfLayout:
-		switch orEmpty(c.Layout).Style {
+		switch style := orEmpty(c.Layout).Style; style {
 		case model.BlockContentLayout_Row:
 			m.set("type", "row")
 		case model.BlockContentLayout_Column:
 			m.set("type", "column")
-		default:
+		case model.BlockContentLayout_Header, model.BlockContentLayout_TableRows,
+			model.BlockContentLayout_TableColumns, model.BlockContentLayout_Div:
 			// header and stray table wrappers are structural (§7); a Div is
 			// a transparent container (§7a), lifted by appendBlocksFlat and
 			// turned into an empty cell by cellToJSON, so it never arrives
 			// here — and if it ever did, dropping it is the same answer
 			return nil, false, nil
+		default:
+			// a style NO name table holds: what a snapshot from a newer heart
+			// looks like here. It cannot share the drop above, because a drop
+			// takes the subtree with it — appendBlocksFlat stops descending at
+			// a nil block — so a paragraph under a future wrapper would leave
+			// a successful export having said nothing. §10: an unmapped
+			// content discriminator refuses the document.
+			return e.unmappedDiscriminator(b, fmt.Sprintf("layout style %v", style))
 		}
 	case *model.BlockContentOfTable:
 		if err := e.tableToJSON(m, b); err != nil {
@@ -2549,17 +2594,41 @@ func (e *exporter) blockToJSON(b *model.Block, depth int) (*omap, bool, error) {
 	case *model.BlockContentOfSmartblock:
 		return nil, false, nil
 	default:
-		if e.opts.OnWarning != nil {
-			// read path (C11): drop the unrepresentable block with a warning
-			// instead of failing the whole read.
-			e.opts.OnWarning(Issue{Path: "/blocks", Message: fmt.Sprintf("block %s: content type %T has no JSON mapping — dropped", b.Id, b.Content)})
-			return nil, false, nil
-		}
-		return nil, false, fmt.Errorf("block %s: content type %T has no JSON mapping", b.Id, b.Content)
+		return e.unmappedDiscriminator(b, fmt.Sprintf("content type %T", b.Content))
 	}
 
 	e.finishBlockJSON(m, b, liftedFields)
 	return m, withChildren, nil
+}
+
+// namedFileType reports a file content type this build can write. Type_None
+// is the "unset" value the `file` spelling answers for (§5); every other
+// value no name table holds is a discriminator from a newer build, and
+// writing it as `file` would state a content kind the block does not have.
+func namedFileType(t model.BlockContentFileType) bool {
+	return t == model.BlockContentFile_None || fileTypeNames.name(t) != ""
+}
+
+// unmappedDiscriminator is the single answer to a block CONTENT discriminator
+// this build has no name for — the content oneof itself, a layout style, a
+// file type. §10 splits the format into two regimes, and a content
+// discriminator is the closed one: it refuses the whole document at export
+// rather than misrepresent content, or silently omit it. The one relaxation
+// is the read path (C11): with a warning sink installed the block is dropped
+// and the drop is NAMED, so what left the document is recoverable from the
+// source it was read out of.
+//
+// One implementation for all three, because the three used to disagree: an
+// unmapped oneof warned, an unmapped layout style dropped its whole subtree
+// in silence, and an unmapped file type was written out as an ordinary
+// `file`.
+func (e *exporter) unmappedDiscriminator(b *model.Block, what string) (*omap, bool, error) {
+	if e.opts.OnWarning != nil {
+		e.opts.OnWarning(Issue{Path: "/blocks",
+			Message: fmt.Sprintf("block %s: %s has no JSON mapping — dropped", b.Id, what)})
+		return nil, false, nil
+	}
+	return nil, false, fmt.Errorf("block %s: %s has no JSON mapping", b.Id, what)
 }
 
 // finishBlockJSON writes the common block tail: align, verticalAlign,
@@ -2637,7 +2706,9 @@ func (e *exporter) textToJSON(m *omap, b *model.Block, t *model.BlockContentText
 func (e *exporter) fileToJSON(m *omap, f *model.BlockContentFile) {
 	typ := fileTypeNames.name(f.Type)
 	if typ == "" {
-		typ = "file" // Type_None (§5)
+		// Type_None, and ONLY Type_None (§5) — blockToJSON refuses every
+		// other unmapped type before reaching here (namedFileType).
+		typ = "file"
 	}
 	m.set("type", typ)
 	objectId := f.TargetObjectId

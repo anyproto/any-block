@@ -38,6 +38,27 @@ type AuthoringTypeVocabulary struct {
 // object_types aliases and the property namespace are planned in one pass.
 type AuthoringVocabularyPlanOptions struct {
 	PropertyDictionary []byte
+	// Installed says these declarations describe the types a space ALREADY
+	// holds — a full-format export — rather than types an author is minting,
+	// and it lifts the two refusals that are the AUTHORING surface's alone.
+	//
+	// The refusals exist because an author writes SPELLINGS: a declaration
+	// that takes the key `task`, or the caption "Task", silently captures
+	// every dependent `"type": "Task"` the author meant for the built-in,
+	// and no later check can see that it did — the spelling resolves, to one
+	// key, with nothing to refuse. Refusing the declaration is the only
+	// place that hazard is visible.
+	//
+	// An export has no such hazard, because the space is not proposing the
+	// identity, it HAS it. A document keyed `task` IS the bundled Task, as
+	// this space installed it and possibly renamed it; a caption two live
+	// types share is a fact the export must carry, not a mistake it may
+	// refuse. So every declaration is admitted and every claimant of a
+	// contested caption is recorded, leaving the ambiguity where the format
+	// already answers it: at the slot that has to RESOLVE the caption, which
+	// refuses it by name (§3), and which an exported document never reaches,
+	// because it states `type_internal_key` beside the spelling (§2).
+	Installed bool
 }
 
 // PlanAuthoringTypeVocabulary reads all custom object-type declarations in
@@ -150,7 +171,10 @@ func PlanAuthoringTypeVocabulary(
 				"stored type key %q is already declared by %s", decl.key, previous.source))
 			continue
 		}
-		if bundled := BundledTypeKeysByFold(decl.key); len(bundled) != 0 {
+		// An installed identity is admitted whatever it is keyed: this
+		// document IS that type, and the only question a full bundle asks of
+		// a stored key is the one above — that one key names one document.
+		if bundled := BundledTypeKeysByFold(decl.key); len(bundled) != 0 && !opts.Installed {
 			issues = append(issues, authoringTypeIssue(decl.source, "/internal_key",
 				"stored type key %q conflicts with bundled type key(s) %s", decl.key, quotedTypeKeys(bundled)))
 			continue
@@ -178,20 +202,27 @@ func PlanAuthoringTypeVocabulary(
 				continue
 			}
 			seen[term] = struct{}{}
-			if bundled := BundledTypeKeysByFold(term); len(bundled) != 0 {
-				issues = append(issues, authoringTypeIssue(decl.source, "/properties/Name",
-					"type %s %q conflicts with bundled type key(s) %s", item.role, term, quotedTypeKeys(bundled)))
-				continue
-			}
-			if storedOwner, exists := keyOwner[term]; exists && storedOwner.key != decl.key {
-				issues = append(issues, authoringTypeIssue(decl.source, "/properties/Name",
-					"type %s %q conflicts with live stored type key declared by %s", item.role, term, storedOwner.source))
-				continue
-			}
-			if previous, exists := claimOwner[term]; exists && previous.key != decl.key {
-				issues = append(issues, authoringTypeIssue(decl.source, "/properties/Name",
-					"type %s %q is already claimed for stored type key %q by %s", item.role, term, previous.key, previous.source))
-				continue
+			// On an INSTALLED surface a contested caption costs a claim
+			// entry, not a document: every claimant is recorded, none is
+			// dropped for arriving second, and TypeKey reports the several
+			// rather than picking one. Only an AUTHORED caption is refused
+			// here, and then for the shadowing hazard the option describes.
+			if !opts.Installed {
+				if bundled := BundledTypeKeysByFold(term); len(bundled) != 0 {
+					issues = append(issues, authoringTypeIssue(decl.source, "/properties/Name",
+						"type %s %q conflicts with bundled type key(s) %s", item.role, term, quotedTypeKeys(bundled)))
+					continue
+				}
+				if storedOwner, exists := keyOwner[term]; exists && storedOwner.key != decl.key {
+					issues = append(issues, authoringTypeIssue(decl.source, "/properties/Name",
+						"type %s %q conflicts with live stored type key declared by %s", item.role, term, storedOwner.source))
+					continue
+				}
+				if previous, exists := claimOwner[term]; exists && previous.key != decl.key {
+					issues = append(issues, authoringTypeIssue(decl.source, "/properties/Name",
+						"type %s %q is already claimed for stored type key %q by %s", item.role, term, previous.key, previous.source))
+					continue
+				}
 			}
 			claimOwner[term] = decl
 			v.claims[term] = appendDistinctSorted(v.claims[term], decl.key)
@@ -278,7 +309,7 @@ func (v *AuthoringTypeVocabulary) planAuthoringProperties(
 	if len(dictionaryData) != 0 {
 		dictionary, err := UnmarshalPropertyDictionary(dictionaryData, Options{Keys: v})
 		if err != nil {
-			return fmt.Errorf("plan authoring property dictionary: %w", err)
+			return fmt.Errorf("plan property dictionary: %w", err)
 		}
 		for _, def := range dictionary.Properties {
 			register(string(def.Key), def.Name, true)
