@@ -223,7 +223,7 @@ func (e *exporter) optionTerm(key, id, name string) string {
 //	    visibly synthetic; and
 //	(c) the option id, bare, when (b) is unavailable or would itself be
 //	    contested — a residual tie on name AND tail, or a suffixed form some
-//	    OTHER option OF THE PROPERTY is already named, censused here or not.
+//	    OTHER censused option is already named.
 //
 // Rung (c) is a real loss of readability, so it is deliberately last: a bare
 // CID in a tag list tells a reader nothing, and the bundle's own property
@@ -272,17 +272,10 @@ func (e *exporter) planOptionTerms(key string) map[string]string {
 		}
 		for _, id := range holders {
 			s := optionDisambiguatedName(name, id)
-			// the avoid-set is every option OF THE PROPERTY, not the ones
-			// this document censuses: a suffixed form that is some other
-			// option's own NAME would collide with it exactly as the plain
-			// name collided, one rung down, and the option that answers to it
-			// need not be one this document writes. A document on two of
-			// three same-named options never censuses the third, so a
-			// census-scoped check minted a term a live option already
-			// answered to — and a reader that cannot use the id resolves the
-			// term by name and lands the object on an option it was never on,
-			// which is the fault this whole rule exists to prevent.
-			if s == "" || suffixCount[s] > 1 || len(claims[s]) > 0 || e.optionNameTaken(key, s) {
+			// `claims[s]` is the avoid-set: a suffixed form that is some
+			// other censused option's own NAME would collide with it exactly
+			// as the plain name collided, one rung down
+			if s == "" || suffixCount[s] > 1 || len(claims[s]) > 0 {
 				plan[id] = id
 				continue
 			}
@@ -290,28 +283,6 @@ func (e *exporter) planOptionTerms(key string) map[string]string {
 		}
 	}
 	return plan
-}
-
-// optionNameTaken asks the property's own vocabulary whether some option is
-// already NAMED the term in hand — the avoid-set of planOptionTerms' rung
-// (b), asked of the property rather than of this document's census.
-//
-// The resolver answers it directly: `OptionId` is name → id over that
-// relation's options, so an answer means the property holds an option by that
-// name. It cannot be one of the claimants being degraded — a claimant is
-// named `name` and the term is strictly longer than `name` — so this never
-// refuses a term on account of the option asking for it.
-//
-// The censused claims are still consulted, and not only as an optimization: a
-// resolver is free to name an id it cannot invert, and an option this
-// document WRITES is one the term would collide with in this document's own
-// legend, whatever the resolver says about the space.
-func (e *exporter) optionNameTaken(key, term string) bool {
-	if term == "" || e.opts.ResolveOptions == nil {
-		return false
-	}
-	_, taken := e.opts.ResolveOptions.OptionId(domain.RelationKey(key), term)
-	return taken
 }
 
 // optionDisambiguatedName is the option namespace's rung (b): `<name>
