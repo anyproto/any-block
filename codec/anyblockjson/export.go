@@ -74,47 +74,18 @@ type OptionResolver interface {
 	OptionId(key domain.RelationKey, name string) (string, bool)
 }
 
-// ParticipantResolver names the space member a participant id stands for.
-// The derived attribution properties — `creator` and `lastModifiedBy` — are
-// written as the member's RESOLVABLE id with the name riding as the
-// informative `#name` suffix: `<identity>#<name>` (§3, §9).
-//
-// The id is the primary content and the name is a caption, which is the
-// general §9 reference shape and a deliberate reversal of the earlier
-// name-only spelling. Name-only broke the API v2 contract — a consumer that
-// wants the author's avatar or profile needs an id to resolve, and two
-// members sharing a display name are indistinguishable by it (76 of 2,478
-// production participants share one). The participant fold keeps the
-// readable half honest: the id is ~48 characters, not the 135 the composite
-// was.
-//
-// It has ONE direction on purpose: there is no `ParticipantId(name)`. A
-// display name is a label, not an address, so nothing could invert it
-// honestly — and nothing needs to. Both properties are `source: derived`,
-// `maxCount: 1`, `readonly: true`: their value is recovered from the object
-// tree root's own signature on every rebuild, and import DROPS both keys
-// whatever they carry (§3).
-//
-// A resolver that cannot answer returns false and the id is written bare —
-// resolvable either way, just without the caption. Nil resolver, same
-// answer, everywhere.
-type ParticipantResolver interface {
-	ParticipantName(id string) (string, bool)
-}
-
 // Options configures Marshal and Unmarshal (§13).
 type Options struct {
 	ResolveFormat     FormatResolver   // optional; nil = bundle-only resolution (§3)
 	ResolveOptions    OptionResolver   // optional; nil = option values pass through as ids
 	ResolveProperties PropertyResolver // optional; nil = type documents keep raw recommended-relation ids (§2a)
-	// ResolveParticipants names the member behind a participant id, for the
-	// derived attribution properties only (export; nil = `creator` and
-	// `lastModifiedBy` are omitted, §3).
-	ResolveParticipants ParticipantResolver
-	// ResolveObjectNames names the object behind a reference, for the
-	// informative `#name` suffix only (export, behind RefNames; nil = every
-	// reference is written bare, §9). Import never consults it — the suffix
-	// is trimmed unread.
+	// ResolveObjectNames is the export-side seam onto the space's object
+	// index. Nothing asks it for a NAME — a reference is an id (§9) — and a
+	// name-only implementation therefore changes no byte of any export. It
+	// is wired for the two questions type-asserted off it,
+	// ObjectExistenceResolver and ObjectDeletionResolver, which arm the
+	// missing-reference and deleted-icon rules (§9); nil, or an
+	// implementation carrying neither, rewrites and drops nothing.
 	ResolveObjectNames ObjectNameResolver
 	// SpaceId is the space this codec run reads from or writes into — the
 	// wiring supplies it exactly as it supplies the resolvers. It enables
@@ -127,11 +98,6 @@ type Options struct {
 	// slot where a composite belongs — silent corruption of exactly the slot
 	// the fold exists to fix.
 	SpaceId string
-	// RefNames turns on the informative `#name` suffix on object references
-	// (export only, §9). Off by default — the export/backup shape stays
-	// minimal and stable under renames of referenced objects — and opted
-	// into by read shapes, the way CompactBlockLabels is.
-	RefNames bool
 	// NoDerivedTypeIds turns off the TYPE half of the derived-id fold (§9)
 	// on export. Off by default, so the fold stands wherever nothing asks
 	// otherwise; the participant half is gated on SpaceId alone and is not
@@ -300,9 +266,9 @@ var wellKnownPropertyOrder = []string{"name", "description"}
 // under this key's spelling, or drop it and accept name resolution knowingly.
 //
 // The derived attribution keys — `creator`, `lastModifiedBy` — return the
-// §3 spelling `<id>#<name>` as a plain string (the folded participant id,
-// the member's name as the informative suffix where a resolver names them),
-// or **nil** when the stored value holds no id. A row surface cannot omit a
+// folded participant id as a plain string, or **nil** when the stored value
+// holds no id. They carry no name: a reference is an id and rendering one is
+// a lookup (§9). A row surface cannot omit a
 // value its caller asked for, so nil is where the document's "omit it"
 // lands; a caller that wants the property absent rather than null drops it
 // on nil.
@@ -1874,8 +1840,8 @@ func strippedDetailKeys() map[string]bool {
 	}
 	// the attribution keys are stripped as VALUES — the raw stored value
 	// never reaches a document through the ordinary details walk. What export
-	// writes under those keys is the §3 attribution spelling `<id>#<name>`,
-	// put there by buildProperties, and that is not this list's business:
+	// writes under those keys is the folded participant id, put there by
+	// buildProperties, and that is not this list's business:
 	// this list is about stored values (§3).
 	for k := range derivedAttributionProperties {
 		stripped[k] = true
@@ -2003,9 +1969,9 @@ func (e *exporter) buildProperties() *omap {
 	for k := range e.snapshot.Details.Fields {
 		if isAttributionProperty(k) {
 			// stripped as a VALUE like every other derived key, and written
-			// as `<id>#<name>` — whenever the stored value holds an id at
-			// all. The name is a caption a resolver may or may not supply;
-			// the id is complete without it (§3, §9).
+			// as the folded participant id — whenever the stored value holds
+			// an id at all. The id is the whole reference; a reader that
+			// wants a name looks it up (§3, §9).
 			if _, ok := e.attributionRef(k); !ok {
 				continue
 			}
@@ -2103,27 +2069,26 @@ func resolveFormatWith(opts Options, key string) (model.RelationFormat, bool) {
 
 // isAttributionProperty reports the two derived properties that name a member
 // — `creator` and `lastModifiedBy` (validate.go). Their stored value is a
-// participant id and the document writes `<id>#<name>` — the folded id with
-// the member's name as the informative suffix (§3, §9).
+// participant id and the document writes that id, through the §9 participant
+// fold and bare (§3, §9).
 func isAttributionProperty(key string) bool {
 	_, ok := derivedAttributionProperties[key]
 	return ok
 }
 
-// attributionRefOf renders an attribution value as `<id>#<name>` (§3): the
-// stored participant id through the §9 participant fold, with the member's
-// display name as the informative suffix when a resolver names them. ok is
-// false — and the property is then written NOWHERE — only when the stored
-// value holds no id at all: a bare id is a complete answer, since the id is
-// the resolvable half and the suffix is a caption.
+// attributionRefOf renders an attribution value as a bare participant id
+// (§3): the stored id through the §9 participant fold, and nothing after it.
+// ok is false — and the property is then written NOWHERE — only when the
+// stored value holds no id at all.
 //
-// The resolver is asked about the STORED id (the composite the space
-// indexes), and the name goes through refNameLabel — the identifier grammar
-// admits no `#`, so a raw display name can never break the split, and a
-// blank or vanishing name yields a bare id rather than a dangling `#`. The
-// suffix does NOT ride Options.RefNames: these two properties are dropped on
-// import (no round-trip byte-stability is at stake), and the name is the
-// reason the line is worth writing at all — that was measured.
+// This property pair carried the ONLY ungated caption the format had: the
+// member's display name after a `#`, written whatever shape asked, because
+// both keys are dropped on import so no round trip was at stake. The caption
+// is gone from the format, and the exemption goes with it — a reference is
+// an id everywhere, with no property whose name a reader must know to parse
+// its values differently (§9). Rendering the member's name is a lookup: the
+// bundle carries a participant document under this very id, and its `Name`
+// is the answer.
 //
 // The value is read as a LIST and the first id answers, because a stored
 // detail may hold either shape; the relation is `maxCount: 1` and 36,966 real
@@ -2137,23 +2102,15 @@ func attributionRefOf(v *types.Value, opts Options) (string, bool) {
 	// — `_participant_<space>_`, 86 characters of the document's own space
 	// restated with no member behind it. Real data: 9,103 of 37,429
 	// production objects store exactly that in lastModifiedBy (derived when
-	// the writer's identity was blank). It is the id-shaped analogue of a
-	// blank name, and the property is omitted rather than spelled — the same
-	// verdict the blank name gets at refNameLabel.
+	// the writer's identity was blank). Eighty-six characters that address
+	// nobody are worth no line, so the property is omitted rather than
+	// spelled.
 	if strings.HasPrefix(ids[0], domain.ParticipantPrefix) {
 		if _, identity, err := domain.ParseParticipantId(ids[0]); err == nil && identity == "" {
 			return "", false
 		}
 	}
-	out := opts.foldParticipantRef(ids[0])
-	if opts.ResolveParticipants != nil {
-		if name, ok := opts.ResolveParticipants.ParticipantName(ids[0]); ok {
-			if label := refNameLabel(name); label != "" {
-				out += refNameSep + label
-			}
-		}
-	}
-	return out, true
+	return opts.foldParticipantRef(ids[0]), true
 }
 
 // attributionRef answers attributionRefOf for a stored detail of this
@@ -2165,9 +2122,9 @@ func (e *exporter) attributionRef(key string) (string, bool) {
 }
 
 func (e *exporter) propertyValue(key, servedKey string, v *types.Value) any {
-	// the derived attribution properties are spelled `<id>#<name>` (§3): the
-	// folded participant id — resolvable — with the member's name as the
-	// informative suffix. Nil is the "no value" answer, and a whole-document
+	// the derived attribution properties are spelled as the folded
+	// participant id, bare (§3, §9).
+	// Nil is the "no value" answer, and a whole-document
 	// export never reaches it: buildProperties omits the key rather than
 	// writing a null, having asked the same question first.
 	if isAttributionProperty(key) {

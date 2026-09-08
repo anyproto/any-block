@@ -95,8 +95,7 @@ func (e *exporter) viewToJSON(v *model.BlockContentDataviewView, dv *model.Block
 	vm.setNonEmpty("cover_fit", v.CoverFit)
 	vm.setNonEmpty("colored_groups", v.GroupBackgroundColors)
 	vm.setNonEmpty("page_size", v.PageLimit)
-	// two singular reference slots that take no caption (§9): the derived-id
-	// fold applies, the `#name` suffix does not
+	// two singular reference slots: the derived-id fold applies (§9)
 	vm.setNonEmpty("default_template_id", e.opts.foldRef(v.DefaultTemplateId))
 	vm.setNonEmpty("default_type_id", e.opts.foldRef(v.DefaultObjectTypeId))
 	vm.setNonEmpty("wrap_content", v.WrapContent)
@@ -359,8 +358,7 @@ func (e *exporter) dayCountOperand(f *model.BlockContentDataviewFilter) float64 
 
 // dvValueToJSON converts a filter value or custom-order entry: option names
 // for select properties (§3), object references through the §9 reference
-// renderer (full id, plus the informative `#name` suffix where the shape
-// asks for it), verbatim otherwise.
+// renderer (the id, and nothing beside it), verbatim otherwise.
 func (e *exporter) dvValueToJSON(dv *model.BlockContentDataview, key string, v *types.Value) any {
 	format, ok := e.dvFormat(dv, key)
 	if ok {
@@ -628,8 +626,8 @@ func (imp *importer) filterFromJSON(jf jsonFilter, dv *model.BlockContentDatavie
 
 // dvValueFromJSON reverses dvValueToJSON: option names back to ids where a
 // resolver knows them, object references through the §9 reference reader
-// (the informative `#name` suffix trimmed unread), everything else verbatim
-// (§3, §9a).
+// (nothing is trimmed — a reference is an id verbatim), everything else
+// verbatim (§3, §9a).
 //
 // The objects/files arm is BACK, and it is not the one the deleted `refs`
 // legend had (§9a): that one inverted an indirection table, this one strips

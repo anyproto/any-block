@@ -139,7 +139,7 @@ var typeProvenanceKeys = map[string]string{
 	// 1,757 docs, and 1,756 of them hold the document's OWN id — a
 	// self-reference, not the pointer-to-nothing an earlier measurement
 	// reported (it compared raw values against bare ids while the corpus
-	// dump carried `#name` suffixes, so every comparison missed). The drop
+	// dump carried the then-current name suffixes, so every comparison missed). The drop
 	// is safe for a different reason than the one first written down:
 	// objecttype.go:264 re-stamps it with WithForcedDetail from the
 	// object's own id on every init, so it is a function of the id and

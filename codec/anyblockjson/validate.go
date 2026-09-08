@@ -2046,8 +2046,8 @@ func isTransientProperty(key string) bool {
 // dropped on import for the same reason a transient key is (nothing
 // downstream can act on the value), and they are a separate list because
 // export treats them differently: a transient key is not written at all,
-// while these are written as `<id>#<name>` — the folded participant id with
-// the member's name as the informative suffix (§3, §9, buildProperties).
+// while these are written as the folded participant id, which is the whole
+// reference (§3, §9, buildProperties).
 //
 // Why nothing downstream can act on the value, which is the entry price for
 // this list: both are `source: derived, maxCount: 1, readonly: true`
@@ -2617,21 +2617,6 @@ func wrongShapeForFormat(key string, v any) (string, bool) {
 		model.RelationFormat_phone, model.RelationFormat_emoji:
 		if _, isStr := v.(string); !isStr {
 			return fmt.Sprintf("%q is a text property: a non-string reads as empty", key), true
-		}
-	case model.RelationFormat_object, model.RelationFormat_file:
-		// a reference is an id, optionally followed by `#name` (§9). A value
-		// that BEGINS at the separator has no id half, so it addresses
-		// nothing — and the reader will not repair it: splitRefName refuses
-		// to split at index 0 precisely so import never invents an empty id,
-		// which means the value is stored exactly as written and dangles
-		// forever. It is the shape a writer produces copying only the
-		// readable half of `id#name`.
-		for _, ref := range stringsOf(v) {
-			if strings.HasPrefix(ref, refNameSep) {
-				return fmt.Sprintf("%q is an object property: %q has no id before its %q, "+
-					"so it names no object — a reference is an id, optionally followed by %q",
-					key, ref, refNameSep, refNameSep+"name"), true
-			}
 		}
 	}
 	return "", false

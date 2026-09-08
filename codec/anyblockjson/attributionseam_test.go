@@ -10,15 +10,6 @@ import (
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
-// answeringNamer answers every id with one name, including a blank one — the
-// shape the exported ParticipantResolver contract permits but the format's own
-// rule forbids. The shipped storeresolver never answers blank; a third-party
-// implementation may, because the interface only says a resolver that cannot
-// answer returns false.
-type answeringNamer struct{ name string }
-
-func (a answeringNamer) ParticipantName(string) (string, bool) { return a.name, true }
-
 func attributedSnapshot() *model.SmartBlockSnapshotBase {
 	return &model.SmartBlockSnapshotBase{
 		Blocks: []*model.Block{{Id: "o1",
@@ -32,42 +23,25 @@ func attributedSnapshot() *model.SmartBlockSnapshotBase {
 	}
 }
 
-// §3's rule is "a name or nothing after the `#`, never a blank": a dangling
-// `#` costs bytes, says less than its absence, and reads to a model as a
-// name that exists and is empty. Enforcing it inside the shipped resolver is
-// not enough — the seam every resolver passes through has to hold it
-// (refNameLabel), or one third-party implementation puts a dangling `#` on
-// every object in an export. The id half is unaffected either way: it is
-// the resolvable content and is written bare.
+// §3's rule was once "a name or nothing after the `#`, never a blank", and
+// this seam enforced it so no third-party ParticipantResolver could hang a
+// dangling `#` on every object in an export. Both the rule and the seam are
+// gone: the value is the id, so there is no answer for anyone to give. What
+// survives is the assertion that mattered — the id is written, whole, and
+// nothing follows it.
 //
-// This can only fail if the seam stops filtering: it drives the real Marshal
-// with a resolver that answers, so a rule enforced only in storeresolver would
-// not save it.
-func TestExport_AResolverThatAnswersBlankWritesABareId(t *testing.T) {
-	for name, answer := range map[string]string{
-		"empty":           "",
-		"a single space":  " ",
-		"only whitespace": " \t\n ",
-	} {
-		t.Run(name, func(t *testing.T) {
-			data, err := Marshal(model.SmartBlockType_Page, attributedSnapshot(),
-				Options{ResolveParticipants: answeringNamer{name: answer}})
-			require.NoError(t, err)
-			assert.Contains(t, string(data), `"Created by": "_participant_a_b_C"`,
-				"the bare id: resolvable, and blank-name-proof")
-			assert.NotContains(t, string(data), "#", "a blank name is not a name — no dangling separator")
-			require.NoError(t, Validate(data, Options{}))
-		})
-	}
+// How this can fail: append anything to an attribution value and the exact
+// match below finds the addition.
+func TestExport_AnAttributionValueIsTheIdAndStopsThere(t *testing.T) {
+	// when
+	data, err := Marshal(model.SmartBlockType_Page, attributedSnapshot(), Options{})
 
-	// the control: a real name still lands as the suffix, so the rule above
-	// cannot pass by dropping the suffix machinery altogether
-	t.Run("a real name still lands", func(t *testing.T) {
-		data, err := Marshal(model.SmartBlockType_Page, attributedSnapshot(),
-			Options{ResolveParticipants: answeringNamer{name: "Alice"}})
-		require.NoError(t, err)
-		assert.Contains(t, string(data), `"Created by": "_participant_a_b_C#alice"`)
-	})
+	// then
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"Created by": "_participant_a_b_C"`,
+		"the id: resolvable, and the whole of the value")
+	assert.NotContains(t, string(data), "#", "nothing follows a reference")
+	require.NoError(t, Validate(data, Options{}))
 }
 
 // MarshalPropertyValue and UnmarshalPropertyValue are twins: whatever one

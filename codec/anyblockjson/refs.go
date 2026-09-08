@@ -1,24 +1,28 @@
 package anyblockjson
 
-// refs.go — object references (§9): the informative `#name` suffix and the
-// participant fold.
+// refs.go — object references (§9): the participant fold.
 //
 // An object reference in this format is a full id, always (§9a deleted the
-// compaction legend). Two amendments make one readable without ceasing to be
-// an address:
+// compaction legend), and it is a full id and NOTHING ELSE. There is no
+// caption, no display hint, no second half after a separator: the whole
+// string is the address, and a reader that wants a name looks the id up in
+// the bundle it is already holding and reads that document's `Name`.
 //
-//   - **The `#name` suffix.** A reference MAY carry `#<name>` after the id —
-//     `bafyrei…#local_first_ux` — where the name is the referenced object's
-//     display name normalized into an identifier grammar (refNameNormalize:
-//     letters, digits, `_`, combining marks, nothing else). Key spellings
-//     stopped being normalized when raw naming landed; the suffix still is,
-//     because its grammar is what keeps the `#` split safe.
-//     The suffix is INFORMATIVE ONLY: import trims it at the first `#` and
-//     never resolves it, so a stale name costs nothing and two objects
-//     sharing one name collide on nothing. It exists so a human or a model
-//     reading a document sees what a reference points at instead of a
-//     59-character CID. A bare id with no suffix is equally valid, and is
-//     what a writer with no name in hand writes.
+// The format used to spell a reference `<id>#<name>`, with the name as an
+// informative suffix a reader trimmed. It is REMOVED — not defaulted off,
+// not an opt-in — for two reasons the corpus made plain. It was
+// unpredictable: 44,865 references in the 79-bundle corpus carried a name
+// and all but three of those sat on `Created by`/`Last modified by`, while
+// 979 references to those same members, in the same documents, carried
+// none — Owner 332, Assignee 315, Voters 176, Author 37, Suggested by 23,
+// Attendees 22 — so the rule could be stated only by naming properties, not
+// derived from any value or slot. And it was a parsing obligation on every
+// conforming reader: leaving the grammar as an opt-in does not discharge it,
+// because a reader that has only ever met bare ids breaks the first day some
+// read shape emits a caption. Removing the grammar discharges it.
+//
+// One amendment to a reference survives, and it is a rewriting of the id
+// rather than an addition to it:
 //
 //   - **The participant fold.** `_participant_<spaceId>_<identity>` is a
 //     derived id: the space id is the document's own space restated, and the
@@ -33,39 +37,34 @@ package anyblockjson
 //     compatibility with documents written before the prefix), never
 //     written.
 //
-// The split at `#` is unconditional and safe from both ends, verified rather
-// than assumed: no id form this format writes can contain `#` (CIDs are
-// base32 `[a-z2-7]`, participant ids base32+base58, `_ot`/`_br` ids are
-// `[a-zA-Z0-9_]` across all 223 bundled keys, `_date_…`/`_missing_object`
-// are fixed shapes; measured over 37,429 production documents: zero
-// id-shaped values contain `#`) — and the name half is normalized through a
-// grammar that admits no `#` either.
+// `#` is now an ordinary character. Neither side of the codec gives it a
+// meaning, so a reference carrying one is an id no space mints — it resolves
+// to nothing, the same way any id the bundle does not carry resolves to
+// nothing, and it survives a round trip unchanged.
 
 import (
 	"encoding/binary"
 	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/ipfs/go-cid"
 	"github.com/mr-tron/base58/base58"
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
-	"github.com/anyproto/any-block/codec/anyblockjson/filterstring"
 	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
-// ObjectNameResolver names an object for the informative reference suffix
-// (§9). It is the object-namespace sibling of ParticipantResolver, and it is
-// export-only: import trims the suffix without ever asking anyone.
+// ObjectNameResolver is the export-side seam onto the space's own object
+// index. The codec asks it NOTHING: a reference is an id, so no export path
+// needs a target's name (§9). It survives as the seam the two questions
+// below hang off — both are optional capabilities of
+// Options.ResolveObjectNames, discovered by type assertion — and a
+// name-only implementation therefore changes no byte of any export.
 //
-// A resolver that cannot name an id returns false and the reference is
-// written bare — never with a partial or invented suffix. An empty or
-// whitespace name is treated as no name at the seam (refNameLabel), the same
-// discipline the participant seam applies, so an implementation answering
-// ("", true) cannot put a dangling `#` on every reference in an export.
+// It was, until the caption was removed, the seam that wrote `<id>#<name>`.
+// Nothing does now: the format carries the id, and rendering a name is a
+// lookup the reader performs against the bundle it already holds.
 type ObjectNameResolver interface {
 	ObjectName(id string) (string, bool)
 }
@@ -193,127 +192,6 @@ func DroppedMissingObjectRef(opts Options, entry string) bool {
 		return ok
 	}
 	return missingFromSpace(opts, entry)
-}
-
-// refNameSep splits an object reference from its informative name suffix.
-// The FIRST occurrence splits (§9): the id half can never contain one, and
-// the name half never does either once normalized, so first-vs-last is not a
-// choice between behaviours — it is the same answer stated defensively.
-const refNameSep = "#"
-
-// maxRefNameLen bounds the suffix. The suffix is a glanceable hint, not an
-// address, so a name that normalizes past the bound is truncated rather than
-// dropped — truncation invents nothing here, unlike a key label (label.go),
-// which IS an address and refuses instead.
-const maxRefNameLen = 64
-
-// splitRefName splits a reference at the first `#` into the id and the
-// informative name. A reference with no `#`, and the degenerate `#…` whose
-// id half would be empty, split into themselves and no name: import never
-// invents an empty id out of a malformed reference.
-func splitRefName(ref string) (id, name string) {
-	if i := strings.Index(ref, refNameSep); i > 0 {
-		return ref[:i], ref[i+1:]
-	}
-	return ref, ""
-}
-
-// trimRefName is the import half of the suffix: the id, with the informative
-// name dropped unread (§9).
-func trimRefName(ref string) string {
-	id, _ := splitRefName(ref)
-	return id
-}
-
-// refNameLabel normalizes a display name into the suffix grammar
-// (refNameNormalize below), bounded by maxRefNameLen. An empty answer means
-// no suffix. The grammar admits no `#`, which is the writer's half of the
-// split guarantee: a raw display name here would break the split from both
-// ends.
-func refNameLabel(name string) string {
-	label := refNameNormalize(name)
-	if runes := []rune(label); len(runes) > maxRefNameLen {
-		label = strings.TrimRight(string(runes[:maxRefNameLen]), "_")
-	}
-	return label
-}
-
-// refNameNormalize turns a display name into the `#name` suffix grammar —
-// letters of any script, digits, `_`, combining marks — or "" when nothing
-// is left to name.
-//
-// This is the identifier normalization that used to mint KEY labels
-// (label.go), surviving here for its one remaining surface. Key spellings
-// are raw names now and need no normalization at all; the ref suffix still
-// does, because its grammar is what makes the `#` split safe — a raw
-// display name may contain `#`, and the suffix must not. The rules are
-// unchanged from the key-label era on purpose: the suffix is informative
-// and trimmed unread, so nothing depends on its exact shape, and keeping
-// the bytes stable keeps every already-written reference identical on its
-// next export.
-//
-// Three decisions worth keeping stated, because each has a plausible
-// alternative:
-//
-//   - **NFC, lowercase, separators collapse to `_`.** Two visually
-//     identical names must not suffix differently between exports.
-//   - **Combining marks are kept with their letter.** In Devanagari, Thai,
-//     Bengali, Tamil, Khmer and Myanmar the vowels ARE marks; dropping them
-//     does not shorten a word, it changes it — मिल/मूल/मल/मैल would all
-//     become मल.
-//   - **A leading `_` run is content, not a gap** — integrations namespace
-//     themselves `__amemory_…` in their names — while interior runs
-//     collapse and a trailing run trims; and a result that starts with a
-//     digit or is a filter-grammar keyword takes a leading `_`, the escape
-//     the suffix inherited from the key grammar and keeps for byte
-//     stability.
-func refNameNormalize(s string) string {
-	if s == "" {
-		return ""
-	}
-	lead := 0
-	for _, r := range s {
-		if r != '_' {
-			break
-		}
-		lead++
-	}
-	var b strings.Builder
-	gap := false // a separator run is pending, emitted only before the next letter
-	for _, r := range norm.NFC.String(s) {
-		switch {
-		case unicode.IsLetter(r) || unicode.IsDigit(r):
-			if gap && b.Len() > 0 {
-				b.WriteRune('_')
-			}
-			gap = false
-			b.WriteRune(unicode.ToLower(r))
-		case unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r):
-			// a mark cannot start a token, and one arriving with a pending
-			// separator is malformed input, not a word
-			if b.Len() > 0 && !gap {
-				b.WriteRune(r)
-			}
-		default:
-			gap = true // `_` included: runs collapse and edges trim
-		}
-	}
-	label := strings.Repeat("_", lead) + b.String()
-	if label == "" || strings.Trim(label, "_") == "" {
-		return ""
-	}
-	if !filterstring.IsBareKey(label) {
-		label = "_" + label
-	}
-	if !filterstring.IsBareKey(label) {
-		// unreachable by construction — every rune is already an identPart,
-		// so the only faults are a leading digit and a keyword, both cured
-		// above. It is a guard rather than a path: IsBareKey is another
-		// package's rule and may grow one, and the honest degradation is no
-		// suffix at all.
-		return ""
-	}
-	return label
 }
 
 // isAccountIdentity reports whether s is a member's account identity — the
@@ -574,49 +452,14 @@ func (o Options) unfoldRef(id string) string {
 }
 
 // objectRef renders one object reference for a document slot (§9): the
-// derived-id fold first, then the informative `#name` suffix when the
-// shape asks for it (Options.RefNames) and a resolver names the target. The
-// resolver is asked about the STORED id — the composite participant id, not
-// the folded form — because that is the id the space indexes. With no
-// resolver, or no name, the reference is written bare — never with a
-// partial or invented suffix.
-func (e *exporter) objectRef(id string) string {
-	out := e.opts.foldRef(id)
-	if !e.opts.RefNames || e.opts.ResolveObjectNames == nil || id == "" {
-		return out
-	}
-	if !suffixableRef(id) {
-		return out
-	}
-	name, ok := e.opts.ResolveObjectNames.ObjectName(id)
-	if !ok {
-		return out
-	}
-	if label := refNameLabel(name); label != "" {
-		return out + refNameSep + label
-	}
-	return out
-}
-
-// suffixableRef reports the ids a name suffix belongs on. A date id and the
-// missing-object sentinel already say everything they mean, and a dynamic
-// filter placeholder (§6.2) is not an object id at all — a suffix on any of
-// them would be decoration on a value some other layer must read verbatim.
+// derived-id fold, and nothing else. A reference is an id — there is no
+// caption, no display hint and no second half, so nothing here consults a
+// name and nothing appends to what the fold returns.
 //
-// An id that already carries a `#` is excluded for a different reason: the
-// suffix is only written where it is REVERSIBLE. No id this format writes
-// contains one, but a snapshot is untrusted (§11) and may hold anything, and
-// `x#y` + `#name` reads back as `x` — a different id from the one exported.
-// Worse where the id half is empty: `#name` refuses to split at index 0
-// (splitRefName), so import returns it whole and the next export appends
-// again, one name per generation without bound. Writing such an id bare
-// costs a caption on a reference that could not resolve anyway, and buys
-// back §11 guarantee 2.
-func suffixableRef(id string) bool {
-	return !strings.HasPrefix(id, dateIdPrefix) &&
-		id != missingObjectId &&
-		!isFilterTemplate(id) &&
-		!strings.Contains(id, refNameSep)
+// Rendering a name for a reference is a LOOKUP, not a spelling: index the
+// bundle by envelope `id` and read the target document's `Name`.
+func (e *exporter) objectRef(id string) string {
+	return e.opts.foldRef(id)
 }
 
 // singularObjectRef renders a SINGULAR reference slot — a block's
@@ -892,13 +735,18 @@ const missingObjectId = "_missing_object"
 // the two cannot be allowed to spell it differently.
 const MissingObjectId = missingObjectId
 
-// objectRef reads one object reference back (§9): the informative suffix is
-// trimmed at the first `#`, unread, and a folded derived id unfolds into
-// this space's object id. Everything else passes verbatim, exactly as
-// before the suffix existed — which is what keeps a bare id and a suffixed
-// id importing identically.
+// objectRef reads one object reference back (§9): a folded derived id
+// unfolds into this space's object id, and everything else passes verbatim.
+//
+// Nothing is trimmed. The format has no caption, so a `#` in a reference is
+// an ordinary character of an id — and an id no space mints, which makes the
+// reference resolve to nothing, exactly like any other id this bundle does
+// not carry. Narrowing it at the `#` would be the reader inventing a
+// different id from the one it was handed; that used to be the format's one
+// reference normalization (§11 N(S)) and it is gone with the grammar that
+// needed it.
 func (imp *importer) objectRef(ref string) string {
-	return imp.unfoldRef(trimRefName(ref))
+	return imp.unfoldRef(ref)
 }
 
 // unfoldRef is the importer's half of the derived-id fold on one reference
@@ -984,7 +832,7 @@ func (imp *importer) typeRefUnrebuildable(id string) bool {
 // closes that spelling; this gate closes the shape, so a future accepted
 // spelling cannot reopen it through a kind that was never entitled to one.
 func (imp *importer) envelopeId(ref string, sbType model.SmartBlockType) string {
-	id := trimRefName(ref)
+	id := ref
 	switch {
 	case sbType == model.SmartBlockType_Participant:
 		// the participant fold's own gate, and its diagnostic: see objectRef

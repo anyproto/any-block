@@ -170,8 +170,8 @@ func UnmarshalPropertyValue(key string, v any, opts Options) *types.Value {
 	// (§3): `creator` and `lastModifiedBy` are DERIVED — the store sets them,
 	// a writer never does — so a caller round-tripping one value through this
 	// pair would hand back a value that can only be discarded on the way in.
-	// MarshalPropertyValue writes the member as `<id>#<name>` for a reader to
-	// display; this refuses to read it back, and the asymmetry is the point.
+	// MarshalPropertyValue writes the member as the folded participant id;
+	// this refuses to read it back, and the asymmetry is the point.
 	value, err := UnmarshalPropertyValueChecked(key, v, opts)
 	if err != nil {
 		return nil

@@ -6,7 +6,6 @@ package anyblockjson
 
 import (
 	"encoding/binary"
-	"strings"
 	"testing"
 
 	"github.com/gogo/protobuf/types"
@@ -209,7 +208,7 @@ func TestFold_ImportRebuildsTheComposite(t *testing.T) {
 
 	// given
 	doc := `{"formatVersion": "2.0", "properties": {
-		"assignee": ["` + foldIdentity + `#alice_ko", "` + notAnIdentity + `"]}}`
+		"assignee": ["` + foldIdentity + `", "` + notAnIdentity + `"]}}`
 
 	// when
 	_, snap, err := Unmarshal([]byte(doc), foldOptions())
@@ -218,7 +217,7 @@ func TestFold_ImportRebuildsTheComposite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{foldComposite, notAnIdentity},
 		valueStringList(snap.GetDetails().GetFields()["assignee"]),
-		"the identity unfolds (suffix trimmed first); the near-miss passes verbatim")
+		"the identity unfolds; the near-miss passes verbatim")
 }
 
 // The round trip is byte-stable and snapshot-lossless: fold on export,
@@ -252,28 +251,6 @@ func TestFold_RoundTripLossless(t *testing.T) {
 		valueStringList(snap.Collections.Fields[storeKeyItems]),
 		valueStringList(imported.GetCollections().GetFields()[storeKeyItems]),
 		"items too")
-}
-
-// Fold and suffix compose: with RefNames on and a resolver that knows the
-// COMPOSITE id (the id the space indexes), the document spells
-// `<identity>#<name>`.
-//
-// How this can fail: ask the resolver about the folded identity instead of
-// the stored composite and no name resolves, so the suffix vanishes.
-func TestFold_ComposesWithTheNameSuffix(t *testing.T) {
-	// given
-	opts := foldOptions()
-	opts.RefNames = true
-	opts.ResolveObjectNames = testObjectNames{foldComposite: "Alice Ko"}
-
-	// when
-	data, err := Marshal(model.SmartBlockType_Page, foldSnapshot(), opts)
-	require.NoError(t, err)
-
-	// then
-	assert.Contains(t, string(data), `"`+ParticipantRefPrefix+foldIdentity+`#alice_ko"`,
-		"resolvable AND readable: the folded identity plus the informative name")
-	assert.True(t, strings.Contains(string(data), foldIdentity))
 }
 
 // A composite built from a BLANK identity addresses nobody, and 9,103 of the
@@ -355,39 +332,6 @@ func TestFold_NeitherGateIsRedundant(t *testing.T) {
 				"folding this would re-home the member on import")
 		})
 	}
-}
-
-// A resolver that answers with a name the suffix grammar reduces to nothing
-// — an emoji-only title, which real objects have — leaves the reference
-// BARE. Never a dangling `#`: that value reads back as the id it came from
-// only because splitRefName refuses to split at index 0, and a document full
-// of them is unreadable besides.
-//
-// How this can fail: append the separator before checking the normalized
-// label and every emoji-named reference gains a trailing `#`.
-func TestRefNames_ANameThatNormalizesToNothingLeavesTheRefBare(t *testing.T) {
-	// given
-	opts := refOptions()
-	opts.RefNames = true
-	opts.ResolveObjectNames = testObjectNames{"bafyreiassigned": "🎉🎉🎉"}
-	snap := &model.SmartBlockSnapshotBase{
-		Blocks: []*model.Block{{
-			Id:      "bafyreirefroot",
-			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
-		}},
-		Details: fields(map[string]*types.Value{
-			"id":       str("bafyreirefroot"),
-			"assignee": strList("bafyreiassigned"),
-		}),
-	}
-
-	// when
-	data, err := Marshal(model.SmartBlockType_Page, snap, opts)
-	require.NoError(t, err)
-
-	// then
-	assert.Contains(t, string(data), `"bafyreiassigned"`)
-	assert.NotContains(t, string(data), "#", "an empty label is no label, not an empty suffix")
 }
 
 // A reader that names no space cannot rebuild a folded participant id, and

@@ -960,8 +960,8 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		// transient state and the attribution keys are dropped, not refused: a
 		// document carrying one is stale rather than wrong. Export writes no
 		// transient key at all, and writes the attribution keys as derived
-		// captions — `<id>#<name>` recovered from the tree on every rebuild,
-		// which no write path could honour (§3) — so this fires on every
+		// values recovered from the tree on every rebuild, which no write
+		// path could honour (§3) — so this fires on every
 		// document this package produces for an object with a creator, and
 		// on a stale or hand-written one for the rest.
 		if isDroppedOnImport(key) {

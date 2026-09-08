@@ -1,10 +1,11 @@
 package anyblockjson
 
-// refs_test.go — the informative `#name` reference suffix (§9): written on
-// export behind RefNames, trimmed unread on import, and never required.
+// refs_test.go — object references (§9). A reference is an id and nothing
+// else: no export writes a caption after it (nocaption_test.go fences that),
+// no import trims at a `#`, and a `#` a document happens to carry is an
+// ordinary character of an id that names nothing.
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -17,6 +18,7 @@ import (
 )
 
 // testObjectNames answers from a fixed table — the ObjectNameResolver shape.
+// Nothing in the codec asks it anything; it is here to prove that.
 type testObjectNames map[string]string
 
 func (m testObjectNames) ObjectName(id string) (string, bool) {
@@ -24,7 +26,7 @@ func (m testObjectNames) ObjectName(id string) (string, bool) {
 	return n, ok
 }
 
-// refSnapshot exercises every slot the suffix rides: an object-format
+// refSnapshot exercises every reference slot §9 lists: an object-format
 // property, collection items, link/file/bookmark blocks, and a dataview with
 // an object-valued filter, a custom order, and a kanban object order.
 func refSnapshot() *model.SmartBlockSnapshotBase {
@@ -104,81 +106,9 @@ func refOptions() Options {
 	return o
 }
 
-// Every slot §9 lists gains the suffix when the shape asks for it, and the
-// output stays a document this package's own Validate accepts (I1).
-//
-// How this can fail: unhook exporter.objectRef from any one slot and that
-// slot's assertion finds the bare id; break the normalizer and the expected
-// spellings differ; emit a suffix Validate rejects and the I1 check fails.
-// Nothing here re-implements the suffix — the expectations are literal
-// strings.
-func TestRefNames_SuffixOnEverySlot(t *testing.T) {
-	// given
-	opts := refOptions()
-	opts.RefNames = true
-	opts.ResolveObjectNames = refNames
-
-	// when
-	data, err := Marshal(model.SmartBlockType_Page, refSnapshot(), opts)
-	require.NoError(t, err)
-	require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (§11 I1)")
-	doc := string(data)
-
-	// then — one literal expectation per slot
-	for slot, want := range map[string]string{
-		"property value (custom objects format)":  `"bafyreitopic#local_first_ux"`,
-		"property value (bundled objects format)": `"bafyreiassigned#alice_ko"`,
-		"items":                    `"bafyreicollected#collected_page"`,
-		"link block":               `"object_id": "bafyreilinked#linked_page"`,
-		"file block":               `"object_id": "bafyreipicture#cat_photo"`,
-		"bookmark block":           `"object_id": "bafyreibookmarked#bookmarked_page"`,
-		"dataview target":          `"object_id": "bafyreitargeted#task_tracker"`,
-		"filter value":             `"bafyreifiltered#filter_target"`,
-		"sort custom order":        `"bafyreiordered#order_target"`,
-		"object_orders object ids": `"bafyreikanban#kanban_card"`,
-	} {
-		assert.Contains(t, doc, want, slot)
-	}
-}
-
-// The suffix is opt-in per shape: RefNames off (the default, the
-// export/backup shape) writes every reference bare even with a resolver
-// wired, and RefNames on with no resolver writes them bare too — never a
-// partial or invented suffix.
-//
-// How this can fail: make the suffix unconditional and the first case finds
-// a `#`; invent a suffix from the id itself and the second does.
-func TestRefNames_OffByDefaultAndBareWithoutResolver(t *testing.T) {
-	t.Run("resolver wired, flag off", func(t *testing.T) {
-		// given
-		opts := refOptions()
-		opts.ResolveObjectNames = refNames
-
-		// when
-		data, err := Marshal(model.SmartBlockType_Page, refSnapshot(), opts)
-
-		// then
-		require.NoError(t, err)
-		assert.NotContains(t, string(data), "#",
-			"the export/backup shape writes no suffix: minimal, and stable under renames")
-	})
-
-	t.Run("flag on, no resolver", func(t *testing.T) {
-		// given
-		opts := refOptions()
-		opts.RefNames = true
-
-		// when
-		data, err := Marshal(model.SmartBlockType_Page, refSnapshot(), opts)
-
-		// then
-		require.NoError(t, err)
-		assert.NotContains(t, string(data), "#", "with no resolver, the bare id — nothing invented")
-	})
-}
-
-// suffixedRefDoc spells a suffixed reference in every §9 slot; bareRefDoc is
-// the same document with every suffix removed.
+// suffixedRefDoc is a document a caption-era export produced: every §9 slot
+// spells `<id>#<name>`. bareRefDoc below is the same document with the
+// captions removed — the shape every export writes now.
 const suffixedRefDoc = `{
   "formatVersion": "2.0",
   "id": "bafyreirefroot",
@@ -200,15 +130,23 @@ const suffixedRefDoc = `{
   "items": ["bafyreicollected#collected_page"]
 }`
 
-// Import trims the suffix at the first `#` in every slot, and a bare
-// document imports IDENTICALLY — the §11 I2 surface: a model writing a new
-// reference has no name to add, and must not need one.
+// A caption-era document and its bare twin are two DIFFERENT documents now,
+// and that is the whole of the change on the reading side: `#` is not a
+// separator, so `bafyreiassigned#alice_ko` is one id — one that no space
+// mints, so it resolves to nothing, exactly like any other id this bundle
+// does not carry.
 //
-// How this can fail: skip the trim at any slot and that slot's snapshot
-// value keeps the `#name`; trim at the LAST `#` instead of the first and the
-// double-# case keeps half a suffix; make the suffix load-bearing and the
-// bare document stops importing equal.
-func TestRefs_ImportTrimsAndBareImportsIdentically(t *testing.T) {
+// Both still import. Refusing was considered and is not available: a stored
+// detail may already hold a `#` (the invariant corpus holds several), export
+// writes such a value through verbatim, and "Marshal never emits what
+// Validate rejects" (§11 I1) is the stronger promise — refusing here would
+// make one already-corrupt stored value enough to make an object
+// unexportable.
+//
+// How this can fail: put trimRefName back on importer.objectRef and the two
+// snapshots below become equal again, the reader silently inventing an id it
+// was never handed.
+func TestRefs_ACaptionIsPartOfTheIdOnRead(t *testing.T) {
 	bare := strings.NewReplacer(
 		"#alice_ko", "", "#linked_page", "", "#cat_photo", "",
 		"#bookmarked_page", "", "#task_tracker", "", "#filter_target", "",
@@ -217,8 +155,9 @@ func TestRefs_ImportTrimsAndBareImportsIdentically(t *testing.T) {
 	require.NotContains(t, bare, "#", "the bare twin really is bare")
 
 	// when — both forms validate and both import
-	require.NoError(t, Validate([]byte(suffixedRefDoc), Options{}), "a suffixed reference is valid")
-	require.NoError(t, Validate([]byte(bare), Options{}), "a bare reference is valid")
+	require.NoError(t, Validate([]byte(suffixedRefDoc), Options{}),
+		"a `#` in a reference is not a validation fault: Marshal can emit one (§11 I1)")
+	require.NoError(t, Validate([]byte(bare), Options{}))
 	importOpts := func() Options {
 		o := testOptions()
 		o.GenerateId = seqIds("gen") // deterministic, so the two snapshots can be compared whole
@@ -229,82 +168,52 @@ func TestRefs_ImportTrimsAndBareImportsIdentically(t *testing.T) {
 	sbType2, bareSnap, err := Unmarshal([]byte(bare), importOpts())
 	require.NoError(t, err)
 
-	// then — the suffix reached no snapshot slot
-	blob, err := json.Marshal(suffixed)
-	require.NoError(t, err)
-	assert.NotContains(t, string(blob), "#", "no suffix survives into the snapshot")
-	for slot, want := range map[string]string{
-		"assignee": "bafyreiassigned",
-	} {
-		assert.Equal(t, []string{want},
-			valueStringList(suffixed.GetDetails().GetFields()[slot]), slot)
-	}
-
-	// and the two forms import identically
+	// then — every value arrives exactly as written
+	assert.Equal(t, []string{"bafyreiassigned#alice_ko"},
+		valueStringList(suffixed.GetDetails().GetFields()["assignee"]),
+		"the whole string is the id")
 	assert.Equal(t, sbType1, sbType2)
-	assert.Equal(t, bareSnap, suffixed, "a bare id and a suffixed id import identically (§11 I2)")
+	assert.NotEqual(t, bareSnap, suffixed, "two different ids are two different snapshots")
 }
 
-// A `#` that does not follow an id is left alone: the trim never invents an
-// empty reference out of a malformed one, and an option NAME containing `#`
-// (a select value like "C#") is not an object reference and keeps its
-// characters.
+// Nothing is trimmed at a `#`, anywhere, whatever the slot: not a leading
+// one, not a second one, and not the sharp in a select value like "C#" —
+// which never was a reference and is here as the control that outlived the
+// rule it controlled for.
 //
-// How this can fail: trim unconditionally at index 0 and the leading-#
-// value comes back empty; run the trim over select values and "C#" loses
-// its sharp.
-func TestRefs_TrimNeverInventsEmptinessAndSkipsOptionNames(t *testing.T) {
-	t.Run("a leading-# value stays whole", func(t *testing.T) {
-		// given
-		doc := `{"formatVersion": "2.0", "properties": {"assignee": ["#notanid"]}}`
+// How this can fail: restore splitRefName and any of the three loses
+// characters it was handed.
+func TestRefs_NothingIsTrimmedAtAHash(t *testing.T) {
+	for name, tc := range map[string]struct{ key, in string }{
+		"a leading-# value":      {"assignee", "#notanid"},
+		"a double-# value":       {"assignee", "bafyreiassigned#a#b"},
+		"an ordinary caption":    {"assignee", "bafyreiassigned#alice_ko"},
+		"a select value's sharp": {"customStatus", "C#"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// given
+			doc := `{"formatVersion": "2.0", "properties": {"` + tc.key + `": ["` + tc.in + `"]}}`
 
-		// when
-		_, snap, err := Unmarshal([]byte(doc), testOptions())
+			// when
+			_, snap, err := Unmarshal([]byte(doc), testOptions())
 
-		// then
-		require.NoError(t, err)
-		assert.Equal(t, []string{"#notanid"},
-			valueStringList(snap.GetDetails().GetFields()["assignee"]))
-	})
-
-	t.Run("a double-# value trims at the FIRST separator", func(t *testing.T) {
-		// given a reference whose informative half itself spells a #
-		doc := `{"formatVersion": "2.0", "properties": {"assignee": ["bafyreiassigned#a#b"]}}`
-
-		// when
-		_, snap, err := Unmarshal([]byte(doc), testOptions())
-
-		// then — LastIndex would hand back bafyreiassigned#a, an id that
-		// addresses nothing
-		require.NoError(t, err)
-		assert.Equal(t, []string{"bafyreiassigned"},
-			valueStringList(snap.GetDetails().GetFields()["assignee"]))
-	})
-
-	t.Run("an option name keeps its #", func(t *testing.T) {
-		// given customStatus resolves to the select format (testOptions)
-		doc := `{"formatVersion": "2.0", "properties": {"customStatus": ["C#"]}}`
-
-		// when
-		_, snap, err := Unmarshal([]byte(doc), testOptions())
-
-		// then
-		require.NoError(t, err)
-		assert.Equal(t, []string{"C#"},
-			valueStringList(snap.GetDetails().GetFields()["customStatus"]),
-			"a select value is a name, not a reference — no trim (§9)")
-	})
+			// then
+			require.NoError(t, err)
+			assert.Equal(t, []string{tc.in},
+				valueStringList(snap.GetDetails().GetFields()[tc.key]))
+		})
+	}
 }
 
-// The round trip stays byte-stable given the same resolver: import trims the
-// suffix, and the second export re-derives it from the same names.
+// The round trip is byte-stable with every resolver wired — and it is now
+// byte-stable for a value carrying a `#` too, which it was not while the
+// suffix existed.
 //
-// How this can fail: any slot that trims without re-deriving (or derives
-// without trimming) shifts bytes between generations.
+// How this can fail: any slot that rewrites a reference on either side
+// shifts bytes between generations.
 func TestRefs_RoundTripByteStableWithResolver(t *testing.T) {
 	// given
 	opts := refOptions()
-	opts.RefNames = true
 	opts.ResolveObjectNames = refNames
 
 	// when
@@ -320,13 +229,14 @@ func TestRefs_RoundTripByteStableWithResolver(t *testing.T) {
 		"Export ∘ Import is byte-stable with the same resolver (§11)")
 }
 
-// The ids that already say what they mean take no suffix: a date reference,
-// the missing-object sentinel, a dynamic filter placeholder.
+// The ids that already say what they mean pass through untouched, with a
+// resolver wired that (wrongly) has a name for each: a date reference, the
+// missing-object sentinel, a dynamic filter placeholder.
 //
-// How this can fail: drop the suffixableRef guard and each of the three
-// gains a suffix the moment a resolver claims to name it.
-func TestRefNames_SelfDescribingIdsTakeNoSuffix(t *testing.T) {
-	// given a resolver that (wrongly) has names for all three
+// How this can fail: give exporter.objectRef any arm that rewrites a
+// reference from a resolver's answer and each of the three changes.
+func TestRefs_SelfDescribingIdsPassThroughUntouched(t *testing.T) {
+	// given
 	snap := &model.SmartBlockSnapshotBase{
 		Blocks: []*model.Block{{
 			Id:      "bafyreirefroot",
@@ -339,7 +249,6 @@ func TestRefNames_SelfDescribingIdsTakeNoSuffix(t *testing.T) {
 		}),
 	}
 	opts := refOptions()
-	opts.RefNames = true
 	opts.ResolveObjectNames = testObjectNames{
 		"_date_2026-08-17":    "17 Aug 2026",
 		"_missing_object":     "Missing",
@@ -356,87 +265,16 @@ func TestRefNames_SelfDescribingIdsTakeNoSuffix(t *testing.T) {
 	assert.Contains(t, doc, `"_date_2026-08-17"`)
 	assert.Contains(t, doc, `"_missing_object"`)
 	assert.Contains(t, doc, `"_filter_template_2_"`)
-	assert.Contains(t, doc, `"bafyreiassigned#alice_ko"`, "the control: an ordinary ref still gains one")
+	assert.Contains(t, doc, `"bafyreiassigned"`, "and the ordinary reference is the bare id too")
+	assert.NotContains(t, doc, "#")
 }
 
-// The name half of the split guarantee: whatever a display name holds, the
-// suffix that reaches the document contains no `#` and survives in the
-// identifier grammar.
+// A reference with no id half no longer grows a name every generation, and
+// no longer needs a rule saying so: nothing appends to a reference, so
+// `#some_name` is written back exactly as it arrived, forever.
 //
-// How this can fail: write the raw display name after the `#` and the
-// adversarial cases split wrong on read; drop the truncation and the long
-// name blows the bound.
-func TestRefNameLabel(t *testing.T) {
-	for name, tc := range map[string]struct{ in, want string }{
-		"spaces snake":    {"Local-first UX", "local_first_ux"},
-		"plain name":      {"Alice Ko", "alice_ko"},
-		"hash inside":     {"a#b", "a_b"},
-		"only a hash":     {"#", ""},
-		"whitespace only": {" \t ", ""},
-		"non-latin kept":  {"Тоггл", "тоггл"},
-		"empty":           {"", ""},
-	} {
-		t.Run(name, func(t *testing.T) {
-			got := refNameLabel(tc.in)
-			assert.Equal(t, tc.want, got)
-			assert.NotContains(t, got, "#", "the grammar admits no #")
-		})
-	}
-
-	t.Run("a long name truncates at the bound", func(t *testing.T) {
-		long := strings.Repeat("word ", 40) // normalizes to 199 chars of word_word_…
-		got := refNameLabel(long)
-		assert.LessOrEqual(t, len([]rune(got)), maxRefNameLen)
-		assert.NotEmpty(t, got)
-		assert.False(t, strings.HasSuffix(got, "_"), "no dangling separator after the cut")
-	})
-}
-
-// An id that already carries a `#` takes no suffix, however confidently a
-// resolver names it: `x#y` + `#name` reads back as `x`, so the caption would
-// be paid for with the id itself (§9).
-//
-// How this can fail: drop the refNameSep arm of suffixableRef and both ids
-// below gain a caption the reader cannot undo.
-func TestRefNames_AnIdCarryingAHashTakesNoSuffix(t *testing.T) {
-	// given a resolver that has a name for both hostile ids
-	snap := &model.SmartBlockSnapshotBase{
-		Blocks: []*model.Block{{
-			Id:      "bafyreirefroot",
-			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
-		}},
-		Details: fields(map[string]*types.Value{
-			"id":       str("bafyreirefroot"),
-			"assignee": strList("bafyreiassigned#stale_name"),
-			"related":  strList("#notanid"),
-		}),
-	}
-	opts := refOptions()
-	opts.RefNames = true
-	opts.ResolveObjectNames = testObjectNames{
-		"bafyreiassigned#stale_name": "Alice Ko",
-		"#notanid":                   "Alice Ko",
-	}
-
-	// when
-	data, err := Marshal(model.SmartBlockType_Page, snap, opts)
-	require.NoError(t, err)
-	require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (§11 I1)")
-	doc := string(data)
-
-	// then — both stand exactly as stored, with nothing appended
-	assert.Contains(t, doc, `"bafyreiassigned#stale_name"`)
-	assert.Contains(t, doc, `"#notanid"`)
-	assert.NotContains(t, doc, "alice_ko", "no caption on an unsplittable id")
-}
-
-// A reference with no id half does not grow a name every generation (§11
-// guarantee 2). splitRefName refuses to split at index 0, so `#name` imports
-// whole; if export were still willing to caption it, each round trip would
-// append another and the document would diverge without bound.
-//
-// How this can fail: let suffixableRef admit a `#`-bearing id and generation
-// 2 is `#some_name#alice_ko`, generation 3 one name longer again.
+// How this can fail: any export path that appends to a reference makes
+// generation 2 differ from generation 1.
 func TestRefs_ALeadingHashReferenceDoesNotGrow(t *testing.T) {
 	// given the mistake a writer makes copying the readable half of id#name
 	doc := []byte(`{"formatVersion": "2.0", "kind": "page", "id": "bafyreiroot",
@@ -444,7 +282,6 @@ func TestRefs_ALeadingHashReferenceDoesNotGrow(t *testing.T) {
 	require.NoError(t, Validate(doc, Options{}))
 
 	opts := refOptions()
-	opts.RefNames = true
 	opts.ResolveObjectNames = testObjectNames{"#some_name": "Alice Ko"}
 
 	// when — three generations through the codec
@@ -467,22 +304,17 @@ func TestRefs_ALeadingHashReferenceDoesNotGrow(t *testing.T) {
 	assert.Equal(t, gens[1], gens[2])
 }
 
-// The format's one reference normalization (§11 N(S)): an id with a `#`
-// INSIDE it loses its tail on read, because the split cannot tell that `#`
-// from the one the suffix uses. Export no longer captions such an id, so the
-// loss happens once and the value is a fixpoint from the second generation
-// on — it does not shrink again, and it does not grow.
+// The format's last reference normalization is GONE. An id with a `#` inside
+// it used to lose its tail on read — the single entry in §11's N(S) for a
+// reference — because the reader could not tell that `#` from the one a
+// caption hung on. There is no caption, so there is nothing to tell it from,
+// and the value survives every generation intact.
 //
-// No id this format writes contains a `#` and none was found in 81,696
-// production documents across two corpora; this test exists to state what
-// happens if one ever does, rather than to leave it to be discovered.
-//
-// How this can fail: caption a `#`-bearing id again and generation 2 differs
-// from generation 3 as the tail is eaten one segment at a time.
-func TestRefs_AHashInsideAnIdIsNormalizedOnce(t *testing.T) {
+// How this can fail: restore the trim on import and generation 1 keeps
+// `bafyreiassigned#weird` while the snapshot holds `bafyreiassigned`.
+func TestRefs_AHashInsideAnIdIsNotNormalizedAtAll(t *testing.T) {
 	// given
 	opts := refOptions()
-	opts.RefNames = true
 	opts.ResolveObjectNames = testObjectNames{
 		"bafyreiassigned#weird": "Alice Ko",
 		"bafyreiassigned":       "Alice Ko",
@@ -505,37 +337,35 @@ func TestRefs_AHashInsideAnIdIsNormalizedOnce(t *testing.T) {
 	require.NoError(t, err)
 	gen2, err := Marshal(sbType, back, opts)
 	require.NoError(t, err)
-	_, back2, err := Unmarshal(gen2, opts)
-	require.NoError(t, err)
-	gen3, err := Marshal(sbType, back2, opts)
-	require.NoError(t, err)
 
-	// then — the tail goes once, and only once
+	// then — nothing is lost on the first generation, so there is no second
 	assert.Contains(t, string(gen1), `"bafyreiassigned#weird"`, "export writes the stored id whole")
-	assert.Equal(t, []string{"bafyreiassigned"},
+	assert.Equal(t, []string{"bafyreiassigned#weird"},
 		valueStringList(back.GetDetails().GetFields()["assignee"]),
-		"the reader cannot tell this # from the suffix's, so the tail goes (§11 N(S))")
-	assert.Equal(t, string(gen2), string(gen3), "and the normalized value is a fixpoint")
+		"and import reads back the id it was given, whole")
+	assert.Equal(t, string(gen1), string(gen2), "a fixpoint from the first generation")
 }
 
-// A reference with no id half is a warning on the way in, not a silent
-// dangling value: the reader will not repair it, so the writer is told (§9).
-// Warning-grade, because a document that carries one is still readable, and
-// export must be able to pass through whatever a snapshot holds.
+// A `#` in an object-format value is not a validation fault of any grade.
+// It used to warn — "no id before its `#`" — and the warning's premise was
+// the caption grammar: it told a writer they had copied the readable half of
+// `id#name`. There is no readable half to copy, and the warning went with
+// it. The value is an id that names nothing, which is not a thing this
+// format reports: a bundle cannot tell a reference that did not travel from
+// one that never existed (§9).
 //
-// How this can fail: drop the objects arm of wrongShapeForFormat and the
-// document validates clean while the value addresses nothing.
-func TestValidate_AReferenceWithNoIdHalfWarns(t *testing.T) {
+// How this can fail: reinstate an objects arm in wrongShapeForFormat and the
+// warning channel fills with a rule the format no longer has — or, worse,
+// refuse it and break §11 I1, since Marshal emits this exact document.
+func TestValidate_AHashInAReferenceIsNotReported(t *testing.T) {
 	// given assignee is a bundled objects property — no store needed to know it
-	doc := []byte(`{"formatVersion": "2.0", "properties": {"assignee": ["#alice_ko"]}}`)
+	doc := []byte(`{"formatVersion": "2.0", "properties": {"assignee": ["#alice_ko", "bafyreiassigned#alice_ko"]}}`)
 
 	// when
 	var warned []Issue
 	err := Validate(doc, Options{OnWarning: func(i Issue) { warned = append(warned, i) }})
 
 	// then
-	require.NoError(t, err, "a document that carries one is still readable")
-	require.Len(t, warned, 1)
-	assert.Equal(t, "/properties/assignee", warned[0].Path)
-	assert.Contains(t, warned[0].Message, "no id before its")
+	require.NoError(t, err)
+	assert.Empty(t, warned)
 }

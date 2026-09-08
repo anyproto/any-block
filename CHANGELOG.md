@@ -5,6 +5,72 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **The `<id>#<name>` reference caption is REMOVED from the format** (SPEC
+  §3, §9, §11, §12, §13, §15 #3/#3a; PRINCIPLES rule 6; READING.md step 6;
+  `object.schema.json`). A reference is an id — the whole string, with no
+  caption, no display hint and no half to strip. It is not defaulted off and
+  not an opt-in: no export shape writes one, no import trims one, and
+  nothing in the published schemas describes one.
+
+  Two measurements over the 79-bundle corpus at `57f4add` (24,905 documents)
+  decided it, and each rules out a weaker fix.
+
+  It could not be predicted from anything but a property's NAME. 44,865
+  references carried a caption and all but 3 sat on `Created by` /
+  `Last modified by` — 22,608 and 22,254, the other 3 on a raw `creator`
+  spelling — while 979 references to those SAME members carried none: Owner
+  332, Assignee 315, Voters 176, Author 37, Suggested by 23, Attendees 22,
+  Stakeholders 16, Participants 5, Bookmark 1, and 14 on the attribution
+  keys themselves. In 435 documents one member is captioned in an
+  attribution slot and bare in a user-facing one, in the same file. (SPEC §9
+  said "corpus-wide 44,828"; that figure did not re-derive and is corrected.)
+
+  And it was a parsing obligation on every conforming reader that defaulting
+  it off did not discharge. Re-exporting the same 24,905 documents through
+  the READ shape — every resolver wired — captioned **105,600** references
+  across 22 slots: block `object_id`s (19,504), `Created in context`
+  (9,767), the four recommended-property lists (7,431 + 5,368 + 5,239 +
+  2,420), `items` (3,202), `Picture` (1,958), filter values (736),
+  `object_orders` (295), a table cell's target (8). A reader that has only
+  met bare ids breaks the first day one of those is emitted; only removing
+  the grammar ends that.
+
+  **Removed, not refused, and the distinction is load-bearing.** A document
+  carrying `id#name` stays VALID — `#` is legal as a character and
+  meaningless as a separator. Refusing it would break §11 I1: a space may
+  already store a reference containing one, export writes such a value
+  through verbatim, and a validator that refused it would make one
+  already-corrupt stored value enough to make an object unexportable. What a
+  reader gains is the absence of a rule, not a new one. Import therefore
+  stops trimming as well, which deletes the format's last reference
+  normalization — `N(S)` no longer narrows an id containing `#` — and §12
+  loses the warning for a value beginning at `#`, whose whole premise was
+  the caption grammar.
+
+  **Three exported symbols are deleted rather than kept without effect**,
+  because an Options field that can no longer change any output is a trap
+  and a compile error is the loudest possible notice: `Options.RefNames`,
+  `Options.ResolveParticipants` and the `ParticipantResolver` interface.
+  `Options.ResolveObjectNames` STAYS — it is not without effect, being the
+  sole carrier for the type-asserted `ObjectExistenceResolver` and
+  `ObjectDeletionResolver` that arm the missing-reference and deleted-icon
+  rules — but its `ObjectName` method is no longer consulted, and a test
+  pins that a name-only resolver changes no byte of any export. Removing the
+  attribution caption also takes one store lookup per attribution value out
+  of an exporter's hot path: 44,865 of them over this corpus.
+
+  Verification: re-exporting all 24,905 corpus documents through the codec
+  with every resolver wired gives 105,600 captioned references before and
+  **0** after, 0 import failures and 0 export failures on both sides. The
+  2,519 participant envelope ids were bare before and are bare and unchanged
+  after. Strip the caption from the before-output and it is byte-identical
+  to the after-output for every document (`8f7d850e377d6c9b…` on both
+  sides), so the caption is the only thing that changed;
+  `bundle.Validate` over the 79 bundles is identical class-for-class (17
+  pass, 62 fail, 358 issue lines, all pre-existing dangling references). A
+  per-object dependency map resolving referenced ids to a name and an icon
+  is filed separately as GO-7504 and is not part of this release.
+
 - **`OptionResolver`'s contract stops pairing one method with one
   direction** (SPEC §13, `OptionResolver`). The interface summarised itself
   as "maps option ids to names on export and names to ids on import", which

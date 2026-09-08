@@ -27,7 +27,7 @@
     {
       "id": "b3",
       "type": "dataview",
-      "object_id": "bafyreicollection#Walks",
+      "object_id": "bafyreicollection",
       "views": [
         {
           "id": "v1",
