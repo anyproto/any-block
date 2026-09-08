@@ -68,16 +68,20 @@ type Stats struct {
 	IndexBytes            int
 	OmittedDocs           int
 	// OrphanUsedKeys are referenced property keys with no definition
-	// anywhere — no relation object, not bundled — so the dictionary cannot
-	// state a format for them (§2f names every property it CAN).
+	// anywhere — no relation object, not bundled — so no format can be
+	// stated for them. Each still gets a dictionary entry, carrying the
+	// `unknown` sentinel and nothing else (§2f): the key resolves, and what
+	// it resolves to is the statement that nothing could define it. Sorted.
+	// One of the losses §11 states rather than hides.
 	OrphanUsedKeys []string
 	// OptionsLifted counts the option documents the emit omitted whose
 	// vocabulary the dictionary now states inline (§2f); OptionsDropped
 	// counts the ones it does not — their property has no dictionary entry
-	// to travel on, either because no document references it (the used-only
-	// rule; its keys are UnusedPropertyKeys), because nothing can define it
-	// (its key is in OrphanUsedKeys), or because the entry cannot state a
-	// vocabulary at all (RefusedOptions).
+	// a vocabulary can travel on, either because no document references it
+	// (the used-only rule; its keys are UnusedPropertyKeys), because nothing
+	// can define it (its key is in OrphanUsedKeys, and an entry that says
+	// nothing could define the property states nothing else), or because the
+	// entry cannot state a vocabulary at all (RefusedOptions).
 	OptionsLifted  int
 	OptionsDropped int
 	// OptionsUnliftable counts option snapshots the composer could not lift
@@ -110,6 +114,19 @@ type Stats struct {
 	// options that go with the ones that do own a vocabulary are still
 	// counted, in OptionsDropped.
 	UnusedPropertyKeys []string
+	// UnresolvedTargets are the ids index.json names that no document this
+	// composition WROTE carries — an entry point, a homepage, a widget
+	// target, an image icon — spelled the way the index spells them, the
+	// derived-id fold included (§9). Sorted. index.json states them too
+	// (Index.Unresolved); this is the same set for a caller that logs a
+	// summary rather than re-reading the file it just wrote.
+	//
+	// Reserved listings are not here — they resolve everywhere — and neither
+	// is the auto-widget ledger: an entry there usually names a widget the
+	// user deleted, which is the ledger's purpose, so a missing document is
+	// its normal state. The slots are the ones bundle.Validate refuses on,
+	// so an export states exactly what a later validation would find.
+	UnresolvedTargets []string
 	// RefusedOptions names the vocabularies the dictionary cannot state and
 	// why — one `key: reason` line each, sorted. The writer refuses a
 	// vocabulary on a property whose format does not admit one (§2a), and
@@ -158,6 +175,10 @@ type Composer struct {
 	entries map[string]anyblockjson.PropertyDefinition
 
 	filePaths map[string]string
+	// metadataOnly is the caller's statement that this export carries no
+	// blob bytes at all (DeclareMetadataOnly). It is the one thing about the
+	// manifest's `files` map the composer cannot observe.
+	metadataOnly bool
 	// optionsByKey is the select vocabulary each property actually has in
 	// this space, gathered from the omitted option snapshots — a bundle
 	// carries no option documents (§2f, §15 #21) — so the dictionary can
@@ -186,6 +207,13 @@ type Composer struct {
 	// which is also what lets the cmd tools and production share it
 	// (UsedPropertyKeysFromBytes, design §1.1).
 	used map[string]bool
+
+	// documentIds are the envelope ids of the documents the emit actually
+	// WROTE, in the spelling the bundle publishes — FoldDocumentId, the same
+	// function Marshal used to write them, rather than a second opinion that
+	// could disagree about a type's derived id. They answer the one question
+	// no document can: whether an id this index names is carried here.
+	documentIds map[string]bool
 
 	written int
 	omitted int
@@ -221,6 +249,7 @@ func NewComposer(opts anyblockjson.Options, spaceName string) *Composer {
 		optionsByKey: map[string][]storedOption{},
 		seenOptions:  map[optionIdentity]anyblockjson.OptionDefinition{},
 		used:         map[string]bool{},
+		documentIds:  map[string]bool{},
 		spaceSettings: spaceSettingsCandidates{
 			names:        map[string]struct{}{},
 			descriptions: map[string]struct{}{},
@@ -410,6 +439,16 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.written++
+	// the id the document was WRITTEN under, which for a type or a
+	// participant is the derived id and not the store id (§9). Taken from
+	// FoldDocumentId — the function Marshal itself called — so the census of
+	// what the bundle carries cannot disagree with the bytes about a single
+	// spelling. Inside the mutex, with every other read of opts: the byte
+	// scan above is the expensive half and touches none of it.
+	if id := anyblockjson.FoldDocumentId(c.opts, sbType,
+		base.GetDetails().GetFields()["id"].GetStringValue(), base.GetKey()); id != "" {
+		c.documentIds[id] = true
+	}
 	for key := range used {
 		c.used[key] = true
 	}
@@ -538,6 +577,34 @@ func (c *Composer) ObserveFileBlob(objectId, path string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.filePaths[objectId] = path
+}
+
+// DeclareMetadataOnly states that this export carries no blob bytes at all
+// — the metadata-only mode SPEC §2c tolerates — so index.json writes
+// `"files": {}` rather than omitting the member.
+//
+// It is a DECLARATION and not an observation, because the composer cannot
+// observe it. A composition that wrote file documents and saw no blob is in
+// one of two states, and they are the same state from in here: the export
+// meant to carry no bytes, or every stream it meant to make failed. Only the
+// caller knows which — it is the caller who decided the mode — and an
+// exporter that guessed would publish an intent the run never had. The
+// audited space is exactly this shape: 666 file documents, zero blobs.
+//
+// It is a statement ABOUT a bundle, so it does not make one: a composition
+// with nothing else to state writes no index at all, and a bundle with no
+// documents owes no account of the blobs it did not carry.
+//
+// Declaring the mode and then delivering a blob is a contradiction Finish
+// refuses rather than resolves, for the reason it refuses space settings
+// whose observations disagree: choosing a winner would publish half a claim
+// as if it were whole. Not calling this is not a claim — an undeclared
+// composition writes no `files` member, which is what every caller written
+// before this method did and what an authored bundle does.
+func (c *Composer) DeclareMetadataOnly() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.metadataOnly = true
 }
 
 // Finish composes the bundle's two files and re-reads both through the
@@ -751,6 +818,42 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		entries[key] = def
 		stats.OptionsLifted += len(opts)
 	}
+	// A key the documents REFERENCE and nothing could define still gets an
+	// entry, stating the one thing there is to state about it: that nothing
+	// could define it (§2f, `format: "unknown"`). The composer has known
+	// these keys all along — it computed them to report them and then wrote
+	// nothing about them, so the key resolved to NOTHING in the dictionary a
+	// reader opens, and a reader could not tell "the writer had nothing to
+	// say" from "I failed to look". Measured on the audited 3,286-document
+	// space: 238 keys over the whole reference census, 155 of them in a
+	// document's top-level `properties` map across 324 documents (640 value
+	// occurrences); over the 79-bundle corpus, 361 entries naming 265
+	// distinct keys.
+	//
+	// Written AFTER the vocabulary loop above, which is not cosmetic: an
+	// orphan key may still own observed options, and that loop drops them
+	// (OptionsDropped) for the honest reason — there is no entry for a
+	// vocabulary to travel on. An entry present too early is found by the
+	// loop, and CarryablePropertyOptions refuses it on the format an
+	// undefined entry does not have: the run then reports `options is only
+	// meaningful on select/multi_select, not "text"` in RefusedOptions,
+	// naming a format nobody knows this property to have, for a property
+	// the same run has just said nothing can define. The entry states
+	// identity and the sentinel and nothing else, which is the whole
+	// content of the claim.
+	//
+	// Nothing is inferred to fill the hole. A name guessed from a dataview
+	// column or a type's declaration would be a definition the space does
+	// not have, and the value stays what it was —
+	// `"68cda76ee9223c9dc7ce5e92": 1755471600` could be a date, a count or
+	// an id, and the entry says so by saying nothing.
+	for _, key := range orphans {
+		entries[key] = anyblockjson.PropertyDefinition{
+			Key:           domain.RelationKey(key),
+			KeyIsInternal: true,
+			FormatUnknown: true,
+		}
+	}
 	unusedPropertyKeys := make([]string, 0, len(unusedProperties))
 	for key := range unusedProperties {
 		unusedPropertyKeys = append(unusedPropertyKeys, key)
@@ -783,9 +886,43 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	if idx.Name == "" {
 		idx.Name = c.spaceName
 	}
+	files := copyNonEmpty(c.filePaths)
+	if c.metadataOnly {
+		if files != nil {
+			// the declaration and the observations disagree, and the bundle
+			// may publish neither half alone: `files: {}` would deny a blob
+			// that travelled, and the map alone would drop a mode the caller
+			// stated. Refused whole, like conflicting space settings.
+			observed := make([]string, 0, len(files))
+			for id := range files {
+				observed = append(observed, id)
+			}
+			sort.Strings(observed)
+			return nil, nil, stats, fmt.Errorf(
+				"declared metadata-only but observed %d file blob(s) (%s): "+
+					"an export either carries bytes or states that it carries none",
+				len(observed), strings.Join(observed, ", "))
+		}
+		// non-nil and empty: the mode STATED. MarshalIndex writes `{}` for
+		// this and omits the member for nil (Manifest.Files).
+		files = map[string]string{}
+	}
 	idx.Manifest = &anyblockjson.Manifest{
 		Properties: anyblockjson.PropertiesFileName,
-		Files:      copyNonEmpty(c.filePaths),
+		Files:      files,
+	}
+	// what this bundle names and cannot answer for (§2c). Both halves were
+	// already in hand: the property keys nothing could define, and — now
+	// that the composer keeps the ids the emit wrote — the index's own
+	// references that name no document here. Written on the index so the
+	// question "is this export incomplete" is answered where the bundle is
+	// described, rather than by a reader discovering silence.
+	unresolvedTargets := c.unresolvedIndexTargets(&idx)
+	if len(orphans) > 0 || len(unresolvedTargets) > 0 {
+		idx.Unresolved = &anyblockjson.Unresolved{
+			Properties: orphans,
+			Targets:    unresolvedTargets,
+		}
 	}
 	idxData, err := anyblockjson.MarshalIndex(&idx, c.opts)
 	if err != nil {
@@ -809,7 +946,34 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 		stats.UnusedPropertyKeys = unusedPropertyKeys
 	}
 	stats.RefusedOptions = refusedOptions
+	stats.UnresolvedTargets = unresolvedTargets
 	return idxData, dictData, stats, nil
+}
+
+// unresolvedIndexTargets names the ids the index states that no document
+// this emit wrote carries. Called with the composer's mutex held, from
+// Finish, after the index is fully assembled — the homepage arrives with the
+// omitted space document, so the reference and the documents are only both
+// in hand at the end.
+//
+// Which slots name an object is the index shape's own question, so it is
+// asked of the index (Index.ReferencedObjectIds) rather than answered a
+// second time here: that list already skips the reserved listings and the
+// auto-widget ledger, and already folds. All this adds is the half only a
+// composer has — the ids the emit actually wrote.
+//
+// Comparison runs on the FOLDED spelling on both sides — the index writes
+// `type-<key>` for a type widget and the document is written under the same
+// derived id (§9) — so a type widget resolves against the type document
+// sitting beside it instead of being reported against its store id.
+func (c *Composer) unresolvedIndexTargets(idx *anyblockjson.Index) []string {
+	var out []string
+	for _, ref := range idx.ReferencedObjectIds(c.opts) {
+		if !c.documentIds[ref] {
+			out = append(out, ref)
+		}
+	}
+	return out
 }
 
 // hasSemanticState distinguishes a genuinely empty composition from one in

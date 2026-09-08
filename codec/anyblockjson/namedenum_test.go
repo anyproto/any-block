@@ -69,12 +69,18 @@ func TestNamedEnum_LayoutAlign(t *testing.T) {
 		require.Error(t, unmErr, "Unmarshal must reject what Validate rejects (§11 I2)")
 	})
 
-	t.Run("a raw number still round-trips", func(t *testing.T) {
-		doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"layout_align": 2}}`
+	// A number the vocabulary CAN name used to round-trip here, and that was
+	// the second half of the same defect the unknown-name refusal closed: the
+	// document said 2, the store held 2, and the next export said "right" —
+	// the reader that wrote the number never learned it had written a name.
+	// It is refused now (TestNamedEnum_ANameableNumberIsRefused); a number
+	// with no name still round-trips, because export writes one.
+	t.Run("a raw number the vocabulary cannot name still round-trips", func(t *testing.T) {
+		doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"layout_align": 99}}`
 		require.NoError(t, Validate([]byte(doc), Options{}))
 		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 		require.NoError(t, err)
-		assert.Equal(t, float64(model.Block_AlignRight), snap.Details.Fields["layoutAlign"].GetNumberValue())
+		assert.Equal(t, float64(99), snap.Details.Fields["layoutAlign"].GetNumberValue())
 	})
 
 	t.Run("a number outside the vocabulary exports as the number", func(t *testing.T) {
@@ -157,13 +163,20 @@ func TestNamedEnum_Provenance(t *testing.T) {
 		assert.Contains(t, err.Error(), "'markdown'")
 	})
 
-	t.Run("raw numbers still round-trip", func(t *testing.T) {
-		doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"origin": 7, "import_type": 1}}`
-		require.NoError(t, Validate([]byte(doc), Options{}), "every corpus document carries the pair this way")
+	// `{"origin": 7, "import_type": 1}` used to be the documented way to
+	// carry the pair, and it is refused now: 7 and 1 are `builtin` and
+	// `markdown`, and writing the number got the name back on the next
+	// export without anyone being told. Nothing real is refused by that —
+	// across the 79-bundle corpus, all 62,325 values in the six named-enum
+	// property slots are strings and NOT ONE is a number. Only a number
+	// with no name still travels.
+	t.Run("raw numbers with no name still round-trip", func(t *testing.T) {
+		doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"origin": 777, "import_type": 888}}`
+		require.NoError(t, Validate([]byte(doc), Options{}))
 		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 		require.NoError(t, err)
-		assert.Equal(t, float64(model.ObjectOrigin_builtin), snap.Details.Fields["origin"].GetNumberValue())
-		assert.Equal(t, float64(model.Import_Markdown), snap.Details.Fields["importType"].GetNumberValue())
+		assert.Equal(t, float64(777), snap.Details.Fields["origin"].GetNumberValue())
+		assert.Equal(t, float64(888), snap.Details.Fields["importType"].GetNumberValue())
 	})
 }
 
@@ -249,4 +262,76 @@ func TestNamedEnum_ImageKind(t *testing.T) {
 		assert.Contains(t, err.Error(), "image_kind")
 		assert.Contains(t, err.Error(), "'icon'", "the refusal names the vocabulary")
 	})
+}
+
+// A number the vocabulary CAN name is refused (§3). This is the reader
+// defect the consumer review filed: `{"Layout": 1}` validated, imported as
+// the stored number 1, and exported back as `"profile"` — a wrong answer
+// rather than an error, because the entry's own description ("Anytype
+// layout ID(from pb enum)") invites exactly that write and nothing anywhere
+// contradicted it.
+//
+// The rule is stated on NAMEABILITY, not on the JSON type, and that is what
+// keeps I1: export writes the NAME for every number the vocabulary can name
+// and the bare number only for one it cannot, so the set Validate now
+// refuses is precisely the set Marshal never emits.
+//
+// How this can fail: refuse every number (Marshal emits an out-of-vocabulary
+// one, so Validate would reject its own output), or refuse none (the silent
+// rewrite comes back).
+func TestNamedEnum_ANameableNumberIsRefused(t *testing.T) {
+	for _, tc := range []struct {
+		slug, what, repair string
+		number             string
+	}{
+		{"layout", "layout", "profile", "1"},
+		{"layout_align", "align", "center", "1"},
+		{"origin", "origin", "builtin", "7"},
+		{"import_type", "import type", "markdown", "1"},
+		{"image_kind", "image kind", "icon", "2"},
+		{"resolved_layout", "layout", "todo", "2"},
+	} {
+		t.Run(tc.slug, func(t *testing.T) {
+			doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"` + tc.slug + `": ` + tc.number + `}}`
+			err := Validate([]byte(doc), Options{})
+			require.Error(t, err, "a number this vocabulary can name is not a way to write the value")
+			assert.Contains(t, err.Error(), "/properties/"+tc.slug)
+			assert.Contains(t, err.Error(), `write "`+tc.repair+`"`,
+				"the refusal names the value this exact number stands for")
+			assert.Contains(t, err.Error(), "'"+tc.repair+"'",
+				"and states the whole vocabulary, the way an unknown NAME is refused")
+			assert.Contains(t, err.Error(), tc.what, "and the concept it belongs to")
+			_, _, unmErr := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+			require.Error(t, unmErr, "Unmarshal must reject what Validate rejects (§11 I2)")
+		})
+	}
+}
+
+// The complement, and the reason the rule is not "no numbers here": a stored
+// number outside the vocabulary has no name to write, so export writes the
+// number and Validate must keep accepting it (I1).
+func TestNamedEnum_AnUnnameableNumberStillPasses(t *testing.T) {
+	doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"layout_align": 99}}`
+	require.NoError(t, Validate([]byte(doc), Options{}))
+	_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+	require.NoError(t, err)
+	assert.Equal(t, float64(99), snap.Details.Fields["layoutAlign"].GetNumberValue())
+}
+
+// type_settings.layout is the same slot under another name — the stored
+// recommendedLayout, lifted into the §2a group on a type document — and it
+// held the same defect: `{"type_settings": {"layout": 1}}` became "profile".
+// One vocabulary, one rule.
+func TestNamedEnum_ANameableNumberIsRefusedInTypeSettings(t *testing.T) {
+	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+		"type_settings": {"layout": 1}}`
+	err := Validate([]byte(doc), Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "/type_settings/layout")
+	assert.Contains(t, err.Error(), `write "profile"`)
+
+	// and the out-of-vocabulary number still passes, for I1's reason
+	raw := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+		"type_settings": {"layout": 9999}}`
+	require.NoError(t, Validate([]byte(raw), Options{}))
 }

@@ -1375,10 +1375,14 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 			if vocab, named := namedEnumProperty(key); named {
 				if s, isStr := v.(string); isStr {
 					if !vocab.has(s) {
-						addIssue(path, "unknown %s %q — one of %s; a raw stored number is also accepted",
+						addIssue(path, "unknown %s %q — one of %s",
 							vocab.what, s, vocab.quotedNames())
 					}
-					continue // a known name, or a raw number: both accepted (§3)
+					continue // a known name (§3)
+				}
+				if reason, refused := namedEnumNumberRefusal(vocab, v); refused {
+					addIssue(path, "%s", reason)
+					continue
 				}
 			}
 			if reason, wrong := wrongShapeForFormat(key, v); wrong {
@@ -1410,6 +1414,13 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	if group, _ := typeSettingsOf(doc); group != nil {
 		if s, isStr := group["layout"].(string); isStr && !layoutNames.has(s) {
 			addIssue("/type_settings/layout", "unknown layout %q", s)
+		}
+		// the group's `layout` IS the stored recommendedLayout, a
+		// namedEnumProperties key lifted out of `properties` on a type
+		// document (§2a). One vocabulary, one rule: a number the vocabulary
+		// can name is refused here exactly as it is in a property slot.
+		if reason, refused := namedEnumNumberRefusal(layoutVocabulary, group["layout"]); refused {
+			addIssue("/type_settings/layout", "%s", reason)
 		}
 		if s, isStr := group["default_view"].(string); isStr && !viewTypeNames.has(s) {
 			addIssue("/type_settings/default_view", "unknown view type %q", s)
@@ -3058,4 +3069,41 @@ func keySpellingHygieneIssue(term string) string {
 		}
 	}
 	return ""
+}
+
+// namedEnumNumberRefusal states the §3 rule for a NUMBER written where a
+// name-over-number vocabulary belongs. It refuses the numbers the vocabulary
+// CAN name and only those, which is not a compromise but the whole rule:
+//
+//   - `{"Layout": 1}` used to validate, import as the stored number 1, and
+//     export back as `"profile"` — a wrong answer rather than an error. The
+//     entry's own shipped description ("Anytype layout ID(from pb enum)")
+//     invites exactly that write, and until the dictionary published the
+//     admissible names nothing anywhere contradicted it. A refusal that
+//     names the value the number stands for is the one reply that both
+//     stops the silent rewrite and says what to write instead.
+//   - a number the vocabulary CANNOT name keeps passing, because export
+//     writes one: a stored value with no name round-trips as its number
+//     (json.go's vocabularyOf, export's propertyValue), so refusing it would
+//     make Marshal emit what its own Validate rejects (I1). The two sets are
+//     exact complements, so the invariant holds by construction rather than
+//     by luck.
+//
+// A non-number — a list, an object, a bool — is not this rule's business and
+// falls through to the format check below it.
+func namedEnumNumberRefusal(vocab propertyVocabulary, v any) (string, bool) {
+	num, isNum := v.(json.Number)
+	if !isNum {
+		return "", false
+	}
+	f, err := num.Float64()
+	if err != nil {
+		return "", false
+	}
+	name := vocab.name(f)
+	if name == "" {
+		return "", false
+	}
+	return fmt.Sprintf("%s %s is the stored number for %q — this format writes the NAME here, "+
+		"one of %s: write %q", vocab.what, num.String(), name, vocab.quotedNames(), name), true
 }

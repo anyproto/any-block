@@ -5,6 +5,42 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- index.json states what the bundle NAMES and cannot answer for (§2c):
+  `Index.Unresolved`, an optional member holding two sorted lists —
+  `properties`, the stored keys nothing could define, and `targets`, the ids
+  this index names that no document in the bundle carries. Both losses
+  reached a reader as silence, and only the writer can say which of "the
+  export is incomplete" and "I read it wrong" is true. The property half
+  restates the dictionary as a SET, which is the question index.json exists
+  to answer; the target half has no other home, because whether an id
+  resolves is a fact no single document holds. Stating a target does not
+  make it legal — `bundle.Validate` still refuses it — and an ABSENT member
+  is not a completeness claim, since what is checked is bounded. Fed from
+  `bundle.Stats.UnresolvedTargets` beside the existing `OrphanUsedKeys`;
+  `Index.ReferencedObjectIds` is the one list of slots that name an object,
+  so a checker at read time and a composer at write time stop keeping
+  separate copies of it.
+- `manifest.files` has three states, not two (§2c). A populated map is the
+  binding; a nil map states nothing, which stays what SPEC calls a
+  metadata-only export — the mode inferred; a non-nil EMPTY map is the
+  export saying it, written as `"files": {}`. One audited space carries 666
+  file documents and no blob at all, 68 of 79 measured bundles are in the
+  same state, and the absence alone could not tell an export that chose the
+  mode from one whose manifest never got written. `MarshalIndex` collapsed
+  the empty map twice over (`sortedStringOmap`, then `setNonEmpty`), and
+  `Manifest.empty` moved from "does this locate anything" to "does this say
+  anything". The composer cannot observe intent, so it does not:
+  `Composer.DeclareMetadataOnly` is the caller's statement, and a
+  declaration an observed blob contradicts fails `Finish`.
+- The composer writes a dictionary entry for every referenced property key
+  nothing could define (§2f): `format: "unknown"`, identity and nothing
+  else. `Stats.OrphanUsedKeys` held the set all along and the bundle stated
+  none of it, so the key resolved to no row at all. 238 entries in one
+  audited 3,286-document space (155 of those keys appear in a document's
+  top-level `properties` map, across 324 documents and 640 values); 361
+  entries naming 265 distinct keys across 79 bundles. `bundle.Validate`
+  reads its coverage from the decoded entries, so a bundle this composer
+  writes no longer refuses itself over a key it names.
 - A property's `api_key` travels on its dictionary entry (§2f, §15 #23):
   `PropertyDefinition.ApiKey`, written where the store holds one. The
   public API key is the spelling callers address a property by, and it is

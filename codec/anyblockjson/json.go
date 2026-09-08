@@ -640,6 +640,22 @@ var formatNames = newEnumNames(map[model.RelationFormat]string{
 	model.RelationFormat_map:       "map",
 })
 
+// propertyFormatUnknown is the dictionary entry's statement that NOTHING
+// could define this property (§2f). It is deliberately not a member of
+// formatNames and not a member of $defs/propertyFormat: it names the ABSENCE
+// of a definition rather than a stored format, so no format slot speaks it,
+// FormatByName does not answer it, and a type document cannot declare a
+// property that holds it. Its only home is a dictionary entry, whose own
+// schema layer admits it in place of the shared shape.
+//
+// A bundle needs the word because its documents reference keys the space no
+// longer defines — mostly relations the user deleted, whose definition is
+// gone with them. Without an entry those keys resolve to nothing, and a
+// reader cannot tell "the writer had nothing to say" from "I failed to
+// look". With one, every referenced key resolves, and the answer to some of
+// them is that there is no answer.
+const propertyFormatUnknown = "unknown"
+
 // filterTemplatePrefix marks a dynamic filter value: a placeholder the
 // client substitutes for a real object id before it issues the query
 // (anytype-ts Dataview.valueTemplateMapper). The tokens are built as
@@ -917,6 +933,27 @@ var namedEnumProperties = map[string]propertyVocabulary{
 func namedEnumProperty(key string) (propertyVocabulary, bool) {
 	v, ok := namedEnumProperties[key]
 	return v, ok
+}
+
+// namedEnumValueNames is the vocabulary a stored key's exported value can
+// hold, sorted, or nil for a key this format does not name — the dictionary
+// entry's `value_names` (§2f), read straight out of the table above.
+//
+// It exists so the PUBLISHED list and the WRITTEN value have one source. The
+// six keys concerned declare format "number" and export a string, and a
+// reader holding only the bundle cannot learn the members from anywhere
+// else: object.schema.json's enum vocabularies are $ref'd from the slots that
+// use them and not from a property value, and $defs/propertyMap accepts any
+// value at all. A second list maintained beside this table would answer that
+// reader with names export had stopped writing, which is worse than the
+// silence it replaced — so there is no second list, not even a field on
+// PropertyDefinition: the writer derives, the reader re-derives.
+func namedEnumValueNames(key string) ([]string, bool) {
+	v, named := namedEnumProperties[key]
+	if !named {
+		return nil, false
+	}
+	return v.names(), true
 }
 
 // formatName is the export-side name of a stored format: the canonical name
