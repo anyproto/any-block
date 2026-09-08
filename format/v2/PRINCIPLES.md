@@ -121,10 +121,8 @@ omit-default canon applies to block attributes and envelope fields only
 (§3) — and **escape hatches over drops** — data with no first-class shape
 rides along in `fields`, `root` and `store` (§2, §4a). The accepted losses
 are few and listed, never smoothed over: emoji marks materialize into text
-(§8.1), an AUTHORED document that spells one name for two same-named options
-of a property collapses onto one of them (§3 — an EXPORTED one does not: every
-claimant of a contested name is written `<name> (<tail6>)`, which names exactly
-one option), block-label compaction is lossy and opt-in (§9a). The contract is checked against real
+(§8.1), same-named options of one property collapse (§3), block-label
+compaction is lossy and opt-in (§9a). The contract is checked against real
 data rather than merely asserted: a round-trip sweep tool in the Anytype
 application exports, re-imports and re-exports a production account.
 Evidence, not proof — its comparator sees detail values and text-block
@@ -252,13 +250,9 @@ whole address (§9).
 An id is unguessable: a model must fetch before it can write, or it invents
 one — the hallucination surface in its purest form. A name is already in the
 request. Import creates missing options by name, as the CSV importer and
-the public API already do. The cost is accepted and listed, and both halves
-are now paid by the legend rather than by the object: where two options of one
-property share a name, export writes `<name> (<tail6>)` for every claimant so
-each keeps its own entry, and a renamed option is found by the id riding
-beside the term (§3, §9a). What is left is what a name-only WRITER pays — an
-authored document spelling a shared name resolves to whichever option the
-space lists first.
+the public API already do. The cost is accepted and listed:
+same-named options collapse; renaming an option breaks the link on
+reimport (§3).
 
 ### 7. A document stands alone
 
@@ -387,10 +381,8 @@ omitted defaults put back); *flat blocks* (a model can write it, over a
 stranger can read it — a nested tree reads a little better to a person, but
 a model cannot be constrained to it; humans have the editor, models only
 have the bytes); *option names* (a model can write it, over the strictest
-reading of losslessness — the alternative is an id no one can write, and where
-two options of one property share a name the format still writes a NAME, just
-a suffixed one: `books (vntfvu)` is something a model can type back, an option
-id is not); *`dataview`, not `database`* (understandable
+reading of losslessness — the collapse is listed, because the alternative
+is an id no one can write); *`dataview`, not `database`* (understandable
 over familiar); *refuse newer versions* (a one-rule contract over client
 convenience).
 

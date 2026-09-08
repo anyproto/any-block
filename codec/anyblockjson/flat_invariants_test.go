@@ -381,11 +381,9 @@ func (hostileObjectNames) ObjectName(id string) (string, bool) {
 
 // hostileOptions is the option pool the hostile corpus's select property
 // resolves against, scanned first-match exactly as storeresolver does. Two
-// entries deliberately share a name, and the corpus's object sits on BOTH:
-// that used to be the collapse §11 documented — the legend held one id and
-// the object lost a tag — and is now the term plan's degrade, which the sweep
-// asks be a FIXPOINT rather than a coin flip on the pool's order
-// (optionrefs.go, planOptionTerms).
+// entries deliberately share a name: within one value that is the collapse
+// §11 documents, and the corpus asks that the collapse be a FIXPOINT rather
+// than a coin flip on the pool's order.
 var hostileOptions = spaceOptions{"tag": {
 	{id: "opt-hash", name: "C#"},
 	{id: "opt-space", name: "import issue"},
@@ -839,8 +837,8 @@ func TestInvariant_MarshalOutputValidates(t *testing.T) {
 				// sweep asks nothing about it — a corpus that stops reaching
 				// the code under test is the way a green invariant lies. Every
 				// name the deleted flat spelling could not carry is asserted
-				// here, and the same-named pair by the term BOTH claimants
-				// degrade to, one entry each (optionrefs.go).
+				// here, and the same-named pair by its first writing
+				// (optionrefs.go).
 				names := docOptionIds(t, data)["Tag"]
 				if o.OmitIds {
 					// an id-less shape ships no legend of ids (§9), so here
@@ -852,18 +850,12 @@ func TestInvariant_MarshalOutputValidates(t *testing.T) {
 					for name, id := range map[string]string{
 						"C#":                                     "opt-hash",
 						"import issue":                           "opt-space",
-						"books (t-dup1)":                         "opt-dup1",
-						"books (t-dup2)":                         "opt-dup2",
+						"books":                                  "opt-dup1",
 						strings.Repeat("n", maxPropertyKeyLen+1): "opt-long",
 					} {
 						assert.Equal(t, id, names[name],
 							"seed %d owes the legend an entry for %q:\n%s", n, name, data)
 					}
-					// and the name both options claim is written by NEITHER:
-					// an entry under it could carry only one of the two ids,
-					// which is the identity this rule stopped losing
-					assert.NotContains(t, names, "books",
-						"seed %d let a contested option name back into the legend:\n%s", n, data)
 				}
 				capture := &capturedTypeProps{}
 				_, back, err := Unmarshal(data, Options{

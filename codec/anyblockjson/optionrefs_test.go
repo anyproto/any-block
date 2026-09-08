@@ -170,13 +170,40 @@ func TestOptionRefs_DuplicateNameKeepsTheOptionTheObjectWasOn(t *testing.T) {
 	assert.Equal(t, "bafyfirst", id, "the fixture must reproduce the first-match scan")
 }
 
-// The one case the legend could not rescue used to live here: ONE object
-// holding BOTH same-named options, where the document spelled
-// `["books", "books"]` and the legend had room for one id. It is no longer a
-// case the legend cannot rescue — every claimant of a contested name is
-// written as a degraded term instead, so each option gets its own entry —
-// and the tests that pin that live beside the rule, in
-// optioncollision_test.go.
+// The one case the legend cannot rescue, stated so it is not discovered
+// later: ONE object holding BOTH same-named options. The document spells
+// ["books", "books"] and a JSON list of two identical strings has no way to
+// say which entry means which option, so the legend holds the first and both
+// values land on it — the collapse §11 already documents for name resolution,
+// no worse than today and now deterministic, which is what keeps a second
+// export byte-identical to the first.
+func TestOptionRefs_SameNameTwiceInOneValueCollapses(t *testing.T) {
+	// given
+	space := spaceOptions{"tag": {
+		{id: "bafyfirst", name: "books"},
+		{id: "bafysecond", name: "books"},
+	}}
+	snap := optionSnapshot(map[string]*types.Value{"tag": strList("bafysecond", "bafyfirst")})
+
+	// when
+	data, err := Marshal(model.SmartBlockType_Page, snap, Options{ResolveOptions: space})
+	require.NoError(t, err)
+	_, back, err := Unmarshal(data, Options{ResolveOptions: space})
+	require.NoError(t, err)
+
+	// then — the value keeps its arity, the identities collapse onto the
+	// first one written, and the legend says so out loud
+	assert.Equal(t, []any{"books", "books"}, docProperty(t, data, "Tag"))
+	assert.Equal(t, legend("Tag", map[string]string{"books": "bafysecond"}), docOptionIds(t, data))
+	assert.Equal(t, []string{"bafysecond", "bafysecond"}, storedList(t, back, "tag"))
+
+	// and the collapse is a FIXPOINT: exporting what came back reproduces the
+	// document (§11.3). Dropping the entry instead would hand the choice to
+	// the resolver's list order and make this second generation differ.
+	again, err := Marshal(model.SmartBlockType_Page, back, Options{ResolveOptions: space})
+	require.NoError(t, err)
+	assert.Equal(t, string(data), string(again))
+}
 
 // Defect 2 of 2: the option is renamed in the target space before the
 // document is read back. Name resolution finds nothing — or, worse, finds a
