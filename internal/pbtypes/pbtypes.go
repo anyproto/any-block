@@ -70,3 +70,33 @@ func ValueToInterface(value *types.Value) any {
 		panic("protostruct: unknown kind")
 	}
 }
+
+// InterfaceToValue is ValueToInterface run backwards: decoded JSON — nil,
+// bool, float64, string, []any, map[string]any — to a types.Value tree. A
+// kind the JSON decoder never produces becomes a null rather than a panic,
+// since the caller holds a value it decoded itself.
+func InterfaceToValue(value any) *types.Value {
+	switch x := value.(type) {
+	case nil:
+		return &types.Value{Kind: &types.Value_NullValue{}}
+	case bool:
+		return Bool(x)
+	case float64:
+		return &types.Value{Kind: &types.Value_NumberValue{NumberValue: x}}
+	case string:
+		return String(x)
+	case []any:
+		items := make([]*types.Value, 0, len(x))
+		for _, item := range x {
+			items = append(items, InterfaceToValue(item))
+		}
+		return &types.Value{Kind: &types.Value_ListValue{ListValue: &types.ListValue{Values: items}}}
+	case map[string]any:
+		fields := make(map[string]*types.Value, len(x))
+		for key, item := range x {
+			fields[key] = InterfaceToValue(item)
+		}
+		return &types.Value{Kind: &types.Value_StructValue{StructValue: &types.Struct{Fields: fields}}}
+	}
+	return &types.Value{Kind: &types.Value_NullValue{}}
+}

@@ -6,6 +6,7 @@ package bundle
 // (DESIGN.md §1.1, §1.3).
 
 import (
+	"github.com/anyproto/any-block/codec/anyblockjson"
 	"strings"
 	"testing"
 
@@ -28,13 +29,14 @@ import (
 // stops being a pure function of a reference.
 func TestBuildPlan_PathsAreAPureFunctionOfTheId(t *testing.T) {
 	// given
-	plan, err := BuildPlan("space1", []DocMeta{
+	plan, err := BuildPlan(anyblockjson.Options{SpaceId: "space1"}, []DocMeta{
 		{Id: "bafypage", SbType: model.SmartBlockType_Page},
 		{Id: "bafytype", SbType: model.SmartBlockType_STType},
 		{Id: "bafytmpl", SbType: model.SmartBlockType_Template},
+		// a relation and an option have no dedicated home and their planned
+		// names go unused: the bundle carries no property document and no
+		// option document (§2f, §15 #21, #23)
 		{Id: "bafyrel", SbType: model.SmartBlockType_STRelation},
-		// an option has no dedicated home and its planned name goes unused:
-		// the bundle carries no option documents (§2f, §15 #21)
 		{Id: "bafyopt", SbType: model.SmartBlockType_STRelationOption},
 		{Id: "AAjEparticipant", SbType: model.SmartBlockType_Participant},
 		{Id: "bafyfile", SbType: model.SmartBlockType_FileObject, FileExt: "png", FileMime: "image/png"},
@@ -48,7 +50,7 @@ func TestBuildPlan_PathsAreAPureFunctionOfTheId(t *testing.T) {
 		"bafypage":        "objects/bafypage.anyblock.json",
 		"bafytype":        "types/bafytype.anyblock.json",
 		"bafytmpl":        "templates/bafytmpl.anyblock.json",
-		"bafyrel":         "properties/bafyrel.anyblock.json",
+		"bafyrel":         "objects/bafyrel.anyblock.json",
 		"bafyopt":         "objects/bafyopt.anyblock.json",
 		"AAjEparticipant": "participants/AAjEparticipant.anyblock.json",
 		"bafyfile":        "files/bafyfile.anyblock.json",
@@ -107,13 +109,13 @@ func TestBlobExtension_SanitizesTheMeasuredDirt(t *testing.T) {
 // this; a refusal means the store handed us something that is not an id.
 func TestBuildPlan_RefusesAPathHostileId(t *testing.T) {
 	for _, id := range []string{"", ".", "..", "a/b", `a\b`} {
-		_, err := BuildPlan("space1", []DocMeta{{Id: id, SbType: model.SmartBlockType_Page}})
+		_, err := BuildPlan(anyblockjson.Options{SpaceId: "space1"}, []DocMeta{{Id: id, SbType: model.SmartBlockType_Page}})
 		assert.Error(t, err, "id %q", id)
 	}
 }
 
 // A participant document's filename is its ENVELOPE id — the §9 fold of the
-// store composite to the bare identity — never the store id: a reference
+// store composite to `participant-<identity>` — never the store id: a reference
 // carries the folded id, so only the folded stem keeps id→path a pure
 // function of the reference, and the composite would claim a `_`-prefixed
 // name in the platform's reserved namespace (§1). The foreign-space
@@ -131,7 +133,7 @@ func TestBuildPlan_ParticipantStemIsTheFoldedIdentity(t *testing.T) {
 	own := domain.NewParticipantId(spaceId, identity)
 	foreign := domain.NewParticipantId("bafyreiother.zzz", identity)
 
-	plan, err := BuildPlan(spaceId, []DocMeta{
+	plan, err := BuildPlan(anyblockjson.Options{SpaceId: spaceId}, []DocMeta{
 		{Id: own, SbType: model.SmartBlockType_Participant},
 		{Id: foreign, SbType: model.SmartBlockType_Participant},
 	})
@@ -139,7 +141,7 @@ func TestBuildPlan_ParticipantStemIsTheFoldedIdentity(t *testing.T) {
 
 	got, ok := plan.DocPath(own)
 	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds")
-	assert.Equal(t, "participants/"+identity+".anyblock.json", got)
+	assert.Equal(t, "participants/participant-"+identity+".anyblock.json", got)
 
 	got, ok = plan.DocPath(foreign)
 	require.True(t, ok)
@@ -152,9 +154,78 @@ func TestBuildPlan_ParticipantStemIsTheFoldedIdentity(t *testing.T) {
 // extension is the one combination that would dress a blob as a document,
 // and BuildPlan refuses it instead of writing it.
 func TestBuildPlan_RefusesABlobWearingTheDocumentExtension(t *testing.T) {
-	_, err := BuildPlan("space1", []DocMeta{
+	_, err := BuildPlan(anyblockjson.Options{SpaceId: "space1"}, []DocMeta{
 		{Id: "evil.anyblock", SbType: model.SmartBlockType_FileObject, FileExt: "json"},
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "document extension")
+}
+
+// A type document's filename is its ENVELOPE id too — `type-<internal_key>`
+// under the §9 fold — and the plan derives it from the same input Marshal
+// does: the document's OWN key, which needs no resolver. A key the fold gate
+// refuses keeps the store id, exactly as its envelope does, so a plan never
+// names a file by an id the document inside does not declare.
+func TestBuildPlan_TypeStemIsTheDerivedId(t *testing.T) {
+	plan, err := BuildPlan(anyblockjson.Options{}, []DocMeta{
+		{Id: "bafytask", SbType: model.SmartBlockType_STType, Key: "task"},
+		{Id: "bafyodd", SbType: model.SmartBlockType_STType, Key: "my type"},
+		{Id: "bafynokey", SbType: model.SmartBlockType_STType},
+		{Id: "bafypage", SbType: model.SmartBlockType_Page},
+	})
+	require.NoError(t, err)
+
+	got, ok := plan.DocPath("bafytask")
+	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds")
+	assert.Equal(t, "types/type-task.anyblock.json", got, "no resolver is consulted: the key is the document's own")
+
+	got, _ = plan.DocPath("bafyodd")
+	assert.Equal(t, "types/bafyodd.anyblock.json", got, "a key the fold gate refuses keeps the store id, as its envelope does")
+
+	got, _ = plan.DocPath("bafynokey")
+	assert.Equal(t, "types/bafynokey.anyblock.json", got, "no key, nothing to derive from")
+
+	got, _ = plan.DocPath("bafypage")
+	assert.Equal(t, "objects/bafypage.anyblock.json", got)
+}
+
+// planTypeResolver is the TypeResolver capability alone, which is all the
+// plan consults.
+type planTypeResolver struct{ keyById map[string]string }
+
+func (r planTypeResolver) PropertyById(string) (anyblockjson.PropertyDefinition, bool) {
+	return anyblockjson.PropertyDefinition{}, false
+}
+func (r planTypeResolver) PropertyId(anyblockjson.PropertyDefinition) (string, bool) {
+	return "", false
+}
+func (r planTypeResolver) TypeKeyById(id string) (string, bool) {
+	key, ok := r.keyById[id]
+	return key, ok
+}
+func (r planTypeResolver) TypeIdByKey(key string) (string, bool) {
+	for id, k := range r.keyById {
+		if k == key {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+// Two documents may not be planned onto one path. The store id gave
+// uniqueness for free — it is the map key — but a DERIVED stem is a function
+// of content, and two documents can state one key: two type documents
+// sharing an `internal_key`, or two participants sharing an identity. Before
+// the fold that was unreachable; now it is one map lookup away, and the
+// failure it prevents is an export whose second writer silently overwrites
+// the first's document.
+func TestBuildPlan_RefusesTwoDocumentsPlannedOntoOnePath(t *testing.T) {
+	_, err := BuildPlan(anyblockjson.Options{}, []DocMeta{
+		{Id: "bafyone", SbType: model.SmartBlockType_STType, Key: "task"},
+		{Id: "bafytwo", SbType: model.SmartBlockType_STType, Key: "task"},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "types/type-task.anyblock.json")
+	assert.Contains(t, err.Error(), "bafyone")
+	assert.Contains(t, err.Error(), "bafytwo")
 }

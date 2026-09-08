@@ -25,6 +25,7 @@ const usage = "usage: anyblock <validate|to-v1|to-v2> [options]"
 
 type conversionOutcome struct {
 	foldedParticipantsWithoutSpace bool
+	foldedTypesWithoutResolver     bool
 }
 
 // cliWarningOutput is stderr in production and a replaceable seam in tests.
@@ -280,14 +281,26 @@ func validateOptionalSpaceID(spaceID string) error {
 func (outcome *conversionOutcome) observe(issue anyblockjson.Issue) {
 	// Path and Message are presentation for humans. Only the shared semantic
 	// code may control whether conversion is safe to write.
-	if issue.Code == anyblockjson.IssueCodeFoldedParticipantsWithoutSpace {
+	switch issue.Code {
+	case anyblockjson.IssueCodeFoldedParticipantsWithoutSpace:
 		outcome.foldedParticipantsWithoutSpace = true
+	case anyblockjson.IssueCodeFoldedTypesWithoutResolver:
+		outcome.foldedTypesWithoutResolver = true
 	}
 }
 
 func (outcome conversionOutcome) preWriteError() error {
 	if outcome.foldedParticipantsWithoutSpace {
 		return fmt.Errorf("decode v2: folded participant references cannot be rebuilt without -space-id")
+	}
+	if outcome.foldedTypesWithoutResolver {
+		// the CLI wires no TypeResolver at all (README, "What a round trip
+		// does not carry"), so this is a statement about the tool, not about
+		// a flag the user forgot: a document naming types by their derived
+		// ids cannot be converted here without writing non-addresses.
+		return fmt.Errorf("decode v2: folded type references (type-<internal_key>) cannot be rebuilt " +
+			"without a TypeResolver, which this CLI does not wire; use the Go API with " +
+			"Options.ResolveProperties")
 	}
 	return nil
 }

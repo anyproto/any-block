@@ -16,7 +16,6 @@ func TestValidateChecksBundleReferencesAndManifestPaths(t *testing.T) {
 			"entrypoint": "page",
 			"widgets": [{"target": "page"}],
 			"manifest": {
-				"types": {"Task": "types/task.json"},
 				"properties": "properties.json",
 				"files": {"file": "files/file.json"}
 			}
@@ -51,23 +50,6 @@ func TestValidateRejectsUnsafeAndMissingManifestPaths(t *testing.T) {
 func TestValidateReportsDocumentCollectionsWithoutAnIndex(t *testing.T) {
 	err := Validate(fstest.MapFS{"object.json": &fstest.MapFile{Data: []byte(`{"formatVersion":"2.0"}`)}})
 	require.ErrorIs(t, err, ErrIndexNotFound)
-}
-
-func TestValidateManifestTypeKeyMatchesReferencedDocumentIdentity(t *testing.T) {
-	fsys := fstest.MapFS{
-		"index.json": &fstest.MapFile{Data: []byte(`{
-			"formatVersion":"2.0",
-			"manifest":{"types":{"Task":"types/type.json"}}
-		}`)},
-		"types/type.json": &fstest.MapFile{Data: []byte(`{
-			"formatVersion":"2.0","id":"type-object","kind":"object_type",
-			"internal_key":"habit","type":"Object type"
-		}`)},
-	}
-
-	err := Validate(fsys)
-	require.ErrorContains(t, err, `manifest.types[task] resolves to stored type key "task"`)
-	require.ErrorContains(t, err, `"types/type.json" declares internal_key "habit"`)
 }
 
 func TestValidateRequiresDictionaryCoverageForEveryPropertyUse(t *testing.T) {

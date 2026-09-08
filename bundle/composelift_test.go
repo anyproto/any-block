@@ -40,7 +40,6 @@ func TestComposerWidgetOnlyLiftProducesBothArtifacts(t *testing.T) {
 		require.NotEmpty(t, properties)
 		assert.Equal(t, 1, stats.OmittedDocs)
 		assert.Equal(t, 1, stats.DictionaryEntries)
-		assert.Zero(t, stats.ManifestTypes)
 
 		idx, err := anyblockjson.UnmarshalIndex(index, anyblockjson.Options{})
 		require.NoError(t, err)
@@ -98,7 +97,6 @@ func TestComposerSpaceOnlyLiftProducesBothArtifacts(t *testing.T) {
 
 	dict, err := anyblockjson.UnmarshalPropertyDictionary(properties, anyblockjson.Options{})
 	require.NoError(t, err)
-	assert.Empty(t, dict.Installed)
 	assert.Empty(t, dict.Properties)
 	require.NoError(t, Validate(fstest.MapFS{
 		anyblockjson.IndexFileName:      {Data: index},

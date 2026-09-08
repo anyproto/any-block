@@ -23,17 +23,17 @@ import (
 // blobs that are themselves .json files, so bare .json cannot be one.
 const DocExtension = ".anyblock.json"
 
-// The kind directories of the bundle layout (design §1.2, settled Q1):
+// The five kind directories of the bundle layout (design §1.2, settled Q1):
 // format vocabulary, snake_case, one word each — never the store's
 // `relations`/`relationsOptions` spellings, since the format promised the
 // word "relation" appears nowhere a reader looks first. There is no
-// `options/`: a bundle carries no option documents — the property
-// dictionary states every select vocabulary inline (§2f, §15 #21).
+// `properties/` and no `options/`: a bundle carries no property document
+// and no option document — the property dictionary states every property
+// something references, its select vocabulary inline (§2f, §15 #21, #23).
 const (
 	DirObjects      = "objects"
 	DirTypes        = "types"
 	DirTemplates    = "templates"
-	DirProperties   = "properties"
 	DirParticipants = "participants"
 	DirFiles        = "files"
 )
@@ -44,6 +44,13 @@ const (
 type DocMeta struct {
 	Id     string
 	SbType model.SmartBlockType
+	// Key is the snapshot's own `Key` — for a type document the internal key
+	// it writes verbatim into `internal_key`, which is what its envelope id
+	// `type-<Key>` is derived from (SPEC §9). Ignored for every other kind.
+	// It is a detail-level fact like the two below, not content: the store
+	// carries it as the object's unique key, so reading it keeps plan free of
+	// object loads (design §1.1).
+	Key string
 	// FileExt and FileMime are a file object's stored `fileExt` /
 	// `fileMimeType` details, raw — the blob path inputs. Ignored for every
 	// other kind. Raw because the corpus measured `fileExt` dirty as a path
@@ -63,33 +70,51 @@ type Plan struct {
 	blobPaths map[string]string
 }
 
-// BuildPlan fixes every path before the first emit task starts, for the
-// given space. It refuses an id that cannot be a filename stem — empty,
-// path separators, a dot-only component — because such an id would escape
-// the bundle root; the corpus's two id populations (lowercase-base32 CIDs,
-// base58 participant identities) can never trip it, so a refusal here
-// means the store handed us something that is not an object id.
+// BuildPlan fixes every path before the first emit task starts, under the
+// same Options the emit runs with. It refuses an id that cannot be a
+// filename stem — empty, path separators, a dot-only component — because
+// such an id would escape the bundle root; the corpus's two id populations
+// (lowercase-base32 CIDs, base58 participant identities) can never trip it,
+// so a refusal here means the store handed us something that is not an
+// object id.
 //
-// The filename stem is the ENVELOPE id, which for a participant document
-// is not the store id: Marshal folds `_participant_<spaceId>_<identity>`
-// to the bare identity (§9), and a file named by the composite would break
-// the pure reference→path function §1.3 exists for — a reference carries
-// the FOLDED id — besides claiming a `_`-prefixed name in the platform's
-// reserved namespace (§1). The fold declines (foreign space, non-identity
-// tail) exactly when Marshal's does, so stem and envelope cannot disagree.
-// The Plan stays keyed by the STORE id, which is what the emit loop holds.
-func BuildPlan(spaceId string, docs []DocMeta) (*Plan, error) {
+// The filename stem is the ENVELOPE id, which for a participant or a type
+// document is not the store id: Marshal folds
+// `_participant_<spaceId>_<identity>` to `participant-<identity>` and a
+// type document's id to `type-<internal_key>` (SPEC §9), and a file named by
+// the store id would break the pure reference→path function §1.3 exists
+// for — a reference carries the FOLDED id. The fold runs through the same
+// function Marshal uses (FoldDocumentId) on the same inputs, so it declines
+// exactly when Marshal's does — no SpaceId or a foreign space for a
+// participant, a key the fold gate refuses for a type — and stem and
+// envelope cannot disagree. The Plan stays keyed by the STORE id, which is
+// what the emit loop holds.
+//
+// A derived stem is a function of CONTENT, so it must also be checked for
+// uniqueness, which the store id supplied for free by being the map key. Two
+// type documents stating one `internal_key`, or two participants one
+// identity, would otherwise be planned onto one path and the second emit
+// would overwrite the first in silence.
+func BuildPlan(opts anyblockjson.Options, docs []DocMeta) (*Plan, error) {
 	p := &Plan{
 		docPaths:  make(map[string]string, len(docs)),
 		blobPaths: map[string]string{},
 	}
+	claimed := make(map[string]string, len(docs))
 	for _, d := range docs {
-		stem := anyblockjson.FoldParticipantId(spaceId, d.Id)
+		stem := anyblockjson.FoldDocumentId(opts, d.SbType, d.Id, d.Key)
 		if err := checkIdSafe(stem); err != nil {
 			return nil, fmt.Errorf("plan document paths: %w", err)
 		}
 		dir := KindDirectory(d.SbType)
-		p.docPaths[d.Id] = dir + "/" + stem + DocExtension
+		docPath := dir + "/" + stem + DocExtension
+		if first, taken := claimed[docPath]; taken {
+			return nil, fmt.Errorf("plan document paths: %s and %s are both planned onto %q — "+
+				"a derived id (SPEC §9) is a function of the document's content, and these two state the same one",
+				first, d.Id, docPath)
+		}
+		claimed[docPath] = d.Id
+		p.docPaths[d.Id] = docPath
 		if dir == DirFiles {
 			// the blob sits beside its document: same directory, same stem
 			// (the id), real sanitized extension — so the two halves of a
@@ -125,18 +150,16 @@ func (p *Plan) BlobPath(id string) (string, bool) {
 // KindDirectory maps a document's smartblock type onto its kind directory
 // (design §1.2). Everything without a dedicated home — pages, the rare
 // fail-closed widget or workspace document an omission predicate refuses —
-// lands flat in objects/. A relation option falls into that default too,
-// and the planned name simply goes unused: the omission is unconditional
-// (§2f, §15 #21), and a plan stays a pure per-document function of the id
-// rather than growing an emit-time exception.
+// lands flat in objects/. A relation and a relation option fall into that
+// default too, and the planned name simply goes unused: both omissions are
+// unconditional (§2f, §15 #21, #23), and a plan stays a pure per-document
+// function of the id rather than growing an emit-time exception.
 func KindDirectory(sbType model.SmartBlockType) string {
 	switch sbType {
 	case model.SmartBlockType_STType, model.SmartBlockType_BundledObjectType:
 		return DirTypes
 	case model.SmartBlockType_Template, model.SmartBlockType_BundledTemplate:
 		return DirTemplates
-	case model.SmartBlockType_STRelation, model.SmartBlockType_BundledRelation:
-		return DirProperties
 	case model.SmartBlockType_Participant:
 		return DirParticipants
 	case model.SmartBlockType_File, model.SmartBlockType_FileObject:

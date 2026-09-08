@@ -1,25 +1,48 @@
 package anyblockjson
 
-// omittedrelation.go — the §2f omission rule: a bundle does not carry a
-// relation document whose definition restates the bundled table.
+// omittedrelation.go — the §2f rules for relation documents, which a bundle
+// does not carry: none is written, on any path (§15 #23), and the property
+// dictionary is what travels instead.
+//
+// Two predicates, two questions. OmittedRelation answers whether a snapshot
+// is a relation document at all — the kind alone, unconditional, the shape
+// OmittedRelationOption has. OmittedBundledRelation answers the narrower
+// question of whether an installed copy of a bundled property still
+// restates the shipped table. Every relation travels as a dictionary entry
+// stating its STORED definition, complete — there is one entry shape, no
+// reduced form for a bundled key (§15 #25) — flagged `uninstalled` when
+// the user removed it (§15 #22); the predicate's verdict adds two things
+// to that. A copy it refuses on a key the table names is flagged
+// `bundled_diverged`: the copy diverged at export time, which only the
+// export can know, so a reader takes the entry over its own table. A copy
+// it admits has a reconstruction — key → the reader's own table — that the
+// composer verifies against the snapshot through the round-trip comparator,
+// so the trip a table-shipping reader may take instead of the entry is
+// proven lossless. Either way the entry is written only when something
+// references the key (§2f: an unreferenced property is not exported at
+// all), and there is no separate list of installed keys (§15 #24): the
+// entry is the one statement.
 //
 // Measured over the 38,061-document corpus: 9,675 of 10,617 relation
 // documents are installed copies of the 194 bundled relations, and ~98% of
 // them are field-identical to vocabulary/relations.json — each a ~967-byte
-// restatement of `{key, name, format}` every reader already ships. The
-// dictionary's `installed` list stands for them (§2f); the composition omits
-// the documents; and a reader reconstructs each one from its own table,
-// which is exactly what a restore does anyway.
+// restatement of `{key, name, format}` every reader already ships.
 //
-// The predicate is FAIL-CLOSED in every direction: a detail key it cannot
-// classify keeps the document, a stored value of an alien kind keeps the
-// document, a block the format preserves keeps the document. Omission is an
-// optimization; keeping a document is never wrong, and a predicate that
-// omits one carrying real data would delete that data silently — the
-// disqualifying failure for a backup format.
+// OmittedBundledRelation stays FAIL-CLOSED in every direction, because what
+// it admits is an identity claim: a detail key it cannot classify, a stored
+// value of an alien kind, a block the format preserves, a definition member
+// that differs from the table — each DENIES the identical verdict, and the
+// property's entry is flagged `bundled_diverged`. What the entry cannot
+// state is not failed closed on — there is no document left to keep — but
+// REPORTED: UnaccountedRelationDetails names it, the role
+// UnaccountedOptionDetails plays for an option, so the composer raises an
+// Issue rather than losing anything in silence (§11).
 
 import (
+	"fmt"
 	"math"
+	"sort"
+	"strings"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -30,12 +53,13 @@ import (
 )
 
 // relationDefinitionKeys are the stored keys that ARE the property's
-// definition — what the bundled table states and what an omitted document
-// must match, member for member. Everything a relation document carries is
-// one of three things: a definition key (compared against the table), an
-// install artifact (relationInstallArtifactKeys, any value), or an internal
-// key the format never writes (strippedDetailKeys); a key that is none of
-// them is real data and keeps the document.
+// definition — what the bundled table states, what a copy must match member
+// for member to be admitted as identical to it, and what a dictionary entry
+// states either way. Everything a relation document carries is one of three
+// things: a definition key, an install artifact (relationInstallArtifactKeys,
+// any value), or an internal key the format never writes
+// (strippedDetailKeys); a key that is none of them is real data — it denies
+// the identical verdict, and UnaccountedRelationDetails names it.
 var relationDefinitionKeys = map[string]bool{
 	"name":                             true,
 	"description":                      true,
@@ -57,16 +81,33 @@ var relationDefinitionKeys = map[string]bool{
 // next install, so omitting the document loses nothing a reader could act
 // on. Every entry passed the §15 #12 admission test individually, against
 // the 9,675 bundled-key relation documents in the corpus; the map value
-// records the verdict. Keys that were candidates and FAILED the test — they
-// keep the document, because they carry something a person did:
+// records the verdict. Keys that were candidates and did NOT pass — none
+// of them is an artifact, because each carries something a person did:
 //
-//   - `isUninstalled` (32 docs, all true): the user REMOVED this property
-//     from the space; listing its key as installed would undo that.
+//   - `isUninstalled`: the user REMOVED this property from the space, and
+//     restoring it as one still in use would undo that. The dictionary
+//     entry carries the removal as `uninstalled` (§15 #22), so
+//     OmittedBundledRelation classifies the key on an arm of its own (a
+//     bool, either value — see UninstalledRelation and
+//     OmittedUninstallStamp) and the composer sets the flag on the entry.
+//     Measured over a census of 40 spaces' object stores (5,284 relation
+//     documents, 4,905 on bundled keys): not one bundled-key relation
+//     document carries the flag, and the 5 space-minted ones that do are
+//     all `isDeleted` besides, which the app's exporter skips. The arm
+//     omits nothing from that corpus; what it removes is a contradiction
+//     the composition could otherwise write, a removed property listed as
+//     installed by its own backup.
 //   - `isFavorite` / `isArchived`: user intent on the relation's own page,
-//     same verdict §2a reached for a type's isHidden.
-//   - `includeTime` — the BARE spelling, 7 docs: an orphan detail beside
+//     same verdict §2a reached for a type's isHidden. No relation document
+//     in the same census carries either (0 of 5,284; corpus-wide the keys
+//     occur 35 and 193 times, never on a relation or an option), so they
+//     get no verdict of their own: an unvetted key denies the identical
+//     verdict by the fail-closed default, and UnaccountedRelationDetails
+//     names it — that is all they need.
+//   - `includeTime` — the BARE spelling: an orphan detail beside
 //     relationFormatIncludeTime that no admission evidence explains; a key
-//     the test cannot explain keeps the document, by the fail-closed rule.
+//     the test cannot explain is unvetted, and treated as the two above
+//     (0 of 5,284 in the same census).
 var relationInstallArtifactKeys = map[string]string{
 	// 10,617 of 10,617 docs, ONE distinct value each ("relation"): derivable
 	// from the kind — the §2a layout verdict, on the other kind
@@ -92,7 +133,13 @@ var relationInstallArtifactKeys = map[string]string{
 	// derived from the bundled definition at install: measured, 154 bundled
 	// keys carry one across 9,675 copies and NOT ONE key has a second
 	// distinct value — a per-space fact would
-	"apiObjectKey": "derived from the bundled definition: 0 of 154 keys carry a second value",
+	// The entry states it (PropertyDefinition.ApiKey), so omitting the
+	// document loses nothing — which is a stronger reason than the one this
+	// line carried before, that a bundled key's api key is derivable from
+	// the shipped table (measured: 154 bundled keys across 9,675 copies, not
+	// one carrying a second distinct value). Derivability held only for
+	// bundled keys, and the predicate governs every relation.
+	"apiObjectKey": "stated by the dictionary entry; for a bundled key also derivable from the table",
 	// what the relation OBJECT's page features — an app-version stamp, not
 	// the definition: 90 of 134 keys carry two different stamps for the SAME
 	// key across spaces
@@ -114,6 +161,9 @@ var relationInstallArtifactKeys = map[string]string{
 // RelationInstallArtifactKey reports a stored detail that describes the
 // install of a bundled relation copy rather than the property it defines —
 // the keys an omitted document (§2f) loses and the next install re-stamps.
+// UnaccountedRelationDetails and UnaccountedOptionDetails read the same
+// verdicts for a space-minted property and an option: the same machinery
+// stamps the same keys on every kind it creates.
 // Exported for the round-trip comparator, which must skip exactly these on
 // the way back and nothing else: the predicate is the format's own, not a
 // copy, so the comparator and the composition cannot disagree (the miss
@@ -136,11 +186,63 @@ func InstallStampedDefault(key string, v *types.Value) bool {
 	return relationDefinitionKeys[key] && isEmptySystemValue(v)
 }
 
+// MultiValuedFormat reports a property format that can hold more than one
+// value — multi_select, files, objects, properties — the only formats on
+// which a `max_count` exists (§2a). Every other format holds exactly one:
+// the count is the format's answer, not the definition's, so a definition
+// states none, whatever the store happens to carry (the app stamps
+// `relationMaxCount: 1` on a select and nothing on a date).
+func MultiValuedFormat(format model.RelationFormat) bool {
+	switch format {
+	case model.RelationFormat_tag, model.RelationFormat_file, model.RelationFormat_object, model.RelationFormat_relations:
+		return true
+	}
+	return false
+}
+
+// FormatFixedDefinitionMember reports a definition member the property's
+// format leaves no room for: `relationMaxCount` on a single-valued format
+// (the format fixes the count at one) and `relationFormatIncludeTime` on
+// anything but a date (nothing reads a time-of-day flag elsewhere). Such a
+// member is not the definition's to state — a `max_count` exists on a
+// multi-valued format, an `include_time` on a date, and nowhere else (§2a)
+// — so the renderer omits it whatever the store holds, the reader ignores
+// one it meets, the identity check reads past it, and the round-trip
+// comparator does not report it in any direction: the same verdict on all
+// four, so what an entry omits by the format's rule can never come back
+// as a false difference (§11, §15 #25). The InstallStampedDefault
+// discipline, extended from "an empty default says nothing" to "a member
+// the format already answers says nothing".
+func FormatFixedDefinitionMember(format model.RelationFormat, key string) bool {
+	switch key {
+	case "relationMaxCount":
+		return !MultiValuedFormat(format)
+	case detailKeyRelationFormatIncludeTime:
+		return format != model.RelationFormat_date
+	}
+	return false
+}
+
 // OmittedBundledRelation reports whether a relation snapshot is an installed
 // copy whose definition is field-identical to the bundled table — the §2f
-// omission rule: the bundle composition writes no document for it, lists its
-// key in the dictionary's `installed`, and a reader reconstructs it from the
-// table. The returned key is the bundled key the `installed` list carries.
+// identity check. The verdict does two things and selects no entry shape:
+// every entry states the copy's stored definition, complete (§15 #25). An
+// admitted copy has a reconstruction — key → the reader's own table,
+// InstalledRelationDetails — that the composer verifies against the copy
+// through the round-trip comparator, the proof that a reader restoring the
+// key from its table loses nothing. A REFUSED copy on a key the table
+// names is flagged `bundled_diverged` on its entry: the copy diverged from
+// the table at export time, a fact a reader cannot recover once the table
+// has moved, so the entry outranks the reader's table for that key. The
+// verdict is fail-closed, so the flag follows it: a copy refused for an
+// unclassified detail or a block on its page is flagged too, and its entry
+// then equals the table, which costs the reader nothing. The returned key
+// is the bundled key; the entry is flagged `uninstalled` besides when
+// UninstalledRelation reports the copy removed (§15 #22), which the
+// composer asks second. Whether the DOCUMENT goes is not this predicate's
+// question: no relation document is written (OmittedRelation, §15 #23),
+// and there is no list of installed keys for the verdict to decide either
+// (§15 #24).
 //
 // opts matters for one member: relationFormatObjectTypes stores type OBJECT
 // ids (an install rewrites the table's bundled urls to the space's derived
@@ -149,7 +251,7 @@ func InstallStampedDefault(key string, v *types.Value) bool {
 // which fails on every derived id — fewer omissions, never a wrong one, the
 // same degradation every resolver-less path in this format takes.
 func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase, opts Options) (string, bool) {
-	if !isPropertySmartBlock(sbType) || base == nil {
+	if base == nil || !PropertySnapshotBase(sbType, base) {
 		return "", false
 	}
 	det := base.GetDetails().GetFields()
@@ -163,7 +265,9 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 	}
 	if !relationBlocksCarryNothing(base) {
 		// 19 corpus relation documents carry a dataview or free text on
-		// their page; a document is the only place that survives
+		// their page: not the table's copy, whatever the details say. The
+		// blocks themselves travel nowhere (§15 #23) and
+		// UnaccountedRelationDetails names them.
 		return "", false
 	}
 	internal := strippedDetailKeys()
@@ -173,9 +277,9 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 			// `creator` and `lastModifiedBy` are in strippedDetailKeys, but
 			// unlike the rest of that set they are NOT absent from a
 			// document: export writes the §3 attribution spelling
-			// `<id>#<name>` for both, so a KEPT copy of this relation would
-			// have carried them and an omitted one does not. Every one of
-			// the 10,617 corpus relation documents holds a `creator`.
+			// `<id>#<name>` for both, so a written copy of this relation
+			// would have carried them and an omitted one does not. Every
+			// one of the 10,617 corpus relation documents holds a `creator`.
 			//
 			// They are omitted anyway, on their own verdict rather than on
 			// the internal set's: attribution on an installed copy of a
@@ -191,8 +295,19 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 		case relationDefinitionKeys[k]:
 			// compared below, table-side, so an ABSENT stored member is
 			// judged too
+		case k == detailKeyIsUninstalled:
+			// the one detail that is neither definition nor artifact and
+			// still travels: the dictionary entry carries `uninstalled` for
+			// a true value (UninstalledRelation), and a false one is the
+			// reinstall stamp, absent-equivalent to every reader (see
+			// OmittedUninstallStamp). Only a bool is either of those; an
+			// alien kind is unclassified and denies the key.
+			if _, isBool := det[k].GetKind().(*types.Value_BoolValue); !isBool {
+				return "", false
+			}
 		default:
-			// unclassified is real data — fail closed
+			// unclassified is real data — fail closed on the key; the
+			// report names it
 			return "", false
 		}
 	}
@@ -200,6 +315,233 @@ func OmittedBundledRelation(sbType model.SmartBlockType, base *model.SmartBlockS
 		return "", false
 	}
 	return key, true
+}
+
+// OmittedRelation reports a relation document, which a bundle never writes
+// (§2f, §15 #23): the property dictionary states the stored definition,
+// complete, and a property nothing references is not exported at all. The
+// KIND decides, as for OmittedRelationOption — but the kind is what the
+// snapshot IS, and the smartblock type is only the first of two places that
+// says so (PropertySnapshotBase). What the entry cannot state is
+// UnaccountedRelationDetails' report, and whether a bundled key's entry is
+// flagged `bundled_diverged` is OmittedBundledRelation's.
+func OmittedRelation(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) bool {
+	return PropertySnapshotBase(sbType, base)
+}
+
+// PropertySnapshotBase reports a snapshot that describes a PROPERTY object,
+// and PropertyOptionSnapshotBase one that describes an OPTION — the question
+// the two omissions ask, which is not quite the question
+// isPropertySmartBlock answers.
+//
+// The smartblock type is the first source and the stored layout is the
+// second, because a real account holds objects the type alone does not
+// classify: an option minted before the unique key existed, or one an
+// importer wrote into a plain tree, carries `resolvedLayout:
+// relationOption` and a `relationKey` under SmartBlockType_Page. Measured
+// over a 159-space corpus, six such option objects in two spaces were
+// written into `objects/` as ordinary documents with `"type": "Property
+// option"` — §15 #21 says a bundle carries no option document at all — and,
+// worse, never reached observeRelationOption, so one space's `status` entry
+// stated three of its six options and another's stated none of its three
+// while §2f claims the dictionary is a vocabulary's only home. Nothing
+// reported it, because everything that reports is downstream of the
+// predicate that never fired.
+//
+// isPropertySmartBlock is deliberately NOT widened to match. That list is
+// the snapshot-side half of a three-way agreement with isPropertyKind and
+// the schema's `if` about which DOCUMENT kinds carry `property_settings`;
+// widening it would have an ordinary object document acquire a §2d group
+// its own schema refuses. The kinds a document may be written as and the
+// snapshots an omission recognises are different questions, and this is the
+// one place they part company.
+func PropertySnapshotBase(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) bool {
+	if isPropertySmartBlock(sbType) {
+		return true
+	}
+	layout, ok := storedObjectLayout(base)
+	return ok && layout == model.ObjectType_relation
+}
+
+// PropertyOptionSnapshotBase is PropertySnapshotBase for an option (§15 #21).
+func PropertyOptionSnapshotBase(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) bool {
+	if sbType == model.SmartBlockType_STRelationOption {
+		return true
+	}
+	layout, ok := storedObjectLayout(base)
+	return ok && layout == model.ObjectType_relationOption
+}
+
+// storedObjectLayout reads the layout a snapshot's own details state:
+// `resolvedLayout`, the key heart derives from the object's type, and
+// `layout` behind it for a snapshot carrying only the older spelling — three
+// of the six corpus cases state the former alone. ok is false when neither
+// key is present, which is the ordinary case and must never read as layout
+// 0: a coercing getter would make every layout-less snapshot a `basic` one
+// and hand some kind a match it never claimed. A number is the only shape
+// either key has, and a value outside the enum's range states nothing.
+func storedObjectLayout(base *model.SmartBlockSnapshotBase) (model.ObjectTypeLayout, bool) {
+	det := base.GetDetails().GetFields()
+	for _, key := range []string{"resolvedLayout", "layout"} {
+		v, present := det[key]
+		if !present {
+			continue
+		}
+		n, isNumber := v.GetKind().(*types.Value_NumberValue)
+		if !isNumber {
+			continue
+		}
+		f := n.NumberValue
+		if math.IsNaN(f) || math.IsInf(f, 0) || f < math.MinInt32 || f > math.MaxInt32 || float64(int32(f)) != f {
+			continue
+		}
+		return model.ObjectTypeLayout(int32(f)), true
+	}
+	return 0, false
+}
+
+// UnaccountedRelationDetails names what omitting one relation document
+// costs — the stored details its dictionary entry does not state and this
+// format does not drop on every kind anyway, and every block on its page
+// that is not the editor's scaffolding. Sorted; empty for the ordinary
+// property, which is what the measured corpus is made of (§15 #23).
+//
+// The classification is the installed-copy omission's own — the definition
+// members the entry states (relationDefinitionKeys), the install artifacts
+// the next install re-stamps (RelationInstallArtifactKey), attribution and
+// the internal set that never travel — plus the two flags the entry carries
+// because no document does: `isUninstalled` and `isHidden`. A definition
+// member stored under an alien kind is named rather than coerced: the
+// composer reads the definition through typed getters, and an entry that
+// states an empty name for a name stored as a number would say nothing
+// about it. Blocks are named because they are the one thing a document
+// could carry that nothing else can.
+//
+// The caller raises an Issue naming these — the difference between this
+// omission and a silent one.
+func UnaccountedRelationDetails(base *model.SmartBlockSnapshotBase) []string {
+	if base == nil {
+		return nil
+	}
+	var out []string
+	internal := strippedDetailKeys()
+	for key, v := range base.GetDetails().GetFields() {
+		switch {
+		case relationDefinitionKeys[key]:
+			// the entry states it — in its natural kind
+			if !definitionMemberStated(key, v) {
+				out = append(out, key+" (stored as "+storedKindName(v)+")")
+			}
+		case key == detailKeyIsUninstalled:
+			// true travels as the entry's `uninstalled`; false is the
+			// reinstall stamp, absent-equivalent (OmittedUninstallStamp)
+			if _, isBool := v.GetKind().(*types.Value_BoolValue); !isBool {
+				out = append(out, key+" (stored as "+storedKindName(v)+")")
+			}
+		case isAttributionProperty(key), internal[key]:
+			// never travels as a stored value; see the same arms in
+			// OmittedBundledRelation
+		case RelationInstallArtifactKey(key):
+			// install or import machinery, re-stamped; each key's verdict
+			// is recorded on relationInstallArtifactKeys
+		default:
+			out = append(out, key)
+		}
+	}
+	out = append(out, relationContentBlocks(base)...)
+	sort.Strings(out)
+	return out
+}
+
+// definitionMemberStated reports whether a dictionary entry states one
+// definition member as stored. Absent and null read as unset for every
+// consumer of these keys (and `include_time` carries an explicit null,
+// §2d); a value of the member's natural kind is carried; an alien kind is
+// not — the composer's typed getters would coerce it to a zero that happens
+// to look valid, which is exactly the silence the report exists to break.
+func definitionMemberStated(key string, v *types.Value) bool {
+	if v == nil {
+		return true
+	}
+	if _, isNull := v.GetKind().(*types.Value_NullValue); isNull {
+		return true
+	}
+	switch key {
+	case "name", "description", "relationKey":
+		_, ok := v.GetKind().(*types.Value_StringValue)
+		return ok
+	case detailKeyRelationFormat, "relationMaxCount":
+		_, ok := v.GetKind().(*types.Value_NumberValue)
+		return ok
+	case "isHidden", "relationReadonlyValue", detailKeyRelationFormatIncludeTime:
+		_, ok := v.GetKind().(*types.Value_BoolValue)
+		return ok
+	case detailKeyRelationFormatObjectTypes:
+		_, ok := v.GetKind().(*types.Value_ListValue)
+		return ok
+	case "relationDefaultValue":
+		// any kind: the entry carries it as decoded JSON
+		return true
+	}
+	return false
+}
+
+// storedKindName names a stored value's protobuf kind for a report.
+func storedKindName(v *types.Value) string {
+	switch v.GetKind().(type) {
+	case *types.Value_NullValue:
+		return "null"
+	case *types.Value_NumberValue:
+		return "number"
+	case *types.Value_StringValue:
+		return "string"
+	case *types.Value_BoolValue:
+		return "bool"
+	case *types.Value_StructValue:
+		return "struct"
+	case *types.Value_ListValue:
+		return "list"
+	}
+	return "unknown"
+}
+
+// detailKeyIsUninstalled is the stored flag the app sets when a user REMOVES
+// an installed bundled object from the space (heart's
+// deleteDerivedObject): the object is derived from the bundled table and
+// cannot be deleted, so it is marked instead, and every listing filters the
+// mark out. A reinstall stamps it back to false (objectcreator's installer).
+const detailKeyIsUninstalled = "isUninstalled"
+
+// UninstalledRelation reports a relation snapshot the user removed from the
+// space — stored `isUninstalled` true, as a bool. It is what the dictionary
+// entry's `uninstalled` member states (§2f): a property the bundle carries
+// for backup fidelity but that a reader must not present as one the user is
+// still using, and must not recreate carrying the mark — the store derives
+// `isDeleted` from it, and a born-deleted relation strands every value
+// documents carry under its key (PropertyDefinition.Uninstalled). An
+// alien-kinded value is not a removal; OmittedBundledRelation refuses such
+// a copy on its own fail-closed verdict, and its entry states the stored
+// definition.
+func UninstalledRelation(base *model.SmartBlockSnapshotBase) bool {
+	v := base.GetDetails().GetFields()[detailKeyIsUninstalled]
+	b, isBool := v.GetKind().(*types.Value_BoolValue)
+	return isBool && b.BoolValue
+}
+
+// OmittedUninstallStamp reports a stored `isUninstalled` that is bool FALSE
+// — the reinstall stamp — which the omission trip does not carry: the
+// reconstruction states no flag, and absent reads as false for every
+// consumer of this key (the app reaches it through GetBool, the corpse
+// filter asks `!= true`, and the `isDeleted` mirror it drives is itself
+// derived and re-injected on load). The comparator consults it on the
+// omittable scope only, the InstallStampedDefault discipline: a false stamp
+// that goes missing on an ordinary document round trip still reports.
+func OmittedUninstallStamp(key string, v *types.Value) bool {
+	if key != detailKeyIsUninstalled {
+		return false
+	}
+	b, isBool := v.GetKind().(*types.Value_BoolValue)
+	return isBool && !b.BoolValue
 }
 
 // bundledIdenticalDefinition compares the stored definition members against
@@ -222,15 +564,25 @@ func bundledIdenticalDefinition(det map[string]*types.Value, rel *model.Relation
 		format < 0 || format > math.MaxInt32 || model.RelationFormat(int32(format)) != rel.Format {
 		return false
 	}
-	maxCount, ok := numberDetailOK(det, "relationMaxCount")
-	if !ok || int32(maxCount) != rel.MaxCount || float64(int32(maxCount)) != maxCount {
-		return false
+	// a member the format fixes is read past, not compared
+	// (FormatFixedDefinitionMember): the app stamps relationMaxCount 1 on
+	// a select and nothing on a date, and a false includeTime rides on
+	// thousands of non-date copies — none of it a person's choice, none of
+	// it carried on an entry, so none of it a divergence
+	if !FormatFixedDefinitionMember(rel.Format, "relationMaxCount") {
+		maxCount, ok := numberDetailOK(det, "relationMaxCount")
+		if !ok || int32(maxCount) != rel.MaxCount || float64(int32(maxCount)) != maxCount {
+			return false
+		}
 	}
 	for detailKey, table := range map[string]bool{
 		"isHidden":                         rel.Hidden,
 		"relationReadonlyValue":            rel.ReadOnly,
 		detailKeyRelationFormatIncludeTime: rel.IncludeTime,
 	} {
+		if FormatFixedDefinitionMember(rel.Format, detailKey) {
+			continue
+		}
 		b, ok := boolDetailOK(det, detailKey)
 		if !ok || b != table {
 			return false
@@ -293,30 +645,59 @@ func installedTargetKeys(entries []string, opts Options) []string {
 // relationBlocksCarryNothing reports whether the snapshot's blocks are the
 // standard relation-page scaffolding — root, layout, featured-relations,
 // title/description text — which the editor regenerates and the format
-// already drops as structural (§7). Anything else (a dataview, free text) is
-// content only a document can carry.
+// already drops as structural (§7). Anything else is content only a
+// document could carry (relationContentBlocks).
 func relationBlocksCarryNothing(base *model.SmartBlockSnapshotBase) bool {
-	for _, b := range base.Blocks {
+	return len(relationContentBlocks(base)) == 0
+}
+
+// relationContentBlocks names the blocks on a relation page that are not
+// the editor's scaffolding — a dataview, free text, a bookmark: content only
+// a document could carry, and since no document is written (§15 #23) it is
+// what the report names. In document order, each by its id and its content
+// kind, which is what a person needs to find it in the source space. A nil
+// block is a corrupt snapshot and is named as such rather than skipped.
+func relationContentBlocks(base *model.SmartBlockSnapshotBase) []string {
+	var out []string
+	for i, b := range base.GetBlocks() {
 		if b == nil {
-			return false
+			out = append(out, fmt.Sprintf("block #%d (nil)", i))
+			continue
 		}
 		switch c := b.Content.(type) {
 		case *model.BlockContentOfSmartblock, *model.BlockContentOfLayout, *model.BlockContentOfFeaturedRelations:
+			continue
 		case *model.BlockContentOfText:
-			if c.Text.GetStyle() != model.BlockContentText_Title &&
-				c.Text.GetStyle() != model.BlockContentText_Description {
-				return false
+			if c.Text.GetStyle() == model.BlockContentText_Title ||
+				c.Text.GetStyle() == model.BlockContentText_Description {
+				continue
 			}
-		default:
-			return false
 		}
+		out = append(out, fmt.Sprintf("block %q (%s)", b.Id, blockContentKind(b.Content)))
 	}
-	return true
+	return out
 }
 
-// InstalledRelationDetails is the import half of the `installed` list: the
-// stored details a reader reconstructs for a bundled key — the shape a fresh
-// install writes, minus the ids and provenance the installer stamps itself.
+// blockContentKind names a block's content arm for a report: the protobuf
+// oneof's own name with its first letter lowered — `dataview`, `text`,
+// `bookmark` — so the report speaks the same word the schema's `type` does
+// for the common kinds without a second table to keep in step.
+func blockContentKind(content any) string {
+	if content == nil {
+		return "none"
+	}
+	name := strings.TrimPrefix(fmt.Sprintf("%T", content), "*model.BlockContentOf")
+	if name == "" {
+		return "unknown"
+	}
+	return strings.ToLower(name[:1]) + name[1:]
+}
+
+// InstalledRelationDetails is the reconstruction of an installed copy: the
+// stored details a reader recreates for a bundled key it meets in the
+// dictionary — the shape a fresh install writes, minus the ids and
+// provenance the installer stamps itself. It is what the composer verifies
+// an identical copy's omission against (§11).
 // Definition members are written even when empty — an install states the
 // whole definition — which is why the comparator's added-details direction
 // reads InstallStampedDefault. The TypeResolver capability translates the
@@ -357,6 +738,23 @@ func InstalledRelationDetails(key string, opts Options) (*types.Struct, bool) {
 		fields["relationDefaultValue"] = rel.DefaultValue
 	}
 	return &types.Struct{Fields: fields}, true
+}
+
+// UninstalledRelationDetails is the reconstruction of an omitted copy the
+// user had REMOVED: InstalledRelationDetails plus the stored `isUninstalled`
+// mark, which is what a reader that chooses to recreate an `uninstalled`
+// dictionary entry writes (§2f). Recreation is optional — a reader may skip
+// the entry instead, since a removed property is absent from every listing
+// either way — but a reader that does recreate must write the mark, or the
+// restore undoes the removal; this is the shape the composer verifies the
+// omission against, so the two cannot drift.
+func UninstalledRelationDetails(key string, opts Options) (*types.Struct, bool) {
+	det, ok := InstalledRelationDetails(key, opts)
+	if !ok {
+		return nil, false
+	}
+	det.Fields[detailKeyIsUninstalled] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
+	return det, true
 }
 
 // typed detail readers: value-or-zero with a kind verdict, so an alien kind

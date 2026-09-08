@@ -52,15 +52,26 @@ func renderPropertyDefinitionMembers(m *omap, def PropertyDefinition, objectType
 	m.setNonEmpty("options", options)
 	m.setNonEmpty("object_types", stringsToAny(objectTypes))
 	m.setNonEmpty("description", def.Description)
-	if def.IncludeTime != nil {
-		// A pointer false is a declaration, not an absence.
-		m.set("include_time", *def.IncludeTime)
-	} else if def.IncludeTimeSet {
-		// A present nil is explicit JSON null. The presence bit is what keeps
-		// that declaration distinct from an omitted member.
-		m.set("include_time", nil)
+	// two members exist only where the format leaves room for them (§2a):
+	// include_time on a date, max_count on a format that can hold more than
+	// one value. Elsewhere the format fixes the answer, so the member is
+	// omitted whatever the definition holds — the same verdict the reader,
+	// the identity check and the round-trip comparator read
+	// (FormatFixedDefinitionMember), so nothing omitted here can come back
+	// as a difference there.
+	if !FormatFixedDefinitionMember(def.Format, detailKeyRelationFormatIncludeTime) {
+		if def.IncludeTime != nil {
+			// A pointer false is a declaration, not an absence.
+			m.set("include_time", *def.IncludeTime)
+		} else if def.IncludeTimeSet {
+			// A present nil is explicit JSON null. The presence bit is what
+			// keeps that declaration distinct from an omitted member.
+			m.set("include_time", nil)
+		}
 	}
-	m.setNonEmpty("max_count", def.MaxCount)
+	if !FormatFixedDefinitionMember(def.Format, "relationMaxCount") {
+		m.setNonEmpty("max_count", def.MaxCount)
+	}
 	m.setNonEmpty("readonly", def.Readonly)
 	if def.DefaultValue != nil || def.DefaultValueSet {
 		value, err := canonicalPropertyDefault(def.DefaultValue)
@@ -70,6 +81,28 @@ func renderPropertyDefinitionMembers(m *omap, def PropertyDefinition, objectType
 		m.set("default_value", value)
 	}
 	return nil
+}
+
+// CarryablePropertyOptions reports whether def's entry can state opts as its
+// select vocabulary, and why not when it cannot.
+//
+// It is the dictionary writer's own gate (checkedPropertyOptions), exported
+// rather than restated so a composer cannot drift from it. A composer needs
+// the question because the writer answers it by refusing the whole
+// dictionary: MarshalPropertyDictionary returns an error, the composition
+// returns no properties.json and no index.json, and a single property whose
+// format was changed to something that admits no vocabulary — leaving its
+// option objects behind — costs a user the entire space export. Asking first
+// lets the composer drop that one vocabulary and report it.
+//
+// Authoring rules are not applied. A dictionary states STORED options, each
+// with its own internal key, so same-named twins are legal there and real
+// spaces contain them (§2a).
+func CarryablePropertyOptions(def PropertyDefinition, opts []OptionDefinition) error {
+	probe := def
+	probe.Options = opts
+	_, err := checkedPropertyOptions(probe, formatName(def.Format), false)
+	return err
 }
 
 func checkedPropertyOptions(def PropertyDefinition, format string, authorable bool) ([]any, error) {
@@ -109,8 +142,16 @@ func checkedPropertyOptions(def PropertyDefinition, format string, authorable bo
 				return nil, fmt.Errorf("property %q: options[%d].internal_key is not valid UTF-8", def.Key, i)
 			}
 		}
+		if option.ApiKey != "" {
+			if !utf8.ValidString(option.ApiKey) {
+				return nil, fmt.Errorf("property %q: options[%d].api_key is not valid UTF-8", def.Key, i)
+			}
+		}
 
-		if option.Color == "" && option.InternalKey == "" {
+		// the bare name stays canonical only when there is nothing else to
+		// say: a member added to the shape has to be added here too, or the
+		// writer drops it while the reader still accepts it
+		if option.Color == "" && option.InternalKey == "" && option.ApiKey == "" {
 			out = append(out, option.Name)
 			continue
 		}
@@ -118,6 +159,7 @@ func checkedPropertyOptions(def PropertyDefinition, format string, authorable bo
 		entry.set("name", option.Name)
 		entry.setNonEmpty("color", option.Color)
 		entry.setNonEmpty("internal_key", option.InternalKey)
+		entry.setNonEmpty("api_key", option.ApiKey)
 		out = append(out, entry)
 	}
 	return out, nil

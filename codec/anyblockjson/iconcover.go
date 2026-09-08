@@ -51,9 +51,9 @@ var (
 // truth for both directions: export writes these keys nowhere but the typed
 // envelope fields, and import refuses them in `properties`
 // (deniedPropertyKey reads this same set, §2b, §3). The precedent is
-// `type_properties` (§2a); the difference is that this list is ALWAYS on,
-// because the fields it feeds are a pure function of the details bag and need
-// no resolver.
+// `type_settings.property_definitions` (§2a); the difference is that this
+// list is ALWAYS on, because the fields it feeds are a pure function of the
+// details bag and need no resolver.
 //
 // Deriving the refusal from the list is the point — a restated list is how
 // the export and import surfaces drifted apart the last time (see
@@ -261,7 +261,13 @@ func (e *exporter) buildIcon() *omap {
 	if e.snapshot == nil || e.snapshot.Details == nil {
 		return nil
 	}
-	return iconOmap(iconOf(e.detail, e.warn, e.iconTargetDeleted))
+	ic := iconOf(e.detail, e.warn, e.iconTargetDeleted)
+	if ic != nil && ic.File != "" {
+		// the file is a reference slot (§9): the derived-id fold applies,
+		// with no caption — an icon is looked at, never captioned
+		ic.File = e.opts.foldRef(ic.File)
+	}
+	return iconOmap(ic)
 }
 
 // iconOf chooses the icon from the four stored channels (§2b), or returns nil
@@ -446,7 +452,7 @@ func (e *exporter) buildCover() *omap {
 		return nil
 	}
 	m.set("format", "image")
-	m.set("file", id)
+	m.set("file", e.opts.foldRef(id))
 	switch t {
 	case coverTypeUnsplash:
 		m.set("source", coverSourceUnsplash)
@@ -489,7 +495,7 @@ func (e *exporter) calloutIcon(t *model.BlockContentText) *omap {
 		return nil
 	}
 	m.set("format", "file")
-	m.set("file", t.IconImage)
+	m.set("file", e.opts.foldRef(t.IconImage))
 	return m
 }
 
@@ -606,7 +612,7 @@ func (imp *importer) applyIcon(details *types.Struct) {
 		// the shape all 12 011 populated cases in the corpus hold
 		details.Fields[detailKeyIconImage] = &types.Value{Kind: &types.Value_ListValue{
 			ListValue: &types.ListValue{Values: []*types.Value{
-				{Kind: &types.Value_StringValue{StringValue: ic.File}},
+				{Kind: &types.Value_StringValue{StringValue: imp.unfoldRef(ic.File)}},
 			}},
 		}}
 	case "icon":
@@ -642,7 +648,7 @@ func (imp *importer) applyCover(details *types.Struct) {
 		setNum(detailKeyCoverType, coverTypeGradient)
 		return
 	}
-	setStr(detailKeyCoverId, cv.File)
+	setStr(detailKeyCoverId, imp.unfoldRef(cv.File))
 	switch cv.Source {
 	case coverSourceUnsplash:
 		setNum(detailKeyCoverType, coverTypeUnsplash)

@@ -105,10 +105,14 @@ key's fold class.
 
 The authoring profile follows the same rule for a bundle's custom types. A
 type document may retain `internal_key: "habit"` as its stored installation
-identity, but its `Name: "Habit"` is what ordinary objects write in `type`,
-templates write in `template_for`, and objects/files properties write in
-`object_types`. Bundle import binds that NFC display name to the stored key;
-canonical re-export writes the display name again.
+identity, but its `Name: "Habit"` is what ordinary objects write in `type`.
+The two slots that REFER to a type by key — `template_for`, and
+objects/files properties' `object_types` — take the display name from an
+author too, and canonicalise to the type's derived id, `type-habit` (SPEC
+§9): the one spelling every reference to a type carries, so a reader never
+resolves a type spelling there. Bundle import binds the NFC display name to
+the stored key; canonical re-export writes the display name in `type` and
+the derived id everywhere else.
 
 **Why.** An id is unguessable, so a model must fetch before it can write;
 a name is already in the user's request. Import creates missing options by
@@ -122,8 +126,8 @@ byte-exactly is a solved behavior even at 4B scale, while *deriving* a
 slug from a name is where models improvise — and improvise differently in
 the key slot and the filter value that references it, the divergence that
 silently unbinds a view from its property. SPEC §3 is the rule, including the per-document collision
-ladder and the `property_internal_keys` / `type_internal_keys` legends
-that keep an exported document invertible with no space to ask
+ladder, the `property_internal_keys` legend and the `type_internal_key`
+scalar that keep an exported document invertible with no space to ask
 (`option_ids`, in the example above, is the same idea for select options:
 the id rides beside the name).
 
@@ -168,8 +172,8 @@ reaches a document from the two sources no vocabulary rename can touch.
 The app's STORED keys keep their spellings (`relationKey`,
 `featuredRelations`, the `relation` type key, …), and a document records a
 stored key verbatim exactly where fidelity demands an identity rather than
-a name: the envelope `internal_key`, and the values of the
-`property_internal_keys` / `type_internal_keys` legends — measured on the
+a name: the envelope `internal_key`, `type_internal_key`, and the values
+of the `property_internal_keys` legend — measured on the
 pre-rename corpus, each such key appears there on roughly 150 of 28,831
 documents. And user data is user data: a property someone named
 "Relation", an object called "Company relation template" — their words,
@@ -252,7 +256,19 @@ re-measurement. Separately, the native bundle exporter is verified against
 the corpus by the same harness in `-native` mode — 28,542 documents
 checked for layout, kind classification, determinism (every space exported
 twice, trees byte-compared) and per-document fidelity against a
-same-process pb export; `../../bundle/DESIGN.md` records that run.
+same-process pb export; `../../bundle/DESIGN.md` records that run, and the
+caveat on it. That run predates four rulings, not one. §15 #21 took the
+option documents out of a bundle and §15 #23 the property documents, so it
+exercised an `options/` and a `properties/` this layout no longer has; §15
+#26 deleted `manifest.types`, the table it wrote a type path into; and §15
+#27 re-spelled every type and participant reference as a derived id,
+`type-<internal_key>` and `participant-<identity>`. So every id and every
+directory count that run reports is stale, not only its option documents,
+and it has not been re-run. A later 159-space sweep does exercise the
+current layout — 24,889 documents over five directories, no `properties/`,
+no `options/`, a `manifest` whose only member is `properties` — and
+`../../bundle/DESIGN.md` records it beside the older one, with the commit
+it was taken at and what that commit still predates.
 
 Anomalies found along the way were fixed rather than smoothed over —
 including two genuine silent-data-loss bugs the sweeps caught that no unit

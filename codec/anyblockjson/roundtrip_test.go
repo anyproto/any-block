@@ -443,7 +443,7 @@ func TestEnvelope_Variants(t *testing.T) {
 		require.NoError(t, err)
 		s := string(data)
 		assert.Contains(t, s, `"type": "Template"`)
-		assert.Contains(t, s, `"template_for": "Task"`)
+		assert.Contains(t, s, `"template_for": "type-task"`, "the target type is a reference by key (§9)")
 		// A template says so, always. `kind` used to be omitted here as
 		// derivable from the type term, which is what made the type term
 		// carry two meanings at once (§2, v0.22): the cost is ~21 bytes on a

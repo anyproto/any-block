@@ -57,7 +57,8 @@
     },
     "template_for": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Templates only: the target type, written as its derived id `type-<internal_key>` (§9) — a reference by key, the same spelling every id-valued slot folds a type to. A display name or the legacy `ot-<key>` is accepted on input; canonical export writes the derived id."
     },
     "internal_key": {
       "description": "The STORED identity key of a definition document (a type, a property, a property option) — the uniqueKey's internal part, written verbatim. This is an id the app MINTS, not something an author writes: for a custom property or type it is a bson id like 6a83296f61fab2265263ae34, which no author can produce, and for a bundled one it is the bundled camelCase key (dueDate). Export writes it for fidelity; an authored definition document may omit it, and the import wiring then mints a fresh internal key exactly as the app does when a user creates one. It is deliberately NOT a spelling: unlike every key slot in §3 it is never translated through a legend or the bundled table, so it does not match the display-name spelling documents use (that spelling is the `property` member of a property definition). Charset is a deny rule, not an allowlist — a property option's stored key is built from its NAME, so keys like completion_status_Not Started are real stored keys.",
@@ -65,7 +66,7 @@
       "minLength": 1
     },
     "property_settings": {
-      "description": "Only on property documents (kind \"property\" or \"bundled_property\"), where it is REQUIRED: the definition of the property this document IS — one propertyDefinition (§2d, §2e). Three members travel today, each mirroring stored presence EXACTLY, value included: `format` (required — a §3 format NAME, the same vocabulary type_properties[].format speaks, never a raw enum number; stands for the stored relationFormat key, which `properties` refuses), `include_time` (present exactly when the stored relationFormatIncludeTime key is; meaningful on format \"date\" only, and a stored null travels as null), and `object_types` (present exactly when the stored relationFormatObjectTypes key is; the target type keys in priority order — a type-key slot exactly like type_properties[].object_types, inverted through the type_internal_keys legend, meaningful on \"objects\"/\"files\" only). The members refused with `false` have a home already: `internal_key` is the envelope's (and `property`, the spelling, is derived from it — a property document never states its own spelling), `name` and `description` are properties', `options` are a property-definition entry's — the dictionary's (\u00a72f) or a type's property_definitions declaration (\u00a72a); a bundle carries no option documents (\u00a715 #21), so no third surface states a select vocabulary — and max_count/readonly/default_value still travel in `properties` under their stored keys until the dictionary lifts them — admitting a second spelling of any of them here would be the §15 #14 disease this group exists to end.",
+      "description": "Only on property documents (kind \"property\" or \"bundled_property\"), where it is REQUIRED: the definition of the property this document IS — one propertyDefinition (§2d, §2e). Three members travel today, each mirroring stored presence EXACTLY, value included: `format` (required — a §3 format NAME, never a raw enum number: the vocabulary `type_settings.property_definitions[].format` speaks, plus `map`, which only a property document may state ($defs/propertyFormat); stands for the stored relationFormat key, which `properties` refuses), `include_time` (present exactly when the stored relationFormatIncludeTime key is; meaningful on format \"date\" only, and a stored null travels as null), and `object_types` (present exactly when the stored relationFormatObjectTypes key is; the target types in priority order — a type-key slot exactly like `type_settings.property_definitions[].object_types`, each written as the type's derived id `type-<internal_key>` (§9), with a display name or the legacy `ot-<key>` accepted on input; meaningful on \"objects\"/\"files\" only). The members refused with `false` have a home already: `internal_key` is the envelope's (and `property`, the spelling, is derived from it — a property document never states its own spelling), `name` and `description` are properties', `options` are a property-definition entry's — the dictionary's (§2f) or a type's property_definitions declaration (§2a); a bundle carries no option documents (§15 #21), so no third surface states a select vocabulary — and max_count/readonly/default_value still travel in `properties` under their stored keys until the dictionary lifts them — admitting a second spelling of any of them here would be the §15 #14 disease this group exists to end.",
       "type": "object",
       "allOf": [
         {
@@ -154,19 +155,12 @@
         "pattern": "^[^\u0000-\u001f]+$"
       }
     },
-    "type_internal_keys": {
-      "type": "object",
-      "description": "Legend: the stored type key each type SPELLING in this document names (§3). Same rule as property_internal_keys, on a legend of the type namespace's own: present only for spellings the bundled table cannot invert; a reader consults it before its own vocabulary. A value is a stored type key and obeys the writable-key rule (§3).",
-      "propertyNames": {
-        "pattern": "^[^\u0000-\u001f]+$",
-        "maxLength": 128
-      },
-      "additionalProperties": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 128,
-        "pattern": "^[^\u0000-\u001f]+$"
-      }
+    "type_internal_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\u0000-\u001f]+$",
+      "description": "The STORED type key the envelope `type` spelling names (§2, §3): the bundled key (`page`, `task`) or the minted key of a space's own type, written on EVERY typed document — bundled or not — so a reader resolves the key and treats the spelling as a caption. The type document is `type-<this key>` (§9). A scalar, because an object has exactly one type; the former `type_internal_keys` map is retired (§15 #28)."
     },
     "option_ids": {
       "type": "object",
@@ -264,6 +258,55 @@
       "else": {
         "properties": {
           "type_settings": false
+        }
+      }
+    },
+    {
+      "$comment": "The derived-id reservation, kind half (SPEC §9): `type-<internal_key>` is a TYPE document's id, so no other kind may wear the prefix. Stated as a constraint on `id` under a non-type `kind` so the verdict lands on the member at fault. The other half — that the remainder is this document's own internal_key — is semantic: JSON Schema cannot compare one member against a substring of another.",
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "object_type",
+              "bundled_object_type"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "id": {
+            "not": {
+              "pattern": "^type-"
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "The same reservation for participants: `participant-<identity>` is a participant document's id. That the remainder is a real account identity — a base58 strkey with its version byte and CRC16 checksum — is semantic, as no schema can express a checksum.",
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "participant"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "id": {
+            "not": {
+              "pattern": "^participant-"
+            }
+          }
         }
       }
     }
@@ -1307,7 +1350,7 @@
         "properties",
         "map"
       ],
-      "description": "A property format, by NAME (§3): the public REST API vocabulary, plus names for the internal formats a store really carries — emoji, objects, properties, and map, which 72 production property documents hold (the bundled templatePlaceholders property). One list, referenced from every slot that states a format, so the three slots cannot drift apart. Includes `map`, which only a property document's own property_settings may state: it is the format of hidden system properties (templatePlaceholders is the only carrier — 72 production documents) and no authored property may declare it, so type_properties[] and a dataview's properties[] reference authorableFormat instead."
+      "description": "A property format, by NAME (§3): the public REST API vocabulary, plus names for the internal formats a store really carries — emoji, objects, properties, and map, which 72 production property documents hold (the bundled templatePlaceholders property). One list, referenced from every slot that states a format, so the three slots cannot drift apart. Includes `map`, which only a property document's own property_settings may state: it is the format of hidden system properties (templatePlaceholders is the only carrier — 72 production documents) and no authored property may declare it, so `type_settings.property_definitions[]` and a dataview's `properties[]` reference authorableFormat instead."
     },
     "authorableFormat": {
       "enum": [
@@ -1325,7 +1368,7 @@
         "objects",
         "properties"
       ],
-      "description": "A property format an author may DECLARE (§3) — propertyFormat without `map`. `map` names the shape of a hidden system property's value, never something a type or a view declares: it occurs on 0 of 19,862 type_properties entries and 0 of 28,034 dataview property entries in a 38,061-document corpus, and its only carrier is the bundled, hidden templatePlaceholders. Splitting the vocabulary keeps a property document able to state what it is (§2d) while keeping the authorable slots — the ones a model writes, and the ones a generated per-type schema is built from — unable to invent one."
+      "description": "A property format an author may DECLARE (§3) — propertyFormat without `map`. `map` names the shape of a hidden system property's value, never something a type or a view declares: it occurs on 0 of 19,862 `type_settings.property_definitions` entries and 0 of 28,034 dataview property entries in a 38,061-document corpus, and its only carrier is the bundled, hidden templatePlaceholders. Splitting the vocabulary keeps a property document able to state what it is (§2d) while keeping the authorable slots — the ones a model writes, and the ones a generated per-type schema is built from — unable to invent one."
     },
     "propertyDefinition": {
       "type": "object",
@@ -1365,7 +1408,8 @@
           "items": {
             "type": "string",
             "minLength": 1
-          }
+          },
+          "description": "objects/files only: the types the property may point at, in priority order, each written as the type's derived id `type-<internal_key>` (§9). A display name (a bundled one, or the Name of a type this bundle declares) or the legacy `ot-<key>` is accepted on input; canonical export writes the derived id. Empty means any object."
         },
         "description": {
           "type": "string"
@@ -1415,7 +1459,7 @@
             "properties": {
               "name": {
                 "minLength": 1,
-                "pattern": "^[^\u0000-\u001f\u007f]+$",
+                "pattern": "^[^\u0000-\u001f]+$",
                 "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
               }
             }
@@ -1475,7 +1519,12 @@
             "internal_key": {
               "type": "string",
               "minLength": 1,
-              "description": "The option's stored key — a minted id, so an AUTHOR never writes one and export writes it only where it exists. It is the one thing about an option that is derivable from nothing: the name and colour say what the option MEANS, the array position says where it sits, and the option's api key is regenerated from the name by the app's own rule (measured: every one of 514 real option api keys is reproduced by that rule, so none needs to travel). Carrying the internal key is what lets a bundle state a vocabulary completely rather than only describe it."
+              "description": "The option's stored key — a minted id, so an AUTHOR never writes one and export writes it only where it exists. It is minted rather than derived: the name and colour say what the option MEANS and the array position says where it sits, but nothing about an option implies its stored key. Carrying it is what lets a bundle state a vocabulary completely rather than only describe it."
+            },
+            "api_key": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The option's public API key (stored `apiObjectKey`) — the spelling callers address the option by, and NOT a slug of the name: an api key does not follow a rename and nothing rewrites it, so `Canceled` keeps the api key `cancelled` it was minted with and `Product` keeps `produc`. Export writes it where the store holds one; an author never writes one. It travels because no restore mints it — the app's rule that derives an api key from a name lives on the create path, and import does not take that path (relation and relation-option snapshots are written straight into their trees), so an option restored from a bundle that states none gets none at all and the API addresses it by a hash-derived local key instead. The same reasoning gives a TYPE its `type_settings.api_key`."
             }
           },
           "required": [

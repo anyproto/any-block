@@ -33,14 +33,14 @@
     "template_for": {
       "type": "string",
       "minLength": 1,
-      "description": "Templates only: the target type's NFC display name — for example, \"Habit\" for a type document whose Name property is \"Habit\". Never copy its internal_key."
+      "description": "Templates only: the target type — its derived id `type-<internal_key>` (\"type-habit\" for a type document whose internal_key is \"habit\"), or its NFC display name (\"Habit\"). Export writes the derived id."
     },
     "internal_key": {
       "type": "string",
       "minLength": 1,
       "maxLength": 64,
       "pattern": "^[^\u0000-\u001f]+$",
-      "description": "Type documents only: the stored identity used when this type is installed, for example \"habit\". It is internal metadata, not the document spelling: objects, templates and object_types name this type by the NFC display name in its Name property. Keep it distinct from bundled stored identities."
+      "description": "Type documents only: the stored identity used when this type is installed, for example \"habit\". It is internal metadata, not the document spelling: an object names this type by the NFC display name in its Name property, and a template's `template_for` or an `object_types` entry names it by that display name or by the derived id built from this key, `type-<internal_key>` (\"type-habit\"). Keep it distinct from bundled stored identities."
     },
     "icon": {
       "$ref": "#/$defs/icon"
@@ -159,6 +159,29 @@
           "template_for": false
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "id": {
+            "pattern": "^type-"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "then": {
+        "required": [
+          "kind",
+          "internal_key"
+        ],
+        "properties": {
+          "kind": {
+            "const": "object_type"
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -166,20 +189,27 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
       "not": {
-        "enum": [
-          "favorite",
-          "recent",
-          "recentOpen",
-          "set",
-          "collection",
-          "allObjects",
-          "chat",
-          "bin",
-          "widgets",
-          "graph"
+        "anyOf": [
+          {
+            "enum": [
+              "favorite",
+              "recent",
+              "recentOpen",
+              "set",
+              "collection",
+              "allObjects",
+              "chat",
+              "bin",
+              "widgets",
+              "graph"
+            ]
+          },
+          {
+            "pattern": "^participant-"
+          }
         ]
       },
-      "description": "A bundle-local id: letters, digits, `-`, `_`; never starting with `_` (that prefix is the platform's) and never one of the ten reserved listing words — the index authoring schema beside this one reserves the same ten, and `chat` and `bin` are the two most common listing widgets."
+      "description": "A bundle-local id: letters, digits, `-`, `_`; never starting with `_` (that prefix is the platform's), never one of the ten reserved listing words — the index authoring schema beside this one reserves the same ten, and `chat` and `bin` are the two most common listing widgets — and never `participant-…`, which belongs to a participant document, a kind an author never writes. `type-<internal_key>` is a type document's own id (§9): write it on the type document whose internal_key it names, and nowhere else."
     },
     "propertyMap": {
       "type": "object",
@@ -562,7 +592,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "objects/files only: the NFC display names of the types the property may point at, including the Name of a type this bundle declares. Never write internal_key here. Empty or absent = any object."
+          "description": "objects/files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\", \"type-task\") or its NFC display name (\"Habit\", \"Task\"). Export writes the derived id. Empty or absent = any object."
         },
         "include_time": {
           "type": "boolean",
@@ -602,7 +632,7 @@
             "properties": {
               "name": {
                 "minLength": 1,
-                "pattern": "^[^\u0000-\u001f\u007f]+$",
+                "pattern": "^[^\u0000-\u001f]+$",
                 "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
               }
             }

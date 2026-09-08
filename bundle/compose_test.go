@@ -2,7 +2,7 @@ package bundle
 
 // compose_test.go pins the composer against the §2c/§2f composition it
 // re-homes from the roundtrip harness's spaceComposer: the lift-before-omit
-// discipline, the used-only dictionary, the manifest's three tables, and the
+// discipline, the used-only dictionary, the manifest's two tables, and the
 // bundle-level I1 re-read. The corpus sweep exercises the same code end to
 // end over 38k real documents; these tests pin the mechanism on a space
 // small enough to read.
@@ -65,8 +65,9 @@ func testSpaceSnapshot() *model.SmartBlockSnapshotBase {
 }
 
 // testInstalledCopy is a field-identical installed copy of a bundled
-// relation — the omit-into-`installed` case (§2f), install provenance and
-// all.
+// relation — the identical-copy case (§2f): omitted, verified against the
+// table, and entered as its stored definition — the table's, complete —
+// when referenced, install provenance and all.
 func testInstalledCopy(t *testing.T, key string) *model.SmartBlockSnapshotBase {
 	t.Helper()
 	det, ok := anyblockjson.InstalledRelationDetails(key, anyblockjson.Options{})
@@ -79,14 +80,13 @@ func testInstalledCopy(t *testing.T, key string) *model.SmartBlockSnapshotBase {
 }
 
 // One small space, end to end: the two omitted documents lift into the
-// bundle files, the written ones feed the manifest, the option document's
+// bundle files, the written file blobs feed the manifest, the option document's
 // vocabulary lands inline on the property that owns it, and both files
 // re-read through the package's own Unmarshal (I1 at bundle scope).
 //
 // How this can fail: record the omission before the lift (the space's name
 // vanishes with its document); build the dictionary from ALL keys instead
-// of used ones (§2f's used-only rule breaks); key the manifest by the
-// document spelling instead of the stored key; or skip the re-read and ship
+// of used ones (§2f's used-only rule breaks); or skip the re-read and ship
 // a bundle the package itself refuses — found at restore time instead of
 // here.
 func TestComposer_ComposesTheBundleFiles(t *testing.T) {
@@ -98,7 +98,7 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	require.Empty(t, issues)
 
 	omitted, issues = c.Observe(model.SmartBlockType_STRelation, testInstalledCopy(t, "dueDate"))
-	require.True(t, omitted, "a field-identical installed copy travels as its key")
+	require.True(t, omitted, "a field-identical installed copy is omitted; its entry states the table")
 	require.Empty(t, issues)
 
 	typeSnap := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
@@ -106,8 +106,7 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	})}
 	omitted, _ = c.Observe(model.SmartBlockType_STType, typeSnap)
 	require.False(t, omitted)
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnap,
-		[]byte(`{"formatVersion":"2.0"}`), "types/bafytask.anyblock.json"))
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, typeSnap, []byte(`{"formatVersion":"2.0"}`)))
 
 	optSnap := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 		"id": strVal("bafyurgent"), "relationKey": strVal("tag"),
@@ -127,8 +126,7 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	pageDoc := []byte(`{"formatVersion":"2.0","properties":{"due_date":"2026-01-01","tag":["urgent"]}}`)
 	omitted, _ = c.Observe(model.SmartBlockType_Page, pageSnap)
 	require.False(t, omitted)
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, pageSnap,
-		pageDoc, "objects/bafypage.anyblock.json"))
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, pageSnap, pageDoc))
 
 	c.ObserveFileBlob("bafyfile", "files/bafyfile.png")
 
@@ -136,33 +134,35 @@ func TestComposer_ComposesTheBundleFiles(t *testing.T) {
 	indexData, dictData, stats, err := c.Finish()
 	require.NoError(t, err)
 
-	// then — the index carries the lift and the manifest's three tables
+	// then — the index carries the lift and the manifest's two tables
 	idx, err := anyblockjson.UnmarshalIndex(indexData, anyblockjson.Options{})
 	require.NoError(t, err)
 	assert.Equal(t, "Corpus", idx.Name, "the space document's own name wins over the fallback")
 	assert.Equal(t, "bafyreihome", idx.Homepage)
 	require.NotNil(t, idx.Manifest)
-	assert.Equal(t, map[string]string{"task": "types/bafytask.anyblock.json"}, idx.Manifest.Types)
 	assert.Equal(t, map[string]string{"bafyfile": "files/bafyfile.png"}, idx.Manifest.Files)
 	assert.Equal(t, anyblockjson.PropertiesFileName, idx.Manifest.Properties)
 
-	// the dictionary: the installed key, and one entry per USED key — with
-	// the minted vocabulary inline on the property that owns it
+	// the dictionary: one entry per USED key — the identical copy's states
+	// its stored definition, complete, which is the table's, and the minted
+	// vocabulary sits inline on the property that owns it
 	dict, err := anyblockjson.UnmarshalPropertyDictionary(dictData, anyblockjson.Options{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"dueDate"}, dict.Installed)
 	byKey := map[string]anyblockjson.PropertyDefinition{}
 	for _, def := range dict.Properties {
 		byKey[string(def.Key)] = def
 	}
+	require.Contains(t, byKey, "dueDate", "referenced by the page, so an entry (§15 #24)")
+	assert.Equal(t, "Due date", byKey["dueDate"].Name)
+	require.NotNil(t, byKey["dueDate"].IncludeTime, "complete, not reduced: a date's include-time travels (§15 #25)")
+	assert.False(t, byKey["dueDate"].BundledDiverged)
 	require.Contains(t, byKey, "tag")
 	require.Len(t, byKey["tag"].Options, 1)
 	assert.Equal(t, "urgent", byKey["tag"].Options[0].Name)
 	assert.Equal(t, "red", byKey["tag"].Options[0].Color)
 	assert.Equal(t, "abcd1234", byKey["tag"].Options[0].InternalKey)
 
-	assert.Equal(t, 1, stats.DictionaryInstalled)
-	assert.Equal(t, 1, stats.ManifestTypes)
+	assert.Equal(t, 2, stats.DictionaryEntries, "due date and tag")
 	assert.Equal(t, 1, stats.ManifestFiles)
 	// three: the space document, the widget document, and the option
 	assert.Equal(t, 3, stats.OmittedDocs)
@@ -182,19 +182,18 @@ func TestComposer_ObservationOrderNeverReachesTheBytes(t *testing.T) {
 		sbType model.SmartBlockType
 		base   *model.SmartBlockSnapshotBase
 		doc    []byte
-		path   string
 	}
 	build := func(t *testing.T) []obs {
 		return []obs{
-			{model.SmartBlockType_Workspace, testSpaceSnapshot(), nil, ""},
-			{model.SmartBlockType_STRelation, testInstalledCopy(t, "dueDate"), nil, ""},
-			{model.SmartBlockType_STRelation, testInstalledCopy(t, "assignee"), nil, ""},
+			{model.SmartBlockType_Workspace, testSpaceSnapshot(), nil},
+			{model.SmartBlockType_STRelation, testInstalledCopy(t, "dueDate"), nil},
+			{model.SmartBlockType_STRelation, testInstalledCopy(t, "assignee"), nil},
 			{model.SmartBlockType_STType, &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 				"id": strVal("bafytask"), "uniqueKey": strVal("ot-task"),
-			})}, []byte(`{"formatVersion":"2.0"}`), "types/bafytask.anyblock.json"},
+			})}, []byte(`{"formatVersion":"2.0"}`)},
 			{model.SmartBlockType_Page, &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{
 				"id": strVal("bafypage"),
-			})}, []byte(`{"formatVersion":"2.0","properties":{"due_date":"2026-01-01"}}`), "objects/bafypage.anyblock.json"},
+			})}, []byte(`{"formatVersion":"2.0","properties":{"due_date":"2026-01-01"}}`)},
 		}
 	}
 	run := func(t *testing.T, seq []obs) (string, string) {
@@ -202,7 +201,7 @@ func TestComposer_ObservationOrderNeverReachesTheBytes(t *testing.T) {
 		for _, o := range seq {
 			omitted, _ := c.Observe(o.sbType, o.base)
 			if !omitted && o.doc != nil {
-				require.NoError(t, c.ObserveWritten(o.sbType, o.base, o.doc, o.path))
+				require.NoError(t, c.ObserveWritten(o.sbType, o.base, o.doc))
 			}
 		}
 		c.ObserveFileBlob("bafyfile", "files/bafyfile.png")
@@ -251,8 +250,7 @@ func TestComposer_LiftedWidgetPropertiesEnterTheDictionaryCensus(t *testing.T) {
 	require.Empty(t, issues)
 
 	page := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal(target)})}
-	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page,
-		[]byte(`{"formatVersion":"2.0","id":"`+target+`"}`), "objects/page.json"))
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, page, []byte(`{"formatVersion":"2.0","id":"`+target+`"}`)))
 
 	index, properties, stats, err := c.Finish()
 	require.NoError(t, err)
@@ -295,8 +293,7 @@ func TestComposer_SameNamedOptionsHaveATotalOrder(t *testing.T) {
 			require.True(t, omitted, "options are omitted; the vocabulary is learned on this path")
 		}
 		pageSnap := &model.SmartBlockSnapshotBase{Details: detFields(map[string]*types.Value{"id": strVal("bafypage")})}
-		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, pageSnap,
-			[]byte(`{"formatVersion":"2.0","properties":{"tag":["urgent"]}}`), "objects/bafypage.anyblock.json"))
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, pageSnap, []byte(`{"formatVersion":"2.0","properties":{"tag":["urgent"]}}`)))
 		_, dict, _, err := c.Finish()
 		require.NoError(t, err)
 		return string(dict)
@@ -309,4 +306,211 @@ func TestComposer_SameNamedOptionsHaveATotalOrder(t *testing.T) {
 	assert.Contains(t, fwd, "purple", "both real options stay; ordering, not deduping")
 	assert.Less(t, strings.Index(fwd, "teal"), strings.Index(fwd, "purple"),
 		"the id tie-break is ascending: bafyaaa's colour sits first")
+}
+
+// The snapshot's own Key is the stored identity, and it is what the document
+// path writes as internal_key. Deriving it from the `uniqueKey` DETAIL lost
+// the value whenever the detail was absent: 5 of the 2,466 options in the
+// 77-space corpus reached the dictionary with no internal_key at all.
+func TestComposerTakesOptionIdentityFromTheSnapshotKey(t *testing.T) {
+	for name, tc := range map[string]struct {
+		key, uniqueKey, want string
+	}{
+		"key present, no uniqueKey detail": {"status_Done", "", "status_Done"},
+		"both present and agreeing":        {"status_Done", "opt-status_Done", "status_Done"},
+		"key wins over a stale detail":     {"status_Done", "opt-status_Stale", "status_Done"},
+		"detail is the fallback":           {"", "opt-status_Done", "status_Done"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := NewComposer(anyblockjson.Options{}, "probe")
+			snap := &model.SmartBlockSnapshotBase{
+				Key: tc.key,
+				Details: detFields(map[string]*types.Value{
+					"id": strVal("bafyopt"), "relationKey": strVal("status"),
+					"name": strVal("Done"), "relationOptionColor": strVal("lime"),
+					"uniqueKey": strVal(tc.uniqueKey),
+				}),
+			}
+			omitted, issues := c.Observe(model.SmartBlockType_STRelationOption, snap)
+			require.True(t, omitted)
+			require.Empty(t, issues)
+			require.Len(t, c.optionsByKey["status"], 1)
+			assert.Equal(t, tc.want, c.optionsByKey["status"][0].def.InternalKey)
+		})
+	}
+}
+
+// Observed = Lifted + Dropped + Unliftable. An option the composer cannot
+// lift used to be in neither counter, so it vanished from the accounting the
+// "reported, not silent" promise rests on.
+func TestComposerAccountsForEveryObservedOption(t *testing.T) {
+	c := NewComposer(anyblockjson.Options{}, "probe")
+	opt := func(id, relKey, name string) *model.SmartBlockSnapshotBase {
+		return &model.SmartBlockSnapshotBase{Key: name, Details: detFields(map[string]*types.Value{
+			"id": strVal(id), "relationKey": strVal(relKey), "name": strVal(name),
+		})}
+	}
+	// one liftable on a used property, one on an unused one, two unliftable
+	const observations = 4
+	_, _ = c.Observe(model.SmartBlockType_STRelationOption, opt("o1", "tag", "Urgent"))
+	_, _ = c.Observe(model.SmartBlockType_STRelationOption, opt("o2", "ghost", "Ghost"))
+	_, iss1 := c.Observe(model.SmartBlockType_STRelationOption, opt("o3", "", "NoKey"))
+	_, iss2 := c.Observe(model.SmartBlockType_STRelationOption, opt("o4", "tag", ""))
+	require.NotEmpty(t, iss1)
+	require.NotEmpty(t, iss2)
+
+	require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page,
+		&model.SmartBlockSnapshotBase{}, []byte(`{"formatVersion":"2.0","properties":{"tag":["Urgent"]}}`)))
+
+	_, _, stats, err := c.Finish()
+	require.NoError(t, err)
+	assert.Equal(t, 2, stats.OptionsUnliftable, "both refused snapshots are counted")
+	assert.Equal(t, observations,
+		stats.OptionsLifted+stats.OptionsDropped+stats.OptionsUnliftable+stats.OptionsRepeated,
+		"every observed option lands in exactly one counter")
+}
+
+// The invariant has to hold on the paths that reach no entry, which are
+// exactly the ones it was added for. Two of them return before the counters
+// the happy path fills in.
+//
+// How this can fail: assign OptionsUnliftable after Finish's empty-composition
+// early return (a composition of nothing but refused options reports having
+// observed none — the accounting vanishing behind the promise that the loss
+// is reported); count neither arm of the repeat collapse (a repeat is
+// neither lifted nor dropped nor refused, and the sum silently comes up
+// short).
+func TestComposerAccountingHoldsOnThePathsThatReachNoEntry(t *testing.T) {
+	sum := func(s Stats) int {
+		return s.OptionsLifted + s.OptionsDropped + s.OptionsUnliftable + s.OptionsRepeated
+	}
+	t.Run("a composition of nothing but refused options", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		for _, o := range []*model.SmartBlockSnapshotBase{
+			{Key: "k1", Details: detFields(map[string]*types.Value{"id": strVal("o1"), "name": strVal("NoKey")})},
+			{Key: "k2", Details: detFields(map[string]*types.Value{"id": strVal("o2"), "relationKey": strVal("tag")})},
+		} {
+			_, issues := c.Observe(model.SmartBlockType_STRelationOption, o)
+			require.NotEmpty(t, issues)
+		}
+		idx, dict, stats, err := c.Finish()
+		require.NoError(t, err)
+		assert.Nil(t, idx, "still an empty composition: nothing semantic was observed")
+		assert.Nil(t, dict)
+		assert.Equal(t, 2, sum(stats), "but the two refusals are still accounted for")
+		assert.Equal(t, 2, stats.OptionsUnliftable)
+	})
+	t.Run("repeats", func(t *testing.T) {
+		for _, tc := range []struct{ name, color string }{
+			{"identical repeat", "red"}, {"conflicting repeat", "lime"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				c := NewComposer(anyblockjson.Options{}, "probe")
+				mk := func(color string) *model.SmartBlockSnapshotBase {
+					return &model.SmartBlockSnapshotBase{Key: "tag_Urgent", Details: detFields(map[string]*types.Value{
+						"id": strVal("o1"), "relationKey": strVal("tag"),
+						"name": strVal("Urgent"), "relationOptionColor": strVal(color),
+					})}
+				}
+				_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
+				_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk(tc.color))
+				require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page,
+					&model.SmartBlockSnapshotBase{}, []byte(`{"formatVersion":"2.0","properties":{"tag":["Urgent"]}}`)))
+				_, _, stats, err := c.Finish()
+				require.NoError(t, err)
+				assert.Equal(t, 1, stats.OptionsRepeated)
+				assert.Equal(t, 2, sum(stats), "two observations, two counted")
+			})
+		}
+	})
+}
+
+// The emit observes unique collected ids in production, but nothing in this
+// package's contract guarantees it, and an accidental repeat used to append a
+// second entry — making a conflicting repeat schedule-dependent.
+func TestComposerDedupesRepeatedOptionObservations(t *testing.T) {
+	mk := func(color string) *model.SmartBlockSnapshotBase {
+		return &model.SmartBlockSnapshotBase{Key: "tag_Urgent", Details: detFields(map[string]*types.Value{
+			"id": strVal("o1"), "relationKey": strVal("tag"),
+			"name": strVal("Urgent"), "relationOptionColor": strVal(color),
+		})}
+	}
+	t.Run("identical repeat is a no-op", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
+		_, issues := c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
+		assert.Empty(t, issues)
+		assert.Len(t, c.optionsByKey["tag"], 1, "one option, not two")
+	})
+	t.Run("conflicting repeat is reported, not silent", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, mk("red"))
+		_, issues := c.Observe(model.SmartBlockType_STRelationOption, mk("lime"))
+		require.NotEmpty(t, issues)
+		assert.Contains(t, issues[0].Detail, "observed twice with different content")
+		assert.Len(t, c.optionsByKey["tag"], 1, "the first wins")
+	})
+	// The compared value holds name, colour and stored key — never the
+	// owner. Keying the dedupe on the id alone therefore found one id under
+	// two properties "identical", collapsed the pair, and dropped the second
+	// property's whole vocabulary with no Issue and no counter: the one loss
+	// this omission is supposed to report rather than hide.
+	t.Run("one id under two owning properties is two vocabularies", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		under := func(key string) *model.SmartBlockSnapshotBase {
+			return &model.SmartBlockSnapshotBase{Key: "k1", Details: detFields(map[string]*types.Value{
+				"id": strVal("o1"), "relationKey": strVal(key),
+				"name": strVal("Urgent"), "relationOptionColor": strVal("red"),
+			})}
+		}
+		_, first := c.Observe(model.SmartBlockType_STRelationOption, under("tag"))
+		_, second := c.Observe(model.SmartBlockType_STRelationOption, under("status"))
+		assert.Empty(t, first)
+		assert.Empty(t, second)
+		assert.Len(t, c.optionsByKey["tag"], 1)
+		assert.Len(t, c.optionsByKey["status"], 1, "the second vocabulary is kept, not collapsed into the first")
+	})
+	// The contract that does not promise ids are unique does not promise
+	// they are present. An id-less option is identified by its content, so a
+	// repeat collapses while two distinct id-less options stay distinct.
+	t.Run("an option with no id is identified by its content", func(t *testing.T) {
+		c := NewComposer(anyblockjson.Options{}, "probe")
+		idless := func(name string) *model.SmartBlockSnapshotBase {
+			return &model.SmartBlockSnapshotBase{Key: "k_" + name, Details: detFields(map[string]*types.Value{
+				"relationKey": strVal("tag"), "name": strVal(name), "relationOptionColor": strVal("red"),
+			})}
+		}
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, idless("Urgent"))
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, idless("Urgent"))
+		_, _ = c.Observe(model.SmartBlockType_STRelationOption, idless("Later"))
+		assert.Len(t, c.optionsByKey["tag"], 2,
+			"the repeat collapses; the distinct one survives")
+	})
+}
+
+// The failure mode that killed a real export (§15 #26): a space holding the
+// legacy `chat` type beside the bundled `chatDerived`, both named "Chat".
+// The manifest's spelling-keyed type table wrote `chat` verbatim, the
+// reader's fold bound that spelling to `chatDerived`, MarshalIndex refused
+// the non-fixed-point binding, and Finish returned before writing EITHER
+// bundle file — 1,409 documents on disk, no index.json, no properties.json.
+// There is no table now; a type document is found by its id.
+//
+// How this can fail: put a spelling-keyed type table back on the manifest.
+func TestComposer_SurvivesALegacyTypeKeyBesideItsBundledTwin(t *testing.T) {
+	c := NewComposer(anyblockjson.Options{}, "Chatty")
+	for _, key := range []string{"chat", "chatDerived"} {
+		snap := &model.SmartBlockSnapshotBase{Key: key, Details: detFields(map[string]*types.Value{
+			"id": strVal("bafy" + key), "uniqueKey": strVal("ot-" + key), "name": strVal("Chat"),
+		})}
+		omitted, _ := c.Observe(model.SmartBlockType_STType, snap)
+		require.False(t, omitted)
+		require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, snap, []byte(`{"formatVersion":"2.0"}`)))
+	}
+
+	indexData, dictData, _, err := c.Finish()
+	require.NoError(t, err, "the composition must not die on a spelling the index cannot preserve")
+	require.NotEmpty(t, indexData)
+	require.NotEmpty(t, dictData)
+	assert.NotContains(t, string(indexData), `"types"`)
 }

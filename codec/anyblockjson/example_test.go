@@ -60,6 +60,7 @@ func ExampleMarshal() {
 	//   "formatVersion": "2.0",
 	//   "id": "bafyreiexampleobject",
 	//   "type": "Page",
+	//   "type_internal_key": "page",
 	//   "properties": {
 	//     "Name": "Reading list"
 	//   },

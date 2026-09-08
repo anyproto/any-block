@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/gogo/protobuf/types"
 
@@ -50,13 +51,14 @@ func UnmarshalPropertyValueChecked(key string, v any, opts Options) (*types.Valu
 }
 
 type jsonDoc struct {
-	Schema        string `json:"$schema"`
-	FormatVersion string `json:"formatVersion"`
-	Kind          string `json:"kind"`
-	Id            string `json:"id"`
-	Type          string `json:"type"`
-	TemplateFor   string `json:"template_for"`
-	InternalKey   string `json:"internal_key"`
+	Schema          string `json:"$schema"`
+	FormatVersion   string `json:"formatVersion"`
+	Kind            string `json:"kind"`
+	Id              string `json:"id"`
+	Type            string `json:"type"`
+	TypeInternalKey string `json:"type_internal_key"`
+	TemplateFor     string `json:"template_for"`
+	InternalKey     string `json:"internal_key"`
 	// PropertySettings is a kind:property document's definition group (§2d):
 	// one propertyDefinition, whose three travelling members stand for the
 	// stored relation-definition keys that `properties` refuses.
@@ -75,9 +77,6 @@ type jsonDoc struct {
 	// without the space still lands on the right relation. Its values are
 	// AUTHORITATIVE — taken as the stored key, not liveness-checked (§3).
 	PropertyKeys map[string]string `json:"property_internal_keys"`
-	// TypeKeys is the same legend for the TYPE namespace — separate map,
-	// because a space may name a relation and a type one word (§3).
-	TypeKeys map[string]string `json:"type_internal_keys"`
 	// OptionIds is the §9a option legend, nested {property spelling: {option
 	// name: option id}}. Unlike the two above its values are HINTS, honoured
 	// only where the id still names a live option of that relation (§3).
@@ -195,6 +194,12 @@ type importer struct {
 	// reader's wiring, not any one slot's, and a document can hold thousands
 	// of them.
 	foldedUnrebuilt bool
+	// foldedTypeUnrebuilt is its type-namespace twin: the document carries
+	// `type-<internal_key>` references (§9) in id-valued slots and this run
+	// wired no TypeResolver, so the folded strings stand where type object
+	// ids belong. Reported once, with a code, exactly as the participant
+	// half is (unfoldRef).
+	foldedTypeUnrebuilt bool
 	// scopeType is the resolved stored key of the document's declared type —
 	// for a template, the TARGET type, whose instances the template's
 	// properties describe. It is the disambiguating scope for a shared
@@ -209,29 +214,23 @@ type importer struct {
 	// is a fact about the term, not about any one slot.
 	warnedPropertyTerms map[string]bool
 	warnedTypeTerms     map[string]bool
-	// propLegend/typeLegend/optLegend are the document's legends expanded to
-	// also answer for the NFC form of any non-NFC-spelled entry (§3,
+	// propLegend/optLegend are the document's legends expanded to also
+	// answer for the NFC form of any non-NFC-spelled entry (§3,
 	// nfcExpandLegend), built once on first use. legendsBuilt marks them,
 	// because the fast path hands the doc's own maps back and a nil legend
 	// stays nil.
 	propLegendNFC map[string]string
-	typeLegendNFC map[string]string
 	optLegendNFC  map[string]map[string]string
 	legendsBuilt  bool
 }
 
-// propertyLegend / typeLegend / optionLegend are the §3 chain-step-1 tables:
+// propertyLegend / optionLegend are the §3 chain-step-1 tables:
 // the document's own legends, with non-NFC spellings also answering under
 // their canonical form. Values pass byte-verbatim — a legend value is a
 // stored key, and a stored key's bytes are its address.
 func (imp *importer) propertyLegend() map[string]string {
 	imp.buildLegends()
 	return imp.propLegendNFC
-}
-
-func (imp *importer) typeLegend() map[string]string {
-	imp.buildLegends()
-	return imp.typeLegendNFC
 }
 
 func (imp *importer) optionLegend() map[string]map[string]string {
@@ -245,7 +244,6 @@ func (imp *importer) buildLegends() {
 	}
 	imp.legendsBuilt = true
 	imp.propLegendNFC = nfcExpandLegend(imp.doc.PropertyKeys)
-	imp.typeLegendNFC = nfcExpandLegend(imp.doc.TypeKeys)
 	imp.optLegendNFC = nfcExpandLegend(imp.doc.OptionIds)
 }
 
@@ -628,15 +626,26 @@ func (imp *importer) finalize(fragmentPath string) error {
 	if imp.foldedUnrebuilt {
 		imp.warnWithCode(IssueCodeFoldedParticipantsWithoutSpace, fragmentPath,
 			"this document was written with participants folded and "+
-				"Options.SpaceId names no space: their references import as bare "+
-				"identities, which address no object. Set SpaceId to the space this "+
-				"document is being read into.")
+				"Options.SpaceId names no space: their references import as the folded "+
+				"participant-<identity> ids, which address no object. Set SpaceId to the "+
+				"space this document is being read into.")
+	}
+	if imp.foldedTypeUnrebuilt {
+		imp.warnWithCode(IssueCodeFoldedTypesWithoutResolver, fragmentPath,
+			"this document names types by their derived ids, Options.SpaceId names the space "+
+				"it is being read into, and Options.ResolveProperties carries no TypeResolver: "+
+				"their references import as the folded type-<internal_key> ids, which address no "+
+				"object in that space. Wire a resolver that answers TypeIdByKey.")
 	}
 	return nil
 }
 
-// typeKey inverts a TYPE key slot: the document's own legend first (§3),
-// then the vocabulary in force — propertyKey on the type namespace's legend.
+// typeKey inverts a TYPE key slot: the derived id names its key outright
+// (§9); a spelling resolves through the vocabulary in force (§3). The type
+// namespace carries no legend — the envelope's own type is stated by
+// `type_internal_key`, read by build ahead of this — so a spelling here is
+// authoring input, resolved the way an author expects: a display name, the
+// bundled table, the fold, then verbatim.
 //
 // It used to carry a reservation, the mirror of writableTypeSlug's: the
 // vocabulary could not move the `template` spelling in either direction,
@@ -655,20 +664,31 @@ func (imp *importer) finalize(fragmentPath string) error {
 // three of them: the envelope `type`, `template_for`, and every
 // `type_settings.property_definitions[i].object_types[j]` (§2a).
 func (imp *importer) typeKey(slug, path string) string {
-	if key, ok := imp.typeLegend()[slug]; ok && key != "" {
+	// a derived id names its key outright (§9): `type-<key>`, or the legacy
+	// `ot-<key>` on input — no legend, no vocabulary, nothing to resolve
+	if key, ok := typeRefKey(slug); ok {
 		return key
 	}
-	// §3's canonical form, in the same order as propertyKeyIn: exact legend,
-	// exact stored key, then the NFC form
+	// a value wearing the reserved prefix whose tail is NOT a stored key is a
+	// malformed address, and the fall-through below would hand it to the
+	// vocabulary as a display SPELLING — looking up a type named `type-`.
+	// The prefix states what the value is (§9); one that wears it and is not
+	// one is refused where it stands rather than resolved as something else.
+	if strings.HasPrefix(slug, TypeRefPrefix) {
+		imp.refuse(path, fmt.Sprintf(
+			"%q wears the reserved type- prefix (§9) but %q is not a stored type key "+
+				"([A-Za-z0-9_], 1 to 120 characters); a derived id names its key outright, and a "+
+				"type spelling may not begin with the prefix", slug, slug[len(TypeRefPrefix):]))
+		return slug
+	}
+	// §3's canonical form, in the same order as propertyKeyIn: exact stored
+	// key, then the NFC form
 	if n := nfcTerm(slug); n != slug {
 		if scoped, ok := imp.opts.keys().(ScopedKeyVocabulary); ok &&
 			scoped.TypeTermFacts(slug).LiveStoredKey {
 			return slug
 		}
 		slug = n
-		if key, ok := imp.typeLegend()[slug]; ok && key != "" {
-			return key
-		}
 	}
 	scoped, ok := imp.opts.keys().(ScopedKeyVocabulary)
 	if !ok {
@@ -697,9 +717,9 @@ func (imp *importer) typeKey(slug, path string) string {
 	// the scope — so the ambiguity is refused outright, the same loud error
 	// a shared property name gets when its type cannot place it
 	imp.refuse(path, fmt.Sprintf(
-		"the spelling %q names %d live types in this space; add a %s entry "+
-			"binding the spelling to the intended stored key",
-		slug, len(cands), memberTypeInternalKeys))
+		"the spelling %q names %d live types in this space; write the intended type's "+
+			"derived id instead (type-<internal_key>, §9)",
+		slug, len(cands)))
 	return slug
 }
 
@@ -824,25 +844,32 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		sbType = kindNames.value(doc.Kind)
 	}
 
-	// the envelope id goes through the reference reader like any object
-	// reference (§9): a stray informative suffix is trimmed, and a bare
-	// identity — the participant document's own folded id — rebuilds this
-	// space's participant id. Claimed so a generated block id cannot land on
-	// the rebuilt form.
-	objectId := imp.claimId(imp.objectRef(doc.Id))
+	// the envelope id goes through the reference reader (§9), under the gate
+	// its writing half has: a stray informative suffix is trimmed, and a
+	// derived id rebuilds only into the kind whose prefix it wears — this
+	// space's participant composite on a participant document, this space's
+	// type object on a type document, nothing on anything else. Claimed so a
+	// generated block id cannot land on the rebuilt form.
+	objectId := imp.claimId(imp.envelopeId(doc.Id, sbType))
 	if objectId == "" {
 		objectId = imp.genId()
 	}
 
 	var objectTypes []string
-	if doc.Type != "" {
-		// the seam refuses a resolution onto the empty key (§3): a
-		// vocabulary can answer "" for a non-empty spelling, which became
-		// the ObjectTypes entry "ot-" and re-exported as no type at all —
-		// silently. That is the only refusable resolution here: a non-empty
-		// stored key of any shape round-trips verbatim, unlike a property
-		// key, which has to survive as a JSON member name.
-		typeKey := imp.typeKey(doc.Type, "/type")
+	if doc.Type != "" || doc.TypeInternalKey != "" {
+		// `type_internal_key` is the stored key outright (§2, §3) and
+		// outranks the spelling beside it; only a document that states no
+		// key — an authored one — resolves its `type` spelling. The seam
+		// refuses a resolution onto the empty key (§3): a vocabulary can
+		// answer "" for a non-empty spelling, which became the ObjectTypes
+		// entry "ot-" and re-exported as no type at all — silently. That is
+		// the only refusable resolution here: a non-empty stored key of any
+		// shape round-trips verbatim, unlike a property key, which has to
+		// survive as a JSON member name.
+		typeKey := doc.TypeInternalKey
+		if typeKey == "" {
+			typeKey = imp.typeKey(doc.Type, "/type")
+		}
 		if typeKey == "" {
 			return 0, nil, &ValidationError{Issues: []Issue{{
 				Path:    "/type",
@@ -1308,6 +1335,7 @@ func (imp *importer) parseText(md string) (string, *model.BlockContentTextMarks,
 	if len(marks) == 0 {
 		return text, nil, nil
 	}
+	imp.unfoldMarks(marks)
 	return text, &model.BlockContentTextMarks{Marks: marks}, nil
 }
 
@@ -1328,6 +1356,7 @@ func (imp *importer) textFromJSON(jb *jsonBlock) (*model.BlockContentText, error
 	}
 	if style == model.BlockContentText_Callout {
 		calloutIconFrom(jb.Icon, t)
+		t.IconImage = imp.unfoldRef(t.IconImage)
 	}
 	return t, nil
 }

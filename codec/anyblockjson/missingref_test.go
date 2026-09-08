@@ -392,9 +392,10 @@ func TestMissingReference_PropertyValueLists(t *testing.T) {
 }
 
 // A property document's `object_types` is the same list slot in the type
-// namespace (§2d): a resolvable type id becomes its key, a bare key passes
-// verbatim — vocabulary, not a reference — and only what the store disowns
-// drops.
+// namespace (§2d): a resolvable type id becomes its derived id, a bare key
+// spells its derived id too — vocabulary, not a reference — and only what
+// the store disowns drops. An id nothing could translate stays an id: `type-`
+// is never put in front of a CID.
 func TestMissingReference_PropertySettingsObjectTypes(t *testing.T) {
 	relSnap := func(targets *types.Value) *model.SmartBlockSnapshotBase {
 		return relationSnapshot(map[string]*types.Value{
@@ -422,7 +423,7 @@ func TestMissingReference_PropertySettingsObjectTypes(t *testing.T) {
 		// then
 		require.NoError(t, err)
 		require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (I1)")
-		assert.Contains(t, compactDoc(data), `"object_types":["Page","wine"]`)
+		assert.Contains(t, compactDoc(data), `"object_types":["type-page","type-wine"]`)
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0].Message, deadCid)
 		assert.Equal(t, "/property_settings/object_types", warnings[0].Path)

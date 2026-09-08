@@ -516,7 +516,7 @@ func TestRawNames_TypeScopedResolution(t *testing.T) {
 		doc := `{"formatVersion":"2.0","id":"o1","type":"Meeting"}`
 		_, _, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g"), Keys: shared})
 		require.Error(t, err, "the type is the scope — there is nothing wider to resolve inside")
-		assert.Contains(t, err.Error(), memberTypeInternalKeys)
+		assert.Contains(t, err.Error(), "type-<internal_key>")
 	})
 }
 

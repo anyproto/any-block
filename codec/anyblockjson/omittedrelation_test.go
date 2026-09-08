@@ -7,6 +7,7 @@ package anyblockjson
 // for a backup format — so every widening here has to be red first.
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func installedCopySnapshot(t *testing.T, key string, opts Options) *model.SmartB
 // A field-identical installed copy is omitted, install provenance
 // notwithstanding: the artifact keys may hold ANY value, because the next
 // install re-stamps them (§2f). And the reconstruction the reader builds
-// from the `installed` key states the table's own facts.
+// for the bundled key states the table's own facts.
 //
 // How this can fail: drop an artifact key (createdDate, origin, …) from
 // relationInstallArtifactKeys — the copy stops being omittable and the
@@ -83,9 +84,6 @@ func TestOmittedBundledRelation_FailClosed(t *testing.T) {
 		"an unclassified key is real data": func(base *model.SmartBlockSnapshotBase) {
 			base.Details.Fields["somethingNobodyVetted"] = strVal("x")
 		},
-		"isUninstalled is user intent, not an artifact": func(base *model.SmartBlockSnapshotBase) {
-			base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
-		},
 		"an alien-kinded value never coerces to a match": func(base *model.SmartBlockSnapshotBase) {
 			// GetBoolValue would read this as false == the table's false
 			base.Details.Fields["isHidden"] = strVal("false")
@@ -111,10 +109,22 @@ func TestOmittedBundledRelation_FailClosed(t *testing.T) {
 			assert.False(t, omitted, "the document must be kept")
 		})
 	}
-	t.Run("a non-relation kind is never omitted", func(t *testing.T) {
+	t.Run("a snapshot that is a property in neither source is never omitted", func(t *testing.T) {
 		base := installedCopySnapshot(t, "dueDate", Options{})
+		delete(base.Details.Fields, "layout")
+		delete(base.Details.Fields, "resolvedLayout")
 		_, omitted := OmittedBundledRelation(model.SmartBlockType_Page, base, Options{})
 		assert.False(t, omitted)
+	})
+	t.Run("a foreign smartblock type does not exempt a copy the details classify", func(t *testing.T) {
+		// the escaped-kind case (PropertySnapshotBase): the identity
+		// predicate has to judge a copy the omission now recognises, or an
+		// installed copy that reaches the dictionary through the stored
+		// layout is flagged `bundled_diverged` for a reason that is not a
+		// divergence
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_Page, base, Options{})
+		assert.True(t, omitted)
 	})
 	t.Run("title and description scaffolding does not keep the document", func(t *testing.T) {
 		base := installedCopySnapshot(t, "dueDate", Options{})
@@ -177,4 +187,321 @@ func TestOmittedBundledRelation_TargetTypesTranslate(t *testing.T) {
 
 	_, omitted = OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
 	assert.False(t, omitted, "without the capability the id stays opaque and the document is kept")
+}
+
+// An installed copy the user REMOVED is omitted too, and the removal
+// travels as the dictionary entry's `uninstalled` flag rather than as the
+// document (§2f, §15 #22). A reinstall stamp — the flag stored false — is
+// absent-equivalent to every reader and omits as an identical copy.
+//
+// How this can fail: drop the isUninstalled arm from OmittedBundledRelation
+// (both cases go red — the pre-#22 fail-closed verdict, under which the
+// document was the only place the removal could live).
+func TestOmittedBundledRelation_UninstalledCopyOmits(t *testing.T) {
+	t.Run("the removed copy omits under its bundled key", func(t *testing.T) {
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
+		key, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		require.True(t, omitted, "the entry carries the removal; the document has nothing else to say")
+		assert.Equal(t, "dueDate", key)
+	})
+	t.Run("the reinstall stamp is absent-equivalent", func(t *testing.T) {
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: false}}
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		assert.True(t, omitted, "false is what every reader gets for absent")
+		assert.False(t, UninstalledRelation(base), "a stamp is not a removal")
+		assert.True(t, OmittedUninstallStamp("isUninstalled", base.Details.Fields["isUninstalled"]))
+	})
+	t.Run("an alien-kinded flag keeps the document", func(t *testing.T) {
+		// GetBoolValue would read this as false == absent
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_StringValue{StringValue: "true"}}
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		assert.False(t, omitted, "unclassified is real data — fail closed")
+		assert.False(t, UninstalledRelation(base))
+		assert.False(t, OmittedUninstallStamp("isUninstalled", base.Details.Fields["isUninstalled"]))
+	})
+	t.Run("the reconstruction restates the table plus the mark", func(t *testing.T) {
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		base.Details.Fields["isUninstalled"] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
+		require.True(t, UninstalledRelation(base))
+		det, ok := UninstalledRelationDetails("dueDate", Options{})
+		require.True(t, ok)
+		assert.True(t, det.Fields["isUninstalled"].GetBoolValue(),
+			"a reader that recreates the entry must write the mark, or the restore undoes the removal")
+		installed, ok := InstalledRelationDetails("dueDate", Options{})
+		require.True(t, ok)
+		assert.Nil(t, installed.Fields["isUninstalled"], "an installed reconstruction states no flag")
+		delete(det.Fields, "isUninstalled")
+		assert.Equal(t, installed.Fields, det.Fields, "beyond the mark, the two reconstructions are one")
+	})
+	t.Run("the stamp predicate answers for this key only", func(t *testing.T) {
+		f := &types.Value{Kind: &types.Value_BoolValue{BoolValue: false}}
+		assert.False(t, OmittedUninstallStamp("isHidden", f), "a false anywhere else is not the reinstall stamp")
+		assert.False(t, OmittedUninstallStamp("isUninstalled", nil))
+	})
+}
+
+// A relation document is never written, on any path (§2f, §15 #23): the
+// dictionary entry states the definition, and the kind alone decides — the
+// same unconditional shape as OmittedRelationOption. OmittedBundledRelation
+// keeps its job beside it, which is a different question: whether the
+// omitted copy still restates the table — verified through the
+// reconstruction when it does, flagged `bundled_diverged` when it does not
+// (§15 #25).
+func TestOmittedRelation(t *testing.T) {
+	none := &model.SmartBlockSnapshotBase{}
+	assert.True(t, OmittedRelation(model.SmartBlockType_STRelation, none))
+	assert.True(t, OmittedRelation(model.SmartBlockType_BundledRelation, none))
+	assert.False(t, OmittedRelation(model.SmartBlockType_STRelationOption, none), "an option has its own predicate")
+	assert.False(t, OmittedRelation(model.SmartBlockType_Page, none))
+}
+
+// The stored layout is the second place a snapshot says what it is, and the
+// smartblock type is not always the first to be right: an option minted
+// before the unique key existed, or one an importer wrote into a plain tree,
+// arrives under SmartBlockType_Page. Six such objects in a 159-space corpus
+// were written into `objects/` as ordinary documents while §15 #21 says a
+// bundle carries no option document, and their vocabularies never reached
+// the dictionary that claims to be a vocabulary's only home.
+//
+// How this can fail: read the layout with a coercing getter, so a snapshot
+// stating no layout reads as layout 0 (`basic`) and every layout-less
+// snapshot is compared against an enum value some kind owns; read `layout`
+// without `resolvedLayout`, or the other way round; let a NaN or an
+// out-of-range number through the int32 narrowing and land on a valid enum
+// value by wrapping.
+func TestOmittedRelation_TheStoredLayoutIsTheSecondSource(t *testing.T) {
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	str := func(s string) *types.Value { return &types.Value{Kind: &types.Value_StringValue{StringValue: s}} }
+	base := func(det map[string]*types.Value) *model.SmartBlockSnapshotBase {
+		return &model.SmartBlockSnapshotBase{Details: &types.Struct{Fields: det}}
+	}
+	for name, tc := range map[string]struct {
+		det              map[string]*types.Value
+		relation, option bool
+	}{
+		"resolved layout relation": {map[string]*types.Value{
+			"resolvedLayout": num(float64(model.ObjectType_relation))}, true, false},
+		"resolved layout option": {map[string]*types.Value{
+			"resolvedLayout": num(float64(model.ObjectType_relationOption))}, false, true},
+		"layout alone": {map[string]*types.Value{
+			"layout": num(float64(model.ObjectType_relationOption))}, false, true},
+		"resolved layout outranks layout": {map[string]*types.Value{
+			"resolvedLayout": num(float64(model.ObjectType_relationOption)),
+			"layout":         num(float64(model.ObjectType_basic))}, false, true},
+		"no layout at all":    {map[string]*types.Value{"id": str("bafyp")}, false, false},
+		"a page layout":       {map[string]*types.Value{"resolvedLayout": num(float64(model.ObjectType_basic))}, false, false},
+		"the deprecated list": {map[string]*types.Value{"resolvedLayout": num(float64(model.ObjectType_relationOptionsList))}, false, false},
+		"an alien kind":       {map[string]*types.Value{"resolvedLayout": str("relationOption")}, false, false},
+		"not an integer":      {map[string]*types.Value{"resolvedLayout": num(13.5)}, false, false},
+		"out of the int32 range": {map[string]*types.Value{
+			"resolvedLayout": num(4294967296 + float64(model.ObjectType_relationOption))}, false, false},
+		"nan": {map[string]*types.Value{"resolvedLayout": num(math.NaN())}, false, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.relation, OmittedRelation(model.SmartBlockType_Page, base(tc.det)))
+			assert.Equal(t, tc.option, OmittedRelationOption(model.SmartBlockType_Page, base(tc.det)))
+		})
+	}
+	assert.False(t, OmittedRelation(model.SmartBlockType_Page, nil), "a nil snapshot states no layout")
+	assert.False(t, OmittedRelationOption(model.SmartBlockType_Page, nil))
+}
+
+// mintedRelationSnapshot is a space-minted property as the app's create path
+// stores it, plus the details every stored object carries: the definition
+// members, the install-time stamps, attribution and the internal set.
+func mintedRelationSnapshot(extra map[string]*types.Value, blocks ...*model.Block) *model.SmartBlockSnapshotBase {
+	str := func(s string) *types.Value { return &types.Value{Kind: &types.Value_StringValue{StringValue: s}} }
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	boolean := func(b bool) *types.Value { return &types.Value{Kind: &types.Value_BoolValue{BoolValue: b}} }
+	det := map[string]*types.Value{
+		"id": str("bafyrel"), "spaceId": str("space1"), "type": str("bafyreltype"),
+		"relationKey": str("67e31405450a5dcab2fa75aa"), "uniqueKey": str("rel-67e31405450a5dcab2fa75aa"),
+		"name": str("Budget"), "description": str("Planned spend"),
+		"relationFormat":   num(float64(model.RelationFormat_number)),
+		"relationMaxCount": num(0), "relationReadonlyValue": boolean(false), "isHidden": boolean(false),
+		"relationFormatObjectTypes": {Kind: &types.Value_ListValue{ListValue: &types.ListValue{}}},
+		"layout":                    num(float64(model.ObjectType_relation)), "resolvedLayout": num(float64(model.ObjectType_relation)),
+		"createdDate": num(1700000000), "lastModifiedDate": num(1700000001),
+		"creator": str("AAjEidentity"), "lastModifiedBy": str("AAjEidentity"),
+		"apiObjectKey": str("budget"), "origin": num(0),
+	}
+	for k, v := range extra {
+		det[k] = v
+	}
+	return &model.SmartBlockSnapshotBase{Details: &types.Struct{Fields: det}, Blocks: blocks}
+}
+
+// What omitting a relation document costs, per snapshot — the report the
+// composer raises instead of failing closed, since the omission is
+// unconditional (§2f, §15 #23). The classification is the installed-copy
+// omission's own: the definition members the entry states, the install
+// artifacts the next install re-stamps, attribution and the internal set
+// that never travel, `isUninstalled` and `isHidden` which the entry now
+// carries. Everything else is named — and the BLOCKS are named, because a
+// property page's blocks are the one thing a document could carry that
+// nothing else can.
+//
+// How this can fail: justify the omission from the create path's detail set
+// (an importer-minted property carries `origin`, `importType`, `addedDate`,
+// and nothing says they went); classify `isFavorite`/`isArchived` too (the
+// report goes quiet on the one case it exists for); read an alien-kinded
+// definition member through a coercing getter (the entry states an empty
+// name and nobody is told); or stop looking at blocks (a dataview on a
+// property page vanishes without a word).
+func TestUnaccountedRelationDetails(t *testing.T) {
+	str := func(s string) *types.Value { return &types.Value{Kind: &types.Value_StringValue{StringValue: s}} }
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	boolean := func(b bool) *types.Value { return &types.Value{Kind: &types.Value_BoolValue{BoolValue: b}} }
+	scaffolding := []*model.Block{
+		{Id: "r", Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
+		{Id: "l", Content: &model.BlockContentOfLayout{Layout: &model.BlockContentLayout{}}},
+		{Id: "f", Content: &model.BlockContentOfFeaturedRelations{FeaturedRelations: &model.BlockContentFeaturedRelations{}}},
+		{Id: "t", Content: &model.BlockContentOfText{Text: &model.BlockContentText{Text: "Budget", Style: model.BlockContentText_Title}}},
+		{Id: "d", Content: &model.BlockContentOfText{Text: &model.BlockContentText{Text: "Planned spend", Style: model.BlockContentText_Description}}},
+	}
+	for name, tc := range map[string]struct {
+		base *model.SmartBlockSnapshotBase
+		want []string
+	}{
+		"an ordinary space-minted property reports nothing": {
+			base: mintedRelationSnapshot(nil, scaffolding...),
+		},
+		"an importer-minted property is an ordinary property": {
+			base: mintedRelationSnapshot(map[string]*types.Value{
+				"origin": num(3), "importType": num(0), "addedDate": num(1690000000),
+			}),
+		},
+		"an installed copy's provenance reports nothing": {
+			base: installedCopySnapshot(t, "dueDate", Options{}),
+		},
+		"hidden is stated by the entry": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isHidden": boolean(true)}),
+		},
+		"the removal is stated by the entry, and the reinstall stamp is absent-equivalent": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isUninstalled": boolean(true)}),
+		},
+		"a false removal stamp too": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isUninstalled": boolean(false)}),
+		},
+		"a stored null definition member is absent-equivalent": {
+			base: mintedRelationSnapshot(map[string]*types.Value{
+				"relationFormatIncludeTime": {Kind: &types.Value_NullValue{}},
+				"relationDefaultValue":      {Kind: &types.Value_NullValue{}},
+			}),
+		},
+		"a default value of any kind is the entry's": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"relationDefaultValue": num(42)}),
+		},
+		"user intent on the page is named": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isFavorite": boolean(true), "isArchived": boolean(true)}),
+			want: []string{"isArchived", "isFavorite"},
+		},
+		"an unvetted key is named": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"somethingNobodyVetted": str("x")}),
+			want: []string{"somethingNobodyVetted"},
+		},
+		"an alien-kinded definition member is named, not coerced": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"name": num(7), "isHidden": str("true")}),
+			want: []string{"isHidden (stored as string)", "name (stored as number)"},
+		},
+		"an alien-kinded removal flag is named": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isUninstalled": str("true")}),
+			want: []string{"isUninstalled (stored as string)"},
+		},
+		"a dataview block is named": {
+			base: mintedRelationSnapshot(nil, append(scaffolding,
+				&model.Block{Id: "dv", Content: &model.BlockContentOfDataview{Dataview: &model.BlockContentDataview{}}})...),
+			want: []string{`block "dv" (dataview)`},
+		},
+		"free text is named": {
+			base: mintedRelationSnapshot(nil, &model.Block{Id: "p", Content: &model.BlockContentOfText{
+				Text: &model.BlockContentText{Text: "notes", Style: model.BlockContentText_Paragraph}}}),
+			want: []string{`block "p" (text)`},
+		},
+		"a nil block is named": {
+			base: mintedRelationSnapshot(nil, nil),
+			want: []string{"block #0 (nil)"},
+		},
+		"details and blocks together, sorted": {
+			base: mintedRelationSnapshot(map[string]*types.Value{"isFavorite": boolean(true), "zzz": str("x")},
+				&model.Block{Id: "b", Content: &model.BlockContentOfBookmark{Bookmark: &model.BlockContentBookmark{}}}),
+			want: []string{`block "b" (bookmark)`, "isFavorite", "zzz"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := UnaccountedRelationDetails(tc.base)
+			if tc.want == nil {
+				assert.Empty(t, got)
+				return
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
+	assert.Nil(t, UnaccountedRelationDetails(nil))
+}
+
+// A definition member the format leaves no room for cannot divide a copy
+// from the table (§2a, §15 #25): the app stamps relationMaxCount 1 on a
+// select and nothing on a date, and a false includeTime rides on 8,375
+// non-date relations — none of it a person's choice, none of it carried on
+// an entry — so the identity check reads past `relationMaxCount` on a
+// single-valued format and `relationFormatIncludeTime` off a date. The
+// predicate is exported because the comparator and the renderer read the
+// same verdict: what the entry omits, the round trip must not report.
+//
+// How this can fail: compare relationMaxCount on a date (every date copy
+// the app created without a stamp is flagged diverged); or read past a
+// member the format admits (a tag capped at 3 passes as the table's 0).
+func TestOmittedBundledRelation_FormatFixedMembersDoNotDivide(t *testing.T) {
+	num := func(n float64) *types.Value { return &types.Value{Kind: &types.Value_NumberValue{NumberValue: n}} }
+	boolean := func(b bool) *types.Value { return &types.Value{Kind: &types.Value_BoolValue{BoolValue: b}} }
+	t.Run("the predicate", func(t *testing.T) {
+		for _, f := range []model.RelationFormat{model.RelationFormat_tag, model.RelationFormat_file,
+			model.RelationFormat_object, model.RelationFormat_relations} {
+			assert.True(t, MultiValuedFormat(f), f.String())
+			assert.False(t, FormatFixedDefinitionMember(f, "relationMaxCount"), f.String())
+			assert.True(t, FormatFixedDefinitionMember(f, "relationFormatIncludeTime"), f.String())
+		}
+		for _, f := range []model.RelationFormat{model.RelationFormat_longtext, model.RelationFormat_shorttext,
+			model.RelationFormat_number, model.RelationFormat_status, model.RelationFormat_checkbox,
+			model.RelationFormat_url, model.RelationFormat_email, model.RelationFormat_phone,
+			model.RelationFormat_emoji, model.RelationFormat_map} {
+			assert.False(t, MultiValuedFormat(f), f.String())
+			assert.True(t, FormatFixedDefinitionMember(f, "relationMaxCount"), f.String())
+			assert.True(t, FormatFixedDefinitionMember(f, "relationFormatIncludeTime"), f.String())
+		}
+		assert.True(t, FormatFixedDefinitionMember(model.RelationFormat_date, "relationMaxCount"))
+		assert.False(t, FormatFixedDefinitionMember(model.RelationFormat_date, "relationFormatIncludeTime"))
+		assert.False(t, FormatFixedDefinitionMember(model.RelationFormat_date, "name"), "the two members only")
+		assert.False(t, FormatFixedDefinitionMember(model.RelationFormat_longtext, "isHidden"))
+	})
+	t.Run("a date copy without the max count stamp is the table's", func(t *testing.T) {
+		base := installedCopySnapshot(t, "dueDate", Options{})
+		delete(base.Details.Fields, "relationMaxCount")
+		key, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		require.True(t, omitted, "the table says 1, the format says 1, the stamp says nothing")
+		assert.Equal(t, "dueDate", key)
+		base.Details.Fields["relationMaxCount"] = num(0)
+		_, omitted = OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		assert.True(t, omitted)
+	})
+	t.Run("a text copy carrying includeTime is the table's", func(t *testing.T) {
+		base := installedCopySnapshot(t, "description", Options{})
+		base.Details.Fields["relationFormatIncludeTime"] = boolean(true)
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, base, Options{})
+		assert.True(t, omitted, "nothing reads a time-of-day flag on a text")
+	})
+	t.Run("a member the format admits still divides", func(t *testing.T) {
+		tag := installedCopySnapshot(t, "tag", Options{})
+		tag.Details.Fields["relationMaxCount"] = num(3)
+		_, omitted := OmittedBundledRelation(model.SmartBlockType_STRelation, tag, Options{})
+		assert.False(t, omitted, "a multi_select's cap is real")
+		date := installedCopySnapshot(t, "dueDate", Options{})
+		date.Details.Fields["relationFormatIncludeTime"] = boolean(true)
+		_, omitted = OmittedBundledRelation(model.SmartBlockType_STRelation, date, Options{})
+		assert.False(t, omitted, "a date's include-time is real")
+	})
 }

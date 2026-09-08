@@ -49,10 +49,11 @@ type PropertyDefinition struct {
 	Options []OptionDefinition
 	// ObjectTypes restricts which types an objects/files property may point
 	// at, in priority order, given as **type keys** — the STORED spelling on
-	// this struct; the document spells the display name, and the codec
-	// translates at the boundary like every other key slot (§3). Empty means any
-	// object, which is also what an untargeted property accepts — a task
-	// could be assigned to a random page. Listing the built-in `participant`
+	// this struct; the document spells the type's derived id `type-<key>`
+	// (§9), and the codec translates at the boundary. A display name or the
+	// legacy `ot-<key>` is accepted on INPUT only; canonical export writes
+	// the derived id. Empty means any object, which is also what an
+	// untargeted property accepts — a task could be assigned to a random page. Listing the built-in `participant`
 	// alongside a bundle's own people type is what makes the current-user
 	// filter value available on the property (§6.2) while still allowing the
 	// seeded people as values.
@@ -64,10 +65,15 @@ type PropertyDefinition struct {
 	// (stored `relationFormatIncludeTime`). A pointer because absent and
 	// false differ: absent says nothing, false clears the flag. IncludeTimeSet
 	// distinguishes an explicit null (set with a nil pointer) from absence.
+	// A date's member only: on any other format neither door writes or
+	// reads it (§2a, FormatFixedDefinitionMember).
 	IncludeTime    *bool
 	IncludeTimeSet bool
 	// MaxCount bounds how many values the property holds (stored
-	// `relationMaxCount`); 0 is unlimited, the stored default.
+	// `relationMaxCount`) on a format that can hold more than one
+	// (MultiValuedFormat); 0 is unlimited, the stored default. On a
+	// single-valued format the member does not exist — the format fixes
+	// the count at one — and neither door writes or reads it (§2a).
 	MaxCount int64
 	// Readonly marks the property's value as not user-writable (stored
 	// `relationReadonlyValue`).
@@ -78,6 +84,68 @@ type PropertyDefinition struct {
 	// from an omitted member.
 	DefaultValue    any
 	DefaultValueSet bool
+	// Uninstalled records that the user REMOVED this property from the
+	// space (stored `isUninstalled` true): the bundle carries the property
+	// for backup fidelity, but a reader must not present it as one the user
+	// is still using, and must not write the removal mark into the restored
+	// store. Recreating it live with the removal recorded some other way,
+	// or not recreating it at all, are the two restores that work.
+	//
+	// Reproducing the mark is the one that does not. The store derives
+	// `isDeleted` from `isUninstalled`, so a property created carrying it is
+	// born deleted and loses its index row; the relation can no longer be
+	// fetched by key, and for a space-minted key — a bundled one still
+	// resolves against the shipped table — every later write touching that
+	// key on any object fails validation, while the values documents carry
+	// under it stay readable and impossible to edit. An entry exists only
+	// because something references the key (§2f), so those values are the
+	// normal case rather than the corner.
+	//
+	// A member of the dictionary home only (§2f): on a type's declaration
+	// or a property document's settings it would say nothing, and both
+	// refuse it, the way the dictionary refuses `section`.
+	Uninstalled bool
+	// ApiKey is the property's public API key (stored `apiObjectKey`) — the
+	// spelling callers address it by on the API surface, which is NOT a slug
+	// of the name: an api key does not follow a rename, and nothing rewrites
+	// it (`Location` keeps `restaurant_location`, `Link` keeps `website`).
+	//
+	// It travels for the reason OptionDefinition.ApiKey does — no restore
+	// mints one. The rule that derives an api key lives on the create path
+	// (objectcreator's injectApiObjectKey) and import does not take it: a
+	// relation snapshot is written straight into its tree. Since §15 #23 a
+	// bundle writes no property document either, so this entry is the only
+	// place the stored value can travel; without it the API addresses a
+	// restored property by something its callers never wrote.
+	//
+	// Dictionary-owned, like the flags above: a type's declaration says how
+	// THAT type uses a property, and the property's public address is not
+	// one of the things it says.
+	ApiKey string
+	// Hidden records that the store hides this property from every listing
+	// (stored `isHidden` true). With no property document in a bundle
+	// (§15 #23) the dictionary entry is the only place the fact can travel,
+	// so it is the entry's own member exactly as Uninstalled is — refused
+	// on the shape's other two homes and by the authoring subset, written
+	// `true` only. It is distinct from a type declaration's Section, which
+	// says where a property sits on ONE type; Hidden says whether the
+	// property is shown at all.
+	Hidden bool
+	// BundledDiverged records that the space's copy of a BUNDLED property
+	// — a key the shipped table names — had DIVERGED from the table when
+	// the bundle was written: OmittedBundledRelation refused the copy, so
+	// the entry states the user's version, and a reader restoring the key
+	// must take the entry over its own table. The verdict is only knowable
+	// at export time — a reader could diff the entry against its table, but
+	// the table moves between app versions, and once it has a later reader
+	// cannot tell the user's rename from the table's — which is why it is a
+	// member and not a derivation. Absent says "not a bundled property, or
+	// bundled and not diverged"; the table lookup a reader already runs (§15
+	// #24) tells those apart, so this is NOT a `bundled` flag. The last of
+	// the four dictionary-owned members (§2f, §15 #25), on Uninstalled's
+	// footing: refused on the shape's other two homes and by the authoring
+	// subset, written `true` only.
+	BundledDiverged bool
 }
 
 // OptionDefinition is one entry of a declared select vocabulary (§2a). Color
@@ -91,16 +159,37 @@ type PropertyDefinition struct {
 type OptionDefinition struct {
 	Name  string `json:"name"`
 	Color string `json:"color"`
+	// ApiKey is the option's public API key (stored `apiObjectKey`) — the
+	// spelling callers address the option by on the API surface, which is
+	// NOT a slug of the name. An api key does not follow a rename, and
+	// nothing rewrites it: `Canceled` keeps the api key `cancelled` it was
+	// minted with, `Product` keeps `produc`. Export writes it where the
+	// store holds one; an author never writes one.
+	//
+	// It travels because no restore mints it. The app does have a rule that
+	// derives an api key from the name, and a census over a 77-space export
+	// found all 514 real option api keys reproduced by it — but the rule
+	// lives on the create path (objectcreator's injectApiObjectKey), and
+	// import does not take it: relation and relation-option snapshots are
+	// excluded from the path that would run it and are written straight
+	// into their trees. So an option restored from a bundle that states no
+	// api key gets none at all, and the API addresses it by a
+	// hash-derived local key rather than the spelling its callers wrote.
+	// Reproducibility was the wrong question; nothing was going to
+	// reproduce it — and on the wider 159-space corpus it does not even
+	// hold: 16 of the 471 option api keys that reach a dictionary are not
+	// reproducible from the name, because an api key does not follow a
+	// rename.
+	ApiKey string `json:"api_key"`
 	// InternalKey is the option's stored key. It is minted, so an author
 	// never writes one and export writes it only where it exists.
 	//
-	// It is the only thing about an option that is derivable from nothing.
-	// The name and colour say what the option MEANS; the array position says
-	// where it sits (§2f); and the option's api key is regenerated from the
-	// name by the app's own rule — measured over a 77-space export, all 514
-	// real option api keys are reproduced by that rule (470 by the slug, 44
-	// by the transliterate fallback for names like `$$` that slug to
-	// nothing), so not one of them needs to travel.
+	// It is minted rather than derived: the name and colour say what the
+	// option MEANS and the array position says where it sits (§2f), but
+	// nothing about an option implies its stored key, so it has to be
+	// stated. The api key beside it is stated for a different reason —
+	// there IS a rule that derives one from a name, and no restore runs it
+	// (ApiKey).
 	InternalKey string `json:"internal_key"`
 }
 
@@ -123,7 +212,7 @@ func optionsToAny(opts []OptionDefinition) []any {
 		if o.Name == "" {
 			continue
 		}
-		if o.Color == "" && o.InternalKey == "" {
+		if o.Color == "" && o.InternalKey == "" && o.ApiKey == "" {
 			out = append(out, o.Name)
 			continue
 		}
@@ -131,6 +220,7 @@ func optionsToAny(opts []OptionDefinition) []any {
 		m.set("name", o.Name)
 		m.setNonEmpty("color", o.Color)
 		m.setNonEmpty("internal_key", o.InternalKey)
+		m.setNonEmpty("api_key", o.ApiKey)
 		out = append(out, m)
 	}
 	return out
@@ -241,11 +331,9 @@ func (e *exporter) buildTypeProperties() ([]any, error) {
 			// alone)
 			m.set(memberProperty, e.propertySlug(string(def.Key)))
 			m.set(memberInternalKey, string(def.Key))
-			// object_types is a TYPE key slot (§3) — it names types, so it
-			// speaks the same vocabulary the envelope `type` does, claims its
-			// spellings through the same term ledger, and owes the same
-			// type_internal_keys legend (§3)
-			targets := e.typeSlugs(def.ObjectTypes)
+			// object_types names types by their derived ids (§9):
+			// `type-<key>`, the one spelling of a type every slot writes
+			targets := e.typeKeyRefs(def.ObjectTypes)
 			if err := renderPropertyDefinitionMembers(m, def, targets, true); err != nil {
 				// The shared renderer describes the fault inside one definition,
 				// but only this caller knows where that definition would have
@@ -262,9 +350,11 @@ func (e *exporter) buildTypeProperties() ([]any, error) {
 }
 
 // writableTypePropertyKey reports whether buildTypeProperties will emit this
-// resolved definition — the question the type-key census (seedTypeTermLedger)
-// has to ask too, or it reserves the target types of an entry no slot writes
-// and export stops being a fixpoint (see modelledTypeKeys).
+// resolved definition: the stored key has to be one a JSON member name can
+// hold, or the entry is dropped and reported. The type-key census used to ask
+// the same question — reserving the target types of an entry no slot writes
+// made export stop being a fixpoint — and went with the type term ledger
+// (§15 #28), so the emit gate is the only asker left.
 func writableTypePropertyKey(def PropertyDefinition) bool {
 	return isWritablePropertyKey(string(def.Key))
 }
@@ -327,6 +417,22 @@ type TypeProperty struct {
 	DefaultValue    any         `json:"default_value"`
 	DefaultValueSet bool        `json:"-"`
 	Section         string      `json:"section"`
+	// Uninstalled is the first of the dictionary's four owned members, as
+	// Section is the type-owned one; each home's schema refuses the other's
+	// before this decode runs (§2f).
+	Uninstalled bool `json:"uninstalled"`
+	// ApiKey is the dictionary's second owned member (§2f): the property's
+	// stored `apiObjectKey`, which no restore re-derives
+	// (PropertyDefinition.ApiKey). The only one of the four that is not a
+	// flag.
+	ApiKey string `json:"api_key"`
+	// Hidden is the dictionary's third owned member (§2f, §15 #23), on the
+	// same footing as Uninstalled.
+	Hidden bool `json:"hidden"`
+	// BundledDiverged is the dictionary's fourth owned member (§2f, §15
+	// #25): the space's copy of a bundled property diverged from the shipped
+	// table at export time, so the entry outranks the reader's table.
+	BundledDiverged bool `json:"bundled_diverged"`
 }
 
 // UnmarshalJSON preserves two facts encoding/json otherwise collapses:
@@ -459,6 +565,18 @@ func (tp TypeProperty) identityForResolution(path string) (term string, isIntern
 // travel.
 func (tp TypeProperty) definition(key string, format model.RelationFormat, targets []string) PropertyDefinition {
 	term, stated := tp.authoredKey()
+	// a member the format fixes is not read (§2a): a max_count on a text
+	// property, an include_time on a select — the writer never states one,
+	// and one an author wrote would have the wiring store a cap or a flag
+	// the format cannot honour. The reader assumes the format's answer.
+	includeTime, includeTimeSet := tp.IncludeTime, tp.IncludeTimeSet || tp.IncludeTime != nil
+	if FormatFixedDefinitionMember(format, detailKeyRelationFormatIncludeTime) {
+		includeTime, includeTimeSet = nil, false
+	}
+	maxCount := maxCountValue(tp.MaxCount)
+	if FormatFixedDefinitionMember(format, "relationMaxCount") {
+		maxCount = 0
+	}
 	return PropertyDefinition{
 		Key: domain.RelationKey(key),
 		// authoritative when the entry STATED the key, and equally when
@@ -472,9 +590,9 @@ func (tp TypeProperty) definition(key string, format model.RelationFormat, targe
 		Options:         tp.Options,
 		ObjectTypes:     targets,
 		Description:     tp.Description,
-		IncludeTime:     tp.IncludeTime,
-		IncludeTimeSet:  tp.IncludeTimeSet || tp.IncludeTime != nil,
-		MaxCount:        maxCountValue(tp.MaxCount),
+		IncludeTime:     includeTime,
+		IncludeTimeSet:  includeTimeSet,
+		MaxCount:        maxCount,
 		Readonly:        tp.Readonly,
 		DefaultValue:    tp.DefaultValue,
 		DefaultValueSet: tp.DefaultValueSet || tp.DefaultValue != nil,
@@ -555,10 +673,9 @@ func BuildRecommendedLists(props []TypeProperty, opts Options) ([]RecommendedLis
 				Message: unwritableKeyReason("resolved property key", key),
 			}}}
 		}
-		// object_types is a TYPE key slot, inverted entry by entry through the
-		// same chain as the key above: Options.Legend's type half first — a
-		// PATCH caller states what its spellings mean the way a document does
-		// with type_internal_keys (§13.1) — then the caller's vocabulary. Resolved (and
+		// object_types is a TYPE key slot, inverted entry by entry: the
+		// derived id `type-<key>` names its key outright (§9), and a spelling
+		// resolves through the caller's vocabulary. Resolved (and
 		// refused) OUTSIDE the
 		// resolver branch, so the verdict on a given input does not depend on
 		// whether the caller happened to wire a resolver — applyTypeProperties

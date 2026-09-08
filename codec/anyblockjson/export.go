@@ -96,11 +96,11 @@ type Options struct {
 	// SpaceId is the space this codec run reads from or writes into — the
 	// wiring supplies it exactly as it supplies the resolvers. It enables
 	// the participant fold (§9): export folds
-	// `_participant_<SpaceId>_<identity>` to the bare identity, and import
-	// rebuilds the composite against this space. Empty disables the fold in
-	// BOTH directions: a composite id passes through verbatim and a bare
-	// identity is left alone, because folding on export without the paired
-	// import being able to rebuild would land a bare identity in a snapshot
+	// `_participant_<SpaceId>_<identity>` to `participant-<identity>`, and
+	// import rebuilds the composite against this space. Empty disables the
+	// fold in BOTH directions: a composite id passes through verbatim and a
+	// folded id is left alone, because folding on export without the paired
+	// import being able to rebuild would land a derived id in a snapshot
 	// slot where a composite belongs — silent corruption of exactly the slot
 	// the fold exists to fix.
 	SpaceId string
@@ -141,11 +141,13 @@ type Options struct {
 	OnWarning          func(Issue)   // optional sink for warning-grade issues, both directions (indent clamps, unrepresentable dates, …)
 }
 
-// Legend carries the three legends of the document a fragment was cut out
+// Legend carries the two legends of the document a fragment was cut out
 // of, so the fragment entry points can run the §3 chain from step 1 instead
 // of starting at the reader's vocabulary. The field names and the semantics
-// are the envelope's: `property_internal_keys` and `type_internal_keys` values are
-// AUTHORITATIVE, an `option_ids` value is a liveness-checked hint (§3).
+// are the envelope's: `property_internal_keys` values are AUTHORITATIVE, an
+// `option_ids` value is a liveness-checked hint (§3). The type namespace
+// has no legend to carry: a fragment names a type only by its derived id
+// (§9), which inverts by itself.
 //
 // The zero value is "no legend", which is what a caller that assembled the
 // fragment itself has, and is the behaviour every fragment entry point had
@@ -154,9 +156,6 @@ type Legend struct {
 	// PropertyKeys maps a property spelling to the stored relation key it
 	// names (§3) — the enclosing document's `property_internal_keys`.
 	PropertyKeys map[string]string
-	// TypeKeys is the same for the type namespace — the enclosing document's
-	// `type_internal_keys`.
-	TypeKeys map[string]string
 	// OptionIds maps {property spelling: {option name: option id}} — the
 	// enclosing document's `option_ids` (§9a).
 	OptionIds map[string]map[string]string
@@ -164,7 +163,7 @@ type Legend struct {
 
 // empty reports whether the legend says nothing.
 func (l Legend) empty() bool {
-	return len(l.PropertyKeys) == 0 && len(l.TypeKeys) == 0 && len(l.OptionIds) == 0
+	return len(l.PropertyKeys) == 0 && len(l.OptionIds) == 0
 }
 
 // fragmentDoc is the synthetic envelope a fragment entry point resolves
@@ -174,7 +173,6 @@ func (l Legend) empty() bool {
 func (o Options) fragmentDoc() *jsonDoc {
 	return &jsonDoc{
 		PropertyKeys: o.Legend.PropertyKeys,
-		TypeKeys:     o.Legend.TypeKeys,
 		OptionIds:    o.Legend.OptionIds,
 	}
 }
@@ -339,8 +337,10 @@ type exporter struct {
 	iconBuilt, coverBuilt bool
 
 	// relTargets is a relation document's translated target-type key list
-	// (§2d), built once for the same reason: the type-key census
-	// (seedTypeTermLedger) and buildPropertySettings both read it.
+	// (§2d), memoized because building it WARNS about the entries it drops.
+	// The type-key census read it beside buildPropertySettings until the type
+	// term ledger was retired (§15 #28); the property_settings emit is the
+	// only reader left.
 	relTargets      []string
 	relTargetsBuilt bool
 
@@ -382,19 +382,12 @@ type exporter struct {
 	// cannot depend on which slot happened to claim first.
 	termPlan map[string]string
 
-	// typeKeys is the §3 legend for the TYPE namespace, and typeTermOwner /
-	// typeTermByKey / typeNamedKeys its term ledger. One ledger and one
-	// legend PER NAMESPACE, deliberately: a property spelling and a type
-	// spelling may coincide without conflict (§3 — `object_type` the type key
-	// coexists with `objectType` the layout value, and a space can name a
-	// relation and a type one word), so a shared claim domain would back a
-	// key off a spelling the other namespace owns — a spurious conflict, and
-	// one legend map could not carry both meanings of the shared term at all.
-	typeKeys      map[string]string
-	typeTermOwner map[string]string
-	typeTermByKey map[string]string
-	typeNamedKeys map[string]bool
-	typeTermPlan  map[string]string
+	// There is no second legend and no second ledger beside these: the TYPE
+	// namespace keeps neither (§15 #28). `type` is the one slot that spells a
+	// type, its stored key stands beside it in `type_internal_key`, and every
+	// other type reference is the derived id `type-<key>` (§9) — so a type
+	// spelling is a caption no reader resolves, and one shared with a
+	// property term or with another type's key costs nothing.
 }
 
 // propertySlug renders a stored property key for output and records what the
@@ -456,9 +449,11 @@ func (e *exporter) propertySlug(key string) string {
 // asks droppedPropertyKey, so the four kind- and value-scoped drops
 // buildProperties applies are not censused (the gap that spelled a custom
 // "Hidden" once suffixed and once plain, beside an `isHidden: false` nobody
-// writes). modelledTypeKeys closes the same gap in the type namespace. What
-// remains is a key named ONLY by a block the emit later drops: which blocks
-// survive is decided during buildBlocks, so this walk cannot know.
+// writes). The type namespace had the same gap and the same fix
+// (modelledTypeKeys), until its census went with the type term ledger (§15
+// #28). What remains is a key named ONLY by a block the emit later drops:
+// which blocks survive is decided during buildBlocks, so this walk cannot
+// know.
 func (e *exporter) seedTermLedger() {
 	e.termOwner = map[string]string{}
 	e.termByKey = map[string]string{}
@@ -678,7 +673,7 @@ func (e *exporter) vetSlug(key string, warn func(path, format string, args ...an
 		// (recordPropertyKey's rule), so the deny rule never sees it, and
 		// the reference slots that legitimately NAME a lifted key keep their
 		// §3 spelling. This is not hypothetical: the Property TYPE document
-		// lists `relationFormat` in its type_properties and shows it as a
+		// lists `relationFormat` in its property_definitions and shows it as a
 		// dataview column in 64 production spaces, and the blanket refusal
 		// spelled all of them camelCase-verbatim with two warnings each.
 		if bundledBinds(slug, key, (BundledKeyVocabulary{}).PropertyKey) &&
@@ -693,13 +688,13 @@ func (e *exporter) vetSlug(key string, warn func(path, format string, args ...an
 	return slug
 }
 
-// quietWarn is the silent sink vetSlug/vetTypeSlug take during census
-// planning.
+// quietWarn is the silent sink vetSlug takes during census planning.
 func quietWarn(string, string, ...any) {}
 
-// planKeyTerms is the census's collision pass, run once per namespace per
-// document: which term each censused key will take, decided from the whole
-// census rather than from claim order. Raw names are not unique — two live
+// planKeyTerms is the census's collision pass, run once per document over the
+// property namespace — the only one with a census since the type term ledger
+// was retired (§15 #28): which term each censused key will take, decided from
+// the whole census rather than from claim order. Raw names are not unique — two live
 // properties may bear one name — and a document is a map, so a spelling two
 // keys share cannot be written twice. The rule is per DOCUMENT, not per
 // space: a name ambiguous space-wide but appearing once here spells its
@@ -856,7 +851,7 @@ func (e *exporter) recordPropertyKey(term, key string) {
 	e.propertyKeys[term] = key
 }
 
-// legendEntryRefusal reports whether a `property_internal_keys` / `type_internal_keys` entry is
+// legendEntryRefusal reports whether a `property_internal_keys` entry is
 // one the format can actually carry, and why not. It is the recording site's
 // share of I1 ("Marshal never emits what Validate rejects", §11): every other
 // key slot admits before it writes, and the two legends did not — the ONLY
@@ -977,98 +972,43 @@ func (e *exporter) buildPropertyKeys() *omap {
 	return m
 }
 
-// typeSlug renders a stored type key for output and records what the
-// document owes a reader who cannot ask the space (§3) — the type
-// namespace's claim step, propertySlug on a ledger of its own. The same
-// discipline for the same reason: a stored type key named anywhere in the
-// document always keeps its own term (verbatim-first), an uncontested
-// spelling goes to its claimant, and a contested one degrades every
-// claimant by the census's plan.
+// typeSlug renders a stored type key as the envelope `type` spelling: the
+// vocabulary's display name where it can be written, the stored key itself
+// otherwise (§3). There is no ledger and no legend in the type namespace
+// any more: `type` is the ONE slot that spells a type name, and the stored
+// key stands beside it in `type_internal_key`, so the spelling is a caption
+// — a reader resolves the key, never the name — and a spelling shared with
+// another key costs nothing.
 func (e *exporter) typeSlug(key string) string {
 	if key == "" {
 		return key
 	}
-	if e.typeTermOwner == nil {
-		e.seedTypeTermLedger()
-	}
-	if term, done := e.typeTermByKey[key]; done {
-		return term
-	}
-	term := e.writableTypeSlug(key)
-	// the census's collision plan, exactly as propertySlug applies it: every
-	// claimant of a contested spelling degrades by plan, not by claim order
-	if planned, ok := e.typeTermPlan[key]; ok {
-		term = planned
-	}
-	if term != key {
-		if _, claimed := e.typeTermOwner[term]; claimed || e.typeNamedKeys[term] {
-			term = key
-		}
-	}
-	e.typeTermOwner[term] = key
-	e.typeTermByKey[key] = term
-	e.recordTypeKey(term, key)
-	return term
+	return e.writableTypeSlug(key)
 }
 
-// typeSlugs is the list form (a type property's object_types, §2a).
-func (e *exporter) typeSlugs(keys []string) []string {
+// typeKeyRef spells a stored type key in a TYPE-KEY slot — `template_for`,
+// every `object_types` — as its derived id, `type-<key>` (§9), so that a
+// reader meets one spelling of a type everywhere and never resolves a type
+// spelling. A key the fold gate refuses is written VERBATIM: with no legend
+// in the type namespace, the stored key is the only spelling of it every
+// reader lands on the same key from (§3, verbatim-first).
+func (e *exporter) typeKeyRef(key string) string {
+	if ref := typeRef(key); ref != "" {
+		return ref
+	}
+	return key
+}
+
+// typeKeyRefs is the list form of typeKeyRef (`object_types`).
+func (e *exporter) typeKeyRefs(keys []string) []string {
 	if len(keys) == 0 {
 		return keys
 	}
 	out := make([]string, len(keys))
 	for i, key := range keys {
-		out[i] = e.typeSlug(key)
+		out[i] = e.typeKeyRef(key)
 	}
 	return out
-}
-
-// seedTypeTermLedger runs the type-key census: every stored type key any
-// slot of this document may name — the snapshot's object types (envelope
-// `type`/`template_for`) and the target types of the resolved type-property
-// definitions (§2a object_types). Verbatim-first (§3) makes each its own
-// address, so no other key's name may take one as a spelling.
-func (e *exporter) seedTypeTermLedger() {
-	e.typeTermOwner = map[string]string{}
-	e.typeTermByKey = map[string]string{}
-	e.typeNamedKeys = map[string]bool{}
-	if e.snapshot == nil {
-		return
-	}
-	for _, key := range e.modelledTypeKeys(false) {
-		e.typeNamedKeys[key] = true
-	}
-	if e.typePropsActive() {
-		for _, l := range recommendedListKeys {
-			for _, id := range valueStringList(e.detail(l.detailKey)) {
-				def, ok := e.resolveTypeProperty(id)
-				if !ok || !writableTypePropertyKey(def) {
-					continue
-				}
-				for _, key := range def.ObjectTypes {
-					if key != "" {
-						e.typeNamedKeys[key] = true
-					}
-				}
-			}
-		}
-	}
-	// a relation document's own target types (§2d) are a type-key slot too,
-	// and the census must know every key the slot will spell for the same
-	// reason it knows the §2a targets: verbatim-first (§3) makes each its
-	// own address, so no other key's name may take one as a spelling
-	if e.isPropertyDoc() {
-		for _, key := range e.relationTargetKeys() {
-			if key != "" {
-				e.typeNamedKeys[key] = true
-			}
-		}
-	}
-	// the collision pass, exactly as the property census runs it — with no
-	// yielding set: nothing in the type namespace is written-then-dropped
-	e.typeTermPlan = planKeyTerms(e.typeNamedKeys,
-		func(k string) string { return e.vetTypeSlug(k, quietWarn) },
-		bundledTypeKeyBySpelling, nil)
 }
 
 // writableTypeSlug is writableSlug for the type namespace: the vocabulary's
@@ -1089,86 +1029,22 @@ func (e *exporter) writableTypeSlug(key string) string {
 	return e.vetTypeSlug(key, e.warn)
 }
 
-// vetTypeSlug is vetSlug for the type namespace — the warning sink explicit
-// for the same census-planning reason.
+// vetTypeSlug is vetSlug for the type namespace. The sink stays a parameter,
+// but there is nothing to ask silently any more: the type namespace lost its
+// census with its term ledger (§15 #28), and writableTypeSlug — the only
+// caller — always passes e.warn.
 func (e *exporter) vetTypeSlug(key string, warn func(path, format string, args ...any)) string {
 	slug := e.opts.typeSlug(key)
 	if slug == key {
 		return slug
 	}
 	if !isWritablePropertyKey(slug) || !isWritablePropertyKey(key) {
-		warn("/"+memberTypeInternalKeys,
+		warn("/type",
 			"the vocabulary spells type %q as %q, which cannot be a type spelling in this format; the stored key is written instead",
 			key, slug)
 		return key
 	}
 	return slug
-}
-
-// recordTypeKey writes the type legend entry a term owes, or nothing when
-// every reader's own chain already inverts it — recordPropertyKey's rule
-// through the type half of the two tables, identity entries included: a
-// stored type key written verbatim whose spelling the bundled table binds to
-// a DIFFERENT key (`object_type` the stored key beside bundled `objectType`)
-// gets `{"object_type": "object_type"}`, the document's only way to tell a
-// storeless reader the term is a stored key — and the same entry, for the
-// same reason, when the vocabulary in force is the one that binds it
-// elsewhere (`initiative` the stored key of a UI-deleted type, beside the
-// live type whose api key is `initiative`). See termInverts.
-//
-// An entry the legend cannot hold is not written here either
-// (legendEntryRefusal) — minus the deny rule, which is the property
-// namespace's alone: `strippedDetailKeys` and the importer's resolution
-// vectors are relation keys, and Validate states no deny rule over a
-// `type_internal_keys` value.
-func (e *exporter) recordTypeKey(term, key string) {
-	if term == "" {
-		return
-	}
-	if bundledBinds(term, key, (BundledKeyVocabulary{}).TypeKey) &&
-		termInverts(term, key, e.opts.keys().TypeKey) {
-		return
-	}
-	if reason, refused := legendEntryRefusal(term, key, false); refused {
-		e.warn("/"+memberTypeInternalKeys, "%s", reason)
-		return
-	}
-	if e.typeKeys == nil {
-		e.typeKeys = map[string]string{}
-	}
-	e.typeKeys[term] = key
-}
-
-// buildTypeKeys renders the type legend in term order, or nil when the
-// document needs none — which is every document that names only bundled and
-// verbatim, unshadowed type keys.
-// legendTypeTerm answers what this document's own type_internal_keys legend binds a
-// term to, falling back to the term itself. It is what buildDoc's emission
-// rule reads: like the Validate gate it used to answer to — deleted at the
-// freeze (§15 #9) — it reads the document alone and resolves nothing beyond
-// it, so a term and the key its own legend binds it to are one spelling of
-// one document (§2, §10).
-func (e *exporter) legendTypeTerm(term string) string {
-	if key, ok := e.typeKeys[term]; ok && key != "" {
-		return key
-	}
-	return term
-}
-
-func (e *exporter) buildTypeKeys() *omap {
-	if len(e.typeKeys) == 0 {
-		return nil
-	}
-	terms := make([]string, 0, len(e.typeKeys))
-	for term := range e.typeKeys {
-		terms = append(terms, term)
-	}
-	sort.Strings(terms)
-	m := &omap{}
-	for _, term := range terms {
-		m.set(term, e.typeKeys[term])
-	}
-	return m
 }
 
 // seedIdLabels reserves the id each block will be written with, before any
@@ -1586,51 +1462,15 @@ func (e *exporter) indexBlocks() {
 // typeKeyIdPrefix is the "ot-" prefix ObjectTypes entries carry.
 var typeKeyIdPrefix = domain.TypeKey("").URL()
 
-// envelopeTypeTerms are the spellings written for the snapshot's object
-// types — the `type`/`template_for` slots — each claimed through the type
-// term ledger so the legend it owes is recorded (§3).
-//
-// Two disciplines run here, and both are buildProperties' own:
-//
-//   - **A keyless entry is dropped WITH a warning, and the survivors close
-//     ranks.** A stored `ot-` (or a bare "") carries no type key: typeSlug
-//     answers "" for it and setNonEmpty then omits the slot, so a positional
-//     write lost that entry AND everything behind it. A template stored as
-//     ["ot-", "ot-task"] emitted no `type` at all, which made `template_for`
-//     inexpressible too — so the perfectly good `ot-task` vanished beside its
-//     bad neighbour, silently, and the document read back as no types at all.
-//     Filtering first is what lets the good sibling survive; the warning is
-//     what buildProperties already owes an unwritable *property* key, and
-//     what the import seam refuses outright and path-addressed.
-//   - **Only the slots actually WRITTEN claim a term.** typeSlug is the term
-//     ledger's claim step, so spelling an entry no slot emits still records
-//     the legend entry that spelling owes: a document then carried a
-//     `type_internal_keys` line naming a type it never mentions, publishing a space's
-//     spelling→key mapping for nothing. buildProperties cannot do this because
-//     it filters before it spells; the type side now does the same.
-//
-// The list still truncates to the positions §2 models — one type, plus the
-// target type on a template. That is the format's shape, not a defect, and
-// the census (seedTypeTermLedger) still reserves every stored type key the
-// snapshot names, so a dropped entry's key can never be taken as another
-// key's spelling.
-func (e *exporter) envelopeTypeTerms() []string {
-	keys := e.modelledTypeKeys(true)
-	terms := make([]string, 0, len(keys))
-	for _, key := range keys {
-		terms = append(terms, e.typeSlug(key))
-	}
-	return terms
-}
-
 // modelledTypeKeys reduces the snapshot's object types to the stored keys the
 // envelope will actually spell: keyless entries dropped, survivors closing
 // ranks, then the positions §2 models — one type, plus the target type on a
-// template. `warn` reports each keyless drop, and only the emitting call
-// passes it, because the CENSUS runs this reduction too and must not report
-// the same drop twice.
+// template. `warn` reports each keyless drop. It is a parameter because the
+// type-key census ran this reduction too and had to stay silent; the census
+// went with the type term ledger (§15 #28), and buildDoc is the only caller
+// left.
 //
-// The census has to see exactly this list rather than every object type,
+// The census had to see exactly this list rather than every object type,
 // which is where it started. Reserving a key no slot spells makes export stop
 // being a fixpoint: a snapshot whose truncated-away second type is the first
 // one's spelling backed that spelling off, while the same object exported after one
@@ -1692,18 +1532,17 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	doc.set("$schema", SchemaURL)
 	doc.set("formatVersion", FormatVersion)
 
-	typeTerms := e.envelopeTypeTerms()
+	typeKeys := e.modelledTypeKeys(true)
 	typeTerm := ""
-	if len(typeTerms) > 0 {
-		typeTerm = typeTerms[0]
+	if len(typeKeys) > 0 {
+		typeTerm = e.typeSlug(typeKeys[0])
 	}
 
 	// kind is omitted whenever derivable (§2), and only Page is
 	// derivable: `kind` is the sole authority on template-ness, so a Template
 	// always spells it. The term test that survives is an EMISSION rule and
-	// resolves nothing — a Page whose type term is literally `template`, or
-	// whose own type_internal_keys legend binds its term to `template`, keeps
-	// its explicit kind.
+	// resolves nothing — a Page whose type term is literally `template`
+	// keeps its explicit kind.
 	//
 	// It was an I1 rule until the freeze: Validate refused
 	// `{"type": "template"}` with no kind as the pre-`kind` spelling of a
@@ -1713,13 +1552,14 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	// whole grammar (§15 #9) — and the rule stays for the reason that
 	// outlived it: the shape is ambiguous to a reader who remembers the old
 	// meaning, and a spelled-out kind costs ~16 bytes on the rare document that has to
-	// carry it. Both spellings force it, because they are the same document
-	// said differently: testing only the raw term lets a page whose term
-	// RESOLVES to the template key through its own legend drop the kind, and
-	// testing only the resolved key lets a page whose legend rebinds
-	// `template` ELSEWHERE drop it.
-	derivable := sbType == model.SmartBlockType_Page &&
-		typeTerm != typeKeyTemplate && e.legendTypeTerm(typeTerm) != typeKeyTemplate
+	// carry it. The raw term is the whole test: the key stands beside the
+	// spelling in `type_internal_key`, so a page of the template type spelled
+	// "Template" is not the legacy byte shape and stays derivable.
+	typeKey := ""
+	if len(typeKeys) > 0 {
+		typeKey = typeKeys[0]
+	}
+	derivable := sbType == model.SmartBlockType_Page && typeTerm != typeKeyTemplate
 	if !derivable {
 		name := kindNames.name(sbType)
 		if name == "" {
@@ -1728,16 +1568,50 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 		doc.set("kind", name)
 	}
 
-	// the envelope id: the participant fold applies — a participant
-	// document's OWN id folds to the bare identity, or a reader could not
-	// textually join a folded reference to the document it points at (§9) —
-	// but never the name suffix: the document's name is right below in
-	// `properties`, and the envelope id is the one slot a reader must be
-	// able to use verbatim as an address.
-	doc.setNonEmpty("id", e.opts.foldParticipantRef(e.objectId()))
+	// the envelope id: the derived-id fold applies — a participant
+	// document's OWN id folds to `participant-<identity>` and a type
+	// document's to `type-<internal_key>`, or a reader could not textually
+	// join a folded reference to the document it points at (§9) — but never
+	// the name suffix: the document's name is right below in `properties`,
+	// and the envelope id is the one slot a reader must be able to use
+	// verbatim as an address.
+	//
+	// The fold applies to the document's own id only for the kind the prefix
+	// names (FoldDocumentId), and a raw store id that wears a prefix it is
+	// not entitled to — a synthetic snapshot; no store mints one — is
+	// refused rather than written, because Validate refuses it (§9, §11 I1).
+	// A type folds through its OWN key, the one it writes into
+	// `internal_key` two lines below, so the id and the key slots that name
+	// it are one function and the reservation check is a restatement rather
+	// than a second opinion.
+	envelopeId := FoldDocumentId(e.opts, sbType, e.objectId(), e.snapshot.Key)
+	if msg := reservedIdViolation(envelopeId, isTypeSmartBlock(sbType),
+		sbType == model.SmartBlockType_Participant, e.snapshot.Key, kindNames.name(sbType)); msg != "" {
+		return nil, fmt.Errorf("envelope id: %s", msg)
+	}
+	doc.setNonEmpty("id", envelopeId)
 	doc.setNonEmpty("type", typeTerm)
-	if sbType == model.SmartBlockType_Template && len(typeTerms) > 1 {
-		doc.setNonEmpty("template_for", typeTerms[1])
+	// the stored key beside the spelling, on EVERY typed document (§2, §3):
+	// the spelling is a caption, the key is what a reader resolves, and the
+	// type document is `type-<key>` (§9). Bundled or not — the condition
+	// "only where the shipped table cannot invert the spelling" is what this
+	// reverses: it left 343 of 586 objects in one real export with no type
+	// binding at all, the reader expected to own Anytype's table
+	if typeKey != "" && !isWritablePropertyKey(typeKey) {
+		// a stored key the member cannot hold — over-long, or carrying a
+		// control character — has no written form here; `type` still
+		// carries it verbatim (that slot is unbounded on purpose, §3), so
+		// the reader lands on the same key, only without the statement
+		e.warn("/"+memberTypeInternalKey, "%s, so type_internal_key is not written; the type is spelled verbatim",
+			unwritableKeyReason("stored type key", typeKey))
+	} else {
+		doc.setNonEmpty(memberTypeInternalKey, typeKey)
+	}
+	if sbType == model.SmartBlockType_Template && len(typeKeys) > 1 {
+		// the target type is a reference by key (§9): `type-<key>`, the
+		// same spelling every id-valued slot folds to, so a template names
+		// its type the way a filter or a `Set of` value does
+		doc.setNonEmpty("template_for", e.typeKeyRef(typeKeys[1]))
 	}
 	doc.setNonEmpty(memberInternalKey, e.snapshot.Key)
 	// a relation document states its own definition next (§2d): `format`,
@@ -1772,7 +1646,6 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	doc.setNonEmpty("type_settings", typeSettings)
 
 	doc.setNonEmpty(memberPropertyInternalKeys, e.buildPropertyKeys())
-	doc.setNonEmpty(memberTypeInternalKeys, e.buildTypeKeys())
 	// option_ids last of the three legends: its outer keys are property
 	// spellings, so the legend that inverts those precedes it (§2). Written
 	// unconditionally — this is identity, not compaction — except under
@@ -2822,11 +2695,10 @@ func (e *exporter) buildLabelPlan() {
 	addObject := func(id string) {
 		if id != "" {
 			objects[id] = true
-			// the document spells the FOLDED form of a participant ref
-			// (§9), so the avoid-set carries that spelling too — the raw
-			// composite stays as well, since a suffix-trimming reader
-			// recovers it
-			if folded := e.opts.foldParticipantRef(id); folded != id {
+			// the document spells the FOLDED form of a derived id (§9), so
+			// the avoid-set carries that spelling too — the raw id stays as
+			// well, since a suffix-trimming reader recovers it
+			if folded := e.opts.foldRef(id); folded != id {
 				objects[folded] = true
 			}
 		}
@@ -2920,10 +2792,10 @@ func (e *exporter) buildLabelPlan() {
 				// exception in the other direction: its entries leave this
 				// walk and are NOT fed back, because the envelope writes
 				// them as TYPE-KEY terms, not object references — the same
-				// slot type_properties[].object_types is, which has never
-				// had census duty. A term is never textually joined with a
-				// block id, so a compact label equal to one collides with
-				// nothing.
+				// slot type_settings.property_definitions[].object_types is,
+				// which has never had census duty. A term is never textually
+				// joined with a block id, so a compact label equal to one
+				// collides with nothing.
 				continue
 			}
 			format, ok := e.resolveFormat(key)

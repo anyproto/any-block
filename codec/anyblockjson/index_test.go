@@ -52,11 +52,11 @@ func TestIndex_Roundtrip(t *testing.T) {
 	// the install opens the first widget's target
 	assert.Equal(t, "page-wiki-home", idx.EntryPoint())
 
-	out, err := MarshalIndex(idx)
+	out, err := MarshalIndex(idx, Options{})
 	require.NoError(t, err)
 	again, err := UnmarshalIndex(out, Options{})
 	require.NoError(t, err)
-	out2, err := MarshalIndex(again)
+	out2, err := MarshalIndex(again, Options{})
 	require.NoError(t, err)
 	assert.Equal(t, string(out), string(out2), "export must be byte-stable (§11)")
 }
@@ -338,7 +338,7 @@ func TestIndex_Icon(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "acme-logo", idx.IconImageId())
 
-	out, err := MarshalIndex(idx)
+	out, err := MarshalIndex(idx, Options{})
 	require.NoError(t, err)
 	assert.Contains(t, string(out), `"icon": {`)
 	assert.Contains(t, string(out), `"file": "acme-logo"`)
@@ -376,7 +376,7 @@ func TestIndex_Icon(t *testing.T) {
 		assert.Equal(t, "red", idx.Icon.Color)
 		assert.Empty(t, idx.IconImageId(), "a colour names no image")
 
-		out, err := MarshalIndex(idx)
+		out, err := MarshalIndex(idx, Options{})
 		require.NoError(t, err)
 		assert.Contains(t, string(out), `"format": "color"`)
 		assert.Contains(t, string(out), `"color": "red"`)
@@ -387,7 +387,7 @@ func TestIndex_Icon(t *testing.T) {
 			"icon": {"format": "file", "file": "acme-logo", "color": "red"}}`), Options{})
 
 		require.NoError(t, err)
-		out, err := MarshalIndex(idx)
+		out, err := MarshalIndex(idx, Options{})
 		require.NoError(t, err)
 		assert.Contains(t, string(out), `"file": "acme-logo"`)
 		assert.Contains(t, string(out), `"color": "red"`)

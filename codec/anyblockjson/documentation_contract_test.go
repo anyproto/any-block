@@ -128,15 +128,16 @@ func TestDocumentationContract_TypeOutputUsesDisplayNames(t *testing.T) {
 	assert.NotContains(t, docs["SPEC.md"], "The object's type **slug**")
 	assert.NotContains(t, docs["SPEC.md"], "The **type slugs**")
 	assert.Contains(t, docs["SPEC.md"], "objects write that name in `type`")
-	assert.Contains(t, docs["README.md"], "templates write in `template_for`")
+	assert.Contains(t, docs["SPEC.md"], "an author may write `\"Habit\"` there, and export writes `\"type-habit\"`")
+	assert.Contains(t, docs["README.md"], "canonicalise to the type's derived id, `type-habit`")
 
 	objectSchema, err := os.ReadFile(filepath.Join("..", "..", "format", "v2", "schema", "authoring", "object.schema.json"))
 	require.NoError(t, err)
 	propertySchema, err := os.ReadFile(filepath.Join("..", "..", "format", "v2", "schema", "authoring", "properties.schema.json"))
 	require.NoError(t, err)
 	assert.Contains(t, string(objectSchema), "The object's type, by its NFC display name")
-	assert.Contains(t, string(objectSchema), "Never copy its internal_key")
-	assert.Contains(t, string(propertySchema), "NFC display names of the types")
+	assert.Contains(t, string(objectSchema), "its derived id `type-<internal_key>`")
+	assert.Contains(t, string(propertySchema), "its derived id `type-<internal_key>`")
 	assert.NotContains(t, string(objectSchema), "or the internal_key of a type this bundle declares")
 
 	for _, rel := range []string{

@@ -58,14 +58,15 @@ func TestBuildRecommendedLists_ObjectTypesHonourTheLegendToo(t *testing.T) {
 		assert.Equal(t, []string{"decoyType"}, seen)
 	})
 
-	t.Run("with it the document's own statement is chain step 1", func(t *testing.T) {
+	t.Run("the derived id is the document's own statement, and no vocabulary reads it", func(t *testing.T) {
 		var seen []string
 		o := base
 		o.ResolveProperties = capturingResolver{seen: &seen}
-		o.Legend = Legend{TypeKeys: map[string]string{"initiative": liveType}}
-		_, err := BuildRecommendedLists(props, o)
+		stated := []TypeProperty{{Property: "who", Section: "featured",
+			Format: "objects", ObjectTypes: []string{TypeRefPrefix + liveType}}}
+		_, err := BuildRecommendedLists(stated, o)
 		require.NoError(t, err)
 		assert.Equal(t, []string{liveType}, seen,
-			"the property's targets name the types the document meant")
+			"the property's targets name the types the document meant (§9)")
 	})
 }

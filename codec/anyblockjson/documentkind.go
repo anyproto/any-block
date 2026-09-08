@@ -19,9 +19,9 @@ package anyblockjson
 // The cost was not theoretical. Handed to the object reader, a perfectly good
 // index reported `/name: property "name" is not allowed` — on the field whose
 // whole job is to name the space — and a dictionary reported `/properties:
-// got array, want object` and `/installed: property "installed" is not
-// allowed`, on its headline field. Each of those sends an author to repair a
-// file that was already correct. This package's own eval harness hit it too.
+// got array, want object`, on its headline field. Each of those sends an
+// author to repair a file that was already correct. This package's own eval
+// harness hit it too.
 //
 // Requiring `$schema` would settle it, and is deliberately NOT what this
 // does: the format is meant to be hand-authorable, and demanding a 60-byte
@@ -57,7 +57,6 @@ func DocumentKind(data []byte) string {
 func documentKindOf(data []byte) (kind string, decided bool) {
 	var probe struct {
 		Schema     string          `json:"$schema"`
-		Installed  json.RawMessage `json:"installed"`
 		Properties json.RawMessage `json:"properties"`
 		Manifest   json.RawMessage `json:"manifest"`
 		Widgets    json.RawMessage `json:"widgets"`
@@ -77,8 +76,11 @@ func documentKindOf(data []byte) (kind string, decided bool) {
 	// No declaration: infer from members no other grammar has. `properties`
 	// is the one member two grammars share, and they disagree about its TYPE
 	// — an object maps keys to values, a dictionary lists definitions — so
-	// the array spelling is itself a discriminator.
-	if len(probe.Installed) > 0 || isJSONArray(probe.Properties) {
+	// the array spelling is itself a discriminator. It is also the
+	// dictionary's ONLY evidence: the grammar has no other member of its own
+	// (§15 #24 retired the `installed` list), so a member the format never
+	// had places nothing.
+	if isJSONArray(probe.Properties) {
 		return KindPropertyDictionary, true
 	}
 	if len(probe.Manifest) > 0 || len(probe.Widgets) > 0 || len(probe.Entrypoint) > 0 {
@@ -143,7 +145,7 @@ func evidenceFor(data []byte, kind string) string {
 	case KindIndex:
 		return "It declares no `$schema`, and carries members only an index has."
 	case KindPropertyDictionary:
-		return "It declares no `$schema`, and carries `installed` or a `properties` ARRAY, " +
+		return "It declares no `$schema`, and carries a `properties` ARRAY, " +
 			"which an object document — where `properties` maps keys to values — cannot."
 	default:
 		return "It declares no `$schema`."

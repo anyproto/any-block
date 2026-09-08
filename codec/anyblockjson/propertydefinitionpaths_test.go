@@ -48,7 +48,7 @@ func TestTypeRendererErrorsUseEmittedDestinationIndex(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			snapshot := &model.SmartBlockSnapshotBase{
 				Details: fields(map[string]*types.Value{
-					"id":                   str("type-id"),
+					"id":                   str("typeobj"),
 					"recommendedRelations": strList(tc.ids...),
 				}),
 				ObjectTypes: []string{"ot-objectType"},

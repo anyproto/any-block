@@ -12,9 +12,9 @@ package anyblockjson
 // A relation object IS a property definition, and until this lift it was the
 // one document that could not state its own format in the format's own
 // vocabulary: `properties` carried `relation_format: 100` — a raw enum
-// number — while a `type_properties` entry three sections up spelled the
-// same fact `format: "objects"`. One concept, two spellings, in one format
-// (§15 #14). Worse, the raw spelling was a live trap: in a 198-run
+// number — while a type's property-definition entry three sections up spelled
+// the same fact `format: "objects"`. One concept, two spellings, in one
+// format (§15 #14). Worse, the raw spelling was a live trap: in a 198-run
 // small-model eval, 9 of 9 attempts wrote `properties: {"format": "number"}`,
 // which VALIDATED — inside `properties` every key is a property spelling, so
 // that line means "a custom property named format" — and imported as exactly
@@ -195,7 +195,7 @@ func (e *exporter) buildPropertySettings(doc *omap) error {
 			// present even when empty — an empty list is a cleared target
 			// set, the same user-intent reading that kept
 			// relationFormatObjectTypes off the §15 #12 trim whitelist
-			group.set("object_types", stringsToAny(e.typeSlugs(e.relationTargetKeys())))
+			group.set("object_types", stringsToAny(e.typeKeyRefs(e.relationTargetKeys())))
 		case *types.Value_NullValue:
 			group.set("object_types", nil)
 		default:
@@ -245,9 +245,10 @@ func (e *exporter) relationFormatName() (string, error) {
 }
 
 // relationTargetKeys is the stored relationFormatObjectTypes list with each
-// entry translated to the stored type KEY it names, memoized because the
-// type-key census (seedTypeTermLedger) and buildPropertySettings both read
-// it — the same one-build rule as iconField (§2b).
+// entry translated to the stored type KEY it names, memoized because building
+// it WARNS about the entries it drops — the same one-build rule as iconField
+// (§2b). The type-key census read it beside buildPropertySettings until the
+// type term ledger was retired (§15 #28).
 //
 // Translation is per entry: a type object id inverts through the
 // TypeResolver capability when the resolver carries it, and a bare type key
@@ -312,7 +313,7 @@ func (imp *importer) applyPropertySettings(details *types.Struct, sbType model.S
 		return nil
 	}
 	if rs.Format != "" {
-		// the name resolves per key, exactly as a type_properties entry's
+		// the name resolves per key, exactly as a property_definitions entry's
 		// format does (§3): "text" names both stored text formats, and the
 		// relation's own envelope `key` is what disambiguates — a bundled
 		// short-text relation (name, globalName, …) keeps its stored format

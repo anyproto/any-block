@@ -47,7 +47,7 @@ func TestDocumentKind_PlacesTheThreeGrammars(t *testing.T) {
 
 	t.Run("shape places a document that declares nothing", func(t *testing.T) {
 		for _, tc := range []struct{ name, doc, want string }{
-			{"installed is a dictionary's alone", `{"formatVersion": "2.0", "installed": ["done"]}`, KindPropertyDictionary},
+			{"the retired installed list is no grammar's, and places nothing", `{"formatVersion": "2.0", "installed": ["done"]}`, KindObject},
 			{"and so is a properties ARRAY", `{"formatVersion": "2.0", "properties": [{"property": "k", "format": "text"}]}`, KindPropertyDictionary},
 			{"a properties MAP is an object's", `{"formatVersion": "2.0", "properties": {"name": "Note"}}`, KindObject},
 			{"a manifest is an index's", `{"formatVersion": "2.0", "manifest": {"properties": "properties.json"}}`, KindIndex},
@@ -69,7 +69,7 @@ func TestDocumentKind_PlacesTheThreeGrammars(t *testing.T) {
 // verdict it needs.
 func TestDocumentKind_TheWrongReaderSaysSo(t *testing.T) {
 	index := `{"$schema": "` + IndexSchemaURL + `", "formatVersion": "2.0", "name": "Company Wiki"}`
-	dict := `{"$schema": "` + PropertiesSchemaURL + `", "formatVersion": "2.0", "installed": ["done"]}`
+	dict := `{"$schema": "` + PropertiesSchemaURL + `", "formatVersion": "2.0", "properties": [{"property": "done", "format": "checkbox"}]}`
 	object := `{"$schema": "` + SchemaURL + `", "formatVersion": "2.0", "properties": {"name": "Note"}}`
 
 	t.Run("an index read as an object", func(t *testing.T) {

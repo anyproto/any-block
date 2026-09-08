@@ -84,6 +84,12 @@ const (
 	// portable bare participant identities but had no destination space with
 	// which to rebuild participant object IDs.
 	IssueCodeFoldedParticipantsWithoutSpace IssueCode = "folded_participants_without_space"
+	// IssueCodeFoldedTypesWithoutResolver is its type-namespace twin: an
+	// import encountered `type-<internal_key>` references (§9) in id-valued
+	// slots but had no TypeResolver with which to rebuild the type object
+	// ids of the destination space, so the folded strings stand where
+	// addresses belong.
+	IssueCodeFoldedTypesWithoutResolver IssueCode = "folded_types_without_resolver"
 )
 
 // Issue is a single path-addressed validation problem or warning.
@@ -240,6 +246,13 @@ func validateToDocInScope(data []byte, lenient bool, warn func(Issue), scope val
 	// likely to be missing it — one holding a legacy document that spelled
 	// `relation_format` in properties — needs the vocabulary, not the bound
 	propertyFormatSlotIssue(doc, &spoken)
+	// the derived-id reservation (§9), for the third trade of the same kind:
+	// the schema states the KIND half and addresses it correctly, at `/id`,
+	// but can only say the id matched a forbidden pattern — not which
+	// document owns the prefix, nor what to do about it. And the other half,
+	// that the remainder is this document's own internal_key, no schema can
+	// state at all. One fault, one issue, worded by the pass that knows both.
+	derivedIdSlotIssue(doc, &spoken)
 	if err := sch.Validate(doc); err != nil {
 		return nil, &ValidationError{Issues: append(spoken.issues, schemaIssues(err, spoken)...)}
 	}
@@ -943,7 +956,7 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 }
 
 // unknownPropertyMessage names a member no reading of the schema admits, and
-// carries a migration hint for the three names a document written against an
+// carries a migration hint for the four names a document written against an
 // older grammar brings. The hints exist because the bare verdict sends the
 // reader the wrong way, and the format's purpose is the generate → validate →
 // feed-back loop (§13):
@@ -963,6 +976,13 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 //     refuses genuine legacy drafts, but an author can still copy this member
 //     into a 2.0 document; the message is where that author is told what
 //     happened and how to repair it.
+//   - `type_internal_keys` is the type legend this format used to carry, until
+//     §15 #28 replaced it with the scalar `type_internal_key`: an object has
+//     exactly one type, so a map overstated the shape, and every other type
+//     reference became the derived id `type-<key>` (§9), which needs no legend
+//     at all. Told only that it is not allowed, the obvious repair is to
+//     delete it — which drops the one statement of the stored key the object's
+//     own spelling cannot supply.
 //
 // propertySettingsMemberHomes names, for each propertyDefinition member the
 // §2d group refuses, where the fact it spells already lives — the repair the
@@ -986,8 +1006,36 @@ func unknownPropertyMessage(prop string) string {
 		return `property "children" is not allowed — the flat format has no children; nest with indent instead`
 	case "refs":
 		return `property "refs" is not allowed — the object-reference legend was removed: every object id is now written in full, on every shape, with no legend. This document was written by an older exporter; replace each short label it uses with the id "refs" maps that label to, then drop "refs". Dropping it alone leaves labels that address nothing`
+	case memberTypeInternalKeys:
+		return `property "type_internal_keys" is not allowed — the type legend was retired (§2, §15 #28): an object has exactly one type, so the stored key of "type" is the scalar "type_internal_key" beside it, written on every typed document; a template's target and every object_types entry are the type's derived id, type-<internal_key> (§9), and need no legend. This document was written by an older exporter; write "type_internal_key": "<the key the map bound the type spelling to>" and drop the map`
 	}
 	return fmt.Sprintf("property %q is not allowed", prop)
+}
+
+// derivedIdSlotIssue enforces the derived-id reservation on the envelope id
+// (§9) through the predicate Marshal refuses by (reservedIdViolation), so
+// the two cannot disagree: an ordinary object wearing `type-` or
+// `participant-` is refused at `/id`, and the prefix stays a statement a
+// reader can trust. A `-` anywhere else in an id (`page-welcome`) is an
+// ordinary bundle-local slug and is not this rule's business.
+//
+// It runs BEFORE the schema and silences the schema's own verdict at `/id`
+// (rejectValueAt), the trade propertyNameIssues and iconFormatIssues already
+// make: the published schema carries the kind half — an external validator
+// runs that and nothing else (§12) — but a `not`/`pattern` verdict can only
+// report that the id matched something forbidden, and the reader needs to be
+// told which document owns the prefix. The key half is here alone, because
+// no schema can compare a member against a substring of another.
+func derivedIdSlotIssue(doc map[string]any, r *keySlotReport) {
+	id, _ := doc["id"].(string)
+	kind, _ := doc["kind"].(string)
+	internal, _ := doc[memberInternalKey].(string)
+	msg := reservedIdViolation(id, isTypeKind(doc),
+		kind == kindNames.name(model.SmartBlockType_Participant), internal, kind)
+	if msg == "" {
+		return
+	}
+	r.rejectValueAt("/id", msg)
 }
 
 // textBearing reports whether the block type's text is parsed for inline
@@ -1177,6 +1225,14 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// whole truth.
 	kind, _ := doc["kind"].(string)
 	typeTerm, _ := doc["type"].(string)
+	// `type_internal_key` states the stored key of `type` (§2) and means
+	// nothing without it: the spelling is the caption a reader shows, the
+	// key what it resolves, and a key with no caption is a document that
+	// says less than canonical export ever writes
+	if _, ok := doc[memberTypeInternalKey]; ok && typeTerm == "" {
+		addIssue("/"+memberTypeInternalKey,
+			`type_internal_key states the stored key of "type", and needs the type spelling beside it: add "type"`)
+	}
 	if _, ok := doc["template_for"]; ok {
 		switch {
 		case kind != kindNames.name(model.SmartBlockType_Template):
@@ -1948,8 +2004,8 @@ func (r *keySlotReport) rejectValueAt(path, message string) {
 }
 
 // propertyNameIssues states, where the key is in hand, every rule the schema
-// carries as `propertyNames`: the `properties` map and the `property_internal_keys` /
-// `type_internal_keys` legends take a writable key (§3), and `option_ids` takes one at
+// carries as `propertyNames`: the `properties` map and the `property_internal_keys`
+// legend take a writable key (§3), and `option_ids` takes one at
 // its OUTER level with a merely non-empty option name at its inner level
 // (§9a). A legend VALUE rides along because it is a stored key under the same
 // rule and the schema's verdict on it names the bound, not the string — and so
@@ -2084,7 +2140,7 @@ func propertyNameIssues(doc map[string]any) keySlotReport {
 	// cannot — DEL, which sits above the pattern's control-character class —
 	// so Validate and the import seam cannot disagree about a spelling.
 	checkBlockKeySlots(doc, rejectValue)
-	for _, field := range []string{memberPropertyInternalKeys, memberTypeInternalKeys} {
+	for _, field := range []string{memberPropertyInternalKeys} {
 		legend, _ := doc[field].(map[string]any)
 		for _, term := range sortedMapKeys(legend) {
 			path := "/" + field + "/" + escapeJSONPointer(term)
@@ -2327,8 +2383,12 @@ func restatesBundledTargets(stated []any, rel *model.Relation) bool {
 	bundled := map[string]bool{}
 	for _, u := range rel.GetObjectTypes() {
 		if k, err := vocabulary.TypeKeyFromUrl(u); err == nil {
+			// every spelling the slot admits: the stored key, the derived id
+			// canonical export writes (§9), and the display name an author
+			// may write
 			bundled[string(k)] = true
 			bundled[TypeKeySpelling(string(k))] = true
+			bundled[bundledTypeSpelling(string(k))] = true
 		}
 	}
 	if len(bundled) == 0 {
@@ -2942,8 +3002,7 @@ func warnKeySpellingHygiene(doc map[string]any, warn func(path, format string, a
 				"match must reproduce the invisible bytes; the forgiving fold bridges the "+
 				"near-miss, and a cleanup belongs where the property is named", term, reason)
 	}
-	for _, member := range []string{"properties", memberPropertyInternalKeys,
-		memberTypeInternalKeys, "option_ids"} {
+	for _, member := range []string{"properties", memberPropertyInternalKeys, "option_ids"} {
 		if m, _ := doc[member].(map[string]any); m != nil {
 			for _, term := range sortedMapKeys(m) {
 				report(member, term)
@@ -2960,8 +3019,7 @@ func warnKeySpellingHygiene(doc map[string]any, warn func(path, format string, a
 // property. %+q spells the code points apart where %q would print the same
 // glyphs twice. A warning, not a refusal — see the semanticIssues call site.
 func warnNFCTwinSpellings(doc map[string]any, warn func(path, format string, args ...any)) {
-	for _, member := range []string{"properties", memberPropertyInternalKeys,
-		memberTypeInternalKeys, "option_ids"} {
+	for _, member := range []string{"properties", memberPropertyInternalKeys, "option_ids"} {
 		m, _ := doc[member].(map[string]any)
 		if m == nil {
 			continue
