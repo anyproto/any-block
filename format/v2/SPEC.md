@@ -322,7 +322,7 @@ Fields, in **canonical order** (§4):
 | `type_settings` | object | no | Only for type documents (`kind: "object_type"`, `"bundled_object_type"`): everything that defines the TYPE, in one gated subtree — `layout`, `api_key`, `plural_name`, `default_template`, `default_view`, and `property_definitions` (§2a). Present on any other kind → validation error. The root spelling `type_properties` is refused with the repair named. |
 | `property_internal_keys` | object | no | Legend: the stored property key each spelling in this document names (§3). Written for every spelling the **bundled table does not bind to the key being written** — a spelling the table cannot invert (a space's own key) *and* the **identity entry**, which is the ordinary case: a custom key written verbatim names itself, because nothing else in the document says the term is a stored key rather than somebody's display-name spelling. A reader consults it **before** its own vocabulary and takes the value as **authoritative**: it is not liveness-checked, deliberately (§3). Absent only from a document whose every spelling is bundled. |
 | `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. (In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode those two slots spell the vocabulary rather than the derived id; the type namespace carries no legend either way, and a bundle refuses that mode — §9.) A document carrying the map is refused with the repair named (§10). |
-| `option_ids` | object | no | Legend: the id of the option each select/multi_select **term** in this document stands for — nested, `{property spelling: {written term: option id}}` (§3, §9a). The term is the option's name, except where two options of one property claim one name here: then every claimant is written `<name> (<tail6>)` and keyed by that (§3), so an inner key names exactly one option. Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9), which degrades no term either — the suffix is a key into this legend, not a name (§3). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the term resolves by name exactly as it did before the legend existed — a degraded term by the name inside it, which §3's step 3 strips the suffix to find. |
+| `option_ids` | object | no | Legend: the id of the option each select/multi_select **term** in this document stands for — nested, `{property spelling: {written term: option id}}` (§3, §9a). The term is the option's name, except where two options of one property claim one name here: then every claimant is written `<name> (<tail6>)` and keyed by that (§3), so an inner key names exactly one option. Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the name resolves exactly as it did before the legend existed. |
 | `blocks` | array | no | The document's blocks as a **flat pre-order array**; nesting via `indent` (§4). |
 | `query_source` | object | no | For SET objects: what the live query ranges over (§6.2), in two typed lists — `types` (type targets, each the type's derived id `type-<internal_key>`, §9) and `properties` (property targets, each a bare stored key). Stands for the stored `setOf` key, which `properties` refuses. THREE states: absent (this document states no query), present and EMPTY (a query naming no source), populated. Present on a document that is not a set → validation error, enforced by the import *wiring* for the same reason `items` is. |
 | `items` | array | no | For collection objects: member object ids, in order (from the internal collection store key `objects`). Present on a non-collection document → validation error — enforced by the import *wiring* (collection-ness resolves against the space's types, not offline); the package's `Validate` checks structure only (implementation decision). |
@@ -3081,18 +3081,14 @@ the name, in a legend keyed by the property that owns the option (§9a):
 ```
 
 The outer key is the property **spelling this document writes**, the inner
-key the **term** the value slot spells — the option's name, or the degraded
-form below where two options of the property claim that name here; §9a states
-the shape and the emission rule. It is written wherever export substitutes a name for
+key the option **name** exactly as the value spells it; §9a states the shape
+and the emission rule. It is written wherever export substitutes a name for
 an id — property values, filter values, custom orders — and behind no option
 at all, because it is identity rather than compaction.
 
-**Reading one option value: four steps, first answer wins.** What sits in the
-slot is a TERM. Usually the term and the option's name are one word and the
-distinction never surfaces; where they are not, steps 2 and 3 are what
-separate them.
+**Reading one option value: three steps, first answer wins.**
 
-1. **`option_ids[<the spelling this slot wrote>][<the term>]`** — honored
+1. **`option_ids[<the spelling this slot wrote>][<the name>]`** — honored
    only when the id it names is a **live option of that relation** in the
    target space. There is no reachability precondition left to state: a
    reader indexes the legend by the spelling the slot in hand wrote, so an
@@ -3100,28 +3096,11 @@ separate them.
    one). The liveness check is the whole reason the entry is safe to write
    unconditionally: an id from a space the reader never had is not an answer,
    and the document falls through as if it carried none.
-2. **Name resolution** against the property's existing options, on the term
-   exactly as the slot writes it. For every ordinary term that IS the option's
-   name, and this step is the whole of resolution as it stood before the
-   legend existed.
-3. **Name resolution again, on the name inside a degraded term.** A term of
-   the form `<name> (<six characters>)` (below) is a key into the legend, not
-   a name: no space is expected to hold an option called it, so a reader that
-   stopped at step 2 would miss every time and hand the wiring a synthetic
-   name to create. Strip a trailing ` (` + six characters + `)` and ask step
-   2's question about the stem. It is asked HERE and not before step 2, so an
-   option a space really does name `Other (logseq)` is found under its own
-   name and never reduced to `Other`.
-4. **The value unchanged** — the stem where step 3 recognized one, the term
-   otherwise. Creating the missing option is the wiring's job, and what it is
-   handed to create is a name, never a term carrying six characters of another
-   space's id.
+2. **Name resolution** against the property's existing options, as before.
+3. **The value unchanged** — creating the missing option is the wiring's job.
 
-A reader with no option resolver (§13) has no space in which to ask any of
-these and stops at step 4 with the value exactly as the slot writes it — the
-term, not its stem, because nothing in the string says which it is and there
-is no vocabulary to check it against. That is the rule as it stood before this
-legend existed, and it is what keeps an unwired round trip byte-stable.
+A reader with no option resolver (§13) has no space in which to ask either
+question and stops at step 3, exactly as it did before this legend existed.
 
 **The legends do not answer to one rule, and the difference is deliberate.**
 A `property_internal_keys` value — and the `type_internal_key` scalar (§2) —
@@ -3183,32 +3162,8 @@ plain name did. It is the same ladder a contested property spelling walks
 (§3), minus the rung that writes a readable stored key: no option id is
 readable.
 
-**A term is written only where the legend is.** Its six characters are a
-fragment of an id, and nothing else in the document joins them to an option:
-the term is a key into `option_ids`, not a name somebody chose. `OmitIds`
-drops that legend (§9), so under it every claimant is written PLAINLY — the
-document then carries the identity loss §9 already states, both values landing
-on one option, rather than a term nothing in it can answer, which the wiring
-would create as an option literally called `books (yfirst)`.
-
-**Read where the legend cannot answer, a degraded term resolves by the name
-inside it** — step 3 above, and the case option values are spelled by name FOR:
-a bundle installed into a space that never held those ids. Both terms fall
-back to `books`, the object lands on that space's option of that name, and
-what a rename or a missing option leaves for the wiring to create is `books`
-too. That is the outcome the value had before this rule, exactly: the degrade
-buys identity where the ids are live and costs nothing where they are not.
-
-The bare id of the last rung has no such fallback. A reader that cannot honor
-the id has nothing left to resolve — the stem of a CID is a CID — so the
-wiring creates an option named with it, and a cross-space install of a rung-(c)
-value is worse off than the plain name would have left it. That is the price
-of the rung and the reason it is last: a claimant reaches it only where the
-suffixed form would itself have named the WRONG option, which is a silent
-error where this is a visible one.
-
 A rename, a duplicate name an object touches once, and a duplicate an object
-touches twice are all no longer lossy where the legend can be honored (§11).
+touches twice are all no longer lossy (§11).
 
 **Format resolution.** The format does not carry per-property formats;
 `Marshal` and `Unmarshal` accept an optional resolver (§13). Property keys in
@@ -4917,13 +4872,6 @@ document-local or auxiliary option identity even though its envelope object
 `id` remains (§9a). The loss is small, real, and rare, on the read/prompt
 path, which is the one an agent sees most.
 
-**And it is the whole of what the flag costs.** §3's degrade — every claimant
-of a contested option name written `<name> (<tail6>)` — is gated on this
-legend, because the suffix is a key into it rather than a name. With the
-legend dropped, the plain name is written for every claimant, so an id-less
-document loses the second of two same-named options exactly as described above
-and does not additionally hand the wiring a synthetic option name to create.
-
 **Export does not warn about it.** At the moment export substitutes a
 name for an id it could ask the resolver the question *import* will ask —
 `OptionId(key, name)` — and warn whenever the answer is a different id. That
@@ -5678,9 +5626,8 @@ the key admission rule, the two charsets, and the joined key's length bound.
   spelling the slot in hand wrote, and matches or does not. Export writes the
   spelling the slot itself just used, so its outer keys are spellings the
   document holds by construction.
-- **Inner key**: the **term** the value slot writes — the option's name, or
-  the degraded `<name> (<tail6>)` form of the bullet below — character for
-  character as the value spells it, bounded only by being non-empty. It carries no charset rule,
+- **Inner key**: the option **name**, character for character as the value
+  spells it, bounded only by being non-empty. It carries no charset rule,
   deliberately: it is the same string the value slot already holds, and a
   legend that cannot name a value its own document carries is the `C#` hole
   again, one level down.
@@ -5704,18 +5651,15 @@ the key admission rule, the two charsets, and the joined key's length bound.
   rename it would guard against happens in the gap between writing and
   reading. Nothing is pruned because nothing unused is written — the entry is
   recorded at the substitution itself.
-- **Read as a hint, not an address** — §3's four steps: the id, honored only
-  where the target space still serves it as a live option of that relation;
-  then name resolution on the term; then the same question about the name
-  inside a degraded term, which is what makes a bundle carried elsewhere
-  resolve as it did before this legend existed; then the value unchanged. A
-  reader with no option resolver ignores the legend entirely and asks neither
-  name question, having no space in which to ask.
+- **Read as a hint, not an address** — §3's three steps: the id, honored
+  only where the target space still serves it as a live option of that
+  relation; then name resolution; then the value unchanged. A reader with no
+  option resolver ignores the legend entirely, having no space in which to
+  ask, which is what keeps a bundle carried elsewhere working exactly as it
+  does without it.
 - **`OmitIds` drops it** (§9): the export and backup shape keeps the legend,
   the prompt shape does not. §9 states what that gives up — the two losses above, back,
-  on the read/prompt shape — and why export does not warn about it. It drops
-  the degrade with it: a term is a key into this legend, so where there is no
-  legend every claimant is written plainly (§3).
+  on the read/prompt shape — and why export does not warn about it.
 - **An outer key naming a property this document never spells is a warning**
   (§12) — a key-set comparison, not a parse. The entry can never be
   consulted, since a reader indexes by the spelling the slot in hand wrote. A
@@ -6035,26 +5979,12 @@ section that owns it:
 - Select/multi_select option ids replaced by name resolution — in properties,
   filter values, and custom orders (§3, §6.2) — which `option_ids` inverts
   exactly (§9a), leaving one residue: a reader wired with no option resolver
-  ignores the legend and keeps the terms, having no space in which an id could
+  ignores the legend and keeps the names, having no space in which an id could
   be an option at all. **Two same-named options of one property held by ONE
   object** used to be a second residue — the document spelled one string twice
   and the legend had room for one id — and is not one now: every claimant of a
   contested name is written `<name> (<tail6>)`, so each option carries its own
   entry (§3).
-
-  **In a space that never held those ids the legend answers nothing, and that
-  is a stated trade rather than a residue of it.** A degraded term resolves by
-  the name inside it (§3 step 3), so an object that sat on two same-named
-  options lands on the target's one option twice — precisely what the plain
-  name did before the rule — and an unresolvable term hands the wiring that
-  name to create rather than the term. The price is an option whose real name
-  has the `<name> (<six characters>)` shape carried into a space that no longer
-  holds it: step 2 fails, step 3 strips, and the value merges onto the stem
-  instead of being created. Measured at out-57f4add: of the 2,490 options in
-  the corpus's 79 property dictionaries, ONE name has the shape at all
-  (`Other (logseq)`), no option of its property is named its stem, and none of
-  the corpus's 3,591 select-format values has the shape. Under `OmitIds` the
-  question does not arise: no legend, no degraded term (§9).
 - Scalar-stored select/objects/files property values become single-element
   lists (§3).
 - Object types reduced to the positions §2 models — one type, plus, on a

@@ -58,52 +58,6 @@ original order.
   states the no-resolver case exactly: the stored IDS pass through verbatim,
   while a bare key still crosses as `type-<key>` and comes back that key.
 
-- **A degraded option term resolves by the name inside it, and is not written
-  where no legend can answer for it** (SPEC §2, §3, §9, §9a, §11,
-  `object.schema.json`, `resolveOption`, `planOptionTerms`). Where two options
-  of one property claim one name, §3 writes `<name> (<tail6>)` for every
-  claimant and the legend maps each term to an id. The term is a key into that
-  legend, not a name — and both halves of that sentence were unimplemented.
-
-  **Reading.** §3's resolution chain ran name resolution on the term exactly
-  as written, and no space is named a term, so step 2 missed every time and
-  step 3 handed the wiring a synthetic name to create. That is the case option
-  values are spelled by name FOR — §3: "a bundle carries no option objects" —
-  so the install the whole naming rule exists to serve is the one it broke.
-  Measured on a two-option pool, exporting from the source space and reading
-  into a space that holds one real `books`: before, `["books","books"]` came
-  back as that one option twice; after the degrade, `0` real options matched
-  and `books (yfirst)` and `books (second)` were minted. Resolution now asks
-  step 2's question again about the name inside the term, and hands back that
-  name rather than the term where nothing answers — so a cross-space install
-  gets exactly the pre-legend outcome, and never a synthetic option. The strip
-  is asked AFTER the exact term and only with a resolver wired: an option a
-  space really does name `Other (logseq)` is found under its own name, and a
-  reader with no space to ask changes nothing.
-
-  **Writing.** `OmitIds` drops the legend (§9) but did not drop the degrade,
-  so an id-less document carried terms nothing in it could answer:
-  `["books (second)","books (yfirst)"]` reimported as those same two junk
-  names where the plain names had reimported onto a real option. The plan is
-  now gated on the legend it exists to serve, which also restores the flag's
-  round-trip fixpoint — the hostile-corpus invariant
-  (`TestInvariant_MarshalOutputValidates/omitIds`) fails without the gate.
-
-  **Four published statements were false for a degraded term** and are
-  rewritten together, once: §3's "the inner key the option NAME exactly as the
-  value spells it", §3's step 2 ("as before") and step 3 ("creating the
-  missing option is the wiring's job"), §2's `option_ids` row and the
-  published schema's `option_ids.description` ("otherwise the name resolves as
-  it would without the legend"). §11 now states the trade, which nothing did:
-  a cross-space install resolves both terms to one option, and the residue is
-  an option whose real name has the `<name> (<six characters>)` shape carried
-  into a space that no longer holds it, which merges onto its stem. Corpus at
-  out-57f4add, re-derived: of 2,490 options in 79 property dictionaries ONE
-  name has the shape (`Other (logseq)`), no option of its property is named
-  its stem, and none of the 3,591 select-format values in the corpus has it.
-  All 24,905 documents re-export byte-identically and all 79 bundles validate
-  identically before and after.
-
 - **The avoid-set on a degraded option term is the PROPERTY's options, not
   the ones one document censuses** (SPEC §3, `planOptionTerms`). Where two
   options of one property claim one name, every claimant is written
