@@ -3123,11 +3123,7 @@ separate them.
    minted term always reconstructs, by construction. A name reconstructs only
    by coinciding with an id its writer never saw. The step is asked HERE and
    not before step 2, so an option a space really does name `Other (logseq)`
-   is found under its own name even where a legend would certify the split —
-   and so is an option a space named `books (yfirst)` because an EARLIER
-   install of this same document created it there, back when the term was
-   what a reader handed the wiring. Re-installing must land on that option,
-   not move the object to the space's plain `books`.
+   is found under its own name even where a legend would certify the split.
 4. **The value unchanged** — the stem where step 3 recognized one, the term
    otherwise. Creating the missing option is the wiring's job, and what it is
    handed to create is a name: the stem for a term the legend certified, and
