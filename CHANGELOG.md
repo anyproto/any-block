@@ -35,57 +35,6 @@ original order.
   both, and the pre-fix run of the first reported "§13 said OptionId is the
   import half; export has asked it since the avoid-set widened".
 
-- **A degraded option term is recognised by the legend that files it, not by
-  its shape** (SPEC §2, §3, §9a, §11, PRINCIPLES rule 6,
-  `object.schema.json`, `resolveOption`, `optionTermStem`). The previous
-  entry gave §3's step 3 an unconditional split: on a legend miss and an
-  exact-name miss, strip a trailing ` (` + six characters + `)` and resolve
-  the stem. It justified that with a published sentence — "none of the
-  corpus's 3,591 select-format values has the shape" — and the sentence is
-  false.
-
-  **The measurement, re-derived at out-57f4add.** `Other (logseq)` is a real
-  option of the real `multi_select` property `Software used` in bundle
-  `bafyreigryvrmerbtfsw…`, sitting beside a real `Other (workflowy)`. **2 of
-  the corpus's 22 378 select/multi_select values are that name**, one of them
-  in the same list as `Other (workflowy)` — so a document carries `Other`
-  next to `Other (workflowy)` after the split, and nothing about the strings
-  chose which. The denominator is values, one per string in a property slot
-  whose dictionary entry states `select` or `multi_select`, over all 24 905
-  documents; 3,591 is reproduced by no denominator tried (values 22 378,
-  select-only 5 524, slots 18 898, distinct values 1 190, legend entries
-  22 086, values under any option-bearing property 24 449).
-
-  **What the split did to that name**, both worktrees, the two corpus
-  documents that carry it, read into synthetic target vocabularies:
-
-  | target space | before (e13dd99) | with the split (686e335) |
-  | --- | --- | --- |
-  | holds an option named `Other` | `Other (logseq)` | `t-other` |
-  | holds neither | `Other (logseq)` | `Other` |
-
-  The first binds the object to an option it was never on — the exact fault
-  §3's collision rule exists to prevent, re-introduced one section away. The
-  second is a silent rename of a tag. Both are invisible in the result.
-
-  **The rule now.** A term is written only where the legend is, and rung (b)
-  mints it AS the name plus the last six characters OF THE ID the legend
-  files it under. Step 3 therefore asks the document rather than the string:
-  split only where the entry exists and `<name> (<that id's last six
-  characters>)` reconstructs the term character for character. A minted term
-  always reconstructs, by construction; a name reconstructs only by coinciding
-  with an id its writer never saw. The cross-space install the previous entry
-  fixed is untouched — `books (yfirst)` and `books (second)` still land on the
-  target's one `books` — and 0 of the corpus's 22 086 legend entries
-  reconstruct, those two `Other (logseq)` entries included: the id beside them
-  ends `ozqe2u`. All 24 905 documents round-trip to a byte-identical digest
-  before and after.
-
-  §3's step 3 and step 4, §2's `option_ids` row, §9a's hint bullet, the
-  published schema's description and PRINCIPLES rule 6's accepted-loss list
-  each said the split was on shape and now say what it is on. §11 carries the
-  re-derived figures with their denominator in place of the false one.
-
 - **§11 stops restating the verbatim rule §2d retired, and the two sections
   cite ONE measured population** (SPEC §2d, §11). Commit a97ce35 replaced
   §2d's "passes through **verbatim in both directions**" with the three steps
@@ -149,19 +98,13 @@ original order.
   a cross-space install resolves both terms to one option, and the residue is
   an option whose real name has the `<name> (<six characters>)` shape carried
   into a space that no longer holds it, which merges onto its stem. Corpus at
-  out-57f4add: of 2,490 options in 79 property dictionaries ONE name has the
-  shape (`Other (logseq)`) and no option of its property is named its stem.
+  out-57f4add, re-derived: of 2,490 options in 79 property dictionaries ONE
+  name has the shape (`Other (logseq)`), no option of its property is named
+  its stem, and none of the 3,591 select-format values in the corpus has it.
   All 24,905 documents re-export byte-identically and all 79 bundles validate
   identically before and after. PRINCIPLES' list of accepted losses, which
   promises to be complete, gains the half it was missing: what a reader in
   another space pays, beside what a name-only writer does.
-
-  **Superseded by the entry above it.** This entry also claimed "none of the
-  3,591 select-format values in the corpus has it". Both halves were wrong —
-  two values have the shape, and no denominator at out-57f4add yields 3,591 —
-  and the residue the paragraph calls acceptable is a live-data regression,
-  not a residue. The strip is keyed on the legend now rather than on the
-  shape; the reading and writing faults this entry fixed stand.
 
 - **The avoid-set on a degraded option term is the PROPERTY's options, not
   the ones one document censuses** (SPEC §3, `planOptionTerms`). Where two

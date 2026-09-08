@@ -263,18 +263,6 @@ legend is live there, so each suffixed term falls back to the name inside it
 and both land on that space's one option of that name, which is exactly what
 the plain name did before the legend (§3, §11).
 
-That second loss is bounded by the legend rather than by the suffix's shape,
-and the bound is itself a listed cost. `<name> (<six characters>)` is a shape
-a person may have named an option — the measured corpus holds one who did —
-so a reader falls back to the name inside a term only where the legend entry
-files it under an id the term reconstructs from, which is how the writing
-side mints one. A real name of that shape is therefore never merged onto its
-stem; the price is the other direction, and it is paid once: a term whose
-entry was dropped is read as the name it looks like, and the only way to drop
-an entry is to write no legend at all — `OmitIds`, which degrades no term
-either (§9). Nothing else in the format is allowed to guess which a string
-is.
-
 ### 7. A document stands alone
 
 **One exported object is understandable and re-importable without the space
