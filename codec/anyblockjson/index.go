@@ -278,15 +278,22 @@ type Widget struct {
 	Properties []string `json:"properties"`
 }
 
-// Manifest says where to find what a reader must resolve by key rather than
-// by walking (§2c): the format defines no folder layout, and an object names
-// its type by spelling alone, so without one a reader resolves a type by
-// scanning every document for a matching key. Types are keyed by STORED type
-// key — the spelling that survives a rename — and Properties points at the
-// dictionary (§2f), which answers for stored property keys the same way.
-// Paths are relative to the index file.
+// Manifest says where to find what a reader cannot reach by walking the
+// documents (§2c): the property dictionary, and the bytes behind each file
+// document. Paths are relative to the index file.
 //
-// It does NOT locate options, and since §15 #21 there is nothing to locate:
+// It does NOT locate types, since §15 #26: a type document is found by its
+// id like every other document, and under the derived-id rule (§9) that id
+// IS the stored key — `type-<internal_key>` — so a spelling→path table was a
+// second, legend-less statement of one binding, and a legend-less spelling
+// surface cannot be read back: a legacy `chat` type wrote `"chat"`, the
+// reader's fold bound it to the bundled `chatDerived`, MarshalIndex refused
+// the binding, and a real export died with its documents on disk and no
+// index.json. The reader that used to need the table — object → `type`
+// spelling → stored key → path — now reads the object's own
+// `type_internal_key` and opens `type-<key>`.
+//
+// It does NOT locate options either, and since §15 #21 there is nothing to locate:
 // a bundle carries no option documents at all. The map went first, on its
 // own reasoning — a manifest exists to answer a lookup a reader would
 // otherwise have to scan for, and no reader has that lookup for an option,
@@ -308,26 +315,47 @@ type Widget struct {
 // editable relation on the document itself. A document member is not a slot
 // for archive bookkeeping; the manifest's whole charter is "where to find
 // what a reader must resolve by id rather than by walking", and blobs are
-// exactly that. Keys are object ids verbatim, so — unlike Types — they take
-// no re-spelling on either side. Adjacency of blob and document in `files/`
-// is one exporter's layout convention riding on top; the map is the only
-// binding a reader may rely on (§2c).
+// exactly that. Keys are object ids verbatim and take no re-spelling on
+// either side. Adjacency of blob and document in `files/` is one exporter's
+// layout convention riding on top; the map is the only binding a reader may
+// rely on (§2c).
 type Manifest struct {
-	Types      map[string]string `json:"types"`
-	Properties string            `json:"properties"`
-	Files      map[string]string `json:"files"`
+	Properties string `json:"properties"`
+	// Files binds a file document's id to its blob's path, and has THREE
+	// states, not two. A populated map is the binding. A nil map states
+	// nothing, which SPEC §2c reads as a metadata-only export: the mode
+	// inferred, and also what an authored bundle and every exporter written
+	// before the map existed produce. A non-nil EMPTY map is the export
+	// saying it — this run enumerated its file documents and carried the
+	// bytes of none of them.
+	//
+	// The third state exists because the second could not be trusted. The
+	// audited space has 666 file documents and no blobs at all, 68 of the
+	// corpus's 79 bundles are in the same state, and a reader meeting one of
+	// them cannot tell an export that chose the mode from one whose manifest
+	// never got written — the absence spells both. It is the writer's job to
+	// say which, and only the writer can: nothing downstream can recover the
+	// intent.
+	Files map[string]string `json:"files"`
 }
 
-// empty reports whether the manifest locates nothing — the shape setNonEmpty
-// cannot judge for a struct.
+// empty reports whether the manifest is worth writing — the shape
+// setNonEmpty cannot judge for a struct.
+//
+// It asks whether the manifest SAYS anything, which is not the same as
+// whether it locates anything: a non-nil empty `files` locates nothing and
+// states the file mode, so a manifest holding only that is written. The
+// question used to be `len(m.Files) == 0`, and under it the enclosing
+// member dropped the statement before the inner one could make it.
 func (m *Manifest) empty() bool {
-	return m == nil || (len(m.Types) == 0 && m.Properties == "" && len(m.Files) == 0)
+	return m == nil || (m.Properties == "" && m.Files == nil)
 }
 
 // Index is a bundle's index.json (§2c).
 type Index struct {
 	Schema        string `json:"$schema"`
 	FormatVersion string `json:"formatVersion"`
+	NetworkId     string `json:"network_id"`
 	Name          string `json:"name"`
 	Description   string `json:"description"`
 	// Icon is the space's icon in the typed shape every icon in this format
@@ -343,12 +371,10 @@ type Index struct {
 	// author's. An image needs the image object and its file in the archive,
 	// which is why a generated bundle uses an emoji.
 	Icon *Icon `json:"icon"`
-	// Entrypoint is the object opened once, right after the space is created
-	// — the first thing a user ever sees. Distinct from Homepage, which is
-	// what opens on every later entry, and deliberately not the widget order:
-	// the wire format carries the entry point as widgets[0], but making
-	// authors express it by sorting a list means reordering the sidebar
-	// silently changes what opens.
+	// Entrypoint is the declared entry object, used by SpaceHomepage when
+	// Homepage is absent. The bundle install path uses SpaceHomepage on the
+	// first entry as well as later entries; legacy built-in archives instead
+	// take their one-time starting page from profile widget order (§2c).
 	Entrypoint string   `json:"entrypoint"`
 	Homepage   string   `json:"homepage"`
 	Widgets    []Widget `json:"widgets"`
@@ -366,17 +392,84 @@ type Index struct {
 	// without a folder convention (§2c). Optional: a bundle without one is
 	// walked the way every bundle was before it existed.
 	Manifest *Manifest `json:"manifest"`
+	// Unresolved is what this bundle NAMES and cannot answer for (§2c).
+	// Optional, and present only when there is something to report.
+	Unresolved *Unresolved `json:"unresolved"`
+}
+
+// Unresolved is the bundle's account of the names it uses and cannot
+// explain — the loss stated where the bundle is described, rather than left
+// for a reader to discover as silence.
+//
+// It exists because both losses reach a reader the same way: nothing
+// happens. A property key nothing defines used to resolve to no dictionary
+// row at all, and an index reference naming no document leads nowhere — in
+// both cases the reader's next question is "is this export incomplete, or
+// did I read it wrong?", and only the writer can answer. 238 undefined keys
+// in one audited 3,286-document space; its homepage and 16 of its 23 widget
+// targets name documents the bundle does not carry, and 61 of 79 measured
+// bundles carry at least one such reference.
+//
+// TWO LISTS, and each earns its place differently.
+//
+// Properties is a restatement, and deliberately so. The dictionary already
+// says it per key — `format: "unknown"` on the entry — but the question the
+// list answers is not "what is this key" (a key at a time, in another file)
+// but "did this export lose definitions, and how many": a set, and a
+// property of the export rather than of any key. index.json is where a
+// bundle is described as a whole, so it is where the SET belongs, and
+// answering it must not require opening and filtering a file of hundreds of
+// entries.
+//
+// Targets has no other home at all. Whether an id resolves is a
+// cross-document fact no single document holds, and the index is the only
+// file that names these ids. Stating them does NOT make them legal:
+// bundle.Validate still refuses a bundle whose index points at a document
+// it does not carry (§2c). What the statement buys is the distinction the
+// refusal cannot make — an export that KNEW what it could not carry, versus
+// one that shipped a dangling reference without noticing.
+//
+// ABSENCE IS NOT A COMPLETENESS CLAIM. What a writer checks here is
+// bounded — the index's own reference slots, and the keys the dictionary
+// could not define — so an index with no `unresolved` member says only that
+// it reports nothing, never that every reference in every document
+// resolves.
+type Unresolved struct {
+	// Properties are the stored property keys the bundle's documents
+	// reference and nothing could define, verbatim: a key nothing defines
+	// has no spelling but itself, and nothing may be derived from it (§2f).
+	// Sorted.
+	Properties []string `json:"properties"`
+	// Targets are the ids this index names that no document in the bundle
+	// carries — an entry point, a homepage, a widget target, an image icon.
+	// Spelled like every other reference in this file, the derived-id fold
+	// included (§9), so the report and the slot it reports on name the same
+	// thing. Sorted.
+	//
+	// A reserved listing (`_set`, `_widgets`) never appears: those name
+	// built-in screens, resolve everywhere, and are not the bundle's to
+	// carry. Nor does the auto-widget ledger's content: an entry there
+	// usually names a widget the user deleted, which is what the ledger is
+	// FOR, so a missing document is its normal state rather than a loss.
+	Targets []string `json:"targets"`
+}
+
+// empty reports whether the report says nothing — the shape setNonEmpty
+// cannot judge for a struct. An empty report is the absence of one: the
+// member is written only when a list has content, and both doors refuse the
+// empty object rather than let it read as a promise that everything
+// resolves.
+func (u *Unresolved) empty() bool {
+	return u == nil || (len(u.Properties) == 0 && len(u.Targets) == 0)
 }
 
 // EntryPoint returns the entry point the bundle *declares*: the entrypoint
 // field, or for a bundle written before it existed, the first widget naming an
 // object.
 //
-// TEMPORARY: this is intent, not behaviour. The wire's profile record has no
-// field for an entry point — the installer opens the first widget's target —
-// so until the profile handling grows one, what actually opens is
-// EffectiveEntryPoint. The two differ exactly when a bundle declares an
-// entrypoint that is not its first widget, which is worth reporting.
+// This does not choose the space homepage: SpaceHomepage gives an explicit
+// homepage precedence over this result. Nor does it reorder widgets. Legacy
+// built-in archives use profile widget order for one-time opening (§2c).
 func (i *Index) EntryPoint() string {
 	if i.Entrypoint != "" {
 		return i.Entrypoint
@@ -389,10 +482,11 @@ func (i *Index) EntryPoint() string {
 	return ""
 }
 
-// EffectiveEntryPoint returns what the installer opens *today*: the first
-// widget naming an object, which is all the wire's profile record can
-// express. Compare with EntryPoint to detect a declared entry point that
-// will not be honoured yet.
+// EffectiveEntryPoint returns the first widget naming an object, skipping
+// reserved listings. Compare with EntryPoint when checking compatibility
+// with legacy adapters that use widget order for one-time opening (§2c).
+// This is not the homepage selected on the bundle install path; use
+// SpaceHomepage for that.
 func (i *Index) EffectiveEntryPoint() string {
 	for _, w := range i.Widgets {
 		if !IsReservedWidgetTarget(w.Target) {
@@ -402,9 +496,60 @@ func (i *Index) EffectiveEntryPoint() string {
 	return ""
 }
 
-// SpaceHomepage returns what opens on entering the space: the declared
-// homepage, else the entry point. Only an explicit reserved value gives up a
-// real page — omitting homepage does not.
+// ReferencedObjectIds returns every OBJECT this index names, sorted and
+// without repeats, in the spelling MarshalIndex writes — the derived-id fold
+// included (§9), which is why it takes the same opts. These are the ids a
+// bundle must carry a document for, and the ones bundle.Validate refuses on:
+// the entry point, the homepage, every widget target, and an image icon.
+//
+// Nothing in the platform's `_` namespace is returned. A bundle-local object
+// id may never begin with `_` (§1), so a name in that namespace is never
+// something a bundle owes a document for: the six reserved listings and the
+// two reserved homepages resolve everywhere, and a TYPO in that namespace —
+// `_favourite` — is refused by name, with the inventory, where it is written
+// (platformNameIssues); reporting it as an id the bundle failed to carry
+// would point away from the repair.
+//
+// Nor is the auto-widget ledger's content — an entry there usually names a
+// widget the user DELETED, which is what the ledger is for, so a missing
+// document is its normal state rather than a dangling reference.
+//
+// It exists so the two callers that ask "does this index point at anything
+// the bundle does not carry" — the validator at read time, a composer at
+// write time — ask one list of slots rather than each keeping its own. A
+// second list is how a slot gets checked in one place and not the other.
+func (i *Index) ReferencedObjectIds(opts Options) []string {
+	if i == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	add := func(id string) {
+		if id == "" || IsPlatformId(id) {
+			return
+		}
+		ref := opts.foldRef(id)
+		if seen[ref] {
+			return
+		}
+		seen[ref] = true
+		out = append(out, ref)
+	}
+	add(i.Entrypoint)
+	add(i.Homepage)
+	for _, w := range i.Widgets {
+		add(w.Target)
+	}
+	add(i.IconImageId())
+	sort.Strings(out)
+	return out
+}
+
+// SpaceHomepage returns the explicit homepage, else the explicit entrypoint,
+// else the first widget naming an object (§2c). It returns an empty string
+// when none declares a destination; the installer then supplies its default
+// widgets dashboard. These are absence fallbacks, not reference resolution:
+// an explicit unresolved id is returned as-is for bundle validation to report.
 func (i *Index) SpaceHomepage() string {
 	if i.Homepage != "" {
 		return i.Homepage
@@ -479,14 +624,11 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 	if issues := platformNameIssues(doc); len(issues) > 0 {
 		return nil, &ValidationError{Issues: issues}
 	}
-	// The manifest's raw member names are authoritative canonical spellings.
-	// Check many-to-one collisions first so an alias set keeps the more useful
-	// collision diagnosis, then check singleton canonicality before decoding
-	// erases the raw terms by re-keying them to stored identities.
-	if issues := manifestTypeKeyCollisionIssues(doc); len(issues) > 0 {
-		return nil, &ValidationError{Issues: issues}
-	}
-	if issues := manifestTypeKeyCanonicalityIssues(doc); len(issues) > 0 {
+	// The retired type table is refused with the repair named, ahead of the
+	// schema, whose closed manifest would only say "not allowed" (§10, §15
+	// #26) — the `refs` rule: an index written by an older exporter carries
+	// it, and the obvious wrong repair is to keep resolving types through it.
+	if issues := manifestTypesRetiredIssues(doc); len(issues) > 0 {
 		return nil, &ValidationError{Issues: issues}
 	}
 	// the typed icon's discriminator, worded the same way it is on an object
@@ -516,13 +658,6 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 	if migrated {
 		idx.FormatVersion = FormatVersion
 	}
-	// the manifest's type keys arrive in the format's spelling and are held
-	// as STORED keys, the way the dictionary holds its property keys: the
-	// wire says "Chat", the codec says `chatDerived`, and a caller
-	// looking a type up by stored key finds it (§2c).
-	if idx.Manifest != nil {
-		idx.Manifest.Types = mapStringKeys(idx.Manifest.Types, StoredTypeKey)
-	}
 	// a widget's shown properties follow the same rule: spelled on the wire,
 	// held as STORED keys, resolved by the chain every key slot uses. An
 	// ambiguous spelling stays verbatim — the index is display state, and
@@ -532,43 +667,49 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 			stored, _ := dictionaryStoredKey(s)
 			return stored
 		})
+		idx.Widgets[i].Target = opts.unfoldRef(idx.Widgets[i].Target)
+	}
+	// the index's reference slots rebuild through the same derived-id
+	// unfold a document's do (§9), against the space opts names
+	idx.Entrypoint = opts.unfoldRef(idx.Entrypoint)
+	idx.Homepage = opts.unfoldRef(idx.Homepage)
+	idx.AutoWidgetTargets = mapStrings(idx.AutoWidgetTargets, opts.unfoldRef)
+	if idx.Unresolved != nil {
+		idx.Unresolved.Targets = mapStrings(idx.Unresolved.Targets, opts.unfoldRef)
+	}
+	if idx.Icon != nil && idx.Icon.File != "" {
+		idx.Icon.File = opts.unfoldRef(idx.Icon.File)
 	}
 	return &idx, nil
 }
 
-// manifestTypeKeyCanonicalityIssues checks the raw manifest terms while they
-// still exist. Once decoding maps them through StoredTypeKey, `Task`, `task`
-// and `TASK` are indistinguishable and bundle validation cannot enforce the
-// manifest's one-canonical-spelling lookup contract.
-func manifestTypeKeyCanonicalityIssues(doc map[string]any) []Issue {
+// foldedIcon is the index icon with its file reference folded (§9), on a
+// copy — the caller's Index is not this function's to rewrite.
+func foldedIcon(ic *Icon, opts Options) *Icon {
+	if ic == nil || ic.File == "" {
+		return ic
+	}
+	folded := *ic
+	folded.File = opts.foldRef(ic.File)
+	return &folded
+}
+
+// manifestTypesRetiredIssues refuses the manifest's retired `types` table
+// (§15 #26) with the repair named: a type document is found by its id,
+// `type-<internal_key>`, and every object states that key outright in
+// `type_internal_key` — the table answered a lookup no reader has any more.
+func manifestTypesRetiredIssues(doc map[string]any) []Issue {
 	manifest, _ := doc["manifest"].(map[string]any)
-	types, _ := manifest["types"].(map[string]any)
-	terms := make([]string, 0, len(types))
-	for term := range types {
-		terms = append(terms, term)
+	if _, has := manifest["types"]; !has {
+		return nil
 	}
-	sort.Strings(terms)
-	var issues []Issue
-	for _, term := range terms {
-		issuePath := "/manifest/types/" + escapeJSONPointer(term)
-		if strings.TrimSpace(term) == "" {
-			issues = append(issues, Issue{
-				Path:    issuePath,
-				Message: "manifest type key must contain a non-whitespace canonical spelling",
-			})
-			continue
-		}
-		stored := StoredTypeKey(term)
-		canonical := TypeKeySpelling(stored)
-		if term != canonical {
-			issues = append(issues, Issue{
-				Path: issuePath,
-				Message: fmt.Sprintf("manifest type key %q resolves to stored key %q; use its canonical spelling %q",
-					term, stored, canonical),
-			})
-		}
-	}
-	return issues
+	return []Issue{{
+		Path: "/manifest/types",
+		Message: `manifest "types" is not allowed — the type table was removed (§2c, §15 #26): a type document ` +
+			`is found by its id, which is its stored key spelled type-<internal_key>, and every object states ` +
+			`that key in type_internal_key. This index was written by an older exporter; drop "types" — nothing ` +
+			`resolves through it any more`,
+	}}
 }
 
 // indexWidgetPropertyCollisionIssues refuses distinct raw spellings in one
@@ -601,39 +742,6 @@ func indexWidgetPropertyCollisionIssues(doc map[string]any) []Issue {
 			}
 			firstByStored[stored] = claimant{spelling: spelling, index: propertyIndex}
 		}
-	}
-	return issues
-}
-
-// manifestTypeKeyCollisionIssues refuses two manifest spellings that resolve
-// to one stored type key. Re-keying such a map would otherwise choose a
-// survivor by Go map iteration order, changing the authoritative lookup from
-// run to run. Raw spellings are sorted so both the named first claimant and
-// the issue order are deterministic.
-func manifestTypeKeyCollisionIssues(doc map[string]any) []Issue {
-	manifest, _ := doc["manifest"].(map[string]any)
-	types, _ := manifest["types"].(map[string]any)
-	if len(types) < 2 {
-		return nil
-	}
-	terms := make([]string, 0, len(types))
-	for term := range types {
-		terms = append(terms, term)
-	}
-	sort.Strings(terms)
-	firstByStored := make(map[string]string, len(terms))
-	var issues []Issue
-	for _, term := range terms {
-		stored := StoredTypeKey(term)
-		if first, exists := firstByStored[stored]; exists {
-			issues = append(issues, Issue{
-				Path: "/manifest/types/" + escapeJSONPointer(term),
-				Message: fmt.Sprintf("type key spellings %q and %q both resolve to stored key %q; "+
-					"keep one authoritative manifest binding", first, term, stored),
-			})
-			continue
-		}
-		firstByStored[stored] = term
 	}
 	return issues
 }
@@ -729,80 +837,6 @@ func (i *Index) IconImageId() string {
 	return i.Icon.File
 }
 
-// mapStringKeys re-spells a map after the reader has already rejected
-// effective-key collisions. It is the decode-side half of the manifest
-// transform; reKeyed below is deliberately stricter because a writer has to
-// prove that its output will decode back to the source identities.
-func mapStringKeys(in map[string]string, spell func(string) string) map[string]string {
-	if len(in) == 0 {
-		return in
-	}
-	out := make(map[string]string, len(in))
-	for k, v := range in {
-		out[spell(k)] = v
-	}
-	return out
-}
-
-// reKeyed renders a stored-key map into wire spellings only when the mapping
-// is closed under the reader's inverse. Source keys are sorted before either
-// collision selection or diagnostics, so a malformed caller map cannot make
-// MarshalIndex's result depend on Go map iteration order.
-//
-// Empty paths are ignored here because the canonical manifest omits them;
-// they make no binding and therefore cannot collide with one that is written.
-func reKeyed(in map[string]string, sourcePath string, spell, read func(string) string) (map[string]string, error) {
-	type binding struct {
-		source    string
-		wire      string
-		effective string
-		path      string
-	}
-
-	bindings := make([]binding, 0, len(in))
-	for _, source := range sortedStringKeys(in) {
-		if in[source] == "" {
-			continue
-		}
-		wire := spell(source)
-		bindings = append(bindings, binding{
-			source:    source,
-			wire:      wire,
-			effective: read(wire),
-			path:      sourcePath + "/" + escapeJSONPointer(source),
-		})
-	}
-
-	firstByEffective := make(map[string]binding, len(bindings))
-	for _, current := range bindings {
-		if first, exists := firstByEffective[current.effective]; exists {
-			return nil, &ValidationError{Issues: []Issue{{
-				Path: current.path,
-				Message: fmt.Sprintf("source type keys %q and %q write as %q and %q, and both read as stored key %q; "+
-					"keep one authoritative manifest binding", first.source, current.source,
-					first.wire, current.wire, current.effective),
-			}}}
-		}
-		firstByEffective[current.effective] = current
-	}
-	for _, current := range bindings {
-		if current.effective != current.source {
-			return nil, &ValidationError{Issues: []Issue{{
-				Path: current.path,
-				Message: fmt.Sprintf("source type key %q writes as %q, which reads as stored key %q; "+
-					"the index cannot preserve this manifest binding", current.source,
-					current.wire, current.effective),
-			}}}
-		}
-	}
-
-	out := make(map[string]string, len(bindings))
-	for _, current := range bindings {
-		out[current.wire] = in[current.source]
-	}
-	return out, nil
-}
-
 // indexWidgetPropertyBinding is the shared write/read identity predicate for
 // both widget-document lifting and direct Index marshaling. The index carries
 // no property legend, so a stored key is representable only when the reader
@@ -813,19 +847,26 @@ func indexWidgetPropertyBinding(stored string) (wire, effective string, fixed bo
 	return wire, effective, isWritablePropertyKey(stored) && effective == stored
 }
 
-// MarshalIndex renders an index in the canonical byte form (§4).
-func MarshalIndex(idx *Index) ([]byte, error) {
+// MarshalIndex renders an index in the canonical byte form (§4). opts arms
+// the derived-id fold on the index's own reference slots — `entrypoint`,
+// `homepage`, every widget target, the auto-widget ledger and the icon's
+// file — exactly as Marshal arms it on a document's (§9): the index is
+// written by the same run, so its references must spell what the documents
+// spell, or a widget targeting a type would name an id no document in the
+// bundle carries.
+func MarshalIndex(idx *Index, opts Options) ([]byte, error) {
 	if idx == nil {
 		return nil, fmt.Errorf("nil index")
 	}
 	doc := &omap{}
 	doc.set("$schema", IndexSchemaURL)
 	doc.set("formatVersion", FormatVersion)
+	doc.setNonEmpty("network_id", idx.NetworkId)
 	doc.setNonEmpty("name", idx.Name)
 	doc.setNonEmpty("description", idx.Description)
-	doc.setNonEmpty("icon", indexIconOmap(idx.Icon))
-	doc.setNonEmpty("entrypoint", idx.Entrypoint)
-	doc.setNonEmpty("homepage", idx.Homepage)
+	doc.setNonEmpty("icon", indexIconOmap(foldedIcon(idx.Icon, opts)))
+	doc.setNonEmpty("entrypoint", opts.foldRef(idx.Entrypoint))
+	doc.setNonEmpty("homepage", opts.foldRef(idx.Homepage))
 
 	var widgets []any
 	for _, w := range idx.Widgets {
@@ -846,7 +887,7 @@ func MarshalIndex(idx *Index) ([]byte, error) {
 			propertySpellings[propertyIndex] = wire
 		}
 		wm := &omap{}
-		wm.set("target", w.Target)
+		wm.set("target", opts.foldRef(w.Target))
 		// the §4 omit-empty canon, member by member: `link` is the wrapper's
 		// default layout, and the three link display defaults are the same
 		// ones the link BLOCK omits (§5) — `text`, `none`, `none`
@@ -871,28 +912,44 @@ func MarshalIndex(idx *Index) ([]byte, error) {
 		widgets = append(widgets, wm)
 	}
 	doc.setNonEmpty("widgets", widgets)
-	doc.setNonEmpty("auto_widget_targets", stringsToAny(idx.AutoWidgetTargets))
+	doc.setNonEmpty("auto_widget_targets", stringsToAny(mapStrings(idx.AutoWidgetTargets, opts.foldRef)))
 	doc.setNonEmpty("auto_widget_disabled", idx.AutoWidgetDisabled)
 	if !idx.Manifest.empty() {
 		m := &omap{}
-		// the manifest keys types the way the dictionary keys properties and
-		// the way a type document spells a target type: one spelling per
-		// concept (§2c, §2f). It carried `chatDerived`, `objectType`,
-		// `relationOption` and `spaceView` — 308 camelCase keys across 77
-		// bundles — while the documents beside it said `chat_derived`.
-		types, err := reKeyed(idx.Manifest.Types, "/manifest/types", TypeKeySpelling, StoredTypeKey)
-		if err != nil {
-			return nil, err
-		}
-		m.setNonEmpty("types", sortedStringOmap(types))
 		m.setNonEmpty("properties", idx.Manifest.Properties)
 		// file blob bindings are keyed by object id VERBATIM (§2c): an id is
-		// its own spelling, so unlike `types` there is nothing to re-key —
-		// only the canonical sort
-		m.setNonEmpty("files", sortedStringOmap(idx.Manifest.Files))
+		// its own spelling, so there is nothing to re-key — only the
+		// canonical sort. An empty map is written as `{}` rather than
+		// omitted: it is the export STATING that no blob travelled
+		// (Manifest.Files), and §4's omit-empty canon governs a member with
+		// nothing to say, not one whose emptiness is the thing said.
+		if idx.Manifest.Files != nil && len(idx.Manifest.Files) == 0 {
+			m.set("files", &omap{})
+		} else {
+			m.setNonEmpty("files", sortedStringOmap(idx.Manifest.Files))
+		}
 		doc.setNonEmpty("manifest", m)
 	}
+	// what the bundle names and cannot answer for (§2c). Sorted here, like
+	// every list this file writes, and the targets folded like every other
+	// reference — a report that spelled a type one way while the widget
+	// targeting it spelled it another would name two different things.
+	if !idx.Unresolved.empty() {
+		u := &omap{}
+		u.setNonEmpty("properties", stringsToAny(sortedCopy(idx.Unresolved.Properties)))
+		u.setNonEmpty("targets", stringsToAny(sortedCopy(mapStrings(idx.Unresolved.Targets, opts.foldRef))))
+		doc.set("unresolved", u)
+	}
 	return marshalCanonical(doc)
+}
+
+// sortedCopy returns the strings in canonical order without touching the
+// caller's slice — MarshalIndex is a renderer, and a renderer that reorders
+// its input has edited it.
+func sortedCopy(in []string) []string {
+	out := append([]string(nil), in...)
+	sort.Strings(out)
+	return out
 }
 
 // sortedStringOmap renders a string map with sorted keys — the canonical

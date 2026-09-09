@@ -25,7 +25,7 @@ func TestComposerWidgetOnlyLiftProducesBothArtifacts(t *testing.T) {
 	}}
 
 	build := func(t *testing.T) ([]byte, []byte) {
-		c := NewComposer(anyblockjson.Options{ResolveProperties: resolver}, "Fallback")
+		c := newComposer(t, anyblockjson.Options{ResolveProperties: resolver}, "Fallback")
 		widget, err := anyblockjson.WidgetsSnapshot(&anyblockjson.Index{Widgets: []anyblockjson.Widget{{
 			Target: "_all_objects", Properties: []string{key},
 		}}})
@@ -40,7 +40,6 @@ func TestComposerWidgetOnlyLiftProducesBothArtifacts(t *testing.T) {
 		require.NotEmpty(t, properties)
 		assert.Equal(t, 1, stats.OmittedDocs)
 		assert.Equal(t, 1, stats.DictionaryEntries)
-		assert.Zero(t, stats.ManifestTypes)
 
 		idx, err := anyblockjson.UnmarshalIndex(index, anyblockjson.Options{})
 		require.NoError(t, err)
@@ -77,7 +76,7 @@ func TestComposerWidgetOnlyLiftProducesBothArtifacts(t *testing.T) {
 }
 
 func TestComposerSpaceOnlyLiftProducesBothArtifacts(t *testing.T) {
-	c := NewComposer(anyblockjson.Options{}, "Fallback")
+	c := newComposer(t, anyblockjson.Options{}, "Fallback")
 	space := testSpaceSnapshot()
 	delete(space.Details.Fields, "homepage")
 	omitted, issues := c.Observe(model.SmartBlockType_Workspace, space)
@@ -98,7 +97,6 @@ func TestComposerSpaceOnlyLiftProducesBothArtifacts(t *testing.T) {
 
 	dict, err := anyblockjson.UnmarshalPropertyDictionary(properties, anyblockjson.Options{})
 	require.NoError(t, err)
-	assert.Empty(t, dict.Installed)
 	assert.Empty(t, dict.Properties)
 	require.NoError(t, Validate(fstest.MapFS{
 		anyblockjson.IndexFileName:      {Data: index},
@@ -112,7 +110,7 @@ func TestComposerDoesNotLiftWidgetPropertyAliases(t *testing.T) {
 		{"due_date"},
 		{"dueDate", "Due date"},
 	} {
-		c := NewComposer(anyblockjson.Options{}, "Fallback")
+		c := newComposer(t, anyblockjson.Options{}, "Fallback")
 		widget, err := anyblockjson.WidgetsSnapshot(&anyblockjson.Index{Widgets: []anyblockjson.Widget{{
 			Target: widgetTargetObjectID, Properties: properties,
 		}}})

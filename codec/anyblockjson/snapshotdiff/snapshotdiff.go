@@ -122,10 +122,15 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 	var out []string
 
 	out = append(out, compareObjectTypes(orig, got, sbType)...)
+	if opts.IncludeFileRemote && (sbType == model.SmartBlockType_FileObject || sbType == model.SmartBlockType_File) {
+		out = append(out, compareFileRemote(orig, got)...)
+	}
 
 	// the §2f omission: a bundled-identical relation document is not written
-	// at all — its key travels in the dictionary's `installed` list and a
-	// reader reconstructs it from the bundled table. Across that trip the
+	// at all — it travels as a dictionary entry stating its definition,
+	// complete and equal to the table's, when something references it, and
+	// a reader that ships the table may reconstruct it from there instead
+	// (§15 #25). Across that trip the
 	// install artifacts (createdDate, origin, apiObjectKey, …) come back
 	// absent, re-stamped by the next install, and a definition member the
 	// copy never stored comes back as its explicit empty default. Both skips
@@ -144,6 +149,23 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 	// the export wiring, the drift that once produced 1,344 false failures
 	// in one sweep.
 	widgetOmitted := anyblockjson.OmittedWidgetObject(sbType, orig)
+
+	// a definition member the FORMAT fixes (§2a, §15 #25) — relationMaxCount
+	// on a single-valued format, relationFormatIncludeTime off a date — is
+	// not a difference on any relation snapshot, in any direction: no entry
+	// carries it, a reader assumes the format's answer, and the identity
+	// predicate reads past it, so a copy the predicate admits with
+	// `relationMaxCount: 0` on a date must not then be reported against the
+	// table's 1. Scoped to relation snapshots (every one travels as an
+	// entry, §15 #23) and owned by the same predicate the renderer and the
+	// identity check read, the InstallStampedDefault discipline extended.
+	formatFixed := func(k string) bool {
+		if !anyblockjson.OmittedRelation(sbType, orig) {
+			return false
+		}
+		format, ok := relationFormatOf(orig, got)
+		return ok && anyblockjson.FormatFixedDefinitionMember(format, k)
+	}
 
 	if orig.Details != nil {
 		gotFields := map[string]*types.Value{}
@@ -209,6 +231,16 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 			if gotFields[k] == nil && omittable && anyblockjson.RelationInstallArtifactKey(k) {
 				continue
 			}
+			// the reinstall stamp on an omitted relation document (§2f,
+			// §15 #22): `isUninstalled` stored FALSE comes back absent,
+			// which every consumer of the key reads the same way. A TRUE
+			// flag is not skipped — it travels as the entry's `uninstalled`
+			// and the reconstruction restates it, so it compares as
+			// ordinary state. Same scoping, same ownership of the
+			// predicate.
+			if gotFields[k] == nil && omittable && anyblockjson.OmittedUninstallStamp(k, orig.Details.Fields[k]) {
+				continue
+			}
 			// an omitted widget document's residual keys (§2c): the two
 			// object timestamps, and a name that was EMPTY — a non-empty
 			// name keeps the whole document, so within the omitted scope it
@@ -217,6 +249,9 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 			// auto-widget ledger) is rebuilt by WidgetsSnapshot and compares
 			// as ordinary detail and block state.
 			if gotFields[k] == nil && widgetOmitted && anyblockjson.WidgetObjectResidualKey(k, orig.Details.Fields[k]) {
+				continue
+			}
+			if formatFixed(k) {
 				continue
 			}
 			if !detailEqual(k, orig.Details.Fields[k], gotFields[k], opts) {
@@ -256,6 +291,12 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 			if omittable && anyblockjson.InstallStampedDefault(k, got.Details.Fields[k]) {
 				continue
 			}
+			// and a member the format fixes, which the table's
+			// reconstruction states in full — `relationMaxCount: 1` on a
+			// date — against a copy that never stored it
+			if formatFixed(k) {
+				continue
+			}
 			out = append(out, fmt.Sprintf("detail %q added: %s", k, valuePreview(got.Details.Fields[k])))
 		}
 	}
@@ -274,6 +315,20 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 	return out
 }
 
+// relationFormatOf reads a relation snapshot's stored format, from the
+// original first and the reconstruction second — the one member the
+// format-fixed skip turns on. A snapshot stating no readable format fixes
+// nothing, and every member then compares as ordinary state.
+func relationFormatOf(orig, got *model.SmartBlockSnapshotBase) (model.RelationFormat, bool) {
+	for _, base := range []*model.SmartBlockSnapshotBase{orig, got} {
+		v := base.GetDetails().GetFields()["relationFormat"]
+		if n, isNumber := v.GetKind().(*types.Value_NumberValue); isNumber {
+			return model.RelationFormat(int32(n.NumberValue)), true
+		}
+	}
+	return 0, false
+}
+
 // typeKeyIdPrefix is the "ot-" prefix an ObjectTypes entry carries.
 var typeKeyIdPrefix = domain.TypeKey("").URL()
 
@@ -281,7 +336,7 @@ var typeKeyIdPrefix = domain.TypeKey("").URL()
 // Compare used to be structurally blind to. It read only details and text, so
 // a 36 808-object production sweep could never have caught a type
 // substitution: every claim about type-key correctness rested on synthetic
-// tests alone. A rebinding is exactly the loss the `type_internal_keys` legend (§3)
+// tests alone. A rebinding is exactly the loss `type_internal_key` (§2, §3)
 // exists to prevent, and exactly what a sweep must be able to see.
 //
 // Equality is the wrong predicate here, because export normalizes the list

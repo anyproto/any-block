@@ -241,12 +241,12 @@ func TestAuthoringCustomTypeReferencesUseDeclaredDisplayName(t *testing.T) {
 		storedKey   = "habit_record_v2"
 	)
 	vocabulary := declaredAuthoringTypes(t, map[string][]byte{
-		"types/ritual.json": []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-ritual","internal_key":"habit_record_v2","properties":{"Name":"Café Ritual"},"type_settings":{"layout":"basic"}}`),
+		"types/ritual.json": []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-habit_record_v2","internal_key":"habit_record_v2","properties":{"Name":"Café Ritual"},"type_settings":{"layout":"basic"}}`),
 	})
 	resolver := &authoringPropertyResolver{}
 	opts := Options{Keys: vocabulary, ResolveProperties: resolver, GenerateId: seqIds("authoring")}
 
-	typeDocument := []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-ritual","internal_key":"habit_record_v2","properties":{"Name":"Café Ritual"},"type_settings":{"layout":"basic","property_definitions":[{"name":"Related ritual","format":"objects","object_types":["Café Ritual"]}]}}`)
+	typeDocument := []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-habit_record_v2","internal_key":"habit_record_v2","properties":{"Name":"Café Ritual"},"type_settings":{"layout":"basic","property_definitions":[{"name":"Related ritual","format":"objects","object_types":["Café Ritual"]}]}}`)
 	ordinary := []byte(`{"formatVersion":"2.0","id":"ritual-one","type":"Café Ritual"}`)
 	template := []byte(`{"formatVersion":"2.0","kind":"template","id":"template-ritual","type":"template","template_for":"Café Ritual"}`)
 	for name, data := range map[string][]byte{
@@ -270,8 +270,8 @@ func TestAuthoringCustomTypeReferencesUseDeclaredDisplayName(t *testing.T) {
 	typeCanonical, err := Marshal(typeKind, typeSnapshot, Options{Keys: vocabulary, ResolveProperties: resolver})
 	require.NoError(t, err)
 	require.Len(t, decodeEnvelope(t, typeCanonical).TypeProps(), 1)
-	assert.Equal(t, []string{displayName}, decodeEnvelope(t, typeCanonical).TypeProps()[0].ObjectTypes,
-		"object_types canonical output uses the display name")
+	assert.Equal(t, []string{TypeRefPrefix + storedKey}, decodeEnvelope(t, typeCanonical).TypeProps()[0].ObjectTypes,
+		"object_types canonical output is the derived id (§9)")
 
 	ordinaryKind, ordinarySnapshot, err := Unmarshal(ordinary, opts)
 	require.NoError(t, err)
@@ -285,7 +285,8 @@ func TestAuthoringCustomTypeReferencesUseDeclaredDisplayName(t *testing.T) {
 	assert.Equal(t, []string{"ot-template", "ot-" + storedKey}, templateSnapshot.GetObjectTypes())
 	templateCanonical, err := Marshal(templateKind, templateSnapshot, Options{Keys: vocabulary})
 	require.NoError(t, err)
-	assert.Equal(t, displayName, decodeEnvelope(t, templateCanonical).TemplateFor)
+	assert.Equal(t, TypeRefPrefix+storedKey, decodeEnvelope(t, templateCanonical).TemplateFor,
+		"template_for canonical output is the derived id (§9)")
 
 	legacy := []byte(`{"formatVersion":"2.0","id":"legacy-ritual","type":"habit_record_v2"}`)
 	legacyKind, legacySnapshot, err := Unmarshal(legacy, opts)
@@ -332,12 +333,12 @@ func TestAuthoringSubset_StructuralFixtures(t *testing.T) {
 				{"is_header": true, "cells": ["Name", "Status", "Note"]},
 				{"cells": ["Export", null, "spec"]},
 				{"cells": ["Short row"]}]}]}`,
-		"an inline set on a page": `{"formatVersion": "2.0", "id": "page-b", "blocks": [
+		"an inline collection on a page": `{"formatVersion": "2.0", "id": "page-b", "blocks": [
 			{"type": "dataview", "object_id": "coll-shelf", "is_collection": true,
 			 "properties": [{"property": "name", "format": "text"}],
 			 "views": [{"name": "Shelf"}]}]}`,
 		"a collection": `{"formatVersion": "2.0", "id": "coll-shelf", "type": "collection",
-			"items": ["page-a", "page-b"],
+			"collection_items": ["page-a", "page-b"],
 			"blocks": [{"type": "dataview", "is_collection": true,
 				"views": [{"type": "list", "name": "All"}]}]}`,
 		"a template": `{"formatVersion": "2.0", "kind": "template", "id": "tpl-habit",
@@ -345,7 +346,7 @@ func TestAuthoringSubset_StructuralFixtures(t *testing.T) {
 			"properties": {"name": "New habit"},
 			"blocks": [{"type": "paragraph", "text": "Why this habit matters:"}]}`,
 		"a type with the whole settings surface": `{"formatVersion": "2.0", "kind": "object_type",
-			"id": "type-r", "internal_key": "review",
+			"id": "type-review", "internal_key": "review",
 			"icon": {"format": "icon", "name": "book", "color": "teal"},
 			"properties": {"name": "Review", "description": "One review."},
 			"type_settings": {
@@ -670,8 +671,8 @@ func TestAuthoringSubset_IndexAndDictionaryEnumValues(t *testing.T) {
 			requireSubsetDictionary(t, `{"formatVersion": "2.0", "properties": [{"property": "p1", "format": "`+v+`"}]}`)
 		}
 	})
-	t.Run("installed and a name-identified entry", func(t *testing.T) {
-		requireSubsetDictionary(t, `{"formatVersion": "2.0", "installed": ["due_date", "tag"],
+	t.Run("a name-identified entry beside spelled ones", func(t *testing.T) {
+		requireSubsetDictionary(t, `{"formatVersion": "2.0",
 			"properties": [{"name": "Cooking Time", "format": "number"},
 				{"property": "owner", "format": "objects", "object_types": ["participant"],
 				 "description": "who runs it"},
@@ -692,7 +693,7 @@ func TestAuthoringSubset_RefusesBackupOnlySurfaces(t *testing.T) {
 		"the store escape hatch":     `{"formatVersion": "2.0", "store": {"k": 1}}`,
 		"the root escape hatch":      `{"formatVersion": "2.0", "root": {"background_color": "grey"}}`,
 		"the property legend":        `{"formatVersion": "2.0", "property_internal_keys": {"prio": "6a32d4856761631534b22f85"}}`,
-		"the type legend":            `{"formatVersion": "2.0", "type_internal_keys": {"task": "task"}}`,
+		"the type key":               `{"formatVersion": "2.0", "type": "Task", "type_internal_key": "task"}`,
 		"the option legend":          `{"formatVersion": "2.0", "properties": {"prio": ["High"]}, "option_ids": {"prio": {"High": "bafyreiopt1"}}}`,
 		"attribution in properties":  `{"formatVersion": "2.0", "properties": {"creator": "A1111111#alice"}}`,
 		"a non-authorable kind":      `{"formatVersion": "2.0", "kind": "participant"}`,

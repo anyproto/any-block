@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "kind": "file_object",
+  "id": "file-demo",
+  "properties": {
+    "Name": "Example file"
+  },
+  "file_remote": "eyJ2ZXJzaW9uIjoxLCJjaWQiOiJiYWZ5YmVpYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsImVuY3J5cHRpb25fa2V5cyI6eyIvMC8iOiJTWU5USEVUSUNfRklMRV9LRVkifSwic291cmNlX2NoZWNrc3VtIjoic3ludGhldGljLXNvdXJjZS1jaGVja3N1bSIsInZhcmlhbnRzIjpbeyJjaWQiOiJiYWZ5YmVpYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsInBhdGgiOiIvMC8iLCJjaGVja3N1bSI6InN5bnRoZXRpYy12YXJpYW50LWNoZWNrc3VtIiwibWlsbCI6Ii9ibG9iIiwib3B0aW9ucyI6IiIsIndpZHRoIjowfV19"
+}

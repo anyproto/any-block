@@ -11,6 +11,7 @@ import (
 
 	"github.com/gogo/protobuf/types"
 
+	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
@@ -27,11 +28,12 @@ func (e *exporter) dvFormat(dv *model.BlockContentDataview, key string) (model.R
 
 func (e *exporter) dataviewToJSON(m *omap, dv *model.BlockContentDataview) error {
 	m.set("type", "dataview")
+	target, isCollection, source := e.dataviewSourceForExport(dv)
 	// a singular reference slot: a target the space does not hold is
 	// written as the sentinel, never as if it existed (§9)
-	m.setNonEmpty("object_id", e.singularObjectRef("/blocks", "dataview object_id", dv.TargetObjectId))
-	m.setNonEmpty("is_collection", dv.IsCollection)
-	m.setNonEmpty("source", stringsToAny(dv.Source))
+	m.setNonEmpty("object_id", e.singularObjectRef("/blocks", "dataview object_id", target))
+	m.setNonEmpty("is_collection", isCollection)
+	m.setNonEmpty("source", stringsToAny(source))
 
 	var props []any
 	for _, rl := range dv.RelationLinks {
@@ -67,12 +69,42 @@ func (e *exporter) dataviewToJSON(m *omap, dv *model.BlockContentDataview) error
 	return nil
 }
 
+// dataviewSourceForExport replaces an explicit self-target with the host
+// source (§6.2). The target's kind previously overrode is_collection and
+// source, so carry that choice into the implicit form and discard only the
+// legacy source that the target made inactive. Unknown host kinds retain
+// their target: source payload presence alone cannot establish its meaning.
+func (e *exporter) dataviewSourceForExport(dv *model.BlockContentDataview) (target string, isCollection bool, source []string) {
+	target, isCollection, source = dv.TargetObjectId, dv.IsCollection, dv.Source
+	hostID := e.objectId()
+	if target == "" || hostID == "" || e.fragmentRoot {
+		return
+	}
+	if target != hostID && e.opts.foldRef(target) != FoldDocumentId(e.opts, e.sbType, hostID, e.snapshot.Key) {
+		return
+	}
+	if isTypeSmartBlock(e.sbType) {
+		return "", false, nil
+	}
+	keys := e.modelledTypeKeys(false)
+	if len(keys) > 0 {
+		switch keys[0] {
+		case string(vocabulary.TypeKeyCollection):
+			return "", true, nil
+		case string(vocabulary.TypeKeySet):
+			return "", false, nil
+		}
+	}
+	return
+}
+
 func (e *exporter) viewToJSON(v *model.BlockContentDataviewView, dv *model.BlockContentDataview) (*omap, error) {
 	vm := &omap{}
 	e.recordEmitted(v.Id)
-	if !e.opts.OmitIds {
-		vm.setNonEmpty("id", e.localId(v.Id))
-	}
+	// A widget in another document or index.json can select this view by id.
+	// Neither compaction nor OmitIds may disconnect that selector. Keep views
+	// in the local-id census as reservations against block-label collisions.
+	vm.setNonEmpty("id", v.Id)
 	if v.Type != model.BlockContentDataviewView_Table {
 		// an out-of-range view type is omitted rather than emitted as an
 		// empty string, which the schema would reject; it therefore reads
@@ -95,8 +127,9 @@ func (e *exporter) viewToJSON(v *model.BlockContentDataviewView, dv *model.Block
 	vm.setNonEmpty("cover_fit", v.CoverFit)
 	vm.setNonEmpty("colored_groups", v.GroupBackgroundColors)
 	vm.setNonEmpty("page_size", v.PageLimit)
-	vm.setNonEmpty("default_template_id", v.DefaultTemplateId)
-	vm.setNonEmpty("default_type_id", v.DefaultObjectTypeId)
+	// two singular reference slots: the derived-id fold applies (§9)
+	vm.setNonEmpty("default_template_id", e.opts.foldRef(v.DefaultTemplateId))
+	vm.setNonEmpty("default_type_id", e.opts.foldRef(v.DefaultObjectTypeId))
 	vm.setNonEmpty("wrap_content", v.WrapContent)
 	if v.ListSize != model.BlockContentDataviewView_Compact {
 		vm.setNonEmpty("list_size", listSizeNames.name(v.ListSize))
@@ -223,13 +256,15 @@ func (e *exporter) sortToJSON(s *model.BlockContentDataviewSort, dv *model.Block
 
 func (e *exporter) filterToJSON(f *model.BlockContentDataviewFilter, dv *model.BlockContentDataview) *omap {
 	fm := &omap{}
-	if len(f.NestedFilters) > 0 {
-		// a proto node with nested filters maps to a group; leaf fields drop
+	if f.Operator == model.BlockContentDataviewFilter_And ||
+		f.Operator == model.BlockContentDataviewFilter_Or || len(f.NestedFilters) > 0 {
+		// Explicit groups retain their operator and position even when empty.
+		// Legacy nodes with children still map to groups; leaf fields drop.
 		op := "and"
 		if f.Operator == model.BlockContentDataviewFilter_Or {
 			op = "or"
 		}
-		var nested []any
+		nested := make([]any, 0, len(f.NestedFilters))
 		for _, nf := range f.NestedFilters {
 			if nf == nil {
 				continue
@@ -238,10 +273,9 @@ func (e *exporter) filterToJSON(f *model.BlockContentDataviewFilter, dv *model.B
 				nested = append(nested, nm)
 			}
 		}
-		if len(nested) == 0 {
-			return nil // a group with no live children is a no-op
-		}
 		fm.set("operator", op)
+		// An empty group is meaningful, including when nameless leaves were
+		// removed above. Keep [] rather than null or an omitted member.
 		fm.set("filters", nested)
 		return fm
 	}
@@ -350,8 +384,7 @@ func (e *exporter) dayCountOperand(f *model.BlockContentDataviewFilter) float64 
 
 // dvValueToJSON converts a filter value or custom-order entry: option names
 // for select properties (§3), object references through the §9 reference
-// renderer (full id, plus the informative `#name` suffix where the shape
-// asks for it), verbatim otherwise.
+// renderer (the id, and nothing beside it), verbatim otherwise.
 func (e *exporter) dvValueToJSON(dv *model.BlockContentDataview, key string, v *types.Value) any {
 	format, ok := e.dvFormat(dv, key)
 	if ok {
@@ -512,8 +545,8 @@ func (imp *importer) dataviewFromJSON(jb *jsonBlock) (*model.BlockContentDatavie
 			CoverFit:              jv.CoverFit,
 			GroupBackgroundColors: jv.ColoredGroups,
 			PageLimit:             jsonInt32(jv.PageSize),
-			DefaultTemplateId:     jv.DefaultTemplateId,
-			DefaultObjectTypeId:   jv.DefaultTypeId,
+			DefaultTemplateId:     imp.unfoldRef(jv.DefaultTemplateId),
+			DefaultObjectTypeId:   imp.unfoldRef(jv.DefaultTypeId),
 			WrapContent:           jv.WrapContent,
 			ListSize:              listSizeNames.value(jv.ListSize),
 			AlternateRows:         jv.AlternateRows,
@@ -619,8 +652,8 @@ func (imp *importer) filterFromJSON(jf jsonFilter, dv *model.BlockContentDatavie
 
 // dvValueFromJSON reverses dvValueToJSON: option names back to ids where a
 // resolver knows them, object references through the §9 reference reader
-// (the informative `#name` suffix trimmed unread), everything else verbatim
-// (§3, §9a).
+// (nothing is trimmed — a reference is an id verbatim), everything else
+// verbatim (§3, §9a).
 //
 // The objects/files arm is BACK, and it is not the one the deleted `refs`
 // legend had (§9a): that one inverted an indirection table, this one strips

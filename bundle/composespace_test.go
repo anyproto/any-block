@@ -44,7 +44,7 @@ type spaceComposeResult struct {
 
 func composeSpaceObservations(t *testing.T, fallback string, concurrent bool, observations ...*model.SmartBlockSnapshotBase) spaceComposeResult {
 	t.Helper()
-	composer := NewComposer(anyblockjson.Options{}, fallback)
+	composer := newComposer(t, anyblockjson.Options{}, fallback)
 	if concurrent {
 		type observationResult struct {
 			omitted bool

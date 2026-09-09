@@ -151,8 +151,12 @@ func TestAuthoringNamedEnumTakesTheNameUnderItsCanonicalSpelling(t *testing.T) {
 			named := []byte(fmt.Sprintf(`{"formatVersion":"2.0","id":"o1","properties":{%q:"center"}}`, spelling))
 			assert.NoError(t, ValidateAuthoring(named), "the name is what an author writes")
 
-			bare := []byte(fmt.Sprintf(`{"formatVersion":"2.0","id":"o1","properties":{%q:1}}`, spelling))
-			require.NoError(t, Validate(bare, Options{}), "the full format passes the stored number through")
+			// 99 rather than a real member: the full format passes a stored
+			// number through only where the vocabulary has no name for it —
+			// a NAMEABLE number is refused outright now (§3), because it
+			// imported as that member and exported as its name, silently.
+			bare := []byte(fmt.Sprintf(`{"formatVersion":"2.0","id":"o1","properties":{%q:99}}`, spelling))
+			require.NoError(t, Validate(bare, Options{}), "the full format passes an unnameable stored number through")
 			err := ValidateAuthoring(bare)
 			require.Error(t, err, "the subset removes the stored-value pass-through")
 			assert.Contains(t, err.Error(), "layoutAlign")

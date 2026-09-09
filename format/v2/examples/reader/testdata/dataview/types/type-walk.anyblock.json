@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/type.schema.json",
+  "formatVersion": "2.0",
+  "id": "type-walk",
+  "kind": "object_type",
+  "internal_key": "walk",
+  "properties": { "Name": "Walk" },
+  "blocks": [
+    { "id": "dataview", "type": "dataview", "views": [{ "id": "v1", "name": "All" }] }
+  ]
+}

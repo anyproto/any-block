@@ -90,7 +90,7 @@ func TestExport_CompactBlockLabelsOnly(t *testing.T) {
 }
 
 // TestExport_MintedShapeRelabeling pins the relabel rule: only machine-
-// minted opaque ids (24-hex bson/API mints, RFC-4122 view UUIDs) relabel;
+// minted opaque block ids (24-hex bson/API mints) relabel;
 // anything that could carry meaning — structural constants like "dataview",
 // readable seeded/imported ids, short hand-authored ids — keeps its full
 // spelling and is reserved so no label can alias it. The fixture carries
@@ -170,7 +170,7 @@ func TestExport_MintedShapeRelabeling(t *testing.T) {
 	assert.Contains(t, served, shortHex, "a short id serves as itself")
 	assert.Contains(t, served, aliasMint,
 		"a minted id whose suffix spells another block's id must stay full, not alias it")
-	assert.Equal(t, []string{"5ed67"}, viewIds, "a UUID view id relabels")
+	assert.Equal(t, []string{viewUuid}, viewIds, "view ids remain stable for external widget selectors")
 
 	// the invariant behind the relabeling rules above, pinned independently
 	// of the rule that produces it: no two blocks/views ever share a served id

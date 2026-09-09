@@ -1,12 +1,11 @@
 package anyblockjson
 
 // fold_test.go — the participant fold (§9): `_participant_<space>_<identity>`
-// exports as the bare identity when Options.SpaceId names the space, and a
-// bare identity imports back as this space's participant id.
+// exports as `participant-<identity>` when Options.SpaceId names the space,
+// and the folded form imports back as this space's participant id.
 
 import (
 	"encoding/binary"
-	"strings"
 	"testing"
 
 	"github.com/gogo/protobuf/types"
@@ -123,7 +122,7 @@ func TestFold_ParticipantRefsFoldOnEverySlot(t *testing.T) {
 
 	// then
 	assert.NotContains(t, doc, foldComposite, "no slot keeps this space's composite id")
-	assert.Contains(t, doc, `"`+foldIdentity+`"`, "the bare identity stands in")
+	assert.Contains(t, doc, `"`+ParticipantRefPrefix+foldIdentity+`"`, "the derived id stands in")
 	assert.Contains(t, doc, foreignComposite, "a foreign space's composite passes through whole")
 }
 
@@ -149,11 +148,11 @@ func TestFold_ParticipantOwnEnvelopeId(t *testing.T) {
 	}
 
 	// when
-	data, err := Marshal(model.SmartBlockType_Page, snap, foldOptions())
+	data, err := Marshal(model.SmartBlockType_Participant, snap, foldOptions())
 	require.NoError(t, err)
 
 	// then
-	assert.Contains(t, string(data), `"id": "`+foldIdentity+`"`)
+	assert.Contains(t, string(data), `"id": "`+ParticipantRefPrefix+foldIdentity+`"`)
 	assert.NotContains(t, string(data), foldComposite)
 
 	// and back
@@ -209,7 +208,7 @@ func TestFold_ImportRebuildsTheComposite(t *testing.T) {
 
 	// given
 	doc := `{"formatVersion": "2.0", "properties": {
-		"assignee": ["` + foldIdentity + `#alice_ko", "` + notAnIdentity + `"]}}`
+		"assignee": ["` + foldIdentity + `", "` + notAnIdentity + `"]}}`
 
 	// when
 	_, snap, err := Unmarshal([]byte(doc), foldOptions())
@@ -218,7 +217,7 @@ func TestFold_ImportRebuildsTheComposite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{foldComposite, notAnIdentity},
 		valueStringList(snap.GetDetails().GetFields()["assignee"]),
-		"the identity unfolds (suffix trimmed first); the near-miss passes verbatim")
+		"the identity unfolds; the near-miss passes verbatim")
 }
 
 // The round trip is byte-stable and snapshot-lossless: fold on export,
@@ -252,28 +251,6 @@ func TestFold_RoundTripLossless(t *testing.T) {
 		valueStringList(snap.Collections.Fields[storeKeyItems]),
 		valueStringList(imported.GetCollections().GetFields()[storeKeyItems]),
 		"items too")
-}
-
-// Fold and suffix compose: with RefNames on and a resolver that knows the
-// COMPOSITE id (the id the space indexes), the document spells
-// `<identity>#<name>`.
-//
-// How this can fail: ask the resolver about the folded identity instead of
-// the stored composite and no name resolves, so the suffix vanishes.
-func TestFold_ComposesWithTheNameSuffix(t *testing.T) {
-	// given
-	opts := foldOptions()
-	opts.RefNames = true
-	opts.ResolveObjectNames = testObjectNames{foldComposite: "Alice Ko"}
-
-	// when
-	data, err := Marshal(model.SmartBlockType_Page, foldSnapshot(), opts)
-	require.NoError(t, err)
-
-	// then
-	assert.Contains(t, string(data), `"`+foldIdentity+`#alice_ko"`,
-		"resolvable AND readable: the folded identity plus the informative name")
-	assert.True(t, strings.Contains(string(data), foldIdentity))
 }
 
 // A composite built from a BLANK identity addresses nobody, and 9,103 of the
@@ -357,39 +334,6 @@ func TestFold_NeitherGateIsRedundant(t *testing.T) {
 	}
 }
 
-// A resolver that answers with a name the suffix grammar reduces to nothing
-// — an emoji-only title, which real objects have — leaves the reference
-// BARE. Never a dangling `#`: that value reads back as the id it came from
-// only because splitRefName refuses to split at index 0, and a document full
-// of them is unreadable besides.
-//
-// How this can fail: append the separator before checking the normalized
-// label and every emoji-named reference gains a trailing `#`.
-func TestRefNames_ANameThatNormalizesToNothingLeavesTheRefBare(t *testing.T) {
-	// given
-	opts := refOptions()
-	opts.RefNames = true
-	opts.ResolveObjectNames = testObjectNames{"bafyreiassigned": "🎉🎉🎉"}
-	snap := &model.SmartBlockSnapshotBase{
-		Blocks: []*model.Block{{
-			Id:      "bafyreirefroot",
-			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
-		}},
-		Details: fields(map[string]*types.Value{
-			"id":       str("bafyreirefroot"),
-			"assignee": strList("bafyreiassigned"),
-		}),
-	}
-
-	// when
-	data, err := Marshal(model.SmartBlockType_Page, snap, opts)
-	require.NoError(t, err)
-
-	// then
-	assert.Contains(t, string(data), `"bafyreiassigned"`)
-	assert.NotContains(t, string(data), "#", "an empty label is no label, not an empty suffix")
-}
-
 // A reader that names no space cannot rebuild a folded participant id, and
 // says so once for the document (§9). It may not refuse — Validate never
 // sees Options, so a refusal here would leave the two surfaces disagreeing
@@ -413,7 +357,7 @@ func TestFold_AReaderWithNoSpaceSaysSoInsteadOfCorrupting(t *testing.T) {
 	// then
 	require.Len(t, warned, 1, "one line for the document, not one per reference")
 	assert.Contains(t, warned[0].Message, "Options.SpaceId names no space")
-	assert.Equal(t, []string{foldIdentity, foreignComposite},
+	assert.Equal(t, []string{ParticipantRefPrefix + foldIdentity, foreignComposite},
 		valueStringList(back.GetDetails().GetFields()["owner"]),
-		"the identity is stored as it stands — the warning is what makes that visible")
+		"the folded id is stored as it stands — the warning is what makes that visible")
 }

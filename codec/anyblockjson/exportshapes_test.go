@@ -93,9 +93,8 @@ func TestExport_VerbatimPropertyShapes(t *testing.T) {
 	assert.Equal(t, string(data), string(second))
 }
 
-// A sort with an empty property key is dropped instead of
-// emitting a document that fails the schema's required "property"; an empty
-// filter group is a no-op and is dropped too.
+// A sort with an empty property key is dropped instead of emitting a document
+// that fails the schema's required "property". Explicit filter groups survive.
 func TestExport_EmptyKeySortSkipped(t *testing.T) {
 	snap := &model.SmartBlockSnapshotBase{
 		Details: fields(map[string]*types.Value{"id": str("obj1")}),
@@ -117,7 +116,7 @@ func TestExport_EmptyKeySortSkipped(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, Validate(data, Options{}))
 	assert.NotContains(t, string(data), `"sorts"`)
-	assert.NotContains(t, string(data), `"filters"`)
+	assert.JSONEq(t, `[{"operator":"and","filters":[]}]`, documentViewFilters(t, data))
 }
 
 // Nil inner content messages are proto-equivalent to empty ones
@@ -272,7 +271,7 @@ func TestExport_NonListObjectsStaysInStore(t *testing.T) {
 	data, err := Marshal(model.SmartBlockType_Page, snap, Options{})
 	require.NoError(t, err)
 	s := string(data)
-	assert.NotContains(t, s, `"items"`)
+	assert.NotContains(t, s, `"collection_items"`)
 	assert.Contains(t, s, `"objects": "notalist"`)
 	_, snap2, err := Unmarshal(data, Options{GenerateId: seqIds("g")})
 	require.NoError(t, err)

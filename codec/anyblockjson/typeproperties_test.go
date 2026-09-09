@@ -49,7 +49,7 @@ func typeSnapshot() *model.SmartBlockSnapshotBase {
 	return &model.SmartBlockSnapshotBase{
 		Key: "task",
 		Details: fields(map[string]*types.Value{
-			"id":                           str("typeObjectId"),
+			"id":                           str("type-task"),
 			"name":                         str("Task"),
 			"recommendedFeaturedRelations": strList("relid-dueDate", "relid-assignee"),
 			"recommendedRelations":         strList("relid-status"),
@@ -57,7 +57,7 @@ func typeSnapshot() *model.SmartBlockSnapshotBase {
 			"recommendedHiddenRelations":   strList("relid-origin"),
 		}),
 		Blocks: []*model.Block{
-			{Id: "typeObjectId", ChildrenIds: nil, Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
+			{Id: "type-task", ChildrenIds: nil, Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
 		},
 	}
 }

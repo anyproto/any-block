@@ -10,11 +10,27 @@ Every path above exists in this repository, so the three commands run as
 written. `validate` finds documents by their `.json` extension and reports a
 path that yields none, so a mistyped path fails rather than passing silently.
 
-The conversion commands operate on one snapshot/document. When `validate`
-receives a directory containing `index.json`, it also checks bundle-level
-manifest paths, duplicate ids, entrypoint/widgets, type documents, and file
-bindings. A directory without `index.json` is treated as a collection of
+The conversion commands operate on one snapshot/document. `validate` runs the
+one-document codec over every `.json` document either way, so the derived-id
+reservation (`type-<key>` and `participant-<identity>` ids belong to the
+matching documents, SPEC §9) is checked on a lone document as well as inside a
+bundle — it is a fact about one document. When `validate` receives a directory
+containing `index.json`, it adds the questions a document cannot answer by
+itself: bundle-level manifest paths, duplicate ids, entrypoint/widgets, the
+derived type references (a `template_for`, a `type_internal_key` or an
+`object_types` entry naming a type by its derived id must find that document —
+a bundled key is exempt, since every reader carries the shipped table), and
+file bindings. A directory without `index.json` is treated as a collection of
 independent documents.
+
+`to-v2 -include-file-remote` preserves a file object's remote CID, encryption
+keys, and optional indexed variant metadata in the base64 `file_remote`
+field. It defaults to false. `to-v1` restores a supported payload
+automatically and warns when it ignores a malformed or future version.
+These commands convert one document; a bundle can carry its source
+`network_id` in `index.json` for import to assess remote recovery (SPEC §2h).
+The identifier's value is not validated during export or bundle validation.
+Neither conversion command downloads file bytes.
 
 ## What a round trip does not carry
 
@@ -28,6 +44,21 @@ The CLI converts with the bundled vocabulary and no option resolver, so an
 way back. Property values survive; the legend binding a value's spelling to a
 stored option id does not. A caller that needs the legend preserved should use
 the Go API and supply `Options.ResolveOptions`.
+
+It wires no `TypeResolver` either, so it cannot turn a `type-<internal_key>`
+reference (SPEC §9) into a space's type object id. With `-space-id` — which
+says the document is being read into that space — `to-v1` refuses rather than
+writing the folded string where an address belongs, the same pre-write
+refusal folded participant references get. Without `-space-id` the conversion
+is bundle-local and the derived ids pass through as the bundle-local ids they
+are, which is what an authored bundle's own type documents use.
+
+`to-v2` also refuses a type snapshot whose stored id would change to
+`type-<internal_key>`: without a `TypeResolver`, references would keep the
+old id. The refusal happens before creating or replacing the output file.
+Use the Go API with `Options.ResolveProperties` supplying the matching
+type-id mapping. Types already carrying their derived id can be converted
+without that mapping.
 
 ## Conversion formats
 

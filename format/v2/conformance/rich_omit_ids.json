@@ -3,6 +3,7 @@
   "formatVersion": "2.0",
   "id": "bafyreiobject",
   "type": "Page",
+  "type_internal_key": "page",
   "icon": {
     "format": "emoji",
     "emoji": "🔥"
@@ -135,6 +136,7 @@
       ],
       "views": [
         {
+          "id": "v1",
           "type": "kanban",
           "name": "By status",
           "group_by": "customStatus",

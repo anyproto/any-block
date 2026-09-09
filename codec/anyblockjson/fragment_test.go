@@ -263,16 +263,15 @@ func fragmentBlocks(t *testing.T, out json.RawMessage) []map[string]any {
 	return env.Blocks
 }
 
-// fragmentLegend digs the three legends out of a fragment envelope.
+// fragmentLegend digs the two legends out of a fragment envelope.
 func fragmentLegend(t *testing.T, out json.RawMessage) Legend {
 	t.Helper()
 	var env struct {
 		PropertyKeys map[string]string            `json:"property_internal_keys"`
-		TypeKeys     map[string]string            `json:"type_internal_keys"`
 		OptionIds    map[string]map[string]string `json:"option_ids"`
 	}
 	require.NoError(t, json.Unmarshal(out, &env))
-	return Legend{PropertyKeys: env.PropertyKeys, TypeKeys: env.TypeKeys, OptionIds: env.OptionIds}
+	return Legend{PropertyKeys: env.PropertyKeys, OptionIds: env.OptionIds}
 }
 
 func fragmentIds(t *testing.T, out json.RawMessage) []string {

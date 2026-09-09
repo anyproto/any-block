@@ -31,7 +31,10 @@ import (
 // `properties` list names (§2f, used-only). A reference is any slot that
 // names a property, the whole census the codec keeps (§3, §2a, §5, §6.1,
 // §6.2): a `properties` member; a `type_settings.property_definitions[]`
-// entry, by its `property` spelling or its stated `internal_key`; a property
+// entry, by its `property` spelling, or by its stated `internal_key` when it
+// states no spelling — property-first, matching the importer's own
+// precedence, since counting both would contribute a stored key nothing
+// resolves to; a property
 // block's `property`; a link block's shown `properties[]`; a dataview's
 // `properties[]` declarations and, on each of its views, `group_by`,
 // `cover_property`, `end_property`, `columns[].property`,

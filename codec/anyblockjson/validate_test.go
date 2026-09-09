@@ -193,7 +193,7 @@ func TestValidate_Valid(t *testing.T) {
 			 ]}
 		]}`},
 		{"template", `{"formatVersion": "2.0", "kind": "template", "type": "template", "template_for": "task"}`},
-		{"collection items", `{"formatVersion": "2.0", "type": "collection", "items": ["obj1", "obj2"]}`},
+		{"collection items", `{"formatVersion": "2.0", "type": "collection", "collection_items": ["obj1", "obj2"]}`},
 		{"widget", `{"formatVersion": "2.0", "kind": "widget", "blocks": [
 			{"type": "widget", "layout": "tree", "limit": 6},
 			{"indent": 1, "type": "link", "object_id": "obj1"}
@@ -675,12 +675,6 @@ func TestValidate_KeySlotIssuesNameTheOffendingMember(t *testing.T) {
 			wantPath: "/property_internal_keys/a~1b",
 			wantIn:   []string{"empty"},
 		},
-		{
-			name:     "a type legend spelling holding a tilde",
-			doc:      `{"formatVersion": "2.0", "type_internal_keys": {"a~b": ""}}`,
-			wantPath: "/type_internal_keys/a~0b",
-			wantIn:   []string{"empty"},
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -740,7 +734,6 @@ func TestValidate_EveryPropertyNamesSiteHasAnAddressableMessage(t *testing.T) {
 		// under-count
 		"/properties/option_ids/additionalProperties",
 		"/properties/property_internal_keys",
-		"/properties/type_internal_keys",
 	}, sites, "a new propertyNames site needs a case in propertyNameIssues")
 }
 

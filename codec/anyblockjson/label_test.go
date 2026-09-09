@@ -178,16 +178,16 @@ func TestNonASCIILabelSurvivesTheWholeCodec(t *testing.T) {
 	// then: the document spells the labels, and carries the legends that
 	// invert them
 	var doc struct {
-		Type         string            `json:"type"`
-		Properties   map[string]any    `json:"properties"`
-		PropertyKeys map[string]string `json:"property_internal_keys"`
-		TypeKeys     map[string]string `json:"type_internal_keys"`
+		Type            string            `json:"type"`
+		TypeInternalKey string            `json:"type_internal_key"`
+		Properties      map[string]any    `json:"properties"`
+		PropertyKeys    map[string]string `json:"property_internal_keys"`
 	}
 	require.NoError(t, json.Unmarshal(data, &doc))
 	assert.Equal(t, "on", doc.Properties["Тоггл"])
 	assert.Equal(t, "日本語のプロパティ", doc.Type)
 	assert.Equal(t, key, doc.PropertyKeys["Тоггл"])
-	assert.Equal(t, typeKey, doc.TypeKeys["日本語のプロパティ"])
+	assert.Equal(t, typeKey, doc.TypeInternalKey)
 
 	// and its own validation accepts it (I1) — with NO vocabulary, which is
 	// the reader the schema speaks for

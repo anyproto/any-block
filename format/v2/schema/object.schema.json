@@ -49,7 +49,8 @@
       ]
     },
     "id": {
-      "type": "string"
+      "type": "string",
+      "description": "This document's own address: the string every reference to it spells (§9). Three spellings are RESERVED and say what the document IS. `type-<internal_key>` is a type document's id, and belongs only to the type whose `internal_key` is that remainder. `participant-<identity>` is a participant document's id — and so is the BARE `<identity>` on its own: a base58 account identity, 48 characters carrying a version byte and a CRC16 checksum, the spelling documents written before the prefix used and the one an object-reference slot still reads as that member. No other kind may carry a bare account identity here, for that reason: a reference written that way rebuilds into `_participant_<space>_<identity>`, so the document would be addressed by nothing that names it. The checksum makes that half semantic — no schema can verify a CRC16 — so it is stated here and enforced by the reader, while the two prefixes are refused by the conditions below. Every other id is an ordinary address, and a `-` elsewhere (`page-welcome`) is an ordinary slug."
     },
     "type": {
       "type": "string",
@@ -57,7 +58,8 @@
     },
     "template_for": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Templates only: the target type, written as its derived id `type-<internal_key>` (§9) — a reference by key, the same spelling every id-valued slot folds a type to. A display name or the legacy `ot-<key>` is accepted on input; canonical export writes the derived id — except in a single document exported under the `NoDerivedTypeIds` mode (§9, a mode a bundle refuses), where this slot carries the VOCABULARY spelling instead, the same word the envelope `type` writes for that type."
     },
     "internal_key": {
       "description": "The STORED identity key of a definition document (a type, a property, a property option) — the uniqueKey's internal part, written verbatim. This is an id the app MINTS, not something an author writes: for a custom property or type it is a bson id like 6a83296f61fab2265263ae34, which no author can produce, and for a bundled one it is the bundled camelCase key (dueDate). Export writes it for fidelity; an authored definition document may omit it, and the import wiring then mints a fresh internal key exactly as the app does when a user creates one. It is deliberately NOT a spelling: unlike every key slot in §3 it is never translated through a legend or the bundled table, so it does not match the display-name spelling documents use (that spelling is the `property` member of a property definition). Charset is a deny rule, not an allowlist — a property option's stored key is built from its NAME, so keys like completion_status_Not Started are real stored keys.",
@@ -65,7 +67,7 @@
       "minLength": 1
     },
     "property_settings": {
-      "description": "Only on property documents (kind \"property\" or \"bundled_property\"), where it is REQUIRED: the definition of the property this document IS — one propertyDefinition (§2d, §2e). Three members travel today, each mirroring stored presence EXACTLY, value included: `format` (required — a §3 format NAME, the same vocabulary type_properties[].format speaks, never a raw enum number; stands for the stored relationFormat key, which `properties` refuses), `include_time` (present exactly when the stored relationFormatIncludeTime key is; meaningful on format \"date\" only, and a stored null travels as null), and `object_types` (present exactly when the stored relationFormatObjectTypes key is; the target type keys in priority order — a type-key slot exactly like type_properties[].object_types, inverted through the type_internal_keys legend, meaningful on \"objects\"/\"files\" only). The members refused with `false` have a home already: `internal_key` is the envelope's (and `property`, the spelling, is derived from it — a property document never states its own spelling), `name` and `description` are properties', `options` are a property-definition entry's — the dictionary's (\u00a72f) or a type's property_definitions declaration (\u00a72a); a bundle carries no option documents (\u00a715 #21), so no third surface states a select vocabulary — and max_count/readonly/default_value still travel in `properties` under their stored keys until the dictionary lifts them — admitting a second spelling of any of them here would be the §15 #14 disease this group exists to end.",
+      "description": "Only on property documents (kind \"property\" or \"bundled_property\"), where it is REQUIRED: the definition of the property this document IS — one propertyDefinition (§2d, §2e). Three members travel today, each mirroring stored presence EXACTLY, value included: `format` (required — a §3 format NAME, never a raw enum number: the vocabulary `type_settings.property_definitions[].format` speaks, plus `map`, which only a property document may state ($defs/propertyFormat); stands for the stored relationFormat key, which `properties` refuses), `include_time` (present exactly when the stored relationFormatIncludeTime key is; meaningful on format \"date\" only, and a stored null travels as null), and `object_types` (present exactly when the stored relationFormatObjectTypes key is; the target types in priority order — a type-key slot exactly like `type_settings.property_definitions[].object_types`, each written as the type's derived id `type-<internal_key>` (§9), with a display name or the legacy `ot-<key>` accepted on input; meaningful on \"objects\"/\"files\" only). The members refused with `false` have a home already: `internal_key` is the envelope's (and `property`, the spelling, is derived from it — a property document never states its own spelling), `name` and `description` are properties', `options` are a property-definition entry's — the dictionary's (§2f) or a type's property_definitions declaration (§2a); a bundle carries no option documents (§15 #21), so no third surface states a select vocabulary — and max_count/readonly/default_value still travel in `properties` under their stored keys until the dictionary lifts them — admitting a second spelling of any of them here would be the §15 #14 disease this group exists to end.",
       "type": "object",
       "allOf": [
         {
@@ -140,6 +142,10 @@
       },
       "additionalProperties": false
     },
+    "file_remote": {
+      "type": "string",
+      "description": "File and file_object documents only: standard padded base64 of UTF-8 JSON describing remote file access. The decoded payload has its own integer version, independent of formatVersion (version 1 schema: https://schemas.anytype.io/anyblock/file-remote/1.schema.json). Invalid or unsupported payloads are ignored with a warning; they do not invalidate the object. Bundles must report an unresolved file when no usable remote metadata or embedded bytes remain."
+    },
     "property_internal_keys": {
       "type": "object",
       "description": "Legend: the stored property key each SPELLING in this document names (§3) — a spelling is a display name, so this is the map from \"Cooking time\" to the key the space stores it under. Present only for keys the bundled table cannot invert; a reader consults it before its own vocabulary. A value is a stored key and obeys the same writable-key rule as a property name (§3).",
@@ -154,19 +160,12 @@
         "pattern": "^[^\u0000-\u001f]+$"
       }
     },
-    "type_internal_keys": {
-      "type": "object",
-      "description": "Legend: the stored type key each type SPELLING in this document names (§3). Same rule as property_internal_keys, on a legend of the type namespace's own: present only for spellings the bundled table cannot invert; a reader consults it before its own vocabulary. A value is a stored type key and obeys the writable-key rule (§3).",
-      "propertyNames": {
-        "pattern": "^[^\u0000-\u001f]+$",
-        "maxLength": 128
-      },
-      "additionalProperties": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 128,
-        "pattern": "^[^\u0000-\u001f]+$"
-      }
+    "type_internal_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\u0000-\u001f]+$",
+      "description": "The STORED type key the envelope `type` spelling names (§2, §3): the bundled key (`page`, `task`) or the minted key of a space's own type, written on EVERY typed document — bundled or not — so a reader resolves the key and treats the spelling as a caption. The type document is `type-<this key>` (§9). In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode the type document keeps its STORE id and nothing in this document names it — which is why that mode stops at one document and a bundle refuses it, this join being the only one a bundle has (§9). A scalar, because an object has exactly one type; the former `type_internal_keys` map is retired (§15 #28)."
     },
     "option_ids": {
       "type": "object",
@@ -192,11 +191,15 @@
         "$ref": "#/$defs/block"
       }
     },
-    "items": {
+    "query_source": {
+      "$ref": "#/$defs/querySource"
+    },
+    "collection_items": {
       "type": "array",
       "items": {
         "type": "string"
-      }
+      },
+      "description": "For a COLLECTION object: the ids of its members, in order, from the internal store key `objects` (§2). This is the only place its membership is written. A dataview whose `object_id` names this collection reads the target's list; without an object_id, `is_collection: true` selects the host's list (§6.2). Absent and [] both mean empty membership; canonical export omits the empty array. The import wiring resolves the object's type; payload presence alone never determines it. May coexist with `query_source`: preserve both, but each dataview uses only its selected source, with no union, intersection, or fallback when empty. Entries are object references (§9). The old object-root `items` spelling is rejected; rename it to `collection_items` and keep its ordered ids."
     },
     "store": {
       "type": "object",
@@ -221,6 +224,13 @@
   ],
   "additionalProperties": false,
   "allOf": [
+    {
+      "if": {
+        "properties": {"kind": {"enum": ["file", "file_object"]}},
+        "required": ["kind"]
+      },
+      "else": {"properties": {"file_remote": false}}
+    },
     {
       "if": {
         "properties": {
@@ -266,9 +276,83 @@
           "type_settings": false
         }
       }
+    },
+    {
+      "$comment": "The derived-id reservation, kind half (SPEC §9): `type-<internal_key>` is a TYPE document's id, so no other kind may wear the prefix. Stated as a constraint on `id` under a non-type `kind` so the verdict lands on the member at fault. The other half — that the remainder is this document's own internal_key — is semantic: JSON Schema cannot compare one member against a substring of another.",
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "object_type",
+              "bundled_object_type"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "id": {
+            "not": {
+              "pattern": "^type-"
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "The same reservation for participants: `participant-<identity>` is a participant document's id. That the remainder is a real account identity — a base58 strkey with its version byte and CRC16 checksum — is semantic, as no schema can express a checksum. The BARE identity, the spelling written before the prefix and still read as one, is reserved for participant documents by the same rule and for the same reason; it is semantic in whole, so it appears in the description of `id` and nowhere in this grammar.",
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "participant"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "id": {
+            "not": {
+              "pattern": "^participant-"
+            }
+          }
+        }
+      }
     }
   ],
   "$defs": {
+    "querySource": {
+      "type": "object",
+      "description": "For a query object (stored type key `set`), what the query ranges over (§6.2), promoted out of the stored `setOf` detail. Two lists distinguish targets: a TYPE target matches every object OF that type; a PROPERTY target matches every object that CARRIES that property, even with an empty value. Several targets combine with OR. Order across lists has no meaning; within each list the stored order is preserved. THREE STATES: absent means no query declaration; present and empty (`{}`) declares a query with no source targets; populated declares the source to evaluate. Empty inner lists may be omitted, but the enclosing group remains. May coexist with `collection_items`; a dataview uses the source selected by its target's resolved type or, without an object_id, by its own source fields. It never merges the two sources or switches because one is empty. Query results require evaluation against the space; the bundle carries the definition.",
+      "properties": {
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Type targets: every object of the type matches the query. Each is written as the type's derived id `type-<internal_key>` (\u00a79) \u2014 the same spelling `template_for` and every `object_types` write, and the id the type's own document carries, so a reader joins an entry to that document by string equality with no rule to apply (\u00a72c). A display name or the legacy `ot-<key>` is accepted on input; canonical export writes the derived id \u2014 except in a single document exported under the `NoDerivedTypeIds` mode (\u00a79, a mode a bundle refuses), where this slot carries the VOCABULARY spelling instead, the same word the envelope `type` writes. One further spelling reaches this list and only by degradation: an entry no resolver could classify keeps the store id it was written with, and export warns \u2014 types is where such an entry goes because the stored slot's declared targets are types and every path that builds a view from a source reads the first entry as one."
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\u0000-\u001f]+$"
+          },
+          "description": "Property targets: every object that CARRIES the property matches the query, whatever its value \u2014 an object holding it empty belongs. Each is written as the property's STORED internal key, bare (`lastModifiedDate`, `6a83296f61fab2265263ae34`) \u2014 the same spelling `internal_key` carries everywhere else. Bare, and never a derived id, because a property has no address to derive one from: a bundle carries no property documents (\u00a715 #23), so a property travels as a dictionary entry and every slot in this format that identifies one holds either a display-name spelling or this key. A reader resolves an entry in two steps: the shipped bundled property table, which every reader carries; then this bundle's `properties.json`, by `internal_key` \u2014 the dictionary's used-key census counts an entry here, so a key the bundle mints is defined there. `NoDerivedTypeIds` does not touch this list: a stored key is not a derived id."
+        }
+      },
+      "additionalProperties": false
+    },
     "cardStyle": {
       "enum": [
         "text",
@@ -301,7 +385,7 @@
         "compact_list",
         "view"
       ],
-      "description": "How a sidebar widget renders: `link` is a single row (the default), `tree` expands children, `list` and `compact_list` show contents, `view` renders a type's or set's own view. One definition for the widget block and a bundle index's widgets."
+      "description": "How a sidebar widget renders: `link` is a single row (the default), `tree` expands children, `list` and `compact_list` show contents, `view` renders a type's or query's own view. One definition for the widget block and a bundle index's widgets."
     },
     "widgetListingLimit": {
       "type": "integer",
@@ -339,19 +423,24 @@
       "minLength": 1,
       "maxLength": 255,
       "pattern": "^[^/]+$",
-      "description": "The id of an object in this space, a bundle-local slug, or a raw content CID. Never a URL and never a filesystem path — this format does no I/O, so it can only name an object or content the reader can resolve. To supply an image by URL, use a layer that can fetch it: it uploads the image, mints the file object and writes that object's id here. An object id uses the dag-cbor CID codec (normally beginning `bafyrei`); a raw or dag-pb content CID normally begins `bafybei` and resolves against content storage rather than the bundle's object documents."
+      "description": "The id of an object in this space, a bundle-local slug, or a raw content CID — the WHOLE string, and nothing else. A reference carries no caption, display hint or name: there is no separator inside it and no half of it to discard, so `bafyrei\u2026#alice` is one id, one that no space mints, and it names nothing. (Earlier drafts of this format spelled a reference `<id>#<name>` and asked readers to split at the first `#`. That form is gone; `#` is now an ordinary character, kept legal here only because a reference is written through verbatim from whatever a space stores.) To show a human-readable name for a reference, look the id up: index the bundle's documents by their envelope `id` and read the target's `Name`. Never a URL and never a filesystem path — this format does no I/O, so it can only name an object or content the reader can resolve. To supply an image by URL, use a layer that can fetch it: it uploads the image, mints the file object and writes that object's id here. An object id uses the dag-cbor CID codec (normally beginning `bafyrei`); a raw or dag-pb content CID normally begins `bafybei` and resolves against content storage rather than the bundle's object documents."
     },
     "iconColor": {
-      "description": "One of the ten palette colours — the same palette select options use (§2a) — or, for a stored value the palette has no name for, its raw number.",
-      "oneOf": [
-        {
-          "$ref": "#/$defs/optionColor"
-        },
-        {
-          "type": "integer",
-          "minimum": 1
-        }
-      ]
+      "description": "One of the ten palette colours — the same palette select options use (§2a) — or, for a stored value the palette has no name for, its raw number. That escape is bounded at 9007199254740991 (2^53-1), the same bound `size` carries: it is the largest integer this format moves through a v1 float value and writes back out denoting the same number, and the reference exporter drops a stored value above it with a warning rather than emitting one this schema refuses.",
+      "type": [
+        "string",
+        "integer"
+      ],
+      "if": {
+        "type": "string"
+      },
+      "then": {
+        "$ref": "#/$defs/optionColor"
+      },
+      "else": {
+        "minimum": 1,
+        "maximum": 9007199254740991
+      }
     },
     "opaqueName": {
       "type": "string",
@@ -777,7 +866,8 @@
         },
         "fields": {
           "type": "object",
-          "x-output-only": true
+          "x-output-only": true,
+          "description": "Verbatim internal per-block data, minus the keys lifted into first-class props: a `code` block's `lang` becomes `language` (§5.1), and a TABLE column's `width` becomes that column entry's `width` in pixels (§6.1). Output-only (§4a) — export writes what was stored, import stores it back, and no member here is interpreted, defaulted or refused.\nIt is a known inventory rather than an open world. A sweep of 24,889 exported documents found these keys and no others: `width` — on a `column` the layout column's share of its row as a fraction, and on an `image`, `video` or `embed` the same fraction of the text column (597 occurrences, and the only place a layout column's width is written at all); `isUnwrapped` on a `code` block and `isRtlDetected` on a paragraph — editor display flags; `type` on an `embed` — the diagram language a `kroki` processor renders, e.g. `blockdiag`; `lang` on a block that is not `code`, where nothing lifted it; `_link_migrated` — a migration marker the app stamped; and a `link` block's `cardStyle`, `iconSize`, `description` and `relations`, the pre-2.0 numeric spelling of the `card_style`, `icon_size`, `description` and `properties` beside them. Those four are stale — real exports carry `cardStyle: 0` next to `card_style: \"card\"`, which disagree. The first-class prop is the value; the bag keeps the old numbers only so the round trip loses nothing."
         }
       },
       "allOf": [
@@ -966,11 +1056,51 @@
               },
               "text": {
                 "type": "string",
-                "description": "The block's text. Formatting is expressed INLINE, inside this string — this format has no `marks` array and no offsets (§8). A CommonMark-inline subset plus a small tag whitelist, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` — an external link\n  `[text](anytype://object?objectId=<id>)` — a link to an object in this space\n  `<mention object_id=\"<id>\">text</mention>` — a decorated object reference (icon + name)\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no HTML beyond those tags. `\\n` is a soft line break within the block. A literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` in prose is backslash-escaped."
-              },
-              "url": {
-                "type": "string"
+                "description": "The embed's payload, and the ONLY slot the stored model has for one. LITERAL: no inline markup is read here and none is written (\u00a78.4). What it holds is decided by `processor` \u2014 SOURCE CODE for a renderer (`latex`, the default, `mermaid`, `chart`, `graphviz`, `kroki`, `excalidraw`, `drawio`), the URL to embed for a service processor (every other value), where `url` is accepted as an input alias for this member and nowhere else."
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "embed",
+                  "equation"
+                ]
+              },
+              "processor": {
+                "not": {
+                  "enum": [
+                    "latex",
+                    "mermaid",
+                    "chart",
+                    "graphviz",
+                    "kroki",
+                    "excalidraw",
+                    "drawio"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "type",
+              "processor"
+            ]
+          },
+          "then": {
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "INPUT ALIAS for `text`, and only on a SERVICE processor (\u00a75.2). Export never writes it \u2014 it writes `text` \u2014 and the two are ONE stored slot, so a block stating both is refused rather than having one of them silently dropped. A RENDERER processor (`latex`, `mermaid`, `chart`, `graphviz`, `kroki`, `excalidraw`, `drawio`) refuses this member outright, and so does an absent `processor`, which means `latex`: their payload is source code, the model has nowhere to put a second string, and a document written that way lost its diagram on import."
+              }
+            },
+            "not": {
+              "required": [
+                "text",
+                "url"
+              ]
             }
           }
         },
@@ -994,7 +1124,8 @@
           "then": {
             "properties": {
               "object_id": {
-                "type": "string"
+                "type": "string",
+                "description": "The block's target object, as a reference: the whole string is the id. See $defs/objectRef \u2014 a reference carries no caption or name after it, so nothing here is ever split."
               },
               "name": {
                 "type": "string"
@@ -1015,7 +1146,9 @@
                 ]
               },
               "added_at": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])(T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9]))?$",
+                "description": "When the file was added, an RFC 3339 timestamp \u2014 the same grammar a `date` property value carries (\u00a73). Export always writes the full UTC form, `2026-07-06T15:04:05Z`; input also takes a non-UTC offset (converted to UTC), fractional seconds (truncated to whole seconds) and a bare date, `2026-07-06`, which means UTC midnight. The stored field is a UNIX SECOND, not a string, so a value this pattern admits but the CALENDAR does not \u2014 `2026-02-30T12:00:00Z` \u2014 is refused by the reader's semantic pass rather than accepted: it has no number to become, and it used to import as zero and be gone from the next export with nothing said. The year is four digits because that is the whole range a unix second can be written back out in (\u00a73)."
               },
               "hash": {
                 "type": "string"
@@ -1040,7 +1173,8 @@
                 "type": "string"
               },
               "object_id": {
-                "type": "string"
+                "type": "string",
+                "description": "The block's target object, as a reference: the whole string is the id. See $defs/objectRef \u2014 a reference carries no caption or name after it, so nothing here is ever split."
               }
             }
           }
@@ -1059,7 +1193,8 @@
           "then": {
             "properties": {
               "object_id": {
-                "type": "string"
+                "type": "string",
+                "description": "The block's target object, as a reference: the whole string is the id. See $defs/objectRef \u2014 a reference carries no caption or name after it, so nothing here is ever split."
               },
               "card_style": {
                 "$ref": "#/$defs/cardStyle"
@@ -1108,6 +1243,33 @@
           "if": {
             "properties": {
               "type": {
+                "enum": [
+                  "row",
+                  "column"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "fields": {
+                "description": "A `row` and a `column` carry no attributes of their own — their children are the content — with one exception, and it lives in the output-only bag: a layout column's width. That one fact is why these two types have a branch at all.",
+                "properties": {
+                  "width": {
+                    "description": "A layout column's share of its row, as a FRACTION — measured from 0 to just over 1 across 405 corpus columns, where 0 means unset. This is the only place it is written: a TABLE column's `width` is lifted to a first-class prop and is in pixels (§6.1), while a layout column's stays in the verbatim bag. Deliberately left untyped — the bag is written back exactly as stored, so a schema demanding a number here would refuse a document export itself produced (§11)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
                 "const": "property"
               }
             },
@@ -1144,17 +1306,20 @@
           "then": {
             "properties": {
               "object_id": {
-                "type": "string"
+                "type": "string",
+                "description": "The object this view takes its records FROM (§6.2). When authoring, set only for an inline dataview on a non-Query, non-Collection host, pointing to a Query or Collection object; omit on their own dataviews and on a type document's own listing. The full reader also accepts stored type-document targets and self-references. Canonical export omits redundant self-targets on Query, Collection and type documents, preserving the selected source through is_collection and removing overridden legacy source (§6.2); import recognizes explicit self-targets when restoring the primary dataview block (§7). A TYPE document supplies the objects of that type. A query object supplies records matching its own `query_source`. A COLLECTION supplies the ids the target lists in its own `collection_items`, in that order. A non-empty target's resolved type decides; `is_collection`, the host's source fields and legacy block `source` do not override it. An unresolved target or source kind is reported, never guessed from populated payloads. An empty string is equivalent to absence and export omits it. With object_id absent or empty, THIS document is the source and the block's remaining source fields select how to read it. A target deleted from the exporting space is written as `_missing_object`; an object merely absent from the bundle retains its id (§9)."
               },
               "is_collection": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "Selects a curated LIST when this block's `object_id` is absent or empty (§6.2): if true, read THIS document's `collection_items`. Empty or absent membership means an empty collection, even beside a populated `query_source`. If false or absent, use a non-empty legacy block `source` first; otherwise a type document lists its own type's objects, and other hosts use `query_source`. Beside a non-empty object_id this flag decides nothing: the target's resolved type chooses the source. When export omits a redundant self-target, this flag is true for a Collection and omitted for a Query or type listing. Coexisting root source fields are preserved but never merged or used as empty-value fallbacks."
               },
               "source": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "x-output-only": true
+                "x-output-only": true,
+                "description": "Legacy source of a DETACHED inline query (§6.2). Used only with an absent or empty `object_id` and without `is_collection: true`; otherwise preserve it as inactive stored state, except when canonical self-target omission clears it to keep the selected source unchanged. Entries travel VERBATIM, not as §9 references: an older client's type id `ot-<key>` or property key is neither folded nor expected to name a document in this bundle. Output-only (§4a): generators describe a source through the target document's `query_source` or `collection_items` instead."
               },
               "properties": {
                 "type": "array",
@@ -1307,7 +1472,7 @@
         "properties",
         "map"
       ],
-      "description": "A property format, by NAME (§3): the public REST API vocabulary, plus names for the internal formats a store really carries — emoji, objects, properties, and map, which 72 production property documents hold (the bundled templatePlaceholders property). One list, referenced from every slot that states a format, so the three slots cannot drift apart. Includes `map`, which only a property document's own property_settings may state: it is the format of hidden system properties (templatePlaceholders is the only carrier — 72 production documents) and no authored property may declare it, so type_properties[] and a dataview's properties[] reference authorableFormat instead."
+      "description": "A property format, by NAME (§3): the public REST API vocabulary, plus names for the internal formats a store really carries — emoji, objects, properties, and map, which 72 production property documents hold (the bundled templatePlaceholders property). One list, referenced from every slot that states a format, so the three slots cannot drift apart. Includes `map`, which only a property document's own property_settings may state: it is the format of hidden system properties (templatePlaceholders is the only carrier — 72 production documents) and no authored property may declare it, so `type_settings.property_definitions[]` and a dataview's `properties[]` reference authorableFormat instead."
     },
     "authorableFormat": {
       "enum": [
@@ -1325,7 +1490,7 @@
         "objects",
         "properties"
       ],
-      "description": "A property format an author may DECLARE (§3) — propertyFormat without `map`. `map` names the shape of a hidden system property's value, never something a type or a view declares: it occurs on 0 of 19,862 type_properties entries and 0 of 28,034 dataview property entries in a 38,061-document corpus, and its only carrier is the bundled, hidden templatePlaceholders. Splitting the vocabulary keeps a property document able to state what it is (§2d) while keeping the authorable slots — the ones a model writes, and the ones a generated per-type schema is built from — unable to invent one."
+      "description": "A property format an author may DECLARE (§3) — propertyFormat without `map`. `map` names the shape of a hidden system property's value, never something a type or a view declares: it occurs on 0 of 19,862 `type_settings.property_definitions` entries and 0 of 28,034 dataview property entries in a 38,061-document corpus, and its only carrier is the bundled, hidden templatePlaceholders. Splitting the vocabulary keeps a property document able to state what it is (§2d) while keeping the authorable slots — the ones a model writes, and the ones a generated per-type schema is built from — unable to invent one."
     },
     "propertyDefinition": {
       "type": "object",
@@ -1365,7 +1530,8 @@
           "items": {
             "type": "string",
             "minLength": 1
-          }
+          },
+          "description": "objects/files only: the types the property may point at, in priority order, each written as the type's derived id `type-<internal_key>` (§9). A display name (a bundled one, or the Name of a type this bundle declares) or the legacy `ot-<key>` is accepted on input; canonical export writes the derived id — except in a single document exported under the `NoDerivedTypeIds` mode (§9, a mode a bundle refuses), where this slot carries the VOCABULARY spelling instead. Empty means any object."
         },
         "description": {
           "type": "string"
@@ -1389,7 +1555,7 @@
     },
     "typeProperty": {
       "type": "object",
-      "description": "One entry of a type document's property-definition list (§2a): a propertyDefinition plus `section`, the ONE field that belongs to the type rather than the property — of 1,614 properties declared by 2+ types within one space, zero differ in anything else. The shared members are referenced, never restated; this layer only narrows: `format` to the authorable vocabulary, `object_types` to a real list (a type declares targets or omits the member — only a property document's stored value can hold a null). An entry must identify the property it declares: state a `property` (the document-facing spelling), or an `internal_key` (the stored id), or a `name` the spelling is derived from. A NAME ALONE IS ENOUGH — `{\"name\": \"Cooking Time\", \"format\": \"number\"}` declares a property spelled `Cooking Time`: the name IS the spelling. Prefer `property` or `name` when authoring: `internal_key` is an id the app mints (every exported example carries one like `6a83296f61fab2265263ae34`, because export writes the keys a real space holds), an author has no space to draw one from, and inventing one is never right — when a custom property states none, the import wiring mints a fresh internal key exactly as the app does when a user creates one. A spelling runs through the same resolution however it is stated, so a property named \"Due Date\" folds onto the bundled `dueDate` instead of minting a lookalike beside it.",
+      "description": "One entry of a type document's property-definition list (§2a): a propertyDefinition plus `uninstalled` and `section`. `section` is the ONE field that belongs to the type rather than the property — of 1,651 (bundle, key) pairs declared by 2+ types within one space (at most 33 in any one space), exactly one differs in anything else — and that one differs only in its `property` spelling, never in what the property IS. The shared members are referenced, never restated; this layer only narrows: `format` to the authorable vocabulary, `object_types` to a real list (a type declares targets or omits the member — only a property document's stored value can hold a null). An entry must identify the property it declares: state a `property` (the document-facing spelling), or an `internal_key` (the stored id), or a `name` the spelling is derived from. A NAME ALONE IS ENOUGH — `{\"name\": \"Cooking Time\", \"format\": \"number\"}` declares a property spelled `Cooking Time`: the name IS the spelling. Prefer `property` or `name` when authoring: `internal_key` is an id the app mints (every exported example carries one like `6a83296f61fab2265263ae34`, because export writes the keys a real space holds), an author has no space to draw one from, and inventing one is never right — when a custom property states none, the import wiring mints a fresh internal key exactly as the app does when a user creates one. A spelling runs through the same resolution however it is stated, so a property named \"Due Date\" folds onto the bundled `dueDate` instead of minting a lookalike beside it.",
       "allOf": [
         {
           "$ref": "#/$defs/propertyDefinition"
@@ -1415,7 +1581,7 @@
             "properties": {
               "name": {
                 "minLength": 1,
-                "pattern": "^[^\u0000-\u001f\u007f]+$",
+                "pattern": "^[^\u0000-\u001f]+$",
                 "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
               }
             }
@@ -1428,6 +1594,10 @@
         },
         "object_types": {
           "type": "array"
+        },
+        "uninstalled": {
+          "type": "boolean",
+          "description": "The user REMOVED this property from the space (\u00a72f, \u00a715 #22). The object stays and is hidden \u2014 uninstalling a custom property is the same act as uninstalling a bundled one \u2014 so there is no \"deleted\" member beside this one. Export writes `true` only; absent is the same statement as `false`, and an author never writes it: the authoring subset refuses it, because an author declaring a property has nothing to uninstall. It is here as well as on a dictionary entry because THIS entry is a complete standalone definition (\u00a72e): a reader that opens one type document and builds its property list from it would otherwise build a removed property as a live one. What a reader MUST NOT do, in either home, is install it as a live property. The dictionary entry's other three owned members do not travel here \u2014 `hidden` is the store's own listing bit, `api_key` the property's public address, `bundled_diverged` a verdict about a space a reader never saw \u2014 because a type's declaration says how THAT type uses a property and none of those is a thing it says. The shape's third home refuses this member as it refuses those: a property document's `property_settings` mirrors stored presence exactly, and the removal is not one of the members that travel there."
         },
         "section": {
           "enum": [
@@ -1475,7 +1645,12 @@
             "internal_key": {
               "type": "string",
               "minLength": 1,
-              "description": "The option's stored key — a minted id, so an AUTHOR never writes one and export writes it only where it exists. It is the one thing about an option that is derivable from nothing: the name and colour say what the option MEANS, the array position says where it sits, and the option's api key is regenerated from the name by the app's own rule (measured: every one of 514 real option api keys is reproduced by that rule, so none needs to travel). Carrying the internal key is what lets a bundle state a vocabulary completely rather than only describe it."
+              "description": "The option's stored key — a minted id, so an AUTHOR never writes one and export writes it only where it exists. It is minted rather than derived: the name and colour say what the option MEANS and the array position says where it sits, but nothing about an option implies its stored key. Carrying it is what lets a bundle state a vocabulary completely rather than only describe it."
+            },
+            "api_key": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The option's public API key (stored `apiObjectKey`) — the spelling callers address the option by, and NOT a slug of the name: an api key does not follow a rename and nothing rewrites it, so `Canceled` keeps the api key `cancelled` it was minted with and `Product` keeps `produc`. Export writes it where the store holds one; an author never writes one. It travels because no restore mints it — the app's rule that derives an api key from a name lives on the create path, and import does not take that path (relation and relation-option snapshots are written straight into their trees), so an option restored from a bundle that states none gets none at all and the API addresses it by a hash-derived local key instead. The same reasoning gives a TYPE its `type_settings.api_key`."
             }
           },
           "required": [
@@ -1920,6 +2095,27 @@
         "icon"
       ],
       "description": "What an image was uploaded FOR, by NAME — the vocabulary of the `image_kind` property value (§3), enforced like $defs/objectOrigin by the semantic pass on the resolved key. Set on file objects. `automatically_added` marks an image a pipeline brought in rather than a person, and travels beside `is_hidden_discovery`, which is what a client actually filters on."
+    },
+    "participantPermissions": {
+      "enum": [
+        "admin",
+        "no_permissions",
+        "owner",
+        "reader",
+        "writer"
+      ],
+      "description": "What a space member may DO, by NAME — the vocabulary of the `participant_permissions` property value (§3), enforced like $defs/objectOrigin by the semantic pass on the resolved key. The names are the proto's own identifiers snake_cased, NOT the public REST API's `role` (viewer/editor/admin): that mapping is not injective over the stored enum — its inverse sends every name outside three back to Reader, `owner` included — and a name that does not round-trip to the number it came from is not a name this format can write. The enum's ZERO is `reader`, so a string this list does not name is refused rather than stored: it used to land verbatim on a number detail, where every int getter answered 0 and a mistyped owner read as a viewer."
+    },
+    "participantStatus": {
+      "enum": [
+        "active",
+        "canceled",
+        "declined",
+        "joining",
+        "removed",
+        "removing"
+      ],
+      "description": "Where a space member is in joining or leaving the space, by NAME — the vocabulary of the `participant_status` property value (§3), enforced like $defs/objectOrigin by the semantic pass on the resolved key. `canceled` is the proto's spelling and stays one word: one concept, one spelling (§15 #14). `joining` occurs in no bundle of the 79-bundle corpus and is published anyway — a vocabulary with a hole in it exports a bare integer the day something writes into the hole."
     }
   }
 }

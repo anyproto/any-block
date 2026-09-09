@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreionemember",
+  "type": "Collection",
+  "type_internal_key": "collection",
+  "properties": { "Name": "A collection of one" },
+  "collection_items": ["bafyreimemberone"],
+  "blocks": [
+    { "id": "dataview", "type": "dataview", "is_collection": true, "views": [{ "id": "v1", "name": "All" }] }
+  ]
+}

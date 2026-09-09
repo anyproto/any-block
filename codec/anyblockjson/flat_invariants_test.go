@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -362,7 +363,7 @@ var (
 	hostileIdentity = testfixtures.AccountIdentity
 )
 
-// hostileObjectNames names EVERY id, including the ones no caption can
+// hostileObjectNames names EVERY id, including the ones no export can
 // survive — an empty answer, a name that normalizes to nothing, and the
 // hostile reference shapes above. A resolver this eager is the adversarial
 // case: it is the export side's own guards, not the resolver's restraint,
@@ -457,7 +458,15 @@ var hostileTypePools = [][]string{
 // hostileTypePropResolver serves the two property definitions the type-seed
 // recommended lists name. PropertyId answers false so import-side wiring is
 // exercised without it.
-type hostileTypePropResolver struct{}
+type hostileTypePropResolver struct{ typeID, typeKey string }
+
+func (r hostileTypePropResolver) TypeKeyById(id string) (string, bool) {
+	return r.typeKey, id != "" && id == r.typeID
+}
+
+func (r hostileTypePropResolver) TypeIdByKey(key string) (string, bool) {
+	return r.typeID, key != "" && key == r.typeKey
+}
 
 func (hostileTypePropResolver) PropertyById(id string) (PropertyDefinition, bool) {
 	switch id {
@@ -787,12 +796,12 @@ func TestInvariant_MarshalOutputValidates(t *testing.T) {
 		"compact":      {write: Options{CompactBlockLabels: true}},
 		"omitIds":      {write: Options{OmitIds: true}},
 		"hostileVocab": {write: Options{Keys: hostileVocab{}}},
-		// the read shape (§9): every reference captioned and every
-		// participant folded. Without this variant no invariant run ever
-		// sees a `#name` suffix or a folded identity — the corpus would stop
-		// reaching the code under test, which is how a green invariant lies.
-		"refNames": {write: Options{
-			RefNames:           true,
+		// the read shape (§9): every participant folded, and a resolver
+		// wired that can name every id. Without this variant no invariant
+		// run ever sees a folded identity, and none ever proves that naming
+		// an object still changes nothing — the corpus would stop reaching
+		// the code under test, which is how a green invariant lies.
+		"foldedRefs": {write: Options{
 			ResolveObjectNames: hostileObjectNames{},
 			SpaceId:            hostileSpaceId,
 		}, readSpaceId: hostileSpaceId},
@@ -807,7 +816,7 @@ func TestInvariant_MarshalOutputValidates(t *testing.T) {
 				o.ResolveOptions = hostileOptions
 				var wantProps []typePropTargets
 				if sbType == model.SmartBlockType_STType {
-					o.ResolveProperties = hostileTypePropResolver{}
+					o.ResolveProperties = hostileTypePropResolver{typeID: snap.Details.Fields["id"].GetStringValue(), typeKey: snap.Key}
 					wantProps = wantTypePropTargets()
 				}
 				data, err := Marshal(sbType, snap, o)
@@ -894,11 +903,13 @@ func TestInvariant_MarshalOutputValidates(t *testing.T) {
 				// diff cleanly" means for an object exported twice, once
 				// before a round trip through the format and once after.
 				//
-				// Both generations are compared with ids OMITTED, because
+				// Both generations are compared with local ids OMITTED, because
 				// import mints an id wherever the snapshot had none (§9): a
 				// snapshot carrying an id-less block or view exports a
 				// document that is not canonical, and a second generation
 				// then differs by exactly those minted ids (§11.2 says so).
+				// OmitIds preserves supplied view ids for widget selectors; only
+				// view ids absent from the first document are normalized here.
 				// Ids have their own assertions above and in
 				// TestExport_ValidIdsAreNeverRenamed; what this one asks is
 				// whether everything else — the terms, the legends, and the
@@ -908,7 +919,7 @@ func TestInvariant_MarshalOutputValidates(t *testing.T) {
 				stripped.SpaceId = variant.readSpaceId
 				gen1, err := Marshal(sbType, snap, stripped)
 				require.NoError(t, err, "seed %d", n)
-				gen2, err := Marshal(sbType, back, stripped)
+				gen2, err := Marshal(sbType, withoutGeneratedViewIDs(t, gen1, back), stripped)
 				require.NoError(t, err, "seed %d", n)
 				assert.Equal(t, string(gen1), string(gen2),
 					"seed %d: exporting the snapshot that came back must reproduce the document", n)
@@ -924,7 +935,7 @@ func TestInvariant_MarshalOutputValidates(t *testing.T) {
 				// assertions above watch only the type slots.
 				plainOpts := Options{ResolveOptions: hostileOptions}
 				if sbType == model.SmartBlockType_STType {
-					plainOpts.ResolveProperties = hostileTypePropResolver{}
+					plainOpts.ResolveProperties = o.ResolveProperties
 				}
 				plainData, err := Marshal(sbType, snap, plainOpts)
 				require.NoError(t, err, "seed %d", n)
@@ -969,6 +980,42 @@ func TestInvariant_MarshalOutputValidates_RichFixture(t *testing.T) {
 			assert.Equal(t, tc.wantLegend, docOptionIds(t, data), "%s", data)
 		})
 	}
+}
+
+// withoutGeneratedViewIDs normalizes only view ids the source did not state.
+// Every supplied id must survive; generated ids are outside snapshot byte
+// stability, just like generated block ids removed by OmitIds.
+func withoutGeneratedViewIDs(t *testing.T, data []byte, snapshot *model.SmartBlockSnapshotBase) *model.SmartBlockSnapshotBase {
+	t.Helper()
+	var doc struct {
+		Blocks []struct {
+			Views []struct {
+				ID string `json:"id"`
+			} `json:"views"`
+		} `json:"blocks"`
+	}
+	require.NoError(t, json.Unmarshal(data, &doc))
+	var ids []string
+	for _, block := range doc.Blocks {
+		for _, view := range block.Views {
+			ids = append(ids, view.ID)
+		}
+	}
+	copy := proto.Clone(snapshot).(*model.SmartBlockSnapshotBase)
+	i := 0
+	for _, block := range copy.Blocks {
+		for _, view := range block.GetDataview().GetViews() {
+			require.Less(t, i, len(ids), "import introduced an extra view")
+			if ids[i] == "" {
+				view.Id = ""
+			} else {
+				assert.Equal(t, ids[i], view.Id, "a supplied view id must survive import")
+			}
+			i++
+		}
+	}
+	require.Equal(t, len(ids), i, "import removed a view")
+	return copy
 }
 
 // hostileDocs are hand-written documents aimed at the seam between the schema's
@@ -1102,7 +1149,7 @@ var hostileDocs = []string{
 	`{"formatVersion": "2.0", "type_internal_keys": {"t": "` + strings.Repeat("k", 129) + `"}}`,
 	`{"formatVersion": "2.0", "kind": "template", "type_internal_keys": {"template": "custom1"}, "type": "template", "template_for": "page"}`,
 	`{"formatVersion": "2.0", "kind": "template", "type_internal_keys": {"tpl": "template"}, "type": "tpl", "template_for": "page"}`,
-	`{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+	`{"formatVersion": "2.0", "kind": "object_type", "id": "type-k", "internal_key": "k",
 		"type_internal_keys": {"task": "69bbfc78877a91b1d12d1a7c"},
 		"type_settings": {"property_definitions": [{"property": "owner", "format": "objects", "object_types": ["task", "blanktype"]}]}}`,
 	// a property definition's `property` is a PROPERTY key slot and admits like one: the
@@ -1110,11 +1157,11 @@ var hostileDocs = []string{
 	// the two shapes the seam refuses with the DEFAULT vocabulary, where no
 	// resolution widens anything and the schema's `minLength: 1` is the only
 	// bound the slot ever had
-	`{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+	`{"formatVersion": "2.0", "kind": "object_type", "id": "type-k", "internal_key": "k",
 		"type_settings": {"property_definitions": [{"property": "blank", "format": "text"}]}}`,
-	`{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+	`{"formatVersion": "2.0", "kind": "object_type", "id": "type-k", "internal_key": "k",
 		"type_settings": {"property_definitions": [{"property": "` + strings.Repeat("k", maxPropertyKeyLen+1) + `"}]}}`,
-	`{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+	`{"formatVersion": "2.0", "kind": "object_type", "id": "type-k", "internal_key": "k",
 		"type_settings": {"property_definitions": [{"property": "a\nb"}]}}`,
 	// the `option_ids` legend (§9a) at both levels: an entry the document
 	// spells, an entry nothing spells (the warning), the shapes the deleted

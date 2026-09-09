@@ -275,7 +275,10 @@ func (e *exporter) cellToJSON(cell *model.Block) (any, error) {
 			e.visited[cell.Id] = true
 			// the shorthand renders without going through textToJSON, so it
 			// owes the same mention-target check (§8, §9)
-			md := renderInline(t.Text, e.exportMarks("/blocks", t.Marks.GetMarks()))
+			md, err := renderInlineChecked(t.Text, e.exportMarks("/blocks", t.Marks.GetMarks()))
+			if err != nil {
+				return nil, fmt.Errorf("block %s: %w", cell.Id, err)
+			}
 			if md == "" {
 				return nil, nil // empty paragraph collapses to an empty cell (§11)
 			}
@@ -512,6 +515,7 @@ func (imp *importer) cellFromJSON(cell jsonCell, cellId string) ([]*model.Block,
 		if err != nil {
 			return nil, fmt.Errorf("cell %s: %w", cellId, err)
 		}
+		imp.unfoldMarks(marks)
 		return []*model.Block{{
 			Id: cellId,
 			Content: &model.BlockContentOfText{Text: &model.BlockContentText{

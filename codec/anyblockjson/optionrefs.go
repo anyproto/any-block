@@ -26,7 +26,7 @@ package anyblockjson
 // live option OF THAT RELATION in the target space, and falls back to name
 // resolution otherwise, so a bundle carried to a space that never saw those
 // ids keeps working exactly as it does without the legend. That is the
-// deliberate difference from `property_internal_keys`/`type_internal_keys`, whose values are
+// deliberate difference from `property_internal_keys`/`type_internal_key`, whose values are
 // taken at face value: a stored key IS the address, while an option id is a
 // shortcut past a name that is already one (§3).
 //
@@ -338,9 +338,28 @@ func PropertyTermsOf(doc []byte) (PropertyTerms, error) {
 			}
 		}
 	}
+	// a §6.2 query source names properties by STORED KEY and spells none of
+	// them, so it contributes here rather than to Spellings — the one slot
+	// in the format where a property is referenced with no term at all
+	// (querysource.go)
+	for _, key := range QuerySourcePropertyKeys(raw) {
+		terms.StoredKeys[key] = true
+	}
 	if list, _ := typePropertyDefinitionsOf(raw); list != nil {
 		for _, item := range list {
 			tp, _ := item.(map[string]any)
+			// PROPERTY-FIRST, matching the importer's own precedence
+			// (authoredIdentity / identityForResolution, reached through
+			// applyTypeProperties — buildTypeProperties is the EXPORTER's
+			// renderer): an entry stating both resolves
+			// through the spelling, so counting its internal_key too
+			// contributes a stored key nothing resolves to — a false
+			// orphan on an authored bundle. The slot census this
+			// replaced drew the same line with a switch.
+			if spelling, _ := tp[memberProperty].(string); spelling != "" {
+				// already counted as a slot spelling above
+				continue
+			}
 			if key, _ := tp[memberInternalKey].(string); key != "" {
 				terms.StoredKeys[key] = true
 			}

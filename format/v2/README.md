@@ -1,11 +1,24 @@
-# AnyBlock v2 — what it is and why it looks like this
+# AnyBlock v2
 
-A readable, strictly-validatable JSON representation of an Anytype object.
-It replaces `.pb.json` (jsonpb of `SnapshotWithType`) as the export/import
-format, and it is the document shape API v2 serves and accepts.
+A readable, strictly-validatable JSON representation of an Anytype object, and
+the format Anytype exports to, imports from, and serves over API v2.
 
-`SPEC.md` is normative and long. This is the short version: the decisions
-that shaped it, why each one was made, and what they look like.
+**If you have an export in front of you, this is not the page you want.**
+
+| | |
+|---|---|
+| [`READING.md`](READING.md) | **read an export without Anytype** — nine ordered steps, verified against a real 3,286-document export |
+| [`INLINE_MARKUP.md`](INLINE_MARKUP.md) | the text dialect, for anyone writing a parser: what it does that CommonMark does not |
+| [`examples/reader`](examples/reader) | those nine steps, runnable, standard library only |
+| [`examples/exported_space`](examples/exported_space) | a tiny export-shaped bundle to run them on |
+| [`examples/habit_tracker`](examples/habit_tracker) | an authoring bundle — what a person writes by hand |
+| [`SPEC.md`](SPEC.md) | normative and complete |
+| [`PRINCIPLES.md`](PRINCIPLES.md) | the ten rules the format answers to |
+
+The rest of this page is **why the format looks like this**: the decisions that
+shaped it, what each one cost, and what was measured to settle it. It is
+background, not instructions. `SPEC.md` is the normative text; this is the
+short version of the argument behind it.
 
 The audience assumption behind almost every decision: **the reader and
 writer is often a language model.** That is not a nice-to-have framing —
@@ -105,10 +118,14 @@ key's fold class.
 
 The authoring profile follows the same rule for a bundle's custom types. A
 type document may retain `internal_key: "habit"` as its stored installation
-identity, but its `Name: "Habit"` is what ordinary objects write in `type`,
-templates write in `template_for`, and objects/files properties write in
-`object_types`. Bundle import binds that NFC display name to the stored key;
-canonical re-export writes the display name again.
+identity, but its `Name: "Habit"` is what ordinary objects write in `type`.
+The two slots that REFER to a type by key — `template_for`, and
+objects/files properties' `object_types` — take the display name from an
+author too, and canonicalise to the type's derived id, `type-habit` (SPEC
+§9): the one spelling every reference to a type carries, so a reader never
+resolves a type spelling there. Bundle import binds the NFC display name to
+the stored key; canonical re-export writes the display name in `type` and
+the derived id everywhere else.
 
 **Why.** An id is unguessable, so a model must fetch before it can write;
 a name is already in the user's request. Import creates missing options by
@@ -122,23 +139,28 @@ byte-exactly is a solved behavior even at 4B scale, while *deriving* a
 slug from a name is where models improvise — and improvise differently in
 the key slot and the filter value that references it, the divergence that
 silently unbinds a view from its property. SPEC §3 is the rule, including the per-document collision
-ladder and the `property_internal_keys` / `type_internal_keys` legends
-that keep an exported document invertible with no space to ask
+ladder, the `property_internal_keys` legend and the `type_internal_key`
+scalar that keep an exported document invertible with no space to ask
 (`option_ids`, in the example above, is the same idea for select options:
 the id rides beside the name).
 
 ### 4. Presence is meaningful
 
 Property values are written **verbatim**, including `false`, `0`, `""`,
-`[]` and `null`. The omit-empty-and-default canonicalization applies only
-to block attributes and envelope fields.
+`[]` and `null`. Omit-empty canonicalization applies only where a field's
+rules make absence equivalent to its empty or default value. It never
+recursively strips JSON values. For example, `query_source: {}`,
+`manifest.files: {}`, and `type_settings.property_definitions: []` carry
+meaning and survive; empty `collection_items` can be omitted. SPEC §4 lists
+the presence rules.
 
 **Why.** This one was decided by data. The first production sweep flagged
 14,032 "issues" that were all the same thing: default scalars
 (`is_hidden:false`, `revision:0`) that canonicalization had dropped. The
 ruling was that **a user setting a property to empty is a fact**, and the
-format has no business deleting it. Blocks are different — an absent
-attribute there genuinely means "default".
+format has no business deleting it. Ordinary block defaults can be omitted;
+required fields, positional table cells, and preserved payloads follow their
+own rules.
 
 ### 5. Vocabulary chosen for outsiders, not for the codebase
 
@@ -168,8 +190,8 @@ reaches a document from the two sources no vocabulary rename can touch.
 The app's STORED keys keep their spellings (`relationKey`,
 `featuredRelations`, the `relation` type key, …), and a document records a
 stored key verbatim exactly where fidelity demands an identity rather than
-a name: the envelope `internal_key`, and the values of the
-`property_internal_keys` / `type_internal_keys` legends — measured on the
+a name: the envelope `internal_key`, `type_internal_key`, and the values
+of the `property_internal_keys` legend — measured on the
 pre-rename corpus, each such key appears there on roughly 150 of 28,831
 documents. And user data is user data: a property someone named
 "Relation", an object called "Company relation template" — their words,
@@ -180,13 +202,14 @@ carried verbatim, no rename's business.
 Full object ids are ~59-character CIDs — a single mention can cost more
 tokens than the sentence containing it. There used to be two compactions:
 one that shortened object references behind a `refs` legend, and one that
-relabels document-local block/row/column/view ids to short suffixes. The
+relabels document-local block/row/column ids to short suffixes. The
 first is deleted; only the second is left.
 
-- **`CompactBlockLabels`** relabels doc-local block/row/column/view ids to
+- **`CompactBlockLabels`** relabels doc-local block/row/column ids to
   their last 5 characters. **Legend-less and lossy.**
-- `OmitIds` drops document-local block/table/view/query ids and `option_ids`,
-  for generation; it retains the envelope object `id`.
+- `OmitIds` drops block/table/sort/filter ids and `option_ids`, for generation.
+  Both options preserve envelope and view ids: a widget outside the document
+  can select a view by its `view_id`.
 - **The envelope object id and object references are written in full, on
   every shape.**
 
@@ -210,11 +233,39 @@ byte-stable — where `N` is a documented normalization (structural blocks
 dropped, option ids resolved to names, marks canonicalized, deprecated
 fields cleared, and so on).
 
+These guarantees apply to successful exports under the selected options and
+equivalent resolvers. Export refuses an inline link whose escaped destination
+exceeds the parser's written-length bound, identifying the block and mark.
+This can include a valid hand-written link whose shorter spelling fits but
+whose canonical escaped form does not. `RenderInlineTextChecked` exposes the
+same check for single text fields; the string-only `RenderInlineText` helper
+retains its compatibility behavior of dropping such links.
+
 **Why not byte-equality with arbitrary input.** Because the format
 deliberately drops things: structural blocks are regenerated by the editor
 at first open (they are layout-dependent — a note has no title), and
 normalization is the point rather than an accident. Promising byte-equality
 would have meant carrying every legacy shape forward forever.
+
+Bundle export also omits the system type definitions keyed `relation`,
+`relationOption`, `space`, `spaceView`, `date`, and `discussion`. Property and
+option data travels in `properties.json`, and space settings in `index.json`.
+These six type definitions' metadata and page content are outside the bundle
+round-trip scope; readers still accept their files in older bundles. The rule
+uses the stored type key and applies only to type definitions (SPEC §2c, §11).
+
+Files can optionally preserve their remote access information in the root
+`file_remote` field: base64-encoded JSON with its own `version: 1` and
+[separate schema](schema/file-remote.v1.schema.json), independent of AnyBlock
+`2.0`. It carries the CID, encryption keys by exact DAG path, and optional
+indexed variants. Remote-only bundles identify the source with
+the optional `index.json.network_id` and omit `manifest.files`, which lists
+embedded bytes only. The network id is opaque metadata used by import to
+assess remote recovery; export and bundle validation do not validate its
+value. Readers prefer embedded bytes and ignore unsupported or
+malformed payloads with a diagnostic; a file relying on an ignored payload
+without embedded bytes is unresolved. See [SPEC §2h](SPEC.md#2h-remote-file-metadata-file_remote)
+and the [remote file example](examples/remote_file/).
 
 ### 8. Validation is discriminator-first, with path-addressed errors
 
@@ -252,7 +303,19 @@ re-measurement. Separately, the native bundle exporter is verified against
 the corpus by the same harness in `-native` mode — 28,542 documents
 checked for layout, kind classification, determinism (every space exported
 twice, trees byte-compared) and per-document fidelity against a
-same-process pb export; `../../bundle/DESIGN.md` records that run.
+same-process pb export; `../../bundle/DESIGN.md` records that run, and the
+caveat on it. That run predates four rulings, not one. §15 #21 took the
+option documents out of a bundle and §15 #23 the property documents, so it
+exercised an `options/` and a `properties/` this layout no longer has; §15
+#26 deleted `manifest.types`, the table it wrote a type path into; and §15
+#27 re-spelled every type and participant reference as a derived id,
+`type-<internal_key>` and `participant-<identity>`. So every id and every
+directory count that run reports is stale, not only its option documents,
+and it has not been re-run. A later 159-space sweep does exercise the
+current layout — 24,889 documents over five directories, no `properties/`,
+no `options/`, a `manifest` whose only member is `properties` — and
+`../../bundle/DESIGN.md` records it beside the older one, with the commit
+it was taken at and what that commit still predates.
 
 Anomalies found along the way were fixed rather than smoothed over —
 including two genuine silent-data-loss bugs the sweeps caught that no unit
@@ -279,8 +342,11 @@ reason not to read a pass rate as a proof of it.
 
 | | |
 |---|---|
+| `READING.md` | read an export without Anytype — nine steps, and a runnable reader |
+| `INLINE_MARKUP.md` | the text dialect: what it does that CommonMark does not |
 | `PRINCIPLES.md` | the ten rules the format answers to, and the order they yield in; TL;DR at the top |
 | `SPEC.md` | normative, complete, §14 has a full worked example |
+| `examples/` | one authoring bundle, one export-shaped bundle, and the reader |
 | `../../bundle/DESIGN.md` | the native bundle exporter: pipeline, layout, corpus verification |
 | `../../cmd/anyblock` | validation and v1/v2 conversion CLI |
 | `schema/*.json` | the hand-authored JSON Schema (2020-12) |

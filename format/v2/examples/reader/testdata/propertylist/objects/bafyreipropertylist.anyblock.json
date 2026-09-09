@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreipropertylist",
+  "type": "Page",
+  "type_internal_key": "page",
+  "properties": {
+    "Name": "A property whose values are properties",
+    "Columns to show": ["dueDate", "noSuchKey"],
+    "Due date": "2026-04-02T00:00:00Z"
+  }
+}

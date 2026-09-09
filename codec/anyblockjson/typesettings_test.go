@@ -22,7 +22,7 @@ func settingsTypeSnapshot() *model.SmartBlockSnapshotBase {
 	return &model.SmartBlockSnapshotBase{
 		Key: "use_case",
 		Details: fields(map[string]*types.Value{
-			"id":                str("t1"),
+			"id":                str("type-use_case"),
 			"name":              str("Use Case"),
 			"recommendedLayout": num(float64(model.ObjectType_basic)),
 			"apiObjectKey":      str("use_case"),
@@ -41,7 +41,7 @@ func settingsTypeSnapshot() *model.SmartBlockSnapshotBase {
 			"setOf":           strList("bafyreinothing"),
 		}),
 		Blocks: []*model.Block{{
-			Id:      "t1",
+			Id:      "type-use_case",
 			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
 		}},
 	}
@@ -106,7 +106,7 @@ func TestTypeSettings_ProvenanceIsDroppedOnTypeDocumentsOnly(t *testing.T) {
 
 	t.Run("dropped on import of a type document", func(t *testing.T) {
 		doc := `{"formatVersion":"2.0","kind":"object_type","id":"t1","internal_key":"k",
-			"properties":{"name":"T","origin":7,"set_of":["bafyreinothing"],"revision":3}}`
+			"properties":{"name":"T","origin":"builtin","set_of":["bafyreinothing"],"revision":3}}`
 		_, snap, err := Unmarshal([]byte(doc), testOptions())
 		require.NoError(t, err, "a document carrying install provenance is stale, not wrong")
 		for _, key := range []string{"origin", "setOf"} {
@@ -123,7 +123,10 @@ func TestTypeSettings_ProvenanceIsDroppedOnTypeDocumentsOnly(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_Page, snap, testOptions())
 		require.NoError(t, err)
 		assert.Contains(t, string(data), `"Origin"`, "on a page, origin is real provenance")
-		assert.Contains(t, string(data), `"Set of"`, "on a set, setOf is the collection's meaning")
+		assert.Contains(t, string(data), `"query_source"`,
+			"on a set, setOf is the query and travels as the §6.2 group, not as provenance")
+		assert.NotContains(t, string(data), `"Set of"`,
+			"and never as a property: the query-source lift is unconditional (§6.2)")
 	})
 }
 

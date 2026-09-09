@@ -167,8 +167,8 @@ bundled display names were renamed to keep that true once raw naming made
 names the wire vocabulary ("Relation key" → "Property key", "Featured
 Relations" → "Featured properties", the "Relation option" type →
 "Property option"). The word still reaches a document where a STORED key
-is recorded verbatim for fidelity — the envelope `internal_key`, the
-values of the `property_internal_keys` / `type_internal_keys` legends —
+is recorded verbatim for fidelity — the envelope `internal_key` and
+`type_internal_key`, the values of the `property_internal_keys` legend —
 and where a user put it in a name: addresses and user data are not
 vocabulary, and neither is this rule's to rename.
 
@@ -241,18 +241,86 @@ needs a lookup or a reasoning step to mean something.
 
 Select options are names — in values, filter values and custom orders alike
 (§3, §6.2). Properties and types are addressed by their display names,
-layouts and block types by name. Only objects keep ids, because nothing
-else about an object is unique — and even those may carry an informative
-`#name` suffix (`bafyrei…#alice`) that import trims without ever resolving
-it, so a reader sees what a reference points at while the id stays the
-whole address (§9).
+layouts and block types by name. **Objects are the exception, and they are
+ids only**, because nothing else about an object is unique: a reference is
+the id, the whole string, with no name after it and nothing to strip off it
+(§9). Showing a reader what a reference points at is a LOOKUP — index the
+bundle by envelope `id`, read the target's `Name` — not a second thing the
+reference carries.
+
+That exception used to be softer: a reference could carry an informative
+`#name` after the id, which import trimmed unread. It is removed, and the
+reason is this principle read honestly rather than halfway. A caption is a
+name that does not resolve, so it bought readability by putting a second,
+unresolvable spelling of the target in a slot whose whole job is to be an
+address — and it did so unpredictably. In the 79-bundle corpus 44,865
+references carried one and all but three sat on `Created by` /
+`Last modified by`, while 979 references to those same members carried none;
+one member is captioned in an attribution slot and bare in a user-facing one
+in 435 documents. A rule a reader cannot derive from a value, only from a
+property's NAME, is not "the format carries the name" — it is the format
+carrying it sometimes. (A per-object dependency map resolving referenced ids
+to a name and an icon is filed as GO-7504 and is not part of this release.)
 
 An id is unguessable: a model must fetch before it can write, or it invents
 one — the hallucination surface in its purest form. A name is already in the
 request. Import creates missing options by name, as the CSV importer and
-the public API already do. The cost is accepted and listed:
-same-named options collapse; renaming an option breaks the link on
-reimport (§3).
+the public API already do.
+
+The cost is accepted and listed. **Two options of one property that share a
+display name collapse to one on reimport**: the document spells an option by
+name and `option_ids` is keyed by name, so one entry per name is all a
+property has room for, and both slots come back on the option that entry
+carries (§3). Renaming an option breaks the link the same way — nothing
+answers the stale name, and the wiring mints a fresh option under it.
+
+**Properties collide too and lose nothing, and that asymmetry is the reason
+the option loss stays accepted rather than closed.** A contested property
+spelling degrades to something the document can still spell — the stored key
+verbatim where it is readable, else `<name> (<tail6>)`, else the stored key
+whatever it looks like — and `property_internal_keys` carries that key beside
+the spelling, so every claimant keeps its identity (§3). An option has no
+such rung to fall to **on the writing path** — and the reason is plumbing, not
+the data model, which is what keeps this loss closable rather than inherent.
+
+An option usually does have a stable stored key. The bundle carries it as
+`internal_key` on the dictionary option entry — **2,479** of the corpus's
+**2,490** entries have one, **1,964** of them bson-minted — and it separates
+**16** of the **19** same-named groups: the two options named `books` are
+`663acb5a9be5e0697095370c` and `663acb4c9be5e0697095370a`, and a reader could
+join either to `properties.json` in the same bundle. It is not a universal
+answer. **11** entries carry no key at all, and in **3** groups — every one of
+them the `Status` property of a single bundle — one member of the pair is
+among those 11, so the key separates nothing there. A fix built on it would
+close most of this loss and would have to say what it does with the rest.
+
+What the exporter cannot do is reach it. `OptionResolver` offers
+`OptionName(key, id)` and `OptionId(key, name)` and nothing else, so at the
+moment a document's value is written the key is not in hand; it arrives in the
+bundle by a different road, where the composer reads it off the option's own
+snapshot. The `1,681` dictionary keys and the `1,424` ids carried in
+`option_ids` legends intersect in **zero** for exactly that reason — they are
+two identifiers for the same options, written by two different paths, not
+evidence that an option lacks a key.
+
+Closing it therefore means widening that seam so the writing path can ask for
+the key, and spelling the key where the name is ambiguous. Until then the
+collapse stands. What was tried and withdrawn is the shortcut that avoids the
+seam: SYNTHESISING a readable identifier — a minted `books (yfirst)` term
+reads as an option name nobody chose, and a bundle installed into a space that
+never saw those ids resolves it by name and MINTS an option actually called
+that.
+
+Both populations, measured on the 24,905-document corpus. Properties: **31**
+same-name pairs in 13 of the 79 bundle dictionaries — `Cuisine Type`,
+`Location`, `Status` and `Created by` among them — and where the degradation
+fires it is written and resolvable, **127** `<name> (<tail6>)` spellings
+across 81 documents beside **5,706 of 43,785** legend entries already spelled
+as the stored key. Options: **4 properties in 4 bundles** hold same-named
+options, and **8 value slots across 7 documents** spell one of those names.
+What the loss costs a reader is the other half of why it is accepted — the
+two options are NAMED THE SAME, so an object that showed `books, books,
+book, read` shows `books, book, read`.
 
 ### 7. A document stands alone
 
@@ -263,8 +331,11 @@ The compaction that survives is the one that needs no inverse: a block label
 is a placeholder inside its own document, never an address outside it, so
 there is no table to carry, keep in sync or read back — which is exactly the
 three obligations the deleted object legend failed. What the envelope carries
-instead is identity, not compaction: `property_internal_keys` and
-`type_internal_keys` for the stored key behind each custom spelling,
+instead is identity, not compaction: `property_internal_keys` for the
+stored key behind each custom property spelling, `type_internal_key` for
+the stored key behind the type spelling, the derived ids `type-<key>` and
+`participant-<identity>` for the two kinds of object whose identity a
+reader can know from the reference alone (§9),
 `option_ids` for the option each select name means (§3, §9a) — a spelling
 that reads back as a *different* property or type
 in a reader that cannot ask the space is the defect a sweep saw as twelve
@@ -444,7 +515,7 @@ convenience).
 | [Djot rationale](https://github.com/jgm/djot#rationale) | linear parsing; no expressive blind spots; one spelling per construct | — |
 | Block-editor APIs (common vocabulary) | block and property names (`bulleted_list_item`, `heading_1`, *property*); options by name | `{id, name}` option objects (rule 6); `database` (rule 3) |
 | Atlassian Document Format | an envelope carrying one explicit version identity; `type`-discriminated nodes | additive-within-a-version; nested `content` trees (rule 4); the single integer `version` — AnyBlock's identity is a `major.minor` string (rule 10) |
-| [Portable Text](https://www.portabletext.org/) | JSON blocks as the unit; a legend referenced by key (`markDefs` → `property_internal_keys`, `type_internal_keys`, `option_ids`) | marks as arrays on spans — Markdown in `text` instead (rule 4); a legend for object references, measured a net loss (rule 5) |
+| [Portable Text](https://www.portabletext.org/) | JSON blocks as the unit; a legend referenced by key (`markDefs` → `property_internal_keys`, `option_ids`) | marks as arrays on spans — Markdown in `text` instead (rule 4); a legend for object references, measured a net loss (rule 5) |
 | [JSON Canvas](https://jsoncanvas.org/), [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) | a short spec with its purpose stated first; goals and non-goals up front; longevity, readability, interoperability as the brief | — |
 | Anytype public REST API (`core/api`) | format names (`select`, `multi_select`, `text`, `objects`, `files`); snake_case member names | id/key duality; value fields named after formats; the derived slug vocabulary (keys spell display names, §3) |
 | Agent-API evidence 2024–2026 ([Ustynov 2026](https://arxiv.org/abs/2604.07502)) | id-addressed edits; constrained decoding as the small-model floor; examples over prose; SQL-shaped filters; the validation loop as product surface; compact but not exotic | tabular/TOON-style output by default; raw JSON Patch; whole-document rewrite as the default edit |

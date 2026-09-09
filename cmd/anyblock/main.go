@@ -25,6 +25,7 @@ const usage = "usage: anyblock <validate|to-v1|to-v2> [options]"
 
 type conversionOutcome struct {
 	foldedParticipantsWithoutSpace bool
+	foldedTypesWithoutResolver     bool
 }
 
 // cliWarningOutput is stderr in production and a replaceable seam in tests.
@@ -216,6 +217,7 @@ func runToV2(args []string) error {
 	out := flags.String("out", "", "AnyBlock v2 object document")
 	encoding := flags.String("encoding", "auto", "input encoding: auto, pb, or json")
 	spaceID := flags.String("space-id", "", "space containing the v1 snapshot (enables participant reference folding)")
+	includeFileRemote := flags.Bool("include-file-remote", false, "include versioned CID/key metadata on file objects")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -256,7 +258,8 @@ func runToV2(args []string) error {
 		return fmt.Errorf("v1 envelope has no snapshot data")
 	}
 	output, err := anyblockjson.Marshal(envelope.SbType, envelope.Snapshot.Data, anyblockjson.Options{
-		SpaceId: *spaceID,
+		SpaceId:           *spaceID,
+		IncludeFileRemote: *includeFileRemote,
 		OnWarning: func(issue anyblockjson.Issue) {
 			fmt.Fprintf(cliWarningOutput, "warning: %s\n", issue)
 		},
@@ -280,14 +283,26 @@ func validateOptionalSpaceID(spaceID string) error {
 func (outcome *conversionOutcome) observe(issue anyblockjson.Issue) {
 	// Path and Message are presentation for humans. Only the shared semantic
 	// code may control whether conversion is safe to write.
-	if issue.Code == anyblockjson.IssueCodeFoldedParticipantsWithoutSpace {
+	switch issue.Code {
+	case anyblockjson.IssueCodeFoldedParticipantsWithoutSpace:
 		outcome.foldedParticipantsWithoutSpace = true
+	case anyblockjson.IssueCodeFoldedTypesWithoutResolver:
+		outcome.foldedTypesWithoutResolver = true
 	}
 }
 
 func (outcome conversionOutcome) preWriteError() error {
 	if outcome.foldedParticipantsWithoutSpace {
 		return fmt.Errorf("decode v2: folded participant references cannot be rebuilt without -space-id")
+	}
+	if outcome.foldedTypesWithoutResolver {
+		// the CLI wires no TypeResolver at all (README, "What a round trip
+		// does not carry"), so this is a statement about the tool, not about
+		// a flag the user forgot: a document naming types by their derived
+		// ids cannot be converted here without writing non-addresses.
+		return fmt.Errorf("decode v2: folded type references (type-<internal_key>) cannot be rebuilt " +
+			"without a TypeResolver, which this CLI does not wire; use the Go API with " +
+			"Options.ResolveProperties")
 	}
 	return nil
 }

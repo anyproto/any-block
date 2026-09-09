@@ -9,6 +9,29 @@ of the format, the codecs between them, bundle tooling, and conformance data.
   format. Its first public `formatVersion` is `2.0`; later grammar revisions
   in this family use `2.1`, `2.2`, and so on.
 
+## Start here
+
+**You have an export and want to read it.** →
+**[format/v2/READING.md](format/v2/READING.md)** — nine steps from a directory
+of JSON to titles, property values, links and page text, needing no Anytype
+software and nothing from this repository. It is runnable; the reader is one
+standard-library Go program that imports no part of this module:
+
+```sh
+go run ./format/v2/examples/reader ./format/v2/examples/exported_space
+go run ./format/v2/examples/reader /path/to/your/export <object-id>
+```
+
+| you want to | go to |
+|---|---|
+| read an export | [format/v2/READING.md](format/v2/READING.md) |
+| parse the text inside a block | [format/v2/INLINE_MARKUP.md](format/v2/INLINE_MARKUP.md) |
+| write a bundle by hand | [format/v2/examples/habit_tracker](format/v2/examples/habit_tracker), then SPEC §2g |
+| check a bundle you produced | `go run ./cmd/anyblock validate <dir>` |
+| know why the format is shaped this way | [format/v2/README.md](format/v2/README.md) |
+| look a rule up, normatively | [format/v2/SPEC.md](format/v2/SPEC.md) |
+| convert v1 snapshots in Go | [codec/anyblockjson](codec/anyblockjson) |
+
 ## Repository layout
 
 ```text
@@ -38,9 +61,9 @@ The four historical root-level v1 `.proto` paths are retained as generated
 compatibility mirrors. Their canonical editable sources live in
 `format/v1/proto/`; see [the v1 mirror rules](format/v1/README.md).
 
-Start with [format/v1/README.md](format/v1/README.md) or
-[format/v2/README.md](format/v2/README.md). The normative v2 definition is
-[format/v2/SPEC.md](format/v2/SPEC.md).
+For the v1 side, start with [format/v1/README.md](format/v1/README.md). The
+normative v2 definition is [format/v2/SPEC.md](format/v2/SPEC.md); it is long,
+and reading an export does not require it.
 
 ## Development
 

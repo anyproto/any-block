@@ -26,6 +26,7 @@ package anyblockjson
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ import (
 
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
 	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
+	"github.com/anyproto/any-block/format/v1/model"
 	formatschema "github.com/anyproto/any-block/format/v2/schema"
 )
 
@@ -46,19 +48,16 @@ const PropertiesFileName = "properties.json"
 
 // PropertyDictionary is a bundle's properties.json (§2f).
 type PropertyDictionary struct {
-	// Installed lists the BUNDLED properties present in the space —
-	// presence, not definition. This field holds STORED keys; the wire
-	// spells them as display names ("Due date", not `dueDate`) —
-	// the dictionary is aligned with every other slot.
-	// 98% of installed copies
-	// are field-identical to the bundled table, so the key is the whole of
-	// what a restore needs. A key that also appears in Properties is
-	// installed AND divergent: the entry overrides the table.
-	Installed []string
 	// Properties carries one definition per property the bundle's objects
-	// actually reference — used-only (§2f) — plus a full entry for every
-	// installed copy that diverges from the bundled table. Keys are STORED
-	// keys, never document spellings: a document's property_internal_keys legend
+	// actually reference — used-only (§2f) — bundled or space-minted, and
+	// nothing else: there is no list of installed bundled keys beside it
+	// (§15 #24). A reader tells a bundled key from a space-minted one by
+	// looking it up in its own shipped table, the lookup every §3 slot
+	// runs, and not by a flag: `bundled_diverged` says a bundled key's
+	// copy had diverged from the table (§15 #25), and its absence says
+	// nothing about bundled-ness. Every entry states the complete
+	// definition, whichever the key is. Keys are STORED keys,
+	// never document spellings: a document's property_internal_keys legend
 	// binds its labels to stored keys, and the stored key is what the
 	// dictionary answers for.
 	Properties []PropertyDefinition
@@ -97,7 +96,6 @@ var compilePropertiesSchema = sync.OnceValues(func() (*jsonschema.Schema, error)
 // — `section` never arrives, because the schema refuses it on a dictionary
 // entry before this decode runs.
 type jsonDictionary struct {
-	Installed  []string       `json:"installed"`
 	Properties []TypeProperty `json:"properties"`
 }
 
@@ -105,22 +103,14 @@ type jsonDictionary struct {
 // and decodes it (§2f). Errors wrap *ValidationError with path-addressed
 // issues, like Unmarshal and UnmarshalIndex.
 //
-// An `installed` key the bundled table does not know is TOLERATED, not
-// refused, and the asymmetry with MarshalPropertyDictionary is deliberate:
-// the bundled table grows independently of the format version, so a backup
-// written by a newer app lists keys an older reader has never heard of —
-// refusing them would make every backup unreadable one app version back.
-// The reader installs the keys it knows and skips the rest; a WRITER, which
-// checks against its own table, has no such excuse.
 // Options.Keys binds every object_types entry through the same preplanned
 // custom-type namespace as /type and /template_for.
 //
 // Warnings go to Options.OnWarning, and this file needs them more than most:
 // its keys are STORED keys while every other slot spells the snake_case
 // label, so the likeliest authoring mistake — writing the label — produces a
-// document that reads clean. An `installed` key outside the bundled table
-// failed only on the way back out; a `properties` entry keyed by the label
-// quietly minted a second property beside the bundled one.
+// document that reads clean: a `properties` entry keyed by the label quietly
+// minted a second property beside the bundled one.
 func UnmarshalPropertyDictionary(data []byte, opts Options) (*PropertyDictionary, error) {
 	return unmarshalPropertyDictionary(data, opts, opts.OnWarning)
 }
@@ -173,7 +163,13 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 	if err := jsonUnmarshal(data, &jd); err != nil {
 		return nil, fmt.Errorf("decode property dictionary: %w", err)
 	}
-	d := &PropertyDictionary{Installed: installedKeys(jd.Installed, warn)}
+	// `value_names` is DERIVED, so no field decodes it: the reader answers a
+	// written list rather than carrying it, and the writer re-derives, which
+	// is what makes Unmarshal ∘ Marshal a fixpoint with no second list to
+	// drift. The raw entries travel alongside the decoded ones for that one
+	// question; the two slices are the same array, so index i is index i.
+	rawEntries, _ := doc["properties"].([]any)
+	d := &PropertyDictionary{}
 	for i, tp := range jd.Properties {
 		// an entry's `internal_key` IS the stored key and skips the chain —
 		// a stored id is its own address (§3) and the fold match below could
@@ -199,6 +195,9 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 		if !isInternal {
 			storedKey = dictionaryEntryKey(i, term, warn)
 		}
+		if i < len(rawEntries) {
+			dictionaryValueNamesWarning(storedKey, rawEntries[i], i, warn)
+		}
 		// entries speak STORED keys in every key slot — the entry identity
 		// and `object_types` alike — so there is no legend to run and no
 		// vocabulary to consult: the definition is built by the same shared
@@ -215,7 +214,43 @@ func unmarshalPropertyDictionary(data []byte, opts Options, warn func(Issue)) (*
 			}
 			targets = append(targets, key)
 		}
-		def := tp.definition(storedKey, declaredFormatWith(Options{}, storedKey, tp.Format), targets)
+		// `format: "unknown"` is the absence of a definition, not a format
+		// (§2f): declaredFormatWith would resolve the unrecognised name to
+		// longtext, and the entry would come back claiming the property holds
+		// text. The bit carries the absence instead, and the schema has
+		// already refused every other member on such an entry, so there is
+		// nothing else for the definition to hold.
+		unknownFormat := tp.Format == propertyFormatUnknown
+		format := model.RelationFormat_longtext
+		if !unknownFormat {
+			format = declaredFormatWith(Options{}, storedKey, tp.Format)
+		}
+		def := tp.definition(storedKey, format, targets)
+		def.FormatUnknown = unknownFormat
+		// The identity verdict is this door's, not the shared builder's.
+		// TypeProperty.authoredKey answers the AUTHORING question —
+		// spelling-first, because a hand-written entry's `property` is what
+		// its values resolve through — and a dictionary entry asks a
+		// different one: did the document state its stored key? This writer
+		// emits `property` and `internal_key` together for a space-minted
+		// property, both holding the same bson id, so spelling-first reports
+		// "identity came from the spelling" and the flag would read false
+		// with the stored key sitting in the entry. An importer that trusts
+		// it then MINTS A FRESH KEY, and the property arrives on the far
+		// side as a different property — the one outcome `internal_key`
+		// exists to prevent (§2f). dictionaryEntryIdentity already weighed
+		// exactly this above; use its answer rather than a second opinion.
+		def.KeyIsInternal = isInternal
+		// three of these are dictionary-owned, so they are set here rather
+		// than in the shared builder: the type-document door never sees
+		// them, its schema refusing each. The removal is the exception —
+		// a type's declaration states it too (§15 #22) and the shared
+		// builder reads it there — and it is set here as well because this
+		// door does not go through that builder.
+		def.ApiKey = tp.ApiKey
+		def.Uninstalled = tp.Uninstalled
+		def.Hidden = tp.Hidden
+		def.BundledDiverged = tp.BundledDiverged
 		d.Properties = append(d.Properties, def)
 	}
 	return d, nil
@@ -245,15 +280,13 @@ func dictionaryEntryIdentity(tp TypeProperty) (term string, isInternal bool, pro
 // from the shipped table (bundledname.go) — the stored key verbatim for
 // anything else (§2f).
 //
-// Only `properties` needs the condition. `installed` admits bundled keys
-// and nothing else — it names rows to restore from the bundled table — so
-// it names unconditionally. An ENTRY, by contrast, is how a bundle declares
-// a property the bundled table does NOT have, so its key population is
-// mixed: of 6,426 entries in a 77-space export, 515 are space-minted bson
-// ids. For those the condition is load-bearing rather than cosmetic: the
-// dictionary has no legend, so its spelling must be a pure function of the
-// key, and the only pure spelling a space-minted key has is itself —
-// nothing may ever be derived from a bson id.
+// The condition is load-bearing rather than cosmetic. An entry is how a
+// bundle declares a property the bundled table does NOT have as much as one
+// it does, so its key population is mixed: of 6,426 entries in a 77-space
+// export, 515 are space-minted bson ids. The dictionary has no legend, so
+// its spelling must be a pure function of the key, and the only pure
+// spelling a space-minted key has is itself — nothing may ever be derived
+// from a bson id.
 func dictionaryKeySpelling(storedKey string) string {
 	if vocabulary.HasRelation(domain.RelationKey(storedKey)) {
 		return bundledPropertySpelling(storedKey)
@@ -261,26 +294,29 @@ func dictionaryKeySpelling(storedKey string) string {
 	return storedKey
 }
 
-// TypeKeySpelling renders a TARGET type key the way the dictionary
-// spells it: the display name for a bundled type ("Property" for the type
-// stored as `relation`), the stored key verbatim for anything else (§2f) —
-// the same rule the entry's own key follows, for the same reason.
+// TypeKeySpelling renders a TARGET type key the way every type-key slot
+// spells it: the derived id `type-<key>` (§9) — a pure function of the key
+// that names the key outright, so the dictionary, a type document's
+// `object_types` and a template's `template_for` say one thing and a
+// reader resolves no type spelling anywhere. A key the fold gate refuses
+// falls back to the dictionary's older pure function: the display name for
+// a bundled type, the stored key verbatim for anything else (§2f).
 //
-// A type document's `object_types` reaches the same answer by a different
-// road: it spells through the exporter's per-document ledger and binds the
-// term in that document's `type_internal_keys` legend. The dictionary has no legend,
-// so its spelling must be a PURE FUNCTION of the key, which is what makes
-// the bundled name table the right instrument and a ledger the wrong one.
-//
-// Measured before this rule existed: type documents spelled 5,377 of 5,377
-// target types as slugs, while dictionary entries spelled 232 of 803 in
-// camelCase — the same concept, two spellings, one vocabulary.
+// Measured before the derived id existed: type documents spelled 5,377 of
+// 5,377 target types as slugs, while dictionary entries spelled 232 of 803
+// in camelCase — the same concept, two spellings, one vocabulary.
 func TypeKeySpelling(typeKey string) string { return dictionaryTypeSpelling(typeKey) }
 
 // StoredTypeKey inverts TypeKeySpelling.
 func StoredTypeKey(spelling string) string { return dictionaryStoredTypeKey(spelling) }
 
 func dictionaryTypeSpelling(typeKey string) string {
+	// a type is referenced by its derived id everywhere (§9): `type-<key>`;
+	// a key the fold gate refuses keeps the pure-function spelling the
+	// dictionary always used
+	if ref := typeRef(typeKey); ref != "" {
+		return ref
+	}
 	if _, err := vocabulary.GetType(domain.TypeKey(typeKey)); err == nil {
 		return bundledTypeSpelling(typeKey)
 	}
@@ -294,6 +330,9 @@ func dictionaryTypeSpelling(typeKey string) string {
 // pinned: `relation` is a bundled type's stored key, so it still names that
 // type verbatim even though its wire spelling is the display name "Property".
 func dictionaryStoredTypeKey(spelling string) string {
+	if key, ok := typeRefKey(spelling); ok {
+		return key
+	}
 	if _, err := vocabulary.GetType(domain.TypeKey(spelling)); err == nil {
 		return spelling
 	}
@@ -348,41 +387,6 @@ func dictionaryStoredKey(spelling string) (stored string, ambiguous []string) {
 	}
 }
 
-// installedKeys reads the `installed` list into stored keys, reporting a key
-// that names no bundled property.
-//
-// Every key here is meant to be bundled — `installed` names rows to restore
-// from the bundled table, and a key outside it tells a reader to install
-// nothing. Such a key is TOLERATED rather than refused, and the tolerance is
-// about VERSION SKEW rather than custom properties: the bundled table grows independently of the
-// format version, so a backup written by a newer app lists keys an older
-// reader has never heard of, and refusing them would make every backup
-// unreadable one app version back. What was missing is that nothing SAID so —
-// the document read clean and only re-rendering it failed.
-func installedKeys(raw []string, warn func(Issue)) []string {
-	if len(raw) == 0 {
-		return raw
-	}
-	out := make([]string, 0, len(raw))
-	for i, spelling := range raw {
-		path := fmt.Sprintf("/installed/%d", i)
-		stored, ambiguous := dictionaryStoredKey(spelling)
-		switch {
-		case len(ambiguous) > 0:
-			warnIssue(warn, path, "installed key %q folds onto more than one bundled property (%s), "+
-				"so which is meant cannot be decided here — write one of them",
-				spelling, strings.Join(quoteAll(ambiguous), ", "))
-		case !vocabulary.HasRelation(domain.RelationKey(stored)):
-			warnIssue(warn, path, "installed key %q is not a bundled property, so a reader "+
-				"restoring this bundle installs NOTHING for it. Give it a full entry in "+
-				"`properties`, where its definition travels with it — or, if it comes from a "+
-				"newer app whose bundled table has it, expect this reader to skip it", spelling)
-		}
-		out = append(out, stored)
-	}
-	return out
-}
-
 // dictionaryEntryKey resolves an entry's key, reporting an ambiguity.
 func dictionaryEntryKey(i int, spelling string, warn func(Issue)) string {
 	stored, ambiguous := dictionaryStoredKey(spelling)
@@ -393,6 +397,52 @@ func dictionaryEntryKey(i int, spelling string, warn func(Issue)) string {
 			spelling, strings.Join(quoteAll(ambiguous), ", "))
 	}
 	return stored
+}
+
+// dictionaryValueNamesWarning answers a WRITTEN `value_names`. Export derives
+// the member from the encoder's own table, so a list in a hand-written
+// dictionary is a claim rather than a declaration, and the reader says so
+// instead of acting on it.
+//
+// A WARNING and not an error, in both directions. The vocabularies are total
+// over their proto enums, so a member added to the model gains a name here —
+// and a bundle written by a newer app would then state a list an older reader
+// does not have. Refusing it would turn a compatible addition into a hard
+// failure over a member that describes rather than constrains; the format has
+// nothing but `formatVersion` to negotiate that with, and this is not a
+// version change.
+func dictionaryValueNamesWarning(storedKey string, raw any, i int, warn func(Issue)) {
+	entry, _ := raw.(map[string]any)
+	if entry == nil {
+		return
+	}
+	stated, present := entry[memberValueNames]
+	if !present {
+		return
+	}
+	path := fmt.Sprintf("/properties/%d/%s", i, memberValueNames)
+	vocab, named := namedEnumProperty(storedKey)
+	if !named {
+		warnIssue(warn, path,
+			"%q has no named vocabulary in this format, so this states a closed set of values "+
+				"that nothing enforces — the member is written for the keys whose stored NUMBER "+
+				"this format writes as a NAME, and only for those",
+			storedKey)
+		return
+	}
+	list, _ := stated.([]any)
+	got := make([]string, 0, len(list))
+	for _, v := range list {
+		s, _ := v.(string)
+		got = append(got, s)
+	}
+	if !slices.Equal(got, vocab.names()) {
+		warnIssue(warn, path,
+			"the names stated here do not match the vocabulary this format writes for %q "+
+				"(one of %s) — the member is derived from the encoder's own table, so a written "+
+				"list is read as a claim and the export's own list is what a reader gets",
+			storedKey, vocab.quotedNames())
+	}
 }
 
 func mapStrings(in []string, f func(string) string) []string {
@@ -420,30 +470,14 @@ func warnIssue(warn func(Issue), path, format string, args ...any) {
 	}
 }
 
-// dictionaryDuplicateIssues refuses an effective key stated twice, in either
-// list. Dictionary spellings are names, so byte-distinct terms such as
-// "Due date" and "due_date" can resolve to the same bundled stored key. The
-// comparison has to happen after the same resolution import uses; comparing
-// raw terms merely postpones the collision until two entries have already
-// become one property. Installed and definitions remain separate domains: a
-// definition may intentionally override an installed bundled property.
+// dictionaryDuplicateIssues refuses an effective key stated twice.
+// Dictionary spellings are names, so byte-distinct terms such as "Due date"
+// and "due_date" can resolve to the same bundled stored key. The comparison
+// has to happen after the same resolution import uses; comparing raw terms
+// merely postpones the collision until two entries have already become one
+// property.
 func dictionaryDuplicateIssues(doc map[string]any) []Issue {
 	var issues []Issue
-	seenInstalled := map[string]int{}
-	installed, _ := doc["installed"].([]any)
-	for i, raw := range installed {
-		spelling, _ := raw.(string)
-		key, _ := dictionaryStoredKey(spelling)
-		if first, dup := seenInstalled[key]; dup {
-			issues = append(issues, Issue{
-				Path: fmt.Sprintf("/installed/%d", i),
-				Message: fmt.Sprintf("%q resolves to property %q, already listed at /installed/%d — the dictionary has one slot per effective key",
-					spelling, key, first),
-			})
-			continue
-		}
-		seenInstalled[key] = i
-	}
 	seenEntries := map[string]int{}
 	entries, _ := doc["properties"].([]any)
 	for i, raw := range entries {
@@ -492,12 +526,9 @@ func dictionaryDuplicateIssues(doc map[string]any) []Issue {
 }
 
 // MarshalPropertyDictionary renders a dictionary in the canonical byte form
-// (§4): `installed` and `properties` each sorted by key, one slot per key.
-// It refuses what UnmarshalPropertyDictionary refuses — a duplicated key —
-// and two things only a writer can check: an entry whose key has no written
-// form, and an `installed` key its own bundled table does not know, which
-// would tell the reader to install nothing (the repair is a full entry in
-// `properties`, where the format travels with it).
+// (§4): `properties` sorted by key, one slot per key. It refuses what
+// UnmarshalPropertyDictionary refuses — a duplicated key — and one thing
+// only a writer can check: an entry whose key has no written form.
 func MarshalPropertyDictionary(d *PropertyDictionary, opts Options) ([]byte, error) {
 	if d == nil {
 		return nil, fmt.Errorf("nil property dictionary")
@@ -505,32 +536,6 @@ func MarshalPropertyDictionary(d *PropertyDictionary, opts Options) ([]byte, err
 	doc := &omap{}
 	doc.set("$schema", PropertiesSchemaURL)
 	doc.set("formatVersion", FormatVersion)
-
-	// stored keys in, NAMES out (§2f): every key here is a bundled property,
-	// and a bundled property's written spelling is its display name
-	// everywhere else in the format. The dictionary used to be the one file
-	// that spelled a property one way while every document beside it spelled
-	// it another (`dueDate` against the then-current `due_date`).
-	installed := make([]string, 0, len(d.Installed))
-	for _, key := range d.Installed {
-		if _, err := vocabulary.GetRelation(domain.RelationKey(key)); err != nil {
-			return nil, fmt.Errorf("installed key %q is not a bundled property: `installed` restores from the "+
-				"bundled table, so a key outside it tells the reader to install nothing — give it a full "+
-				"entry in `properties` instead", key)
-		}
-		// the bundled spelling unconditionally, not dictionaryKeySpelling:
-		// the check above has already established this key is bundled, and
-		// `installed` admits nothing else — it is a list of rows to restore
-		// from the bundled table, so a space-minted key has no meaning in it.
-		installed = append(installed, bundledPropertySpelling(key))
-	}
-	sort.Strings(installed)
-	for i, key := range installed {
-		if i > 0 && installed[i-1] == key {
-			return nil, fmt.Errorf("installed key %q is listed twice: the dictionary has one slot per key", key)
-		}
-	}
-	doc.setNonEmpty("installed", stringsToAny(installed))
 
 	defs := append([]PropertyDefinition(nil), d.Properties...)
 	sort.Slice(defs, func(i, j int) bool { return defs[i].Key < defs[j].Key })
@@ -573,10 +578,15 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	m := &omap{}
 	m.set(memberProperty, spelling)
 	m.set(memberInternalKey, string(def.Key))
+	if def.FormatUnknown {
+		return undefinedPropertyEntryOmap(m, def)
+	}
 	targets := make([]string, 0, len(def.ObjectTypes))
 	for _, key := range def.ObjectTypes {
+		// a type is named by its derived id wherever a key admits one (§9);
+		// a vocabulary's spelling is the fallback for a key the gate refuses
 		spelling := dictionaryTypeSpelling(key)
-		if opts.Keys != nil {
+		if opts.Keys != nil && typeRef(key) == "" {
 			candidate := opts.typeSlug(key)
 			if resolved, err := dictionaryStoredTypeKeyWithOptions(opts, candidate, ""); err == nil && resolved == key {
 				spelling = candidate
@@ -587,5 +597,127 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	if err := renderPropertyDefinitionMembers(m, def, targets, false); err != nil {
 		return nil, err
 	}
+	// the admissible values of a name-over-number key (§3), for the keys
+	// that have them. Written here rather than by the shared renderer for
+	// the reason every dictionary-owned member is: the entry is the only
+	// home that has to make a bundle self-sufficient, and a type's
+	// declaration saying which names a property's value can take would be
+	// the second copy of a vocabulary the encoder already owns.
+	//
+	// As close to `format` as a dictionary-owned member can sit, because
+	// that is the pair a reader reads: format "number" and a list of names
+	// is the whole statement, and the entry's `description` is not part of
+	// it. The description is the STORE's own text, installed verbatim from
+	// the app's shipped property table — for `layout` it reads "Anytype
+	// layout ID(from pb enum)", which is the sentence that sends a reader to
+	// write the ordinal, and for the participant pair it reads "Possible
+	// values: models.ParticipantPermissions", a pointer to a Go symbol the
+	// bundle does not ship. Both are unusable in the same way and neither is
+	// fixable here: the prose fix belongs in that table, upstream, and NOT
+	// in vocabulary/relations.json, whose snapshot is one side of the
+	// identity check that decides whether a space's copy has diverged from
+	// the shipped table. Rewriting it would publish all 658 corpus entries
+	// for these nine keys as a user edit no user made — every one of them
+	// carries the shipped text byte for byte today, and none is flagged
+	// bundled_diverged
+	// (TestValueNames_TheInwardDescriptionIsTheShippedTablesToFix). What this
+	// format can do is state the vocabulary beside the description, and
+	// refuse the number the description invites.
+	if names, named := namedEnumValueNames(string(def.Key), def.Format); named {
+		m.set(memberValueNames, stringsToAny(names))
+	}
+	// the entry's own members, written here rather than by the shared
+	// renderer so that the shape's other homes cannot emit them: on a
+	// type's declaration api_key, hidden and bundled_diverged would each
+	// describe nothing (§2f). `uninstalled` is written by BOTH homes that
+	// mean it — a type's declaration has its own writer for it
+	// (buildTypeProperties), because a declaration is a complete standalone
+	// definition and may not present a removed property as live (§15 #22) —
+	// and by neither through the shared renderer, which is what keeps a
+	// property document's settings refusing it. True only — a false flag is
+	// the absent form, the omit-default canon for a flag that is not a
+	// property value.
+	m.setNonEmpty(memberApiKey, def.ApiKey)
+	m.setNonEmpty(memberUninstalled, def.Uninstalled)
+	m.setNonEmpty(memberHidden, def.Hidden)
+	m.setNonEmpty(memberBundledDiverged, def.BundledDiverged)
 	return m, nil
 }
+
+// undefinedPropertyEntryOmap renders the entry for a key NOTHING could define
+// (§2f): identity and the `unknown` sentinel. Nothing else, and an entry
+// asked to carry anything else is an ERROR rather than a silent trim — the
+// caller building it has a definition in hand and a member it set is a
+// member it meant, so dropping one would publish less than the composer
+// believed it had published, which is the class of silent loss this file
+// exists to end.
+//
+// `name` is refused with the rest, and it used to be written. The member
+// was documented as carrying a name "where the export had one to give (a
+// legend line, a type's declaration)" and no writer ever gave one: the
+// composer sets the key and the sentinel and nothing else. Both of the
+// named sources now land elsewhere or nowhere — a type's declaration states
+// a format beside its name, so it produces a REAL entry a rung earlier
+// (bundle.declaredDefinition), and a legend line binds a spelling to a
+// stored key and carries no name at all. An unreachable member is a promise
+// the format cannot keep, and a name beside `unknown` would describe a
+// definition the entry has just said it does not have.
+func undefinedPropertyEntryOmap(m *omap, def PropertyDefinition) (*omap, error) {
+	for _, stated := range []struct {
+		member string
+		set    bool
+	}{
+		{"name", def.Name != ""},
+		{"options", len(def.Options) > 0},
+		{"object_types", len(def.ObjectTypes) > 0},
+		{"description", def.Description != ""},
+		{"include_time", def.IncludeTime != nil || def.IncludeTimeSet},
+		{"max_count", def.MaxCount != 0},
+		{"readonly", def.Readonly},
+		{"default_value", def.DefaultValue != nil || def.DefaultValueSet},
+		{memberApiKey, def.ApiKey != ""},
+		{memberUninstalled, def.Uninstalled},
+		{memberHidden, def.Hidden},
+		{memberBundledDiverged, def.BundledDiverged},
+	} {
+		if stated.set {
+			return nil, fmt.Errorf("property %q: format %q says nothing could define this property, "+
+				"so the entry states nothing else about it — drop %s, or state the format the "+
+				"property really has", def.Key, propertyFormatUnknown, stated.member)
+		}
+	}
+	m.set("format", propertyFormatUnknown)
+	return m, nil
+}
+
+// memberValueNames is the dictionary entry's published vocabulary (§2f, §3):
+// every name a value of this property can be, for the keys whose stored
+// NUMBER this format writes as a name, and only where the entry itself
+// states format "number" — a diverged copy of such a key states its own
+// format, and the pair a reader is told to read together must agree.
+//
+// READ-facing, and deliberately not an authoring surface — all nine named
+// keys are hidden, readonly or both in the shipped table (seven hidden, five readonly, the union all of them:
+// TestValueNames_EveryNamedKeyIsANumberTheUserDoesNotType), so the member
+// says what a value MEANS, never what a caller may choose. The authoring
+// subset refuses it along with every other export-written member.
+const memberValueNames = "value_names"
+
+// memberUninstalled is the dictionary entry's removal flag (§2f).
+const memberUninstalled = "uninstalled"
+
+// memberApiKey is the dictionary entry's public API key (§2f): the stored
+// `apiObjectKey`, which no restore re-derives.
+const memberApiKey = "api_key"
+
+// memberHidden is the dictionary entry's hidden flag (§2f, §15 #23): the
+// store's `isHidden`, which since a bundle carries no property document
+// has no other place to travel.
+const memberHidden = "hidden"
+
+// memberBundledDiverged is the dictionary entry's divergence verdict (§2f,
+// §15 #25): the space's copy of a bundled property differed from the
+// shipped table when the bundle was written. Knowable only at export time,
+// because the table moves — which is why it is a member rather than a diff
+// the reader runs.
+const memberBundledDiverged = "bundled_diverged"

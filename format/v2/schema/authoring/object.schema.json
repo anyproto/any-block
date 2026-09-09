@@ -23,7 +23,7 @@
     },
     "id": {
       "$ref": "#/$defs/documentId",
-      "description": "This document's bundle-local id, a slug you pick: \"page-welcome\", \"type-habit\". Other files point here with it — a widget target, a link block, a collection's items. Give every document one."
+      "description": "This document's bundle-local id, a slug you pick: \"page-welcome\", \"type-habit\". Other files point here with it — a widget target, a link block, a collection's collection_items. Give every document one."
     },
     "type": {
       "type": "string",
@@ -33,14 +33,14 @@
     "template_for": {
       "type": "string",
       "minLength": 1,
-      "description": "Templates only: the target type's NFC display name — for example, \"Habit\" for a type document whose Name property is \"Habit\". Never copy its internal_key."
+      "description": "Templates only: the target type — its derived id `type-<internal_key>` (\"type-habit\" for a type document whose internal_key is \"habit\"), or its NFC display name (\"Habit\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC §9)."
     },
     "internal_key": {
       "type": "string",
       "minLength": 1,
       "maxLength": 64,
       "pattern": "^[^\u0000-\u001f]+$",
-      "description": "Type documents only: the stored identity used when this type is installed, for example \"habit\". It is internal metadata, not the document spelling: objects, templates and object_types name this type by the NFC display name in its Name property. Keep it distinct from bundled stored identities."
+      "description": "Type documents only: the stored identity used when this type is installed, for example \"habit\". It is internal metadata, not the document spelling: an object names this type by the NFC display name in its Name property, and a template's `template_for` or an `object_types` entry names it by that display name or by the derived id built from this key, `type-<internal_key>` (\"type-habit\"). Keep it distinct from bundled stored identities."
     },
     "icon": {
       "$ref": "#/$defs/icon"
@@ -99,12 +99,37 @@
       },
       "description": "The document's content, top to bottom, as one flat array. Nesting is the per-block `indent`. No ids — the app assigns them."
     },
-    "items": {
+    "query_source": {
+      "type": "object",
+      "description": "For query objects (type \"Query\", stored type key `set`): what the query ranges over (SPEC §6.2). A type target matches objects of that type; a property target matches objects carrying that property, even when its value is empty. Several targets combine with OR. `{}` declares a query with no source targets; absence states no query declaration. Empty inner lists can be omitted while preserving the group. If `collection_items` also exists, source selection follows §6.2; the two are never merged or used as empty-value fallbacks.",
+      "properties": {
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Type targets, each written as the type's derived id `type-<internal_key>` (\"type-habit\" for a type document whose internal_key is \"habit\") or as its NFC display name (\"Habit\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC \u00a79)."
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\u0000-\u001f]+$"
+          },
+          "description": "Property targets, each written as the property's stored internal key, bare (\"lastModifiedDate\") \u2014 the same key `properties.json` states as `internal_key`. Bare and never prefixed: a bundle carries no property documents, so a property has no derived id. A key this bundle mints must be defined in properties.json."
+        }
+      },
+      "additionalProperties": false
+    },
+    "collection_items": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/documentId"
       },
-      "description": "Collections only (type \"Collection\"): the member objects, by bundle-local id, in order."
+      "description": "For collections (type \"Collection\"): member objects by bundle-local id, in order. Absent and [] both mean empty membership; canonical export omits []. May coexist with `query_source`, but a dataview selects one source under SPEC §6.2 and never switches to the query because membership is empty."
     }
   },
   "required": [
@@ -159,6 +184,29 @@
           "template_for": false
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "id": {
+            "pattern": "^type-"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "then": {
+        "required": [
+          "kind",
+          "internal_key"
+        ],
+        "properties": {
+          "kind": {
+            "const": "object_type"
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -166,20 +214,27 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
       "not": {
-        "enum": [
-          "favorite",
-          "recent",
-          "recentOpen",
-          "set",
-          "collection",
-          "allObjects",
-          "chat",
-          "bin",
-          "widgets",
-          "graph"
+        "anyOf": [
+          {
+            "enum": [
+              "favorite",
+              "recent",
+              "recentOpen",
+              "set",
+              "collection",
+              "allObjects",
+              "chat",
+              "bin",
+              "widgets",
+              "graph"
+            ]
+          },
+          {
+            "pattern": "^participant-"
+          }
         ]
       },
-      "description": "A bundle-local id: letters, digits, `-`, `_`; never starting with `_` (that prefix is the platform's) and never one of the ten reserved listing words — the index authoring schema beside this one reserves the same ten, and `chat` and `bin` are the two most common listing widgets."
+      "description": "A bundle-local id: letters, digits, `-`, `_`; never starting with `_` (that prefix is the platform's), never one of the ten reserved listing words — the index authoring schema beside this one reserves the same ten, and `chat` and `bin` are the two most common listing widgets — and never `participant-…`, which belongs to a participant document, a kind an author never writes. `type-<internal_key>` is a type document's own id (§9): write it on the type document whose internal_key it names, and nowhere else. A bare ACCOUNT IDENTITY is reserved the same way and refused the same way, though this pattern cannot show it: a 48-character base58 identity carrying its version byte and CRC16 checksum is the older spelling of that member's participant, so an object reference written that way addresses the participant — pick any other slug, or the pages you name with it will be read as somebody's membership."
     },
     "propertyMap": {
       "type": "object",
@@ -562,7 +617,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "objects/files only: the NFC display names of the types the property may point at, including the Name of a type this bundle declares. Never write internal_key here. Empty or absent = any object."
+          "description": "objects/files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\", \"type-task\") or its NFC display name (\"Habit\", \"Task\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC §9). Empty or absent = any object."
         },
         "include_time": {
           "type": "boolean",
@@ -602,7 +657,7 @@
             "properties": {
               "name": {
                 "minLength": 1,
-                "pattern": "^[^\u0000-\u001f\u007f]+$",
+                "pattern": "^[^\u0000-\u001f]+$",
                 "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
               }
             }
@@ -1007,11 +1062,11 @@
             "properties": {
               "object_id": {
                 "$ref": "#/$defs/documentId",
-                "description": "Only on a PAGE embedding a view of a set or collection elsewhere in the bundle: that document's id. Omit on the dataview a type, set or collection carries as its own."
+                "description": "Set only for an inline dataview hosted by an object whose resolved type is neither Query nor Collection (§6.2). It must point to a Query or Collection object in the bundle. Omit on a Query or Collection's own dataview, and on a type document's own listing. The target's resolved type chooses the source and takes precedence over `is_collection` and the host's source fields. The authoring profile requires a non-empty id when present; omit the member instead of writing an empty string."
               },
               "is_collection": {
                 "type": "boolean",
-                "description": "true when this views a collection (a curated list) rather than a set (a live query)."
+                "description": "With `object_id` omitted, true selects THIS document's `collection_items`, a curated list (§6.2). Empty or absent membership means an empty collection. With `object_id` present, the target's resolved type chooses the source and this flag does not override it."
               },
               "properties": {
                 "type": "array",

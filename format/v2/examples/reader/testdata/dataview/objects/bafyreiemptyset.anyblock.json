@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreiemptyset",
+  "type": "Query",
+  "type_internal_key": "set",
+  "properties": {
+    "Name": "A set whose `query_source` names nothing"
+  },
+  "blocks": [
+    {
+      "id": "dataview",
+      "type": "dataview",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    }
+  ],
+  "query_source": {}
+}

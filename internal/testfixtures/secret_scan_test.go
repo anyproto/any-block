@@ -1053,12 +1053,16 @@ func TestDocumentedSyntheticIdentitySentinelsPreserveShapesAndReferences(t *test
 	}
 
 	spec := read("format/v2/SPEC.md")
-	assert.Equal(t, 2, strings.Count(spec, account+"#SYNTHETIC_member"),
+	assert.Equal(t, 0, strings.Count(spec, account+"#SYNTHETIC_member"),
+		"a reference carries no caption, so the documented attribution values are ids alone (§9)")
+	assert.Equal(t, 2, strings.Count(spec, "participant-"+account),
 		"creator and modifier retain the same synthetic participant reference")
 
 	design := read("bundle/DESIGN.md")
 	assert.Equal(t, 1, strings.Count(design, objectCID+".anyblock.json"))
-	assert.Equal(t, 1, strings.Count(design, typeCID+".anyblock.json"))
+	assert.Equal(t, 0, strings.Count(design, typeCID+".anyblock.json"),
+		"a type document is named by its derived id, type-<internal_key>, never a CID")
+	assert.Equal(t, 1, strings.Count(design, "types/type-task.anyblock.json"))
 	assert.Equal(t, 2, strings.Count(design, fileCID+".anyblock.json"),
 		"the naming example and adjacency document reuse the same file-object id")
 	assert.Equal(t, 1, strings.Count(design, fileCID+".png"),

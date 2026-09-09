@@ -1,0 +1,38 @@
+bundle  ../exported_space
+space   "Field Notes", formatVersion 2.0
+docs    5
+          file_object              1
+          object (no kind member)  2
+          object_type              2
+dict    11 property definitions
+files   1 blobs bound to file documents
+lost    1 property keys the export could not define
+
+# Ridge, first thaw ⛰️
+  id    bafyreiridgenote   (objects/bafyreiridgenote.anyblock.json)
+  type  Field note   -> type-fieldnote in types/type-fieldnote.anyblock.json
+
+properties
+  Created by               [objects]      participant-A11111111111111111111111111111111111111111111111 (not in this bundle)
+  Creation date            [date]         "2026-03-14T07:12:00Z"
+  Name                     [text]         "Ridge, first thaw"
+  Origin                   [number]       "usecase"   (one of 10 published names)
+  Related notes            [objects]      bafyreinotebook -> "Notebook" in objects/bafyreinotebook.anyblock.json
+                                          bafyreiwalkerwhoismissing (not in this bundle)
+  Resolved layout          [number]       "basic"   (one of 28 published names)
+  Weather                  [select]       Rain (grey)
+  deadbeefdeadbeefdeadbeef [unknown]      1755471600   <- no definition travelled with this export
+
+blocks
+  property            Weather  (shows the property value above, in the page body)
+  heading_2           What happened
+  paragraph           A **long** walk to the ridge, written up in Notebook [@bafyreinotebook]. Turned back at the red marker, which the map calls Ridge End.
+  paragraph           Route notes live in the notebook [→object:bafyreinotebook]. A literal bracket is written [like this], and a literal tag is written <font>, because canonical output escapes a < whenever a letter follows it.
+  toggle              Times
+    bulleted_list_item  Left 07:12, back 11:40
+    bulleted_list_item  Inside a code span `<font color="red">` is literal text, not a mark.
+                        This second line is a soft break inside the same block.
+  checkbox [x]        Photos copied off the camera
+  image               bafyreiridgephoto -> "ridge.png" in files/bafyreiridgephoto.anyblock.json
+  code                | // **not bold**, <u>not underlined</u>: a code block is never parsed.
+                      | fmt.Println("ridge")

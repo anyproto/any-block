@@ -21,18 +21,81 @@ import (
 var ErrIndexNotFound = errors.New("bundle index.json not found")
 
 type bundleDocumentEnvelope struct {
-	ID          string `json:"id"`
-	Kind        string `json:"kind"`
-	InternalKey string `json:"internal_key"`
+	ID          string  `json:"id"`
+	Kind        string  `json:"kind"`
+	InternalKey string  `json:"internal_key"`
+	FileRemote  *string `json:"file_remote"`
+	// The slots that name a TYPE by key (SPEC §9). Each is checked against
+	// the bundle's document ids the way the index's own references are:
+	// deleting manifest.types (§15 #26) made `type-<internal_key>` the only
+	// road from an object to its type document (§2c), and took the type
+	// namespace's one cross-document check with it.
+	TypeInternalKey  string `json:"type_internal_key"`
+	TemplateFor      string `json:"template_for"`
+	PropertySettings struct {
+		ObjectTypes []string `json:"object_types"`
+	} `json:"property_settings"`
+	TypeSettings struct {
+		PropertyDefinitions []struct {
+			ObjectTypes []string `json:"object_types"`
+		} `json:"property_definitions"`
+	} `json:"type_settings"`
+	// The §6.2 query source's type list. It joined this census when the
+	// query left `properties`: inside the bag it was a VALUE, and no check
+	// reads a value as an address, so a set naming a type the bundle does
+	// not carry validated clean and then showed nothing.
+	QuerySource struct {
+		Types []string `json:"types"`
+	} `json:"query_source"`
 }
 
-type manifestTypeTargetState struct {
-	pathReadable bool
-	readErr      error
-	validateErr  error
-	decodeErr    error
-	decoded      bool
-	envelope     bundleDocumentEnvelope
+// bundleDictionaryEnvelope reads the dictionary's type-key slots off the raw
+// bytes. The decoded PropertyDefinition cannot answer here: it inverts every
+// admitted spelling to a stored key, so a display name and a derived id
+// arrive identical, and only the derived id is an address.
+type bundleDictionaryEnvelope struct {
+	Properties []struct {
+		ObjectTypes []string `json:"object_types"`
+	} `json:"properties"`
+}
+
+// derivedTypeUse is one slot naming a type by its derived id, kept with
+// where it was written so the refusal can name the file.
+type derivedTypeUse struct {
+	ref    string
+	slot   string
+	source string
+}
+
+// derivedTypeUses collects the derived type ids one document names. A
+// spelling that is not a derived id is skipped: a display name or a bare
+// stored key is authoring input the wiring resolves (§2g, §3), never an
+// address this bundle must carry.
+func derivedTypeUses(source string, envelope bundleDocumentEnvelope) []derivedTypeUse {
+	var uses []derivedTypeUse
+	add := func(slot, ref string) {
+		if anyblockjson.IsDerivedTypeId(ref) {
+			uses = append(uses, derivedTypeUse{ref: ref, slot: slot, source: source})
+		}
+	}
+	// `type_internal_key` states a KEY, and the document it points at is the
+	// one whose id is that key's derived id — the §2c reader flow exactly
+	if envelope.TypeInternalKey != "" {
+		add("type_internal_key", anyblockjson.TypeRefPrefix+envelope.TypeInternalKey)
+	}
+	add("template_for", envelope.TemplateFor)
+	for _, target := range envelope.PropertySettings.ObjectTypes {
+		add("object_types", target)
+	}
+	for _, definition := range envelope.TypeSettings.PropertyDefinitions {
+		for _, target := range definition.ObjectTypes {
+			add("object_types", target)
+		}
+	}
+	for _, target := range envelope.QuerySource.Types {
+		add("query_source.types", target)
+	}
+	return uses
 }
 
 type authoritativeBundlePaths struct {
@@ -97,9 +160,18 @@ func bundlePathAliasKey(name string) string {
 }
 
 // Validate checks the cross-document invariants of an AnyBlock v2 bundle.
-// The one-document codec validates each JSON grammar; this function adds the
-// filesystem questions a document cannot answer by itself: manifest paths,
-// duplicate ids, and index references to objects in the bundle.
+// The one-document codec validates each JSON grammar — the derived-id
+// reservation of §9 included, since it is a fact about one document — and
+// this function adds the filesystem questions a document cannot answer by
+// itself: manifest paths, duplicate ids, and index references to objects in
+// the bundle.
+//
+// It validates the FULL format — a description of a space that exists — so
+// it takes every type declaration as an identity the space HAS: an installed
+// bundled type keyed with its bundled key, a caption two live types share.
+// A bundle an author WROTE asks a different question of the same bytes and
+// is ValidateAuthoring's; the difference is a fact about the caller, since
+// the two surfaces write the same document (§2c).
 //
 // The supplied filesystem must confine every resolved path to the bundle
 // root. Validate can enforce lexical and exact-directory-entry paths, but an
@@ -108,6 +180,53 @@ func bundlePathAliasKey(name string) string {
 // pass the resulting root.FS(), rather than use os.DirFS, when validating
 // untrusted bundle contents.
 func Validate(fsys fs.FS) error {
+	return validate(fsys, fullFormatSurface)
+}
+
+// ValidateAuthoring is Validate for a bundle an author WROTE (§2g): every
+// check Validate runs, plus each DOCUMENT through
+// `anyblockjson.ValidateAuthoring` — the subset schema and the semantic
+// rules stated on the resolved key — plus the STRICT type-declaration plan.
+//
+// Known inconsistency: the index and property dictionary use full-format
+// validation here; their authoring schemas are not run. A nil result therefore
+// does not guarantee that those files pass anyblockjson.ValidateAuthoringIndex
+// or anyblockjson.ValidateAuthoringPropertyDictionary. For example, an index
+// with manifest.properties is accepted here but rejected by the standalone
+// authoring validator. An index missing the authoring-required entrypoint or a
+// dictionary containing internal_key can also pass here while failing its
+// standalone authoring validator. Callers requiring all three authoring schemas
+// must additionally run those two validators. Whether to expand the schemas or
+// tighten this function is deferred; the full-format rules remain unchanged.
+//
+// The strict plan is the reason this function exists. An author writes
+// SPELLINGS, so a declaration that takes the bundled key `task`, or the
+// caption "Task", captures every dependent `"type": "Task"` the author meant
+// for the built-in — and captures it silently, because the spelling then
+// resolves to exactly one key and there is nothing left to refuse. Refusing
+// the declaration is the only place that hazard is visible. A full export
+// carries the same shape and means the opposite by it — the space HAS that
+// type — so Validate must not refuse it, and does not (§2c).
+//
+// Which of the two a bundle is cannot be read out of its bytes: the two
+// surfaces write the same document. It is a fact about the caller, stated by
+// calling one function or the other, exactly as `NoDerivedTypeIds` is a fact
+// about the writer (§9).
+func ValidateAuthoring(fsys fs.FS) error {
+	return validate(fsys, authoringSurface)
+}
+
+// bundleSurface says which of the two questions of §2g a walk is asking. It
+// is the caller's statement and never inferred from a document.
+type bundleSurface uint8
+
+const (
+	fullFormatSurface bundleSurface = iota
+	authoringSurface
+)
+
+func validate(fsys fs.FS, surface bundleSurface) error {
+	authoring := surface == authoringSurface
 	authoritativePaths := newAuthoritativeBundlePaths()
 	indexStatus, inspectErr := inspectExactBundleFile(fsys, anyblockjson.IndexFileName, authoritativePaths)
 	switch indexStatus {
@@ -141,7 +260,6 @@ func Validate(fsys fs.FS) error {
 	propertyPath := anyblockjson.PropertiesFileName
 	dictionaryDeclared := false
 	dictionaryReadable := false
-	manifestTypeTargets := map[string]*manifestTypeTargetState{}
 	manifestRoles := map[string]map[string][]string{}
 	addManifestRole := func(name, role, field string) {
 		if name == "" {
@@ -164,17 +282,6 @@ func Validate(fsys fs.FS) error {
 			addManifestRole(propertyPath, "property dictionary", "manifest.properties")
 			dictionaryReadable = validateBundlePath(fsys, propertyPath, "manifest.properties", authoritativePaths, &issues)
 		}
-		for key, name := range idx.Manifest.Types {
-			field := manifestTypeField(key)
-			addManifestRole(name, "object type", field)
-			readable := validateBundlePath(fsys, name, field, authoritativePaths, &issues)
-			state := manifestTypeTargets[name]
-			if state == nil {
-				state = &manifestTypeTargetState{}
-				manifestTypeTargets[name] = state
-			}
-			state.pathReadable = state.pathReadable || readable
-		}
 	}
 	if !dictionaryDeclared {
 		if exactErr := requireExactBundlePath(fsys, propertyPath); exactErr == nil {
@@ -191,6 +298,8 @@ func Validate(fsys fs.FS) error {
 
 	documentPaths := map[string]string{}
 	documentKinds := map[string]string{}
+	var typeUses []derivedTypeUse
+	var remoteFiles []struct{ source, id, encoded string }
 	// Keep every admitted object document for the deterministic authoring
 	// namespace pass below. Type declarations must be planned as one set before
 	// any dependent /type, /template_for or object_types slot is imported.
@@ -204,6 +313,17 @@ func Validate(fsys fs.FS) error {
 			issues = append(issues, fmt.Sprintf("%s: read property dictionary: %v", propertyPath, readErr))
 		} else {
 			propertyDictionaryData = data
+			var dictEnvelope bundleDictionaryEnvelope
+			if json.Unmarshal(data, &dictEnvelope) == nil {
+				for _, entry := range dictEnvelope.Properties {
+					for _, target := range entry.ObjectTypes {
+						if anyblockjson.IsDerivedTypeId(target) {
+							typeUses = append(typeUses,
+								derivedTypeUse{ref: target, slot: "object_types", source: propertyPath})
+						}
+					}
+				}
+			}
 			dict, decodeErr := anyblockjson.UnmarshalPropertyDictionary(data, anyblockjson.Options{})
 			if decodeErr != nil {
 				issues = append(issues, fmt.Sprintf("%s: %v", propertyPath, decodeErr))
@@ -240,6 +360,30 @@ func Validate(fsys fs.FS) error {
 			addPropertyUse(key, name)
 		}
 	}
+	// One stored type key, one type document (§2c, §9). A type document's
+	// address is a pure function of its key — `type-<internal_key>`,
+	// FoldDocumentId — so two type documents sharing a key are two
+	// definitions of ONE identity: they canonicalize to one id, they file to
+	// one path, and composition keeps whichever it planned last. The
+	// envelope-id check below cannot see it (the two documents have
+	// different raw ids) and the authoring planner cannot either, because it
+	// skips a type document with no display Name before it records any key
+	// ownership — and an unnamed type shell is a legal exported shape, 12 of
+	// them across the corpus's 1,808 type documents. So the key is owned
+	// here, per DOCUMENT PATH and independently of the name, which is the
+	// only place that sees every type document.
+	storedTypeKeyPaths := map[string][]string{}
+	recordStoredTypeKey := func(name string, envelope bundleDocumentEnvelope) {
+		if envelope.InternalKey == "" {
+			return
+		}
+		switch envelope.Kind {
+		case "object_type", "bundled_object_type":
+		default:
+			return
+		}
+		storedTypeKeyPaths[envelope.InternalKey] = append(storedTypeKeyPaths[envelope.InternalKey], name)
+	}
 	recordDocument := func(name string, envelope bundleDocumentEnvelope) {
 		if envelope.ID == "" {
 			return
@@ -252,40 +396,6 @@ func Validate(fsys fs.FS) error {
 		}
 		documentPaths[envelope.ID] = name
 		documentKinds[envelope.ID] = envelope.Kind
-	}
-
-	// A manifest type target is authoritative. Classify the exact path here,
-	// independent of extension and basename, while the field-to-target state
-	// remains available for precise binding diagnostics below. The generic
-	// walk skips every such path, preventing both dictionary/blob dispatch and
-	// duplicate derivative issues from overriding the manifest's declared role.
-	manifestTypePaths := make([]string, 0, len(manifestTypeTargets))
-	for name := range manifestTypeTargets {
-		manifestTypePaths = append(manifestTypePaths, name)
-	}
-	sort.Strings(manifestTypePaths)
-	for _, name := range manifestTypePaths {
-		state := manifestTypeTargets[name]
-		if !state.pathReadable {
-			continue
-		}
-		data, readErr := fs.ReadFile(fsys, name)
-		if readErr != nil {
-			state.readErr = readErr
-			continue
-		}
-		if validateErr := anyblockjson.Validate(data, anyblockjson.Options{}); validateErr != nil {
-			state.validateErr = validateErr
-			continue
-		}
-		if decodeErr := json.Unmarshal(data, &state.envelope); decodeErr != nil {
-			state.decodeErr = decodeErr
-			continue
-		}
-		state.decoded = true
-		authoringDocuments[name] = data
-		recordPropertyUses(name, data)
-		recordDocument(name, state.envelope)
 	}
 
 	err = fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, walkErr error) error {
@@ -324,6 +434,14 @@ func Validate(fsys fs.FS) error {
 			issues = append(issues, fmt.Sprintf("%s: %v", name, decodeErr))
 			return nil
 		}
+		// The subset runs AFTER the full grammar, so a document outside both
+		// is reported by §12's curated wording rather than by a `not`/`enum`
+		// verdict that can only say some member matched.
+		if authoring {
+			if subsetErr := anyblockjson.ValidateAuthoring(data); subsetErr != nil {
+				issues = append(issues, fmt.Sprintf("%s: %v", name, subsetErr))
+			}
+		}
 		authoringDocuments[name] = data
 		recordPropertyUses(name, data)
 		var envelope bundleDocumentEnvelope
@@ -332,24 +450,57 @@ func Validate(fsys fs.FS) error {
 			return nil
 		}
 		recordDocument(name, envelope)
+		if envelope.FileRemote != nil {
+			remoteFiles = append(remoteFiles, struct{ source, id, encoded string }{name, envelope.ID, *envelope.FileRemote})
+		}
+		recordStoredTypeKey(name, envelope)
+		typeUses = append(typeUses, derivedTypeUses(name, envelope)...)
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("walk bundle: %w", err)
 	}
 
-	// Cross-file authoring coherence is a two-pass operation. The first pass
-	// plans the complete NFC display-name/legacy-alias/stored-key namespace;
-	// only a successful plan may be supplied to readers. This makes filesystem
-	// walk order irrelevant and prevents a custom declaration from shadowing a
-	// bundled type or another declaration for just the documents read first.
-	planOptions := anyblockjson.AuthoringVocabularyPlanOptions{}
+	// Reported after the walk, over sorted keys, so the diagnostic is the
+	// same whatever order the filesystem hands the documents over — and it
+	// names EVERY path claiming the key, because the repair is a choice
+	// between them and the reader has to see the candidates.
+	duplicateTypeKeys := make([]string, 0, len(storedTypeKeyPaths))
+	for key, paths := range storedTypeKeyPaths {
+		if len(paths) > 1 {
+			duplicateTypeKeys = append(duplicateTypeKeys, key)
+		}
+	}
+	sort.Strings(duplicateTypeKeys)
+	for _, key := range duplicateTypeKeys {
+		paths := append([]string(nil), storedTypeKeyPaths[key]...)
+		sort.Strings(paths)
+		issues = append(issues, fmt.Sprintf(
+			"stored type key %q is defined by %d type documents (%s); a type document's id is type-%s (§9), "+
+				"so these are two definitions of one identity and one file — give each type its own internal_key, "+
+				"or keep one document",
+			key, len(paths), strings.Join(paths, ", "), key))
+	}
+
+	// Cross-file type coherence is a two-pass operation. The first pass plans
+	// the complete NFC display-name/legacy-alias/stored-key namespace; only a
+	// successful plan may be supplied to readers. This makes filesystem walk
+	// order irrelevant: every claimant of a spelling is known before any
+	// document that spells it is read.
+	//
+	// The plan is INSTALLED, because this function validates the full format
+	// — a description of a space that exists. Its bundled types are installed
+	// there under their bundled keys, and two of its own types may share a
+	// caption; neither is a thing this bundle may refuse. The authoring
+	// surface, where a declaration is a proposal and a collision captures a
+	// spelling its author meant for something else, is ValidateAuthoring.
+	planOptions := anyblockjson.AuthoringVocabularyPlanOptions{Installed: !authoring}
 	if dictionaryDecoded {
 		planOptions.PropertyDictionary = propertyDictionaryData
 	}
 	authoringVocabulary, planErr := anyblockjson.PlanAuthoringTypeVocabulary(authoringDocuments, planOptions)
 	if planErr != nil {
-		issues = append(issues, fmt.Sprintf("authoring type declarations: %v", planErr))
+		issues = append(issues, fmt.Sprintf("type declarations: %v", planErr))
 	} else {
 		names := make([]string, 0, len(authoringDocuments))
 		for name := range authoringDocuments {
@@ -358,13 +509,13 @@ func Validate(fsys fs.FS) error {
 		sort.Strings(names)
 		for _, name := range names {
 			if _, _, decodeErr := anyblockjson.Unmarshal(authoringDocuments[name], anyblockjson.Options{Keys: authoringVocabulary}); decodeErr != nil {
-				issues = append(issues, fmt.Sprintf("%s: authoring type binding: %v", name, decodeErr))
+				issues = append(issues, fmt.Sprintf("%s: type binding: %v", name, decodeErr))
 			}
 		}
 		if len(propertyDictionaryData) != 0 {
 			if _, decodeErr := anyblockjson.UnmarshalPropertyDictionary(propertyDictionaryData,
 				anyblockjson.Options{Keys: authoringVocabulary}); decodeErr != nil {
-				issues = append(issues, fmt.Sprintf("%s: authoring type binding: %v", propertyPath, decodeErr))
+				issues = append(issues, fmt.Sprintf("%s: type binding: %v", propertyPath, decodeErr))
 			}
 		}
 	}
@@ -377,6 +528,26 @@ func Validate(fsys fs.FS) error {
 			issues = append(issues, fmt.Sprintf("%s references object %q, but the bundle contains no document with that id", field, id))
 		}
 	}
+	// The type namespace's cross-document check. A derived type id is an
+	// address and the bundle is the only place one can be checked: a single
+	// document cannot know whether `type-habit` is here. Reported once per
+	// distinct (slot, id, file) so a type named from forty objects does not
+	// produce forty lines.
+	reportedTypeUse := map[derivedTypeUse]struct{}{}
+	for _, use := range typeUses {
+		if _, exists := documentPaths[use.ref]; exists {
+			continue
+		}
+		if _, seen := reportedTypeUse[use]; seen {
+			continue
+		}
+		reportedTypeUse[use] = struct{}{}
+		issues = append(issues, fmt.Sprintf(
+			"%s: %s references type %q, but the bundle contains no document with that id — "+
+				"a type document's id IS its derived id (SPEC §9), and since the manifest lost its "+
+				"type table it is the only way to reach one (§2c)", use.source, use.slot, use.ref))
+	}
+
 	requireObject("entrypoint", idx.Entrypoint)
 	requireObject("homepage", idx.Homepage)
 	for i, widget := range idx.Widgets {
@@ -392,43 +563,17 @@ func Validate(fsys fs.FS) error {
 				issues = append(issues, fmt.Sprintf("manifest.files[%s] names a %q document, not a file_object", id, kind))
 			}
 		}
-		for key, name := range idx.Manifest.Types {
-			field := manifestTypeField(key)
-			state := manifestTypeTargets[name]
-			if state == nil || !state.pathReadable {
-				continue
-			}
-			if state.readErr != nil {
-				issues = append(issues, fmt.Sprintf("%s cannot read target %q: %v", field, name, state.readErr))
-				continue
-			}
-			if state.validateErr != nil {
-				issues = append(issues, fmt.Sprintf("%s target %q is invalid: %v", field, name, state.validateErr))
-				continue
-			}
-			if state.decodeErr != nil || !state.decoded {
-				issues = append(issues, fmt.Sprintf("%s cannot decode target %q envelope: %v", field, name, state.decodeErr))
-				continue
-			}
-			if state.envelope.Kind != "object_type" && state.envelope.Kind != "bundled_object_type" {
-				issues = append(issues, fmt.Sprintf("%s points to %q, which declares kind %q, not an object type", field, name, state.envelope.Kind))
-				continue
-			}
-			if state.envelope.ID == "" {
-				issues = append(issues, fmt.Sprintf("%s points to %q, whose object-type document must declare a non-empty id", field, name))
-			}
-			declared := state.envelope.InternalKey
-			if declared == "" {
-				issues = append(issues, fmt.Sprintf("%s points to %q, whose object-type document must declare a non-empty internal_key", field, name))
-			}
-			if declared == "" {
-				continue
-			}
-			storedKey := anyblockjson.StoredTypeKey(key)
-			if declared != storedKey {
-				issues = append(issues, fmt.Sprintf("%s resolves to stored type key %q, "+
-					"but %q declares internal_key %q", field, storedKey, name, declared))
-			}
+	}
+	for _, file := range remoteFiles {
+		// A manifest binding promises embedded bytes; its existence and exact
+		// path were checked above. Optional remote metadata need not work when
+		// that source is available. A legacy metadata-only document carrying
+		// no file_remote keeps its existing admission behavior.
+		if idx.Manifest != nil && idx.Manifest.Files[file.id] != "" {
+			continue
+		}
+		if _, err := anyblockjson.DecodeFileRemote(file.encoded); err != nil {
+			issues = append(issues, fmt.Sprintf("%s: file unresolved: no embedded bytes and file_remote was ignored (%v)", file.source, err))
 		}
 	}
 	if !dictionaryDeclared || dictionaryDecoded {
@@ -458,13 +603,6 @@ func Validate(fsys fs.FS) error {
 	}
 	sort.Strings(issues)
 	return fmt.Errorf("bundle validation failed:\n- %s", strings.Join(issues, "\n- "))
-}
-
-func manifestTypeField(key string) string {
-	if key == "" {
-		return `manifest.types[""]`
-	}
-	return "manifest.types[" + key + "]"
 }
 
 func appendManifestRoleIssues(bindings map[string]map[string][]string, issues *[]string) {

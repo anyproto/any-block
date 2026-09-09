@@ -44,7 +44,7 @@ func TestAuthoringTypePlannerAliasClosesEveryTypeSlot(t *testing.T) {
 			if test.wantPath == "/type" {
 				assert.Equal(t, name, envelope.Type)
 			} else {
-				assert.Equal(t, name, envelope.TemplateFor)
+				assert.Equal(t, TypeRefPrefix+key, envelope.TemplateFor, "the target is spelled by its derived id (§9)")
 			}
 		})
 	}
@@ -70,7 +70,8 @@ func TestAuthoringTypePlannerAliasClosesEveryTypeSlot(t *testing.T) {
 		} `json:"property_settings"`
 	}
 	require.NoError(t, jsonUnmarshal(propertyCanonical, &propertyEnvelope))
-	assert.Equal(t, []string{name, name, name}, propertyEnvelope.PropertySettings.ObjectTypes)
+	assert.Equal(t, []string{TypeRefPrefix + key, TypeRefPrefix + key, TypeRefPrefix + key},
+		propertyEnvelope.PropertySettings.ObjectTypes, "every target canonicalises to the derived id (§9)")
 
 	dictionary := []byte(`{"formatVersion":"2.0","properties":[{"property":"related","internal_key":"related","format":"objects","object_types":["cafe_ritual","Café Ritual","habit_record_v2"]}]}`)
 	dict, err := UnmarshalPropertyDictionary(dictionary, Options{Keys: vocab})
@@ -79,8 +80,8 @@ func TestAuthoringTypePlannerAliasClosesEveryTypeSlot(t *testing.T) {
 	assert.Equal(t, []string{key, key, key}, dict.Properties[0].ObjectTypes)
 	canonical, err := MarshalPropertyDictionary(dict, Options{Keys: vocab})
 	require.NoError(t, err)
-	assert.Equal(t, 3, countJSONStrings(t, canonical, name),
-		"dictionary output canonicalizes every target to the NFC display name")
+	assert.Equal(t, 3, countJSONStrings(t, canonical, TypeRefPrefix+key),
+		"dictionary output canonicalizes every target to the derived id (§9)")
 }
 
 func countJSONStrings(t *testing.T, data []byte, value string) int {
@@ -224,7 +225,7 @@ func TestAuthoringVocabularyPreservesRawNonNFCStoredTypeKey(t *testing.T) {
 	for name, input := range map[string][]byte{
 		"type":                  []byte(`{"formatVersion":"2.0","id":"one","type":"` + storedKey + `"}`),
 		"template_for":          []byte(`{"formatVersion":"2.0","kind":"template","id":"one","type":"template","template_for":"` + storedKey + `"}`),
-		"type object_types":     []byte(`{"formatVersion":"2.0","kind":"object_type","id":"host","internal_key":"host","properties":{"Name":"Host"},"type_settings":{"layout":"basic","property_definitions":[{"name":"Related","format":"objects","object_types":["` + storedKey + `"]}]}}`),
+		"type object_types":     []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-host","internal_key":"host","properties":{"Name":"Host"},"type_settings":{"layout":"basic","property_definitions":[{"name":"Related","format":"objects","object_types":["` + storedKey + `"]}]}}`),
 		"property object_types": []byte(`{"formatVersion":"2.0","kind":"property","id":"related","internal_key":"related","property_settings":{"format":"objects","object_types":["` + storedKey + `"]}}`),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -233,8 +234,16 @@ func TestAuthoringVocabularyPreservesRawNonNFCStoredTypeKey(t *testing.T) {
 			require.NoError(t, err)
 			canonical, err := Marshal(kind, snapshot, Options{Keys: vocab, ResolveProperties: resolver})
 			require.NoError(t, err)
-			assert.Contains(t, string(canonical), displayName,
-				"canonical output may use the display name only after the raw stored address imported unchanged")
+			if name == "type" {
+				assert.Contains(t, string(canonical), `"type": "`+displayName+`"`,
+					"the envelope type is captioned by the display name once the raw stored address imported unchanged")
+				assert.Contains(t, string(canonical), `"type_internal_key": "`+storedKey+`"`)
+				return
+			}
+			// a key the §9 fold gate refuses (non-ASCII) is written verbatim
+			// in the type-key slots: its own address in every reader
+			assert.Contains(t, string(canonical), `"`+storedKey+`"`)
+			assert.NotContains(t, string(canonical), displayName)
 		})
 	}
 

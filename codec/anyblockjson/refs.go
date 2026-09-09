@@ -1,64 +1,70 @@
 package anyblockjson
 
-// refs.go — object references (§9): the informative `#name` suffix and the
-// participant fold.
+// refs.go — object references (§9): the participant fold.
 //
 // An object reference in this format is a full id, always (§9a deleted the
-// compaction legend). Two amendments make one readable without ceasing to be
-// an address:
+// compaction legend), and it is a full id and NOTHING ELSE. There is no
+// caption, no display hint, no second half after a separator: the whole
+// string is the address, and a reader that wants a name looks the id up in
+// the bundle it is already holding and reads that document's `Name`.
 //
-//   - **The `#name` suffix.** A reference MAY carry `#<name>` after the id —
-//     `bafyrei…#local_first_ux` — where the name is the referenced object's
-//     display name normalized into an identifier grammar (refNameNormalize:
-//     letters, digits, `_`, combining marks, nothing else). Key spellings
-//     stopped being normalized when raw naming landed; the suffix still is,
-//     because its grammar is what keeps the `#` split safe.
-//     The suffix is INFORMATIVE ONLY: import trims it at the first `#` and
-//     never resolves it, so a stale name costs nothing and two objects
-//     sharing one name collide on nothing. It exists so a human or a model
-//     reading a document sees what a reference points at instead of a
-//     59-character CID. A bare id with no suffix is equally valid, and is
-//     what a writer with no name in hand writes.
+// The format used to spell a reference `<id>#<name>`, with the name as an
+// informative suffix a reader trimmed. It is REMOVED — not defaulted off,
+// not an opt-in — for two reasons the corpus made plain. It was
+// unpredictable: 44,865 references in the 79-bundle corpus carried a name
+// and all but three of those sat on `Created by`/`Last modified by`, while
+// 979 references to those same members, in the same documents, carried
+// none — Owner 332, Assignee 315, Voters 176, Author 37, Suggested by 23,
+// Attendees 22 — so the rule could be stated only by naming properties, not
+// derived from any value or slot. And it was a parsing obligation on every
+// conforming reader: leaving the grammar as an opt-in does not discharge it,
+// because a reader that has only ever met bare ids breaks the first day some
+// read shape emits a caption. Removing the grammar discharges it.
+//
+// One amendment to a reference survives, and it is a rewriting of the id
+// rather than an addition to it:
 //
 //   - **The participant fold.** `_participant_<spaceId>_<identity>` is a
 //     derived id: the space id is the document's own space restated, and the
 //     identity is the whole of the content. When Options.SpaceId names the
-//     space, export folds the composite down to the bare identity and import
-//     rebuilds the composite (domain.NewParticipantId) — 135 characters down
-//     to 48, and the same member re-addresses correctly when a document
-//     crosses spaces, because the reader rebuilds against ITS space.
+//     space, export folds the composite down to `participant-<identity>`
+//     and import rebuilds the composite (domain.NewParticipantId) — 135
+//     characters down to 60, and the same member re-addresses correctly
+//     when a document crosses spaces, because the reader rebuilds against
+//     ITS space. The prefix is a statement where the bare identity was
+//     shape inference, and `-` is outside every ordinary id alphabet, so no
+//     ordinary id is or begins one. A bare identity is still read (input
+//     compatibility with documents written before the prefix), never
+//     written.
 //
-// The split at `#` is unconditional and safe from both ends, verified rather
-// than assumed: no id form this format writes can contain `#` (CIDs are
-// base32 `[a-z2-7]`, participant ids base32+base58, `_ot`/`_br` ids are
-// `[a-zA-Z0-9_]` across all 223 bundled keys, `_date_…`/`_missing_object`
-// are fixed shapes; measured over 37,429 production documents: zero
-// id-shaped values contain `#`) — and the name half is normalized through a
-// grammar that admits no `#` either.
+// `#` is now an ordinary character. Neither side of the codec gives it a
+// meaning, so a reference carrying one is an id no space mints — it resolves
+// to nothing, the same way any id the bundle does not carry resolves to
+// nothing, and it survives a round trip unchanged.
 
 import (
 	"encoding/binary"
+	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/ipfs/go-cid"
 	"github.com/mr-tron/base58/base58"
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
-	"github.com/anyproto/any-block/codec/anyblockjson/filterstring"
+	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
-// ObjectNameResolver names an object for the informative reference suffix
-// (§9). It is the object-namespace sibling of ParticipantResolver, and it is
-// export-only: import trims the suffix without ever asking anyone.
+// ObjectNameResolver is the export-side seam onto the space's own object
+// index. The codec asks it NOTHING: a reference is an id, so no export path
+// needs a target's name (§9). It survives as the seam the two questions
+// below hang off — both are optional capabilities of
+// Options.ResolveObjectNames, discovered by type assertion — and a
+// name-only implementation therefore changes no byte of any export.
 //
-// A resolver that cannot name an id returns false and the reference is
-// written bare — never with a partial or invented suffix. An empty or
-// whitespace name is treated as no name at the seam (refNameLabel), the same
-// discipline the participant seam applies, so an implementation answering
-// ("", true) cannot put a dangling `#` on every reference in an export.
+// It was, until the caption was removed, the seam that wrote `<id>#<name>`.
+// Nothing does now: the format carries the id, and rendering a name is a
+// lookup the reader performs against the bundle it already holds.
 type ObjectNameResolver interface {
 	ObjectName(id string) (string, bool)
 }
@@ -188,132 +194,11 @@ func DroppedMissingObjectRef(opts Options, entry string) bool {
 	return missingFromSpace(opts, entry)
 }
 
-// refNameSep splits an object reference from its informative name suffix.
-// The FIRST occurrence splits (§9): the id half can never contain one, and
-// the name half never does either once normalized, so first-vs-last is not a
-// choice between behaviours — it is the same answer stated defensively.
-const refNameSep = "#"
-
-// maxRefNameLen bounds the suffix. The suffix is a glanceable hint, not an
-// address, so a name that normalizes past the bound is truncated rather than
-// dropped — truncation invents nothing here, unlike a key label (label.go),
-// which IS an address and refuses instead.
-const maxRefNameLen = 64
-
-// splitRefName splits a reference at the first `#` into the id and the
-// informative name. A reference with no `#`, and the degenerate `#…` whose
-// id half would be empty, split into themselves and no name: import never
-// invents an empty id out of a malformed reference.
-func splitRefName(ref string) (id, name string) {
-	if i := strings.Index(ref, refNameSep); i > 0 {
-		return ref[:i], ref[i+1:]
-	}
-	return ref, ""
-}
-
-// trimRefName is the import half of the suffix: the id, with the informative
-// name dropped unread (§9).
-func trimRefName(ref string) string {
-	id, _ := splitRefName(ref)
-	return id
-}
-
-// refNameLabel normalizes a display name into the suffix grammar
-// (refNameNormalize below), bounded by maxRefNameLen. An empty answer means
-// no suffix. The grammar admits no `#`, which is the writer's half of the
-// split guarantee: a raw display name here would break the split from both
-// ends.
-func refNameLabel(name string) string {
-	label := refNameNormalize(name)
-	if runes := []rune(label); len(runes) > maxRefNameLen {
-		label = strings.TrimRight(string(runes[:maxRefNameLen]), "_")
-	}
-	return label
-}
-
-// refNameNormalize turns a display name into the `#name` suffix grammar —
-// letters of any script, digits, `_`, combining marks — or "" when nothing
-// is left to name.
-//
-// This is the identifier normalization that used to mint KEY labels
-// (label.go), surviving here for its one remaining surface. Key spellings
-// are raw names now and need no normalization at all; the ref suffix still
-// does, because its grammar is what makes the `#` split safe — a raw
-// display name may contain `#`, and the suffix must not. The rules are
-// unchanged from the key-label era on purpose: the suffix is informative
-// and trimmed unread, so nothing depends on its exact shape, and keeping
-// the bytes stable keeps every already-written reference identical on its
-// next export.
-//
-// Three decisions worth keeping stated, because each has a plausible
-// alternative:
-//
-//   - **NFC, lowercase, separators collapse to `_`.** Two visually
-//     identical names must not suffix differently between exports.
-//   - **Combining marks are kept with their letter.** In Devanagari, Thai,
-//     Bengali, Tamil, Khmer and Myanmar the vowels ARE marks; dropping them
-//     does not shorten a word, it changes it — मिल/मूल/मल/मैल would all
-//     become मल.
-//   - **A leading `_` run is content, not a gap** — integrations namespace
-//     themselves `__amemory_…` in their names — while interior runs
-//     collapse and a trailing run trims; and a result that starts with a
-//     digit or is a filter-grammar keyword takes a leading `_`, the escape
-//     the suffix inherited from the key grammar and keeps for byte
-//     stability.
-func refNameNormalize(s string) string {
-	if s == "" {
-		return ""
-	}
-	lead := 0
-	for _, r := range s {
-		if r != '_' {
-			break
-		}
-		lead++
-	}
-	var b strings.Builder
-	gap := false // a separator run is pending, emitted only before the next letter
-	for _, r := range norm.NFC.String(s) {
-		switch {
-		case unicode.IsLetter(r) || unicode.IsDigit(r):
-			if gap && b.Len() > 0 {
-				b.WriteRune('_')
-			}
-			gap = false
-			b.WriteRune(unicode.ToLower(r))
-		case unicode.Is(unicode.Mn, r) || unicode.Is(unicode.Mc, r):
-			// a mark cannot start a token, and one arriving with a pending
-			// separator is malformed input, not a word
-			if b.Len() > 0 && !gap {
-				b.WriteRune(r)
-			}
-		default:
-			gap = true // `_` included: runs collapse and edges trim
-		}
-	}
-	label := strings.Repeat("_", lead) + b.String()
-	if label == "" || strings.Trim(label, "_") == "" {
-		return ""
-	}
-	if !filterstring.IsBareKey(label) {
-		label = "_" + label
-	}
-	if !filterstring.IsBareKey(label) {
-		// unreachable by construction — every rune is already an identPart,
-		// so the only faults are a leading digit and a keyword, both cured
-		// above. It is a guard rather than a path: IsBareKey is another
-		// package's rule and may grow one, and the honest degradation is no
-		// suffix at all.
-		return ""
-	}
-	return label
-}
-
 // isAccountIdentity reports whether s is a member's account identity — the
 // base58 strkey form with its account-address version byte and CRC16-XMODEM
 // checksum intact. The checksum is what makes this a CLASSIFIER
 // rather than a heuristic: no CID, bson id, or `_`-prefixed derived id can
-// decode as one, so a bare identity in a reference slot is unambiguous.
+// decode as one, so an identity in a reference slot is unambiguous.
 func isAccountIdentity(s string) bool {
 	if len(s) < 40 || len(s) > 64 {
 		return false // cheap gate: real identities are 48 characters
@@ -342,14 +227,14 @@ func crc16XMODEM(data []byte) uint16 {
 }
 
 // foldParticipantRef is the export half of the participant fold (§9):
-// `_participant_<SpaceId>_<identity>` becomes the bare identity. It folds
-// ONLY what unfoldParticipantRef provably rebuilds — the space embedded in
-// the id must be this run's own SpaceId (a cross-space participant ref would
-// otherwise silently re-home on import), the identity must classify as one,
-// and the composite must round-trip through domain.NewParticipantId
-// byte-identically. With no SpaceId the fold is off in both directions:
-// folding on export without the paired import being able to rebuild would
-// land a bare identity where a composite belongs.
+// `_participant_<SpaceId>_<identity>` becomes `participant-<identity>`. It
+// folds ONLY what unfoldParticipantRef provably rebuilds — the space
+// embedded in the id must be this run's own SpaceId (a cross-space
+// participant ref would otherwise silently re-home on import), the identity
+// must classify as one, and the composite must round-trip through
+// domain.NewParticipantId byte-identically. With no SpaceId the fold is off
+// in both directions: folding on export without the paired import being
+// able to rebuild would land a derived id where a composite belongs.
 func (o Options) foldParticipantRef(id string) string {
 	if o.SpaceId == "" || !strings.HasPrefix(id, domain.ParticipantPrefix) {
 		return id
@@ -361,77 +246,220 @@ func (o Options) foldParticipantRef(id string) string {
 	if domain.NewParticipantId(o.SpaceId, identity) != id {
 		return id
 	}
-	return identity
+	return ParticipantRefPrefix + identity
 }
 
 // FoldParticipantId is the exported form of the participant fold, for
 // callers that must agree with the envelope id Marshal writes WITHOUT
 // marshalling: the exporter's path plan names a document file by its
 // envelope id (bundle/DESIGN.md §1.3), and a participant document's
-// envelope id is its folded bare identity. Same gates as the internal fold
-// — no spaceId, a foreign space, a non-identity tail, or a composite that
-// does not round-trip all decline and return id unchanged — which is
-// exactly when Marshal keeps the composite as the envelope id, so the plan
-// and the envelope cannot disagree.
+// envelope id is its folded `participant-<identity>`. Same gates as the
+// internal fold — no spaceId, a foreign space, a non-identity tail, or a
+// composite that does not round-trip all decline and return id unchanged —
+// which is exactly when Marshal keeps the composite as the envelope id, so
+// the plan and the envelope cannot disagree.
 func FoldParticipantId(spaceId, id string) string {
 	return Options{SpaceId: spaceId}.foldParticipantRef(id)
 }
 
-// unfoldParticipantRef is the import half: a bare identity in an object
-// reference slot rebuilds this space's participant id. Gated on the exact
-// classifier the fold used, so unfold(fold(x)) == x and fold(unfold(y)) == y
-// for every id either side touches.
+// participantRefIdentity classifies a folded participant reference: the
+// canonical `participant-<identity>`, or — input compatibility with
+// documents written before the prefix — a bare identity. The identity's
+// own strkey checksum is the classifier either way (isAccountIdentity), so
+// no CID, bson id or `_`-prefixed derived id can pass as one.
+func participantRefIdentity(ref string) (identity string, ok bool) {
+	identity = strings.TrimPrefix(ref, ParticipantRefPrefix)
+	if !isAccountIdentity(identity) {
+		return "", false
+	}
+	return identity, true
+}
+
+// unfoldParticipantRef is the import half: a folded participant reference
+// in an object reference slot rebuilds this space's participant id. Gated
+// on the exact classifier the fold used, so unfold(fold(x)) == x and
+// fold(unfold(y)) == y for every id either side touches.
 func (o Options) unfoldParticipantRef(id string) string {
-	if o.SpaceId == "" || !isAccountIdentity(id) {
+	if o.SpaceId == "" {
 		return id
 	}
-	return domain.NewParticipantId(o.SpaceId, id)
+	identity, ok := participantRefIdentity(id)
+	if !ok {
+		return id
+	}
+	return domain.NewParticipantId(o.SpaceId, identity)
+}
+
+// typeRefKey classifies a type spelling in a type-KEY slot — the envelope
+// `type`, `template_for`, every `object_types`: the canonical
+// `type-<internal_key>`, or — input compatibility, never written — the
+// platform's own `ot-<key>` unique-key form that older documents carry. The
+// key must pass the fold gate; a `type-` string whose tail does not is not
+// a derived id this format would have written and passes through as it
+// stands.
+//
+// This is the LENIENT classifier, and it is confined to key slots on
+// purpose. See derivedTypeIdKey for why a reference slot may not use it.
+func typeRefKey(ref string) (key string, ok bool) {
+	if key, ok = derivedTypeIdKey(ref); ok {
+		return key, ok
+	}
+	if !strings.HasPrefix(ref, domain.ObjectTypeKeyToIdPrefix) {
+		return "", false
+	}
+	key = ref[len(domain.ObjectTypeKeyToIdPrefix):]
+	if !typeKeyFoldable(key) {
+		return "", false
+	}
+	return key, true
+}
+
+// derivedTypeIdKey classifies the DERIVED ID alone — `type-<internal_key>`,
+// the one spelling this format writes and the one the reservation protects
+// (§9). It is what a REFERENCE slot reads, and the difference from
+// typeRefKey is a rule, not an omission.
+//
+// A key slot holds a key, so reading `ot-<key>` there costs nothing: the
+// value was never an address and the `ot-` form is what older documents
+// carry. A reference slot holds an ADDRESS, and `ot-` is not reserved —
+// `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$` admits it, so `ot-wine` is a perfectly
+// ordinary bundle-local slug an author may give a page (§2g). Accepting it
+// as a derived id in a reference made that page import as the space's Wine
+// TYPE object, id and all, with nothing refusing it: silent identity
+// substitution, on input a validator had passed. Only a reserved prefix may
+// rebind an id, because only a reserved prefix is one nothing else may wear.
+func derivedTypeIdKey(ref string) (key string, ok bool) {
+	if !strings.HasPrefix(ref, TypeRefPrefix) {
+		return "", false
+	}
+	key = ref[len(TypeRefPrefix):]
+	if !typeKeyFoldable(key) {
+		return "", false
+	}
+	return key, true
+}
+
+// typeRef spells a stored type key as its derived id, `type-<key>`, or
+// answers "" when the key fails the fold gate (typeKeyFoldable) — the
+// caller then keeps whatever spelling it had, the CID for a document id and
+// a reference, the vocabulary's spelling for a key slot. A CID is refused
+// outright: a type-key slot may hold an object id that no resolver could
+// translate (§2d passes it through verbatim, its own address), and an id
+// is not a key however well it fits the charset.
+func typeRef(key string) string {
+	if !typeKeyFoldable(key) || isObjectIdShaped(key) || strings.HasPrefix(key, "_") {
+		// a `_`-prefixed value is a platform address, never a key (§1):
+		// the `_missing_object` sentinel passes through a target list
+		// verbatim, and `type-_missing_object` would be a derived id of
+		// nothing
+		return ""
+	}
+	return TypeRefPrefix + key
+}
+
+// typeKeyFoldable is the fold gate on a stored type key (§9): `[A-Za-z0-9_]`,
+// 1 to 120 characters. Every population a store actually mints passes —
+// bundled camelCase keys, 24-hex bson ids, the bare words of legacy
+// accounts — and what it refuses is what could not be a filename stem or
+// could not be split back: a `-` (the unique-key separator, so no stored
+// type key contains one), a path separator, whitespace, a control
+// character, or a length that would push the id past the 128-character
+// bound an authored id has. A key that fails keeps its CID everywhere,
+// document and references alike, so the two never disagree.
+func typeKeyFoldable(key string) bool {
+	if len(key) == 0 || len(key) > 120 {
+		return false
+	}
+	for i := 0; i < len(key); i++ {
+		c := key[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// foldTypeRef is the export half of the type fold (§9): a type object's id
+// becomes `type-<internal_key>` wherever it is referenced. It needs the
+// store's answer to "which key does this id name" — the TypeResolver
+// capability of Options.ResolveProperties
+// (§2d). With no mapping it keeps the id. ValidateTypeExportMapping refuses
+// exporting a type document when that would leave its references under a
+// different id. A key the fold gate refuses keeps the id.
+func (o Options) foldTypeRef(id string) string {
+	if o.NoDerivedTypeIds {
+		return id
+	}
+	tr, ok := o.ResolveProperties.(TypeResolver)
+	if !ok || id == "" {
+		return id
+	}
+	key, ok := tr.TypeKeyById(id)
+	if !ok || key == "" {
+		return id
+	}
+	if ref := typeRef(key); ref != "" {
+		return ref
+	}
+	return id
+}
+
+// unfoldTypeRef is the import half: `type-<key>` rebuilds the type object id
+// the target space serves for that key, through the same capability. Only
+// the reserved spelling is read here, never the legacy `ot-<key>` a KEY slot
+// accepts (derivedTypeIdKey). A key the space does not serve stays as
+// written — it is then a bundle-local id, exactly what an authored type
+// document's id is, and the import wiring relinks it as it relinks every
+// other bundle slug (§2c). No resolver, no unfold.
+func (o Options) unfoldTypeRef(ref string) string {
+	tr, ok := o.ResolveProperties.(TypeResolver)
+	if !ok {
+		return ref
+	}
+	key, ok := derivedTypeIdKey(ref)
+	if !ok {
+		return ref
+	}
+	if id, ok := tr.TypeIdByKey(key); ok && id != "" {
+		return id
+	}
+	return ref
+}
+
+// foldRef is the derived-id fold on one reference slot, with no caption
+// (§9): the participant fold and the type fold, which cannot both apply to
+// one id. It is what every reference slot that takes no `#name` suffix
+// writes through — the envelope id, the icon and cover `file`, a callout's
+// icon, a view's `default_template_id`/`default_type_id`, mention and
+// object-link targets inside text, the index's own references — so that no
+// slot can keep an id the document's own envelope would fold.
+func (o Options) foldRef(id string) string {
+	if folded := o.foldParticipantRef(id); folded != id {
+		return folded
+	}
+	return o.foldTypeRef(id)
+}
+
+// unfoldRef inverts foldRef: the import half for the same suffix-free
+// slots. No `#` is trimmed — those slots never carry a caption.
+func (o Options) unfoldRef(id string) string {
+	if unfolded := o.unfoldParticipantRef(id); unfolded != id {
+		return unfolded
+	}
+	return o.unfoldTypeRef(id)
 }
 
 // objectRef renders one object reference for a document slot (§9): the
-// participant fold first, then the informative `#name` suffix when the
-// shape asks for it (Options.RefNames) and a resolver names the target. The
-// resolver is asked about the STORED id — the composite participant id, not
-// the folded identity — because that is the id the space indexes. With no
-// resolver, or no name, the reference is written bare — never with a
-// partial or invented suffix.
-func (e *exporter) objectRef(id string) string {
-	out := e.opts.foldParticipantRef(id)
-	if !e.opts.RefNames || e.opts.ResolveObjectNames == nil || id == "" {
-		return out
-	}
-	if !suffixableRef(id) {
-		return out
-	}
-	name, ok := e.opts.ResolveObjectNames.ObjectName(id)
-	if !ok {
-		return out
-	}
-	if label := refNameLabel(name); label != "" {
-		return out + refNameSep + label
-	}
-	return out
-}
-
-// suffixableRef reports the ids a name suffix belongs on. A date id and the
-// missing-object sentinel already say everything they mean, and a dynamic
-// filter placeholder (§6.2) is not an object id at all — a suffix on any of
-// them would be decoration on a value some other layer must read verbatim.
+// derived-id fold, and nothing else. A reference is an id — there is no
+// caption, no display hint and no second half, so nothing here consults a
+// name and nothing appends to what the fold returns.
 //
-// An id that already carries a `#` is excluded for a different reason: the
-// suffix is only written where it is REVERSIBLE. No id this format writes
-// contains one, but a snapshot is untrusted (§11) and may hold anything, and
-// `x#y` + `#name` reads back as `x` — a different id from the one exported.
-// Worse where the id half is empty: `#name` refuses to split at index 0
-// (splitRefName), so import returns it whole and the next export appends
-// again, one name per generation without bound. Writing such an id bare
-// costs a caption on a reference that could not resolve anyway, and buys
-// back §11 guarantee 2.
-func suffixableRef(id string) bool {
-	return !strings.HasPrefix(id, dateIdPrefix) &&
-		id != missingObjectId &&
-		!isFilterTemplate(id) &&
-		!strings.Contains(id, refNameSep)
+// Rendering a name for a reference is a LOOKUP, not a spelling: index the
+// bundle by envelope `id` and read the target document's `Name`.
+func (e *exporter) objectRef(id string) string {
+	return e.opts.foldRef(id)
 }
 
 // singularObjectRef renders a SINGULAR reference slot — a block's
@@ -478,32 +506,243 @@ func (e *exporter) droppedMissingListEntry(path, id string) bool {
 	return true
 }
 
-// exportMarks applies the missing-reference rule to inline markup (§8, §9):
-// a `<mention object_id="…">` whose target the space does not hold is
+// exportMarks applies the reference rules to inline markup (§8, §9). A
+// `<mention object_id="…">` whose target the space does not hold is
 // rewritten to the `_missing_object` sentinel — a mention is a singular
 // slot; dropping the mark would lose the fact that a mention existed while
-// its text stayed. Copy-on-write: the snapshot's own marks are caller-owned
-// state and are never mutated, and the common case — nothing missing —
-// returns the input slice untouched. Object-link marks (`[label](anytype://…)`)
-// keep their ids verbatim, as §9 states for them.
+// its text stayed. Then the derived-id fold (foldRef) runs on every mention,
+// object-mark and object-link target, exactly as it runs on every other
+// reference slot: a text mention of a member spells `participant-<identity>`
+// like the `Assignee` value beside it, so a reader joins both to the same
+// document. Copy-on-write: the snapshot's own marks are caller-owned state
+// and are never mutated, and the common case — nothing to rewrite — returns
+// the input slice untouched.
 func (e *exporter) exportMarks(path string, marks []*model.BlockContentTextMark) []*model.BlockContentTextMark {
 	out := marks
 	copied := false
-	for i, m := range marks {
-		if m == nil || m.Type != model.BlockContentTextMark_Mention || !missingFromSpace(e.opts, m.Param) {
-			continue
-		}
-		e.warn(path, "mention target %q names no object in this space and is written as %q — "+
-			"the mention's own text stays; only its address is gone", m.Param, missingObjectId)
+	replace := func(i int, m *model.BlockContentTextMark, param string) {
 		if !copied {
 			out = append([]*model.BlockContentTextMark(nil), marks...)
 			copied = true
 		}
 		clone := *m
-		clone.Param = missingObjectId
+		clone.Param = param
 		out[i] = &clone
 	}
+	for i, m := range marks {
+		if m == nil {
+			continue
+		}
+		switch m.Type {
+		case model.BlockContentTextMark_Mention:
+			if missingFromSpace(e.opts, m.Param) {
+				e.warn(path, "mention target %q names no object in this space and is written as %q — "+
+					"the mention's own text stays; only its address is gone", m.Param, missingObjectId)
+				replace(i, m, missingObjectId)
+				continue
+			}
+			if folded := e.opts.foldRef(m.Param); folded != m.Param {
+				replace(i, m, folded)
+			}
+		case model.BlockContentTextMark_Object:
+			if folded := e.opts.foldRef(m.Param); folded != m.Param {
+				replace(i, m, folded)
+			}
+		case model.BlockContentTextMark_Link:
+			// a Link whose destination is the object deep link renders as an
+			// object mark (§8.3), so its id is a reference slot too
+			if id, ok := parseObjectLink(m.Param); ok {
+				if folded := e.opts.foldRef(id); folded != id {
+					replace(i, m, objectLinkDest(folded))
+				}
+			}
+		}
+	}
 	return out
+}
+
+// unfoldMarks is the import half of exportMarks: every mention, object-mark
+// and object-link target rebuilds through unfoldRef. In place — the marks
+// were just parsed and are the importer's own.
+func (imp *importer) unfoldMarks(marks []*model.BlockContentTextMark) {
+	for _, m := range marks {
+		if m == nil {
+			continue
+		}
+		switch m.Type {
+		case model.BlockContentTextMark_Mention, model.BlockContentTextMark_Object:
+			m.Param = imp.unfoldRef(m.Param)
+		case model.BlockContentTextMark_Link:
+			if id, ok := parseObjectLink(m.Param); ok {
+				if unfolded := imp.unfoldRef(id); unfolded != id {
+					m.Param = objectLinkDest(unfolded)
+				}
+			}
+		}
+	}
+}
+
+// ParticipantRefPrefix is the derived-id prefix of a participant (§9): a
+// participant document's id, and every reference to it, is
+// `participant-<identity>`.
+const ParticipantRefPrefix = "participant-"
+
+// TypeRefPrefix is the derived-id prefix of a type (§9): a type document's
+// id, and every reference to it, is `type-<internal_key>`.
+const TypeRefPrefix = "type-"
+
+// IsDerivedTypeId reports whether s is a type's derived id — the reserved
+// `type-<internal_key>` spelling, with a tail the §9 fold gate admits. It is
+// exported for bundle.Validate, which must ask of a `template_for`, a
+// `type_internal_key` or an `object_types` entry the one question a single
+// document cannot: does a document with that id exist here. The predicate
+// has to be the format's own, not a copy, or the check and the writer would
+// disagree about which spellings are addresses.
+//
+// A display name, a bare stored key and the legacy `ot-<key>` all answer
+// false: they are authoring input a reader resolves through the §3 chain,
+// not addresses, and holding them to a document's presence would refuse
+// every hand-written bundle.
+//
+// So does a BUNDLED key. `type-page` names a type every reader already
+// carries in the shipped table, so a bundle owes no document for it — an
+// authored bundle typing its pages `Page` ships no `types/` entry, and a
+// full export that omits an uninstalled bundled type has lost nothing. A
+// minted key has no such fallback: `type-68c2a23c96ab900e02935111` means
+// nothing to anyone but the bundle that carries the document, so that one
+// IS an address the bundle must honour.
+func IsDerivedTypeId(s string) bool {
+	key, ok := derivedTypeIdKey(s)
+	if !ok {
+		return false
+	}
+	// GetType's second result is an ERROR, so an error means the shipped
+	// table does not carry the key — which is exactly the case this answers
+	// true for. Named, because `_, bundled := …; return bundled != nil`
+	// reads as the opposite of what it computes.
+	_, notInTable := vocabulary.GetType(domain.TypeKey(key))
+	return notInTable != nil
+}
+
+// FoldDocumentId is the derived-id fold on a document's OWN envelope id, for
+// callers that must agree with what Marshal writes WITHOUT marshalling —
+// the bundle's path plan names a file by its envelope id (bundle/DESIGN.md
+// §1.3). internalKey is the snapshot's own Key, which for a type document is
+// the internal key it writes verbatim into `internal_key`; every other kind
+// ignores it.
+//
+// A document's id folds only to the derived id of ITS kind: a participant to
+// `participant-<identity>`, a type to `type-<key>`, and a page whose store id
+// happens to be a participant composite or a type object's id keeps it
+// verbatim, because the prefix is reserved for the kind it names (§9) and
+// Marshal never emits what Validate rejects (§11).
+//
+// The two kinds are gated differently, and the difference is the point. A
+// participant id is a COMPOSITE that only the run's own SpaceId can be shown
+// to rebuild, so no SpaceId means no fold. A type document, by contrast,
+// carries its own key: `type-<key>` is a pure function of a field the
+// document already states, so it needs no resolver and asks none. Routing it
+// through TypeResolver.TypeKeyById instead put the id fold and the KEY fold
+// (typeKeyRef, the pure function `template_for` and every `object_types`
+// use) on two gates that could disagree — and on a 159-space corpus they did,
+// for the 15 of 1,808 types whose object id no resolver could map: two
+// templates said `template_for: "type-<key>"` beside a type document still
+// wearing its CID, and 14 objects stated a `type_internal_key` whose
+// `type-<key>` document did not exist. Deriving from the key makes the two
+// one function, so a type document and every key-spelled reference to it
+// agree by construction, resolver or no resolver.
+// This calculation alone does not establish agreement with id-valued
+// references: ValidateTypeExportMapping checks that before actual export.
+func FoldDocumentId(opts Options, sbType model.SmartBlockType, id, internalKey string) string {
+	switch {
+	case sbType == model.SmartBlockType_Participant:
+		return opts.foldParticipantRef(id)
+	case isTypeSmartBlock(sbType):
+		// NoDerivedTypeIds declines here as it declines in every reference
+		// slot: the type document's id and the references naming it are one
+		// decision, and splitting them is the dead link this function was
+		// written to close.
+		if opts.NoDerivedTypeIds {
+			return id
+		}
+		// typeRef applies the §9 fold gate and answers "" for a key it
+		// refuses; the document then keeps its store id, exactly as every
+		// reference that names that key keeps the key verbatim.
+		if ref := typeRef(internalKey); ref != "" {
+			return ref
+		}
+	}
+	return id
+}
+
+// ValidateTypeExportMapping checks that a type document and references to
+// its stored id export under the same identity (§9). Marshal and the bundle
+// path planner run it before emitting bytes or committing a path. A type's
+// own key still determines its derived id; a missing or conflicting resolver
+// mapping is an export error, never a reason to change that identity.
+// Already-derived ids and ids the fold leaves unchanged need no mapping.
+func ValidateTypeExportMapping(opts Options, sbType model.SmartBlockType, id, internalKey string) error {
+	if !isTypeSmartBlock(sbType) || id == "" {
+		return nil
+	}
+	documentID := FoldDocumentId(opts, sbType, id, internalKey)
+	referenceID := opts.foldRef(id)
+	if documentID == referenceID {
+		return nil
+	}
+	return fmt.Errorf("type document %q exports as %q, but references export as %q: "+
+		"ResolveProperties must provide a TypeResolver mapping this id to stored key %q (SPEC §9)",
+		id, documentID, referenceID, internalKey)
+}
+
+// reservedIdViolation states the derived-id reservation (§9) once, for the
+// validator and for Marshal alike: an id wearing `type-` must belong to a
+// type document whose internal_key is the remainder, one wearing
+// `participant-` to a participant document whose remainder is an account
+// identity, and a BARE account identity — the participant fold's other
+// input spelling — to a participant document as well. The message names the
+// repair; "" means the id is entitled to whatever it wears.
+//
+// The bare form is the checksum half of the participant reservation, and it
+// is reserved for the reason the prefix is: participantRefIdentity
+// classifies both spellings, so an object reference that is a bare identity
+// rebuilds into `_participant_<space>_<identity>` (unfoldParticipantRef) and
+// addresses that member. An ordinary document wearing one therefore declares
+// an address no reference to it can reach — it validated, and its own
+// self-link left for the participant. Unlike the prefixes, no schema can
+// carry this half: the classifier is a CRC16 over a base58 payload, so the
+// published grammar states it in prose at `/id` and this pass enforces it.
+func reservedIdViolation(id string, isType, isParticipant bool, internalKey, kind string) string {
+	switch {
+	case strings.HasPrefix(id, TypeRefPrefix):
+		key := id[len(TypeRefPrefix):]
+		if !isType {
+			return fmt.Sprintf("id %q wears the reserved type- prefix (§9), which belongs to a type document whose "+
+				"internal_key is %q; this document is not a type (kind %q) — choose an id without the prefix", id, key, kind)
+		}
+		if internalKey != key {
+			return fmt.Sprintf("id %q wears the reserved type- prefix (§9), which belongs to the type whose internal_key "+
+				"is %q; this document's internal_key is %q — the two must agree", id, key, internalKey)
+		}
+	case strings.HasPrefix(id, ParticipantRefPrefix):
+		identity := id[len(ParticipantRefPrefix):]
+		if !isParticipant {
+			return fmt.Sprintf("id %q wears the reserved participant- prefix (§9), which belongs to a participant "+
+				"document; this document is not one (kind %q) — choose an id without the prefix", id, kind)
+		}
+		if !isAccountIdentity(identity) {
+			return fmt.Sprintf("id %q wears the reserved participant- prefix (§9), but %q is not an account identity",
+				id, identity)
+		}
+	case isAccountIdentity(id):
+		if !isParticipant {
+			return fmt.Sprintf("id %q is an account identity, the reserved bare spelling of that member's participant "+
+				"(§9): every object reference written this way rebuilds into that participant, so this document (kind "+
+				"%q) would be addressed by nothing that names it — choose an id that is not an account identity, or "+
+				"declare this document kind %q", id, kind, kindNames.name(model.SmartBlockType_Participant))
+		}
+	}
+	return ""
 }
 
 // dateIdPrefix marks a virtual date object id (pkg/lib/localstore/addr).
@@ -518,24 +757,119 @@ const missingObjectId = "_missing_object"
 // the two cannot be allowed to spell it differently.
 const MissingObjectId = missingObjectId
 
-// objectRef reads one object reference back (§9): the informative suffix is
-// trimmed at the first `#`, unread, and a bare identity unfolds into this
-// space's participant id. Everything else passes verbatim, exactly as
-// before the suffix existed — which is what keeps a bare id and a suffixed
-// id importing identically.
+// objectRef reads one object reference back (§9): a folded derived id
+// unfolds into this space's object id, and everything else passes verbatim.
+//
+// Nothing is trimmed. The format has no caption, so a `#` in a reference is
+// an ordinary character of an id — and an id no space mints, which makes the
+// reference resolve to nothing, exactly like any other id this bundle does
+// not carry. Narrowing it at the `#` would be the reader inventing a
+// different id from the one it was handed; that used to be the format's one
+// reference normalization (§11 N(S)) and it is gone with the grammar that
+// needed it.
 func (imp *importer) objectRef(ref string) string {
-	id := trimRefName(ref)
-	// A bare account identity in a reference slot is the folded half of a
-	// participant id (§9), and only a space can rebuild it. A reader that
-	// names none would store the identity where the composite belongs — a
-	// reference to an object that does not exist, in silence. The classifier
-	// is exact (a strkey checksum), so the reader KNOWS this has happened
-	// and says so, once, in build. It may not refuse: Validate never sees
-	// Options, so refusing here would put the two surfaces into
-	// disagreement over one document (§12 I2).
-	if imp.opts.SpaceId == "" && isAccountIdentity(id) {
+	return imp.unfoldRef(ref)
+}
+
+// unfoldRef is the importer's half of the derived-id fold on one reference
+// slot: Options.unfoldRef, plus the two diagnostics a caller needs when a
+// capability it did not wire was the one that could have rebuilt an address.
+// Every importer slot goes through here so a document reports the fact once,
+// whichever slot met it first.
+//
+// A folded derived id in a reference slot is HALF an address (§9), and only
+// the matching capability completes it: a space for a participant composite,
+// a TypeResolver for a type object id. A reader that has neither would store
+// the folded form where the id belongs — a reference to an object that does
+// not exist, in silence. Both classifiers are exact (a strkey checksum; the
+// reserved prefix plus the fold gate), so the reader KNOWS this has happened
+// and says so, once, in build.
+//
+// Neither may REFUSE: Validate never sees Options, so refusing here would
+// put the two surfaces into disagreement over one document (§12 I2). The
+// caller decides what a coded warning means — the CLI makes both fatal
+// before it writes anything.
+//
+// The two gates are independent, which is the fix for a document that came
+// back half rebuilt: export folds a type reference under the TypeResolver
+// alone, so a run holding one must unfold under it alone, whether or not it
+// also names a space.
+func (imp *importer) unfoldRef(id string) string {
+	if _, folded := participantRefIdentity(id); folded && imp.opts.SpaceId == "" {
 		imp.foldedUnrebuilt = true
 		return id
 	}
-	return imp.opts.unfoldParticipantRef(id)
+	if imp.typeRefUnrebuildable(id) {
+		return id
+	}
+	return imp.opts.unfoldRef(id)
+}
+
+// typeRefUnrebuildable reports a `type-<key>` reference this run cannot
+// rebuild for want of the capability, and records it.
+//
+// Two cases are deliberately NOT this, and both are §9's own words. A
+// resolver that IS wired and does not serve the key: "a key the space does
+// not serve stays as written — it is then a bundle-local id, which is
+// exactly what an authored type document's id is, and the import wiring
+// relinks it like every other bundle slug (§2c)". And a run that names no
+// SpaceId at all: it is not reading into a space, so it has no space's ids
+// to rebuild against and `type-<key>` is the address — the worked example's
+// `type-habit` names `types/habit.json` in its own bundle, and a reader of
+// that bundle is right to keep it.
+//
+// What is left is the wiring gap worth reporting: a run that says which
+// space it is reading into and cannot address that space's types. That is
+// where the folded string becomes a non-address, and it is the exact
+// position in which the participant fold reports its own twin — a stated
+// destination whose ids the run cannot build.
+func (imp *importer) typeRefUnrebuildable(id string) bool {
+	if imp.opts.SpaceId == "" {
+		return false
+	}
+	if _, folded := derivedTypeIdKey(id); !folded {
+		return false
+	}
+	if _, wired := imp.opts.ResolveProperties.(TypeResolver); wired {
+		return false
+	}
+	imp.foldedTypeUnrebuilt = true
+	return true
+}
+
+// envelopeId reads a document's OWN id back, and is objectRef with the gate
+// FoldDocumentId has on the writing side: an id rebuilds only into the
+// derived id of ITS kind. A participant document's `participant-<identity>`
+// becomes this space's composite and a type document's `type-<key>` becomes
+// the type object this space serves; every other kind's id is its own
+// address and is returned as written, with only the informative suffix
+// trimmed.
+//
+// Without the gate the envelope was the one reference slot where any
+// document could rebuild through any namespace. The reservation covers the
+// two prefixes it defines, so a page could not claim `type-`; it does not
+// cover the legacy `ot-<key>` a KEY slot still reads, and an authored page
+// with `"id": "ot-wine"` — a legal bundle-local slug — arrived as the
+// space's Wine type object. Confining `ot-` to key slots (derivedTypeIdKey)
+// closes that spelling; this gate closes the shape, so a future accepted
+// spelling cannot reopen it through a kind that was never entitled to one.
+func (imp *importer) envelopeId(ref string, sbType model.SmartBlockType) string {
+	id := ref
+	switch {
+	case sbType == model.SmartBlockType_Participant:
+		// the participant fold's own gate, and its diagnostic: see objectRef
+		if imp.opts.SpaceId == "" {
+			if _, folded := participantRefIdentity(id); folded {
+				imp.foldedUnrebuilt = true
+			}
+			return id
+		}
+		return imp.opts.unfoldParticipantRef(id)
+	case isTypeSmartBlock(sbType):
+		if imp.typeRefUnrebuildable(id) {
+			return id
+		}
+		return imp.opts.unfoldTypeRef(id)
+	}
+	return id
 }

@@ -28,22 +28,27 @@ func readDict(t *testing.T, doc string) (*PropertyDictionary, []Issue) {
 // The dictionary spells a bundled property the way every document slot does:
 // by its display name. One spelling for one concept — an object document
 // says "Due date" in its `properties` map and the dictionary beside it says
-// "Due date" in `installed`.
+// "Due date" on the entry's `property`, with the stored key beside it as
+// `internal_key` and nowhere else.
 //
-// How this can fail: emit the stored key here and the dictionary becomes the
-// odd file out; spell the name on the way out without inverting it on the
-// way in and `installed` names nothing the bundled table has.
+// How this can fail: emit the stored key as the spelling and the dictionary
+// becomes the odd file out; spell the name on the way out without inverting
+// it on the way in and the entry names nothing the bundled table has.
 func TestDictionary_SpellsPropertiesTheWayDocumentsDo(t *testing.T) {
-	d, warns := readDict(t, `{`+dictHead+`"installed":["Due date","Creation date"]}`)
+	d, warns := readDict(t, `{`+dictHead+
+		`"properties":[{"property":"Due date","format":"date"},{"property":"Creation date","format":"date"}]}`)
 
-	assert.Equal(t, []string{"dueDate", "createdDate"}, d.Installed,
-		"read as the stored keys they name — the wire spelling is the name, the codec keeps stored keys")
+	require.Len(t, d.Properties, 2)
+	assert.EqualValues(t, "dueDate", d.Properties[0].Key,
+		"read as the stored key it names — the wire spelling is the name, the codec keeps stored keys")
+	assert.EqualValues(t, "createdDate", d.Properties[1].Key)
 	assert.Empty(t, warns, "the canonical spelling must be silent")
 
 	out, err := MarshalPropertyDictionary(d, Options{})
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `"Due date"`)
-	assert.NotContains(t, string(out), `"dueDate"`, "the stored key must not survive a round trip")
+	assert.Contains(t, string(out), `"property": "Due date"`)
+	assert.Contains(t, string(out), `"internal_key": "dueDate"`, "the stored key travels as internal_key only")
+	assert.NotContains(t, string(out), `"property": "dueDate"`, "the stored key must not survive a round trip as the spelling")
 }
 
 // A stored key still names itself — an exact match wins before folding is
@@ -55,14 +60,15 @@ func TestDictionary_SpellsPropertiesTheWayDocumentsDo(t *testing.T) {
 func TestDictionary_LegacySpellingsStillNameTheirProperty(t *testing.T) {
 	for _, legacy := range []string{"dueDate", "due_date"} {
 		t.Run(legacy, func(t *testing.T) {
-			d, warns := readDict(t, `{`+dictHead+`"installed":["`+legacy+`"]}`)
+			d, warns := readDict(t, `{`+dictHead+`"properties":[{"property":"`+legacy+`","format":"date"}]}`)
 
-			assert.Equal(t, []string{"dueDate"}, d.Installed)
+			require.Len(t, d.Properties, 1)
+			assert.EqualValues(t, "dueDate", d.Properties[0].Key)
 			assert.Empty(t, warns)
 
 			out, err := MarshalPropertyDictionary(d, Options{})
 			require.NoError(t, err)
-			assert.Contains(t, string(out), `"Due date"`, "re-rendering settles on the canonical spelling")
+			assert.Contains(t, string(out), `"property": "Due date"`, "re-rendering settles on the canonical spelling")
 		})
 	}
 }
@@ -98,31 +104,11 @@ func TestDictionary_AnEntryKeyIsNamedOnlyWhenItIsBundled(t *testing.T) {
 	})
 }
 
-// `installed` names rows to restore from the bundled table, so a key outside
-// it tells a reader to install nothing. It is TOLERATED rather than refused,
-// and the tolerance is about VERSION SKEW, not custom properties: the bundled
-// table grows independently of the format version, so a backup written by a
-// newer app lists keys this build has never heard of, and refusing them would
-// make every backup unreadable one app version back.
-//
-// How this can fail: turn the warning into an error and a newer app's backup
-// stops reading; drop the warning and a bundle that installs nothing for a
-// property ships with a clean bill of health.
-func TestDictionary_AKeyFromANewerAppIsToleratedAndReported(t *testing.T) {
-	d, warns := readDict(t, `{`+dictHead+`"installed":["some_key_this_build_has_never_heard_of"]}`)
-
-	assert.Equal(t, []string{"some_key_this_build_has_never_heard_of"}, d.Installed,
-		"kept verbatim — it may be the newer app's")
-	require.Len(t, warns, 1)
-	assert.Contains(t, warns[0].Message, "installs NOTHING for it")
-	assert.Contains(t, warns[0].Message, "newer app", "the tolerance is explained, not just the fault")
-}
-
 // UnmarshalPropertyDictionary is UnmarshalPropertyDictionaryWarn with no
 // sink: the same verdicts, the warnings discarded — the relationship Validate
 // and ValidateWarn have.
 func TestDictionary_TheSinklessDoorAgrees(t *testing.T) {
-	doc := `{` + dictHead + `"installed":["Due date"]}`
+	doc := `{` + dictHead + `"properties":[{"property":"Due date","format":"date"}]}`
 
 	quiet, err := UnmarshalPropertyDictionary([]byte(doc), Options{})
 	require.NoError(t, err)
@@ -261,13 +247,10 @@ func TestDictionaryKeys_TheBundledTypeTableStaysUnambiguous(t *testing.T) {
 	}
 }
 
-// One spelling for one concept, across the two slots that name a type outside
-// a document: a dictionary entry's target types and the bundle manifest.
-//
-// A type DOCUMENT reaches the same answer by a different road — it spells
-// through the exporter's per-document ledger and binds the term in that
-// document's own `type_internal_keys` legend. The dictionary and the manifest
-// have no legend, so their spelling has to be a pure function of the key.
+// One spelling for one concept: a dictionary entry's target types are the
+// types' derived ids, `type-<key>` (§9) — the same spelling every other slot
+// that names a type writes — and a display name, a legacy slug or a bare
+// stored key is still read.
 func TestDictionary_TargetTypesSpellLikeEverythingElse(t *testing.T) {
 	d, warns := readDict(t, `{`+dictHead+
 		`"properties":[{"property":"Assignee","name":"Assignee","format":"objects",`+
@@ -281,10 +264,10 @@ func TestDictionary_TargetTypesSpellLikeEverythingElse(t *testing.T) {
 
 	out, err := MarshalPropertyDictionary(d, Options{})
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `"Space member"`, "written back in the format's spelling")
-	assert.Contains(t, string(out), `"Type"`, "objectType's name")
-	assert.NotContains(t, string(out), `"objectType"`)
-	assert.Contains(t, string(out), `"6a83296f61fab2265263ae34"`, "and a minted key is never renamed")
+	assert.Contains(t, string(out), `"type-participant"`, "written back as the derived id")
+	assert.Contains(t, string(out), `"type-objectType"`, "objectType's derived id, not its name")
+	assert.NotContains(t, string(out), `"Space member"`)
+	assert.Contains(t, string(out), `"type-6a83296f61fab2265263ae34"`, "and a minted key is never renamed")
 }
 
 // bundledRelationKeys lists every relation key this build's bundled table
@@ -348,21 +331,20 @@ func TestDictionary_ADisagreeingIdentityPairIsReported(t *testing.T) {
 
 // An inline option says what the option MEANS — its name, its colour, and by
 // its position where it sits. Its stored key says what the option IS, and
-// that is the one thing about it derivable from nothing.
+// its api key says what callers address it by. Neither is derivable: the
+// stored key is minted, and the api key is minted from the name ONCE and
+// then never rewritten, so it survives no rename and no restore mints a
+// replacement (OptionDefinition.ApiKey).
 //
-// Everything else about an option can be reconstructed. The api key is
-// regenerated from the name by the app's own rule at creation: measured over
-// a 77-space export, all 514 real option api keys are reproduced by it — 470
-// by the api slug and 44 by the transliterate fallback, for names like `$$`
-// that slug to nothing. Not one survived a rename, so none needs to travel.
-// The order is the array position (§2f). The property is the entry holding it.
+// What is left over genuinely is reconstructible. The order is the array
+// position (§2f). The property is the entry holding it.
 //
-// So `internal_key` is what an inline vocabulary was missing to be complete
-// rather than merely descriptive.
+// So `internal_key` and `api_key` are what an inline vocabulary was missing
+// to be complete rather than merely descriptive.
 //
-// How this can fail: render it on an option that has none and the compact
-// bare-name form disappears for every colourless option; drop it from the
-// object form and a vocabulary can never state identity.
+// How this can fail: render either on an option that has none and the
+// compact bare-name form disappears for every colourless option; drop
+// either from the object form and a vocabulary can never state identity.
 func TestDictionary_AnOptionCarriesItsStoredKey(t *testing.T) {
 	d, warns := readDict(t, `{`+dictHead+
 		`"properties":[{"property":"Status","name":"Status","format":"select","options":[`+

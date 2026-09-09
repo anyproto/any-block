@@ -1,0 +1,96 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreiportal",
+  "type": "Page",
+  "type_internal_key": "page",
+  "properties": {
+    "Name": "One page, five sources"
+  },
+  "blocks": [
+    {
+      "id": "b1",
+      "type": "paragraph",
+      "text": "Five dataviews, five different answers to \"where do the rows come from\"."
+    },
+    {
+      "id": "b2",
+      "type": "dataview",
+      "object_id": "type-fieldnote",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    },
+    {
+      "id": "b3",
+      "type": "dataview",
+      "object_id": "bafyreicollection",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    },
+    {
+      "id": "b4",
+      "type": "dataview",
+      "object_id": "bafyreiset",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    },
+    {
+      "id": "b5",
+      "type": "dataview",
+      "object_id": "bafyreighost",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    },
+    {
+      "id": "b6",
+      "type": "dataview",
+      "source": [
+        "ot-task"
+      ],
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    },
+    {
+      "id": "b7",
+      "type": "dataview",
+      "object_id": "bafyreimemberone",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    },
+    {
+      "id": "b8",
+      "type": "dataview",
+      "object_id": "_missing_object",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    }
+  ]
+}

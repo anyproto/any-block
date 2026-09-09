@@ -163,9 +163,9 @@ func TestCompareObjectTypes(t *testing.T) {
 
 // divergentVocabulary is the production defect in miniature: one reader binds
 // the spelling "Task" to a space-minted type, another to the bundled one.
-// That is the disagreement the `type_internal_keys` legend exists to close
-// (§3), and the only way a real export can come back on a different type —
-// so a sweep that can see it can see the class.
+// That is the disagreement `type_internal_key` exists to close (§2, §3), and
+// the way an AUTHORED document — which states no key — can come back on a
+// different type; so a sweep that can see it can see the class.
 type divergentVocabulary struct {
 	anyblockjson.BundledKeyVocabulary
 }
@@ -182,13 +182,13 @@ func (divergentVocabulary) TypeKey(spelling string) (string, bool) {
 // do rather than against my model of them.
 func TestCompareObjectTypes_ThroughTheCodec(t *testing.T) {
 	t.Run("a reader that binds the spelling elsewhere is caught", func(t *testing.T) {
-		// given: exported by a package-only reader, read back by one whose
-		// vocabulary binds `task` to a space-minted type
+		// given: a document that carries the type SPELLING alone — an
+		// authored document, which states no `type_internal_key` — read by
+		// a reader whose vocabulary binds `Task` to a space-minted type. (An
+		// exported document carries the key beside the spelling, §2, and a
+		// vocabulary is never asked about it — that is what the key is for.)
 		orig := typed("ot-task")
-		data, err := anyblockjson.Marshal(model.SmartBlockType_Page, orig, anyblockjson.Options{})
-		require.NoError(t, err)
-		require.NotContains(t, string(data), "type_internal_keys",
-			"the fixture only bites while the document carries no legend to invert the spelling")
+		data := []byte(`{"formatVersion":"2.0","id":"o1","type":"Task"}`)
 
 		// when
 		_, back, err := anyblockjson.Unmarshal(data, anyblockjson.Options{Keys: divergentVocabulary{}})

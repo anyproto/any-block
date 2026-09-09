@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/gogo/protobuf/types"
 
@@ -50,13 +51,14 @@ func UnmarshalPropertyValueChecked(key string, v any, opts Options) (*types.Valu
 }
 
 type jsonDoc struct {
-	Schema        string `json:"$schema"`
-	FormatVersion string `json:"formatVersion"`
-	Kind          string `json:"kind"`
-	Id            string `json:"id"`
-	Type          string `json:"type"`
-	TemplateFor   string `json:"template_for"`
-	InternalKey   string `json:"internal_key"`
+	Schema          string `json:"$schema"`
+	FormatVersion   string `json:"formatVersion"`
+	Kind            string `json:"kind"`
+	Id              string `json:"id"`
+	Type            string `json:"type"`
+	TypeInternalKey string `json:"type_internal_key"`
+	TemplateFor     string `json:"template_for"`
+	InternalKey     string `json:"internal_key"`
 	// PropertySettings is a kind:property document's definition group (§2d):
 	// one propertyDefinition, whose three travelling members stand for the
 	// stored relation-definition keys that `properties` refuses.
@@ -70,22 +72,25 @@ type jsonDoc struct {
 	// TypeSettings is a kind:object_type document's definition group (§2a):
 	// the five lifted settings plus property_definitions.
 	TypeSettings *jsonTypeSettings `json:"type_settings"`
+	FileRemote   *string           `json:"file_remote"`
 	// PropertyKeys is the §3 spelling→stored-key legend: what this document says
 	// its own key spellings mean, consulted before any vocabulary so a reader
 	// without the space still lands on the right relation. Its values are
 	// AUTHORITATIVE — taken as the stored key, not liveness-checked (§3).
 	PropertyKeys map[string]string `json:"property_internal_keys"`
-	// TypeKeys is the same legend for the TYPE namespace — separate map,
-	// because a space may name a relation and a type one word (§3).
-	TypeKeys map[string]string `json:"type_internal_keys"`
 	// OptionIds is the §9a option legend, nested {property spelling: {option
 	// name: option id}}. Unlike the two above its values are HINTS, honoured
 	// only where the id still names a live option of that relation (§3).
-	OptionIds map[string]map[string]string `json:"option_ids"`
-	Blocks    []*jsonBlock                 `json:"blocks"`
-	Items     []string                     `json:"items"`
-	Store     map[string]any               `json:"store"`
-	Root      *jsonRootEscape              `json:"root"`
+	OptionIds       map[string]map[string]string `json:"option_ids"`
+	Blocks          []*jsonBlock                 `json:"blocks"`
+	CollectionItems []string                     `json:"collection_items"`
+	// QuerySource is the §6.2 group. A POINTER, because the member has
+	// three states and only a pointer distinguishes them: absent (this
+	// document states no query), present and empty (a query naming no
+	// source), populated (querysource.go).
+	QuerySource *jsonQuerySource `json:"query_source"`
+	Store       map[string]any   `json:"store"`
+	Root        *jsonRootEscape  `json:"root"`
 }
 
 // jsonPropertySettings is the decoded `property_settings` group (§2d). The
@@ -195,6 +200,12 @@ type importer struct {
 	// reader's wiring, not any one slot's, and a document can hold thousands
 	// of them.
 	foldedUnrebuilt bool
+	// foldedTypeUnrebuilt is its type-namespace twin: the document carries
+	// `type-<internal_key>` references (§9) in id-valued slots and this run
+	// wired no TypeResolver, so the folded strings stand where type object
+	// ids belong. Reported once, with a code, exactly as the participant
+	// half is (unfoldRef).
+	foldedTypeUnrebuilt bool
 	// scopeType is the resolved stored key of the document's declared type —
 	// for a template, the TARGET type, whose instances the template's
 	// properties describe. It is the disambiguating scope for a shared
@@ -209,29 +220,23 @@ type importer struct {
 	// is a fact about the term, not about any one slot.
 	warnedPropertyTerms map[string]bool
 	warnedTypeTerms     map[string]bool
-	// propLegend/typeLegend/optLegend are the document's legends expanded to
-	// also answer for the NFC form of any non-NFC-spelled entry (§3,
+	// propLegend/optLegend are the document's legends expanded to also
+	// answer for the NFC form of any non-NFC-spelled entry (§3,
 	// nfcExpandLegend), built once on first use. legendsBuilt marks them,
 	// because the fast path hands the doc's own maps back and a nil legend
 	// stays nil.
 	propLegendNFC map[string]string
-	typeLegendNFC map[string]string
 	optLegendNFC  map[string]map[string]string
 	legendsBuilt  bool
 }
 
-// propertyLegend / typeLegend / optionLegend are the §3 chain-step-1 tables:
+// propertyLegend / optionLegend are the §3 chain-step-1 tables:
 // the document's own legends, with non-NFC spellings also answering under
 // their canonical form. Values pass byte-verbatim — a legend value is a
 // stored key, and a stored key's bytes are its address.
 func (imp *importer) propertyLegend() map[string]string {
 	imp.buildLegends()
 	return imp.propLegendNFC
-}
-
-func (imp *importer) typeLegend() map[string]string {
-	imp.buildLegends()
-	return imp.typeLegendNFC
 }
 
 func (imp *importer) optionLegend() map[string]map[string]string {
@@ -245,7 +250,6 @@ func (imp *importer) buildLegends() {
 	}
 	imp.legendsBuilt = true
 	imp.propLegendNFC = nfcExpandLegend(imp.doc.PropertyKeys)
-	imp.typeLegendNFC = nfcExpandLegend(imp.doc.TypeKeys)
 	imp.optLegendNFC = nfcExpandLegend(imp.doc.OptionIds)
 }
 
@@ -628,15 +632,26 @@ func (imp *importer) finalize(fragmentPath string) error {
 	if imp.foldedUnrebuilt {
 		imp.warnWithCode(IssueCodeFoldedParticipantsWithoutSpace, fragmentPath,
 			"this document was written with participants folded and "+
-				"Options.SpaceId names no space: their references import as bare "+
-				"identities, which address no object. Set SpaceId to the space this "+
-				"document is being read into.")
+				"Options.SpaceId names no space: their references import as the folded "+
+				"participant-<identity> ids, which address no object. Set SpaceId to the "+
+				"space this document is being read into.")
+	}
+	if imp.foldedTypeUnrebuilt {
+		imp.warnWithCode(IssueCodeFoldedTypesWithoutResolver, fragmentPath,
+			"this document names types by their derived ids, Options.SpaceId names the space "+
+				"it is being read into, and Options.ResolveProperties carries no TypeResolver: "+
+				"their references import as the folded type-<internal_key> ids, which address no "+
+				"object in that space. Wire a resolver that answers TypeIdByKey.")
 	}
 	return nil
 }
 
-// typeKey inverts a TYPE key slot: the document's own legend first (§3),
-// then the vocabulary in force — propertyKey on the type namespace's legend.
+// typeKey inverts a TYPE key slot: the derived id names its key outright
+// (§9); a spelling resolves through the vocabulary in force (§3). The type
+// namespace carries no legend — the envelope's own type is stated by
+// `type_internal_key`, read by build ahead of this — so a spelling here is
+// authoring input, resolved the way an author expects: a display name, the
+// bundled table, the fold, then verbatim.
 //
 // It used to carry a reservation, the mirror of writableTypeSlug's: the
 // vocabulary could not move the `template` spelling in either direction,
@@ -655,20 +670,31 @@ func (imp *importer) finalize(fragmentPath string) error {
 // three of them: the envelope `type`, `template_for`, and every
 // `type_settings.property_definitions[i].object_types[j]` (§2a).
 func (imp *importer) typeKey(slug, path string) string {
-	if key, ok := imp.typeLegend()[slug]; ok && key != "" {
+	// a derived id names its key outright (§9): `type-<key>`, or the legacy
+	// `ot-<key>` on input — no legend, no vocabulary, nothing to resolve
+	if key, ok := typeRefKey(slug); ok {
 		return key
 	}
-	// §3's canonical form, in the same order as propertyKeyIn: exact legend,
-	// exact stored key, then the NFC form
+	// a value wearing the reserved prefix whose tail is NOT a stored key is a
+	// malformed address, and the fall-through below would hand it to the
+	// vocabulary as a display SPELLING — looking up a type named `type-`.
+	// The prefix states what the value is (§9); one that wears it and is not
+	// one is refused where it stands rather than resolved as something else.
+	if strings.HasPrefix(slug, TypeRefPrefix) {
+		imp.refuse(path, fmt.Sprintf(
+			"%q wears the reserved type- prefix (§9) but %q is not a stored type key "+
+				"([A-Za-z0-9_], 1 to 120 characters); a derived id names its key outright, and a "+
+				"type spelling may not begin with the prefix", slug, slug[len(TypeRefPrefix):]))
+		return slug
+	}
+	// §3's canonical form, in the same order as propertyKeyIn: exact stored
+	// key, then the NFC form
 	if n := nfcTerm(slug); n != slug {
 		if scoped, ok := imp.opts.keys().(ScopedKeyVocabulary); ok &&
 			scoped.TypeTermFacts(slug).LiveStoredKey {
 			return slug
 		}
 		slug = n
-		if key, ok := imp.typeLegend()[slug]; ok && key != "" {
-			return key
-		}
 	}
 	scoped, ok := imp.opts.keys().(ScopedKeyVocabulary)
 	if !ok {
@@ -697,9 +723,9 @@ func (imp *importer) typeKey(slug, path string) string {
 	// the scope — so the ambiguity is refused outright, the same loud error
 	// a shared property name gets when its type cannot place it
 	imp.refuse(path, fmt.Sprintf(
-		"the spelling %q names %d live types in this space; add a %s entry "+
-			"binding the spelling to the intended stored key",
-		slug, len(cands), memberTypeInternalKeys))
+		"the spelling %q names %d live types in this space; write the intended type's "+
+			"derived id instead (type-<internal_key>, §9)",
+		slug, len(cands)))
 	return slug
 }
 
@@ -824,25 +850,32 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		sbType = kindNames.value(doc.Kind)
 	}
 
-	// the envelope id goes through the reference reader like any object
-	// reference (§9): a stray informative suffix is trimmed, and a bare
-	// identity — the participant document's own folded id — rebuilds this
-	// space's participant id. Claimed so a generated block id cannot land on
-	// the rebuilt form.
-	objectId := imp.claimId(imp.objectRef(doc.Id))
+	// the envelope id goes through the reference reader (§9), under the gate
+	// its writing half has: a stray informative suffix is trimmed, and a
+	// derived id rebuilds only into the kind whose prefix it wears — this
+	// space's participant composite on a participant document, this space's
+	// type object on a type document, nothing on anything else. Claimed so a
+	// generated block id cannot land on the rebuilt form.
+	objectId := imp.claimId(imp.envelopeId(doc.Id, sbType))
 	if objectId == "" {
 		objectId = imp.genId()
 	}
 
 	var objectTypes []string
-	if doc.Type != "" {
-		// the seam refuses a resolution onto the empty key (§3): a
-		// vocabulary can answer "" for a non-empty spelling, which became
-		// the ObjectTypes entry "ot-" and re-exported as no type at all —
-		// silently. That is the only refusable resolution here: a non-empty
-		// stored key of any shape round-trips verbatim, unlike a property
-		// key, which has to survive as a JSON member name.
-		typeKey := imp.typeKey(doc.Type, "/type")
+	if doc.Type != "" || doc.TypeInternalKey != "" {
+		// `type_internal_key` is the stored key outright (§2, §3) and
+		// outranks the spelling beside it; only a document that states no
+		// key — an authored one — resolves its `type` spelling. The seam
+		// refuses a resolution onto the empty key (§3): a vocabulary can
+		// answer "" for a non-empty spelling, which became the ObjectTypes
+		// entry "ot-" and re-exported as no type at all — silently. That is
+		// the only refusable resolution here: a non-empty stored key of any
+		// shape round-trips verbatim, unlike a property key, which has to
+		// survive as a JSON member name.
+		typeKey := doc.TypeInternalKey
+		if typeKey == "" {
+			typeKey = imp.typeKey(doc.Type, "/type")
+		}
 		if typeKey == "" {
 			return 0, nil, &ValidationError{Issues: []Issue{{
 				Path:    "/type",
@@ -928,8 +961,8 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		// transient state and the attribution keys are dropped, not refused: a
 		// document carrying one is stale rather than wrong. Export writes no
 		// transient key at all, and writes the attribution keys as derived
-		// captions — `<id>#<name>` recovered from the tree on every rebuild,
-		// which no write path could honour (§3) — so this fires on every
+		// values recovered from the tree on every rebuild, which no write
+		// path could honour (§3) — so this fires on every
 		// document this package produces for an object with a creator, and
 		// on a stale or hand-written one for the rest.
 		if isDroppedOnImport(key) {
@@ -978,6 +1011,9 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 	if err := imp.applyTypeSettings(details, sbType); err != nil {
 		return 0, nil, err
 	}
+	if err := imp.applyQuerySource(details, sbType); err != nil {
+		return 0, nil, err
+	}
 
 	root := &model.Block{
 		Id:      objectId,
@@ -1022,6 +1058,14 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		Collections: imp.buildCollections(),
 		Key:         doc.InternalKey,
 	}
+	if doc.FileRemote != nil {
+		// Validation already reported any ignored payload. Reconstruct only
+		// understood metadata, without treating payload versions as document
+		// format versions or importing stale device status fields.
+		if remote, err := DecodeFileRemote(*doc.FileRemote); err == nil {
+			remote.apply(snapshot)
+		}
+	}
 	return sbType, snapshot, nil
 }
 
@@ -1043,16 +1087,16 @@ func (imp *importer) absorbIntoProperty(details *types.Struct, key, md string) {
 
 func (imp *importer) buildCollections() *types.Struct {
 	doc := imp.doc
-	if len(doc.Items) == 0 && len(doc.Store) == 0 {
+	if len(doc.CollectionItems) == 0 && len(doc.Store) == 0 {
 		return nil
 	}
 	coll := &types.Struct{Fields: map[string]*types.Value{}}
 	for k, v := range doc.Store {
 		coll.Fields[k] = jsonToProtoValue(v)
 	}
-	if len(doc.Items) > 0 {
-		vals := make([]*types.Value, 0, len(doc.Items))
-		for _, id := range doc.Items {
+	if len(doc.CollectionItems) > 0 {
+		vals := make([]*types.Value, 0, len(doc.CollectionItems))
+		for _, id := range doc.CollectionItems {
 			vals = append(vals, &types.Value{Kind: &types.Value_StringValue{StringValue: imp.objectRef(id)}})
 		}
 		coll.Fields[storeKeyItems] = &types.Value{Kind: &types.Value_ListValue{ListValue: &types.ListValue{Values: vals}}}
@@ -1080,9 +1124,22 @@ func (imp *importer) propertyValue(key, slug string, v any) *types.Value {
 		return &types.Value{Kind: &types.Value_NullValue{}}
 	}
 	// a name-over-number key is named in the format, stored as a number
-	// (§3). A number is still accepted so legacy documents keep importing
-	// unchanged; a string that is not a vocabulary name never reaches here —
-	// validation refused the document.
+	// (§3). The number that still arrives from a DOCUMENT is the one the
+	// vocabulary cannot name (I1): it has no name to write, so it falls
+	// through below and round-trips. A nameable number no longer arrives
+	// that way at all — Unmarshal runs validateToDoc before any of this
+	// (above), and that pass refuses it, which is the break json.go records
+	// on the participant pair and `anyblock to-v1` reproduces on a real
+	// corpus participant: `"Participant permissions": 1` fails the
+	// conversion, naming "writer". Nor does a string outside the vocabulary
+	// arrive from a document; validation refuses that too.
+	//
+	// The VALUE-level door is the exception, and the only one: it is handed
+	// no document, so it runs no validation pass.
+	// UnmarshalPropertyValue("participantPermissions", 1, …) still stores
+	// the 1, and the same call with "bogus" still stores the string on a
+	// number key. That asymmetry is the price of an entry point that takes
+	// a value instead of bytes, not a legacy-document allowance.
 	if vocab, named := namedEnumProperty(key); named {
 		if s, isStr := v.(string); isStr && vocab.has(s) {
 			return &types.Value{Kind: &types.Value_NumberValue{
@@ -1105,6 +1162,47 @@ func (imp *importer) propertyValue(key, slug string, v any) *types.Value {
 		return wrapToList(mapJSONStrings(v, func(name string) string { return imp.resolveOption(key, slug, name) }))
 	case model.RelationFormat_object, model.RelationFormat_file:
 		return wrapToList(mapJSONStrings(v, imp.objectRef))
+	}
+	// Every OTHER format that holds more than one value is stored as a list
+	// too, and the predicate is read rather than its membership restated,
+	// because the cases above are not the fact — they are four spellings of
+	// it plus a per-format mapping. `relations` (the `properties` format) had
+	// no case, and it still has no mapping — but not for want of one. Its
+	// values ARE property keys, and every other slot that names a property
+	// resolves the term it was spelled with through the §3 chain
+	// (propertyKey at `/properties`, propertyKeyAt everywhere else); this
+	// one does not, and one document shows both halves of the asymmetry.
+	// Export writes the stored key raw here while spelling the SAME key by
+	// name in a property block beside it, legend entry and all — one key,
+	// two spellings, in one document. Import mirrors it: with
+	// `property_internal_keys: {"priority": "67abc"}` present, a property
+	// block's `"property": "priority"` resolves to `67abc` and this slot's
+	// `["priority"]` stores the literal string "priority".
+	//
+	// So what the wrap below settles is the LIST SHAPE alone. Without it the
+	// value fell through to jsonToProtoValue and a document's bare
+	// `"MyProps": "tag"` stored a StringValue where `["tag"]` stored a
+	// ListValue — two stored values for one meaning, on the one format
+	// nobody had a document to notice it on (0 of the 79-bundle corpus
+	// declares the format, over every `format` member of all 24,889
+	// documents and all 5,385 dictionary entries). Applying the key mapping
+	// is a separate change and is deliberately not made here. Deriving the
+	// wrap from MultiValuedFormat (omittedrelation.go) is what stops the
+	// next format added there from repeating the shape half.
+	//
+	// The two lists are NOT the same set and the derivation runs one way
+	// only. List-SHAPED is the wider notion: `status` is stored as a list of
+	// one option id, and it is in the switch above while MultiValuedFormat
+	// calls it single-valued — rightly, since that predicate answers whether
+	// a `max_count` exists (§2a), and on a select it does not. So every
+	// multi-valued format is list-shaped; not every list-shaped format is
+	// multi-valued.
+	//
+	// Export needs no matching case: a stored list of plain strings renders
+	// as the JSON array through protoValueToJSON's fall-through, which is the
+	// value's own shape, so the round trip closes on the list this produces.
+	if MultiValuedFormat(format) {
+		return wrapToList(jsonToProtoValue(v))
 	}
 	return jsonToProtoValue(v)
 }
@@ -1150,12 +1248,12 @@ const dataviewBlockId = "dataview"
 
 // pinPrimaryDataview gives the document's own dataview the editor's fixed id
 // (§7). The primary dataview is the first indent-0 dataview block carrying
-// neither an explicit id nor an objectId — an objectId means the block is an
-// inline view of some *other* set or collection (§6.2) and keeps a generated
-// id, as does any dataview nested below indent 0. A block that already claims
+// no explicit id and either no target or a reference to this document.
+// An inline view of another query or collection keeps a generated id, as
+// does any dataview nested below indent 0. A block that already claims
 // the id anywhere in the document wins, so an explicit "id": "dataview" stays
 // authoritative and no duplicate is minted (§13).
-func (imp *importer) pinPrimaryDataview(raw []*jsonBlock, indents []int) {
+func (imp *importer) pinPrimaryDataview(raw []*jsonBlock, indents []int, objectID string) {
 	// anything already using the id wins, and "anything" means the whole
 	// document: a table row named "dataview" is a block too, and it is not in
 	// this array. Minting the id anyway produced a duplicate *after*
@@ -1168,7 +1266,13 @@ func (imp *importer) pinPrimaryDataview(raw []*jsonBlock, indents []int) {
 		if jb == nil || indents[i] != 0 {
 			continue
 		}
-		if jb.Type != "dataview" || jb.Id != "" || jb.ObjectId != "" {
+		if jb.Type != "dataview" || jb.Id != "" {
+			continue
+		}
+		// Compare in the imported identity namespace: a derived type id and
+		// its stored id may name the same host. An absent envelope id cannot
+		// declare a self-reference, even if its generated id matches a target.
+		if jb.ObjectId != "" && (imp.doc.Id == "" || imp.objectRef(jb.ObjectId) != objectID) {
 			continue
 		}
 		jb.Id = imp.claimId(dataviewBlockId)
@@ -1189,7 +1293,7 @@ func (imp *importer) topLevelBlocks(details *types.Struct) ([]*jsonBlock, []int)
 	// id under OmitIds this way, 0 lose it), and a wrapped title is only
 	// absorbed into `properties.name` once the lift has put it at indent 0.
 	raw, indents = liftTransparentContainers(raw, indents)
-	imp.pinPrimaryDataview(raw, indents)
+	imp.pinPrimaryDataview(raw, indents, details.Fields[detailKeyId].GetStringValue())
 	jbs := make([]*jsonBlock, 0, len(raw))
 	kept := make([]int, 0, len(raw))
 	for i := 0; i < len(raw); i++ {
@@ -1308,6 +1412,7 @@ func (imp *importer) parseText(md string) (string, *model.BlockContentTextMarks,
 	if len(marks) == 0 {
 		return text, nil, nil
 	}
+	imp.unfoldMarks(marks)
 	return text, &model.BlockContentTextMarks{Marks: marks}, nil
 }
 
@@ -1328,6 +1433,7 @@ func (imp *importer) textFromJSON(jb *jsonBlock) (*model.BlockContentText, error
 	}
 	if style == model.BlockContentText_Callout {
 		calloutIconFrom(jb.Icon, t)
+		t.IconImage = imp.unfoldRef(t.IconImage)
 	}
 	return t, nil
 }

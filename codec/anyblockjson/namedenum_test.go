@@ -23,7 +23,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/anyproto/any-block/format/v1/model"
+	"github.com/anyproto/any-block/internal/testfixtures"
 )
+
+// participantDocId is a participant id whose identity is the synthetic
+// account fixture: the envelope refuses the prefix on anything that is not a
+// real account identity (§9), and the repository's secret scan refuses a
+// real one lifted out of the corpus.
+var participantDocId = "participant-" + testfixtures.AccountIdentity
 
 func TestNamedEnum_LayoutAlign(t *testing.T) {
 	t.Run("export writes the name", func(t *testing.T) {
@@ -69,12 +76,18 @@ func TestNamedEnum_LayoutAlign(t *testing.T) {
 		require.Error(t, unmErr, "Unmarshal must reject what Validate rejects (§11 I2)")
 	})
 
-	t.Run("a raw number still round-trips", func(t *testing.T) {
-		doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"layout_align": 2}}`
+	// A number the vocabulary CAN name used to round-trip here, and that was
+	// the second half of the same defect the unknown-name refusal closed: the
+	// document said 2, the store held 2, and the next export said "right" —
+	// the reader that wrote the number never learned it had written a name.
+	// It is refused now (TestNamedEnum_ANameableNumberIsRefused); a number
+	// with no name still round-trips, because export writes one.
+	t.Run("a raw number the vocabulary cannot name still round-trips", func(t *testing.T) {
+		doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"layout_align": 99}}`
 		require.NoError(t, Validate([]byte(doc), Options{}))
 		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 		require.NoError(t, err)
-		assert.Equal(t, float64(model.Block_AlignRight), snap.Details.Fields["layoutAlign"].GetNumberValue())
+		assert.Equal(t, float64(99), snap.Details.Fields["layoutAlign"].GetNumberValue())
 	})
 
 	t.Run("a number outside the vocabulary exports as the number", func(t *testing.T) {
@@ -157,13 +170,20 @@ func TestNamedEnum_Provenance(t *testing.T) {
 		assert.Contains(t, err.Error(), "'markdown'")
 	})
 
-	t.Run("raw numbers still round-trip", func(t *testing.T) {
-		doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"origin": 7, "import_type": 1}}`
-		require.NoError(t, Validate([]byte(doc), Options{}), "every corpus document carries the pair this way")
+	// `{"origin": 7, "import_type": 1}` used to be the documented way to
+	// carry the pair, and it is refused now: 7 and 1 are `builtin` and
+	// `markdown`, and writing the number got the name back on the next
+	// export without anyone being told. Nothing real is refused by that —
+	// across the 79-bundle corpus, all 62,325 values in the six named-enum
+	// property slots are strings and NOT ONE is a number. Only a number
+	// with no name still travels.
+	t.Run("raw numbers with no name still round-trip", func(t *testing.T) {
+		doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"origin": 777, "import_type": 888}}`
+		require.NoError(t, Validate([]byte(doc), Options{}))
 		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 		require.NoError(t, err)
-		assert.Equal(t, float64(model.ObjectOrigin_builtin), snap.Details.Fields["origin"].GetNumberValue())
-		assert.Equal(t, float64(model.Import_Markdown), snap.Details.Fields["importType"].GetNumberValue())
+		assert.Equal(t, float64(777), snap.Details.Fields["origin"].GetNumberValue())
+		assert.Equal(t, float64(888), snap.Details.Fields["importType"].GetNumberValue())
 	})
 }
 
@@ -188,19 +208,27 @@ func TestNamedEnum_VocabulariesTotalOverModelEnums(t *testing.T) {
 		assert.NotEmpty(t, imageKindNames.name(model.ImageKind(raw)),
 			"image kind %s (%d) has no §3 name", enumName, raw)
 	}
+	for raw, enumName := range model.ParticipantPermissions_name {
+		assert.NotEmpty(t, participantPermissionsNames.name(model.ParticipantPermissions(raw)),
+			"participant permissions %s (%d) has no §3 name", enumName, raw)
+	}
+	for raw, enumName := range model.ParticipantStatus_name {
+		assert.NotEmpty(t, participantStatusNames.name(model.ParticipantStatus(raw)),
+			"participant status %s (%d) has no §3 name", enumName, raw)
+	}
 }
 
 // A file object's `image_kind` says what an image was uploaded FOR. It used
 // to travel as the proto's bare integer, so a reader of an export saw `3`
 // beside a named `origin` and had no way to learn it meant the image was
-// added by a pipeline rather than by a person — on 4,079 documents across
-// the 77-space corpus, which is the measured standard the bare-integer keys
-// beside it (widgetLayout at 13, headerRelationsLayout at 51) were left on.
+// added by a pipeline rather than by a person — on 4,094 documents across
+// the 79-bundle corpus, which is the measured standard the bare-integer keys
+// beside it (widgetLayout at 13, headerRelationsLayout at 62) were left on.
 //
 // Naming it changes nothing a client depends on: the filter that hides
 // auto-added images reads `isHiddenDiscovery`, which travels on its own and
-// is in lockstep with this key's automatically_added member (4,053 of
-// 4,053). This is a change to the READ surface.
+// is in lockstep with this key's automatically_added member (4,066 of
+// 4,066). This is a change to the READ surface.
 //
 // How this can fail: name it on the way out and not back in, and every
 // import of an exported file object silently loses the kind; leave the enum
@@ -248,5 +276,196 @@ func TestNamedEnum_ImageKind(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "image_kind")
 		assert.Contains(t, err.Error(), "'icon'", "the refusal names the vocabulary")
+	})
+}
+
+// A number the vocabulary CAN name is refused (§3). This is the reader
+// defect the consumer review filed: `{"Layout": 1}` validated, imported as
+// the stored number 1, and exported back as `"profile"` — a wrong answer
+// rather than an error, because the entry's own description ("Anytype
+// layout ID(from pb enum)") invites exactly that write and nothing anywhere
+// contradicted it.
+//
+// The rule is stated on NAMEABILITY, not on the JSON type, and that is what
+// keeps I1: export writes the NAME for every number the vocabulary can name
+// and the bare number only for one it cannot, so the set Validate now
+// refuses is precisely the set Marshal never emits.
+//
+// How this can fail: refuse every number (Marshal emits an out-of-vocabulary
+// one, so Validate would reject its own output), or refuse none (the silent
+// rewrite comes back).
+func TestNamedEnum_ANameableNumberIsRefused(t *testing.T) {
+	for _, tc := range []struct {
+		slug, what, repair string
+		number             string
+	}{
+		{"layout", "layout", "profile", "1"},
+		{"layout_align", "align", "center", "1"},
+		{"origin", "origin", "builtin", "7"},
+		{"import_type", "import type", "markdown", "1"},
+		{"image_kind", "image kind", "icon", "2"},
+		{"resolved_layout", "layout", "todo", "2"},
+		{"participant_permissions", "participant permissions", "owner", "2"},
+		{"participant_status", "participant status", "removed", "2"},
+	} {
+		t.Run(tc.slug, func(t *testing.T) {
+			doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"` + tc.slug + `": ` + tc.number + `}}`
+			err := Validate([]byte(doc), Options{})
+			require.Error(t, err, "a number this vocabulary can name is not a way to write the value")
+			assert.Contains(t, err.Error(), "/properties/"+tc.slug)
+			assert.Contains(t, err.Error(), `write "`+tc.repair+`"`,
+				"the refusal names the value this exact number stands for")
+			assert.Contains(t, err.Error(), "'"+tc.repair+"'",
+				"and states the whole vocabulary, the way an unknown NAME is refused")
+			assert.Contains(t, err.Error(), tc.what, "and the concept it belongs to")
+			_, _, unmErr := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+			require.Error(t, unmErr, "Unmarshal must reject what Validate rejects (§11 I2)")
+		})
+	}
+}
+
+// The complement, and the reason the rule is not "no numbers here": a stored
+// number outside the vocabulary has no name to write, so export writes the
+// number and Validate must keep accepting it (I1).
+func TestNamedEnum_AnUnnameableNumberStillPasses(t *testing.T) {
+	doc := `{"formatVersion": "2.0", "id": "o1", "properties": {"layout_align": 99}}`
+	require.NoError(t, Validate([]byte(doc), Options{}))
+	_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+	require.NoError(t, err)
+	assert.Equal(t, float64(99), snap.Details.Fields["layoutAlign"].GetNumberValue())
+}
+
+// type_settings.layout is the same slot under another name — the stored
+// recommendedLayout, lifted into the §2a group on a type document — and it
+// held the same defect: `{"type_settings": {"layout": 1}}` became "profile".
+// One vocabulary, one rule.
+func TestNamedEnum_ANameableNumberIsRefusedInTypeSettings(t *testing.T) {
+	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+		"type_settings": {"layout": 1}}`
+	err := Validate([]byte(doc), Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "/type_settings/layout")
+	assert.Contains(t, err.Error(), `write "profile"`)
+
+	// and the out-of-vocabulary number still passes, for I1's reason
+	raw := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+		"type_settings": {"layout": 9999}}`
+	require.NoError(t, Validate([]byte(raw), Options{}))
+}
+
+// participant_permissions and participant_status — the two enums a space's
+// member documents carry, and the largest unnamed-enum gap the format had.
+// Measured on the 79-bundle corpus (24,889 documents): 2,519 slots each,
+// every one a bare integer, all on `participant` documents, in all 79
+// bundles; against them every other bundled number-format key that holds an
+// enum totals 81 slots — widgetLayout 13 and templateNamePrefillType 6, both
+// proto enums, and headerRelationsLayout 62, a client-side one with no
+// _name table in this repo to draw from — so the pair is 5,038 of 5,119
+// unnamed enum slots.
+//
+// Both values in use span the enums: permissions Writer 1,888 · NoPermissions
+// 566 · Owner 48 · Reader 13 · Admin 4 (all five members), status Active
+// 1,945 · Removed 561 · Removing 8 · Declined 4 · Canceled 1 (five of six;
+// Joining never occurs in the corpus and is named anyway, the imageKind
+// precedent — a total vocabulary is what keeps a future writer of it from
+// exporting a bare integer).
+func TestNamedEnum_Participant(t *testing.T) {
+	t.Run("export writes the names", func(t *testing.T) {
+		snap := &model.SmartBlockSnapshotBase{
+			Details: fields(map[string]*types.Value{
+				"id":                     str(participantDocId),
+				"participantPermissions": num(float64(model.ParticipantPermissions_Owner)),
+				"participantStatus":      num(float64(model.ParticipantStatus_Active)),
+			}),
+		}
+		data, err := Marshal(model.SmartBlockType_Participant, snap, Options{})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"Participant permissions": "owner"`)
+		assert.Contains(t, string(data), `"Participant status": "active"`)
+		require.NoError(t, Validate(data, Options{}), "I1: Marshal never emits what its own Validate rejects")
+	})
+
+	t.Run("import maps the names to the stored numbers", func(t *testing.T) {
+		doc := `{"formatVersion": "2.0", "kind": "participant", "id": "` + participantDocId + `",
+			"properties": {"participant_permissions": "no_permissions", "participant_status": "removing"}}`
+		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+		require.NoError(t, err)
+		for key, want := range map[string]float64{
+			"participantPermissions": float64(model.ParticipantPermissions_NoPermissions),
+			"participantStatus":      float64(model.ParticipantStatus_Removing),
+		} {
+			v := snap.Details.Fields[key]
+			require.NotNilf(t, v, "%s must be stored", key)
+			_, isNum := v.GetKind().(*types.Value_NumberValue)
+			require.Truef(t, isNum, "%s must be stored as a number, not %T", key, v.GetKind())
+			assert.Equal(t, want, v.GetNumberValue())
+		}
+	})
+
+	// The Reader-zero trap, the same shape as importType's Notion-zero: a
+	// string on this number detail read back as 0, which is not "unset" but
+	// READER — a false claim that a space owner is a viewer.
+	t.Run("an unknown name is refused, naming the vocabulary", func(t *testing.T) {
+		doc := `{"formatVersion": "2.0", "id": "p1", "properties": {"participant_permissions": "editor"}}`
+		err := Validate([]byte(doc), Options{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "/properties/participant_permissions")
+		assert.Contains(t, err.Error(), "unknown participant permissions")
+		assert.Contains(t, err.Error(), "'writer'",
+			"the refusal states this format's vocabulary: `editor` is the REST API's own alias for "+
+				"Writer, and it is not a name here")
+		_, _, unmErr := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+		require.Error(t, unmErr, "Unmarshal must reject what Validate rejects (§11 I2)")
+	})
+
+	t.Run("an unknown status is refused too", func(t *testing.T) {
+		err := Validate([]byte(`{"formatVersion": "2.0", "id": "p1", "properties": {"participant_status": "cancelled"}}`), Options{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown participant status")
+		assert.Contains(t, err.Error(), "'canceled'", "the proto's own spelling, not the British one")
+	})
+
+	// The compatibility break, stated rather than glossed. For the five keys
+	// named before these two, the refusal of a nameable number cost nothing
+	// — not one value in those slots was a number in any real export. Here
+	// the opposite holds: EVERY real export writes numbers, and every one of
+	// them is refused now. Run against the 79-bundle corpus, all 2,519
+	// participant documents are rejected, each naming the value its number
+	// stands for. That is the wire-format change this vocabulary makes, taken
+	// pre-release and deliberately; the refusal is what stops a reader
+	// writing the ordinal back and being told "right" on the next export.
+	//
+	// The ten numbers below are every value the corpus actually carries:
+	// permissions writer 1,888 · no_permissions 566 · owner 48 · reader 13 ·
+	// admin 4, status active 1,945 · removed 561 · removing 8 · declined 4 ·
+	// canceled 1.
+	t.Run("every number a real export carries is refused, naming its value", func(t *testing.T) {
+		for _, tc := range []struct{ slug, number, name string }{
+			{"participant_permissions", "0", "reader"},
+			{"participant_permissions", "1", "writer"},
+			{"participant_permissions", "2", "owner"},
+			{"participant_permissions", "3", "no_permissions"},
+			{"participant_permissions", "4", "admin"},
+			{"participant_status", "1", "active"},
+			{"participant_status", "2", "removed"},
+			{"participant_status", "3", "declined"},
+			{"participant_status", "4", "removing"},
+			{"participant_status", "5", "canceled"},
+		} {
+			doc := `{"formatVersion": "2.0", "id": "p1", "properties": {"` + tc.slug + `": ` + tc.number + `}}`
+			err := Validate([]byte(doc), Options{})
+			require.Errorf(t, err, "%s %s is the wire form every corpus export used, and it is refused now", tc.slug, tc.number)
+			assert.Containsf(t, err.Error(), `write "`+tc.name+`"`,
+				"the refusal must name the value %s stands for, or the break is unrepairable by reading it", tc.number)
+		}
+	})
+
+	t.Run("a number with no name still round-trips", func(t *testing.T) {
+		doc := `{"formatVersion": "2.0", "id": "p1", "properties": {"participant_permissions": 77, "participant_status": 88}}`
+		require.NoError(t, Validate([]byte(doc), Options{}))
+		_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
+		require.NoError(t, err)
+		assert.Equal(t, float64(77), snap.Details.Fields["participantPermissions"].GetNumberValue())
+		assert.Equal(t, float64(88), snap.Details.Fields["participantStatus"].GetNumberValue())
 	})
 }

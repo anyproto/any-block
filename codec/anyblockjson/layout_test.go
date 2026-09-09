@@ -44,23 +44,26 @@ func TestImport_LayoutNameToNumber(t *testing.T) {
 	}
 }
 
-// legacy documents that wrote the raw enum still import unchanged
-func TestImport_LayoutNumberStillAccepted(t *testing.T) {
+// A stored number the layout vocabulary cannot name still imports unchanged:
+// export writes such a number (there is no name to write), so the reader has
+// to take it back (I1). A number the vocabulary CAN name is refused instead
+// of being accepted-and-renamed — TestNamedEnum_ANameableNumberIsRefusedInTypeSettings.
+func TestImport_UnnameableLayoutNumberStillAccepted(t *testing.T) {
 	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
-		"type_settings": {"layout": 1}}`
+		"type_settings": {"layout": 9999}}`
 	_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 	require.NoError(t, err)
-	assert.Equal(t, float64(model.ObjectType_profile),
+	assert.Equal(t, float64(9999),
 		snap.Details.Fields["recommendedLayout"].GetNumberValue())
 }
 
 func TestExport_LayoutNumberToName(t *testing.T) {
 	snapshot := &model.SmartBlockSnapshotBase{
 		Blocks: []*model.Block{
-			{Id: "t1", Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
+			{Id: "type-k", Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
 		},
 		Details: fields(map[string]*types.Value{
-			"id":                str("t1"),
+			"id":                str("type-k"),
 			"recommendedLayout": num(float64(model.ObjectType_profile)),
 			"resolvedLayout":    num(float64(model.ObjectType_todo)),
 		}),
@@ -75,7 +78,7 @@ func TestExport_LayoutNumberToName(t *testing.T) {
 }
 
 func TestRoundtrip_LayoutSurvives(t *testing.T) {
-	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "type-k", "internal_key": "k",
 		"type_settings": {"layout": "profile"}}`
 	_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 	require.NoError(t, err)
@@ -125,12 +128,20 @@ func TestNamedEnumProperties_PerKeyVerdict(t *testing.T) {
 		"importType": "import type",
 		// what an image was uploaded FOR, on file objects. Named on the
 		// measured standard the bare-integer keys beside it were left on:
-		// 4,079 occurrences against widgetLayout's 13 and
-		// headerRelationsLayout's 51. Its automatically_added member is in
-		// lockstep with is_hidden_discovery (4,053 of 4,053), which is the
+		// 4,094 occurrences against widgetLayout's 13 and
+		// headerRelationsLayout's 62. Its automatically_added member is in
+		// lockstep with is_hidden_discovery (4,066 of 4,066), which is the
 		// key a client actually filters on — so this one is named for the
 		// READER rather than for any behaviour that depends on it.
 		"imageKind": "image kind",
+		// a space member's permissions and status: 2,519 slots each across
+		// the 79-bundle corpus, both bare integers, together 5,038 of the
+		// 5,119 unnamed enum slots that corpus carries. The stored
+		// description points at a Go symbol ("Possible values:
+		// models.ParticipantPermissions") a reader cannot open, so the
+		// number was advertised as meaningful and left unexplained.
+		"participantPermissions": "participant permissions",
+		"participantStatus":      "participant status",
 	}
 	assert.Equal(t, len(want), len(namedEnumProperties),
 		"every named key owes a verdict here — a new one must say which vocabulary it draws from")
@@ -139,12 +150,15 @@ func TestNamedEnumProperties_PerKeyVerdict(t *testing.T) {
 		require.True(t, named, "%s must be written by name", key)
 		assert.Equal(t, what, vocab.what, "%s draws from the wrong vocabulary", key)
 	}
-	// the layout-ish bundled keys that stay numbers, each for a stated
-	// reason: layoutWidth is a fraction, not an enum; widgetLayout and
-	// headerRelationsLayout hold enums almost nothing writes (13 and 51
-	// occurrences across 28,831 real exported documents, against
-	// imageKind's 4,079)
-	for _, key := range []string{"layoutWidth", "widgetLayout", "headerRelationsLayout"} {
+	// the bundled number keys that stay numbers, each for a stated reason:
+	// layoutWidth is a fraction, not an enum; widgetLayout and
+	// templateNamePrefillType hold proto enums almost nothing writes (13 and
+	// 6 slots across the 79-bundle, 24,889-document corpus, against the
+	// 5,038 the participant pair carries and imageKind's 4,094); and
+	// headerRelationsLayout, 62 slots, holds a CLIENT-side enum — the
+	// anytype-ts FeaturedRelationLayout — for which this repo ships no
+	// _name table to derive a vocabulary from.
+	for _, key := range []string{"layoutWidth", "widgetLayout", "headerRelationsLayout", "templateNamePrefillType"} {
 		_, named := namedEnumProperty(key)
 		assert.False(t, named, "%s is deliberately not named", key)
 	}

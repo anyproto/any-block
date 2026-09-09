@@ -55,18 +55,18 @@ func TestAuthoritativeTargetsRequireDirectoryEntrySpelling(t *testing.T) {
 			aliasFS := &normalizingAliasFS{
 				files: fstest.MapFS{
 					"index.json": {Data: []byte(fmt.Sprintf(
-						`{"formatVersion":"2.0","manifest":{"types":{"Task":%q}}}`,
+						`{"formatVersion":"2.0","manifest":{"properties":%q}}`,
 						tc.authored,
 					))},
-					tc.actual: {Data: aliasTargetTypeDocument("task")},
+					tc.actual: {Data: aliasTargetDictionary()},
 				},
 				normalize: tc.normalize,
 				reads:     map[string]int{},
 			}
 
 			err := Validate(aliasFS)
-			require.ErrorContains(t, err, `manifest.types[task] target "`+tc.authored+`" does not use exact directory-entry spelling`)
-			assert.Equal(t, 1, strings.Count(err.Error(), "manifest.types[task]"), err.Error())
+			require.ErrorContains(t, err, `manifest.properties target "`+tc.authored+`" does not use exact directory-entry spelling`)
+			assert.Equal(t, 1, strings.Count(err.Error(), "manifest.properties"), err.Error())
 			assert.NotContains(t, err.Error(), "duplicate object id")
 			assert.NotContains(t, err.Error(), `property "id" is not allowed`)
 			assert.Zero(t, aliasFS.reads[tc.actual], "a rejected alias must not be read directly or by generic dispatch")
@@ -78,8 +78,8 @@ func TestExactAuthoritativeTargetIsReadOnce(t *testing.T) {
 	const target = "Types/properties.json"
 	aliasFS := &normalizingAliasFS{
 		files: fstest.MapFS{
-			"index.json": {Data: []byte(`{"formatVersion":"2.0","manifest":{"types":{"Task":"Types/properties.json"}}}`)},
-			target:       {Data: aliasTargetTypeDocument("task")},
+			"index.json": {Data: []byte(`{"formatVersion":"2.0","manifest":{"properties":"Types/properties.json"}}`)},
+			target:       {Data: aliasTargetDictionary()},
 		},
 		normalize: func(value string) string { return cases.Fold().String(value) },
 		reads:     map[string]int{},
@@ -100,18 +100,18 @@ func TestManifestTargetInspectionErrorsRemainDistinctAndTerminal(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			base := fstest.MapFS{
-				"index.json":      {Data: []byte(`{"formatVersion":"2.0","manifest":{"types":{"Task":"types/task.json"}}}`)},
-				"types/task.json": {Data: aliasTargetTypeDocument("task")},
+				"index.json":      {Data: []byte(`{"formatVersion":"2.0","manifest":{"properties":"types/dict.json"}}`)},
+				"types/dict.json": {Data: aliasTargetDictionary()},
 			}
 			fsys := statErrorFS{
 				FS:     base,
-				target: "types/task.json",
-				err:    &fs.PathError{Op: "stat", Path: "types/task.json", Err: tc.err},
+				target: "types/dict.json",
+				err:    &fs.PathError{Op: "stat", Path: "types/dict.json", Err: tc.err},
 			}
 
 			err := Validate(fsys)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), `manifest.types[task] cannot inspect target "types/task.json"`)
+			assert.Contains(t, err.Error(), `manifest.properties cannot inspect target "types/dict.json"`)
 			assert.Contains(t, err.Error(), tc.want)
 			assert.Equal(t, 1, strings.Count(err.Error(), "cannot inspect target"), err.Error())
 			assert.NotContains(t, err.Error(), "points to missing path")
@@ -122,11 +122,11 @@ func TestManifestTargetInspectionErrorsRemainDistinctAndTerminal(t *testing.T) {
 
 func TestManifestTargetNotExistRemainsMissing(t *testing.T) {
 	fsys := fstest.MapFS{
-		"index.json": {Data: []byte(`{"formatVersion":"2.0","manifest":{"types":{"Task":"types/missing.json"}}}`)},
+		"index.json": {Data: []byte(`{"formatVersion":"2.0","manifest":{"properties":"types/missing.json"}}`)},
 	}
 
 	err := Validate(fsys)
-	require.ErrorContains(t, err, `manifest.types[task] points to missing path "types/missing.json"`)
+	require.ErrorContains(t, err, `manifest.properties points to missing path "types/missing.json"`)
 	assert.Equal(t, 1, strings.Count(err.Error(), "points to missing path"), err.Error())
 	assert.NotContains(t, err.Error(), "cannot inspect target")
 	assert.NotContains(t, err.Error(), "cannot read target")
@@ -134,8 +134,8 @@ func TestManifestTargetNotExistRemainsMissing(t *testing.T) {
 
 func TestDirectoryInspectionErrorDoesNotCascadeThroughWalk(t *testing.T) {
 	base := fstest.MapFS{
-		"index.json":      {Data: []byte(`{"formatVersion":"2.0","manifest":{"types":{"Task":"types/task.json"}}}`)},
-		"types/task.json": {Data: aliasTargetTypeDocument("task")},
+		"index.json":      {Data: []byte(`{"formatVersion":"2.0","manifest":{"properties":"types/dict.json"}}`)},
+		"types/dict.json": {Data: aliasTargetDictionary()},
 	}
 	fsys := readDirErrorFS{
 		FS:        base,
@@ -145,7 +145,7 @@ func TestDirectoryInspectionErrorDoesNotCascadeThroughWalk(t *testing.T) {
 
 	err := Validate(fsys)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `manifest.types[task] cannot inspect target "types/task.json"`)
+	assert.Contains(t, err.Error(), `manifest.properties cannot inspect target "types/dict.json"`)
 	assert.Contains(t, err.Error(), "permission denied")
 	assert.Equal(t, 1, strings.Count(err.Error(), "cannot inspect target"), err.Error())
 	assert.NotContains(t, err.Error(), "walk bundle")
@@ -251,9 +251,6 @@ func (fsys *normalizingAliasFS) resolve(name string) (string, error) {
 	return directory, nil
 }
 
-func aliasTargetTypeDocument(internalKey string) []byte {
-	return []byte(fmt.Sprintf(
-		`{"formatVersion":"2.0","id":"type-object","kind":"object_type","internal_key":%q,"type":"Object type"}`,
-		internalKey,
-	))
+func aliasTargetDictionary() []byte {
+	return []byte(`{"formatVersion":"2.0"}`)
 }

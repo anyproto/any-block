@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreiset",
+  "type": "Query",
+  "type_internal_key": "set",
+  "properties": {
+    "Name": "Every field note there is"
+  },
+  "blocks": [
+    {
+      "id": "dataview",
+      "type": "dataview",
+      "views": [
+        {
+          "id": "v1",
+          "name": "All"
+        }
+      ]
+    }
+  ],
+  "query_source": {
+    "types": [
+      "type-fieldnote"
+    ]
+  }
+}

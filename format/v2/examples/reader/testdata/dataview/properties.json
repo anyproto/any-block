@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/properties.schema.json",
+  "formatVersion": "2.0",
+  "properties": [
+    {
+      "property": "Name",
+      "internal_key": "name",
+      "name": "Name",
+      "format": "text"
+    },
+    {
+      "property": "Last modified date",
+      "internal_key": "lastModifiedDate",
+      "name": "Last modified date",
+      "format": "date"
+    }
+  ]
+}

@@ -52,11 +52,11 @@ func TestIndex_Roundtrip(t *testing.T) {
 	// the install opens the first widget's target
 	assert.Equal(t, "page-wiki-home", idx.EntryPoint())
 
-	out, err := MarshalIndex(idx)
+	out, err := MarshalIndex(idx, Options{})
 	require.NoError(t, err)
 	again, err := UnmarshalIndex(out, Options{})
 	require.NoError(t, err)
-	out2, err := MarshalIndex(again)
+	out2, err := MarshalIndex(again, Options{})
 	require.NoError(t, err)
 	assert.Equal(t, string(out), string(out2), "export must be byte-stable (§11)")
 }
@@ -119,9 +119,29 @@ func TestIndex_EntryPoint(t *testing.T) {
 	})
 }
 
-// homepage is what opens on every later entry; omitting it means "the same
-// page you landed on", never the widgets screen
+// The bundle install path uses the resolved homepage on first and later entry.
+// An omitted homepage falls back through entrypoint and object widgets before
+// the installer supplies its default screen.
 func TestIndex_SpaceHomepage(t *testing.T) {
+	t.Run("missing homepage and entrypoint fall back to the first object widget", func(t *testing.T) {
+		idx, err := UnmarshalIndex([]byte(`{"formatVersion":"2.0",
+			"widgets":[{"target":"_recent"},{"target":"page-home"},{"target":"page-other"}]}`), Options{})
+		require.NoError(t, err)
+		assert.Equal(t, "page-home", idx.SpaceHomepage())
+		assert.Equal(t, "_recent", idx.Widgets[0].Target, "navigation does not reorder the sidebar")
+	})
+	t.Run("reserved listings alone leave the homepage undeclared", func(t *testing.T) {
+		idx, err := UnmarshalIndex([]byte(`{"formatVersion":"2.0","widgets":[{"target":"_recent"}]}`), Options{})
+		require.NoError(t, err)
+		assert.Empty(t, idx.SpaceHomepage(), "the installer supplies its default only when no destination is declared")
+	})
+	t.Run("an explicit widgets homepage overrides an entry object", func(t *testing.T) {
+		idx, err := UnmarshalIndex([]byte(`{"formatVersion":"2.0","homepage":"_widgets",
+			"entrypoint":"page-welcome","widgets":[{"target":"page-other"}]}`), Options{})
+		require.NoError(t, err)
+		assert.Equal(t, HomepageWidgets, idx.SpaceHomepage())
+		assert.Equal(t, "page-other", idx.Widgets[0].Target)
+	})
 	t.Run("defaults to the entrypoint", func(t *testing.T) {
 		idx, err := UnmarshalIndex([]byte(`{"formatVersion": "2.0", "entrypoint": "page-home"}`), Options{})
 		require.NoError(t, err)
@@ -338,7 +358,7 @@ func TestIndex_Icon(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "acme-logo", idx.IconImageId())
 
-	out, err := MarshalIndex(idx)
+	out, err := MarshalIndex(idx, Options{})
 	require.NoError(t, err)
 	assert.Contains(t, string(out), `"icon": {`)
 	assert.Contains(t, string(out), `"file": "acme-logo"`)
@@ -376,7 +396,7 @@ func TestIndex_Icon(t *testing.T) {
 		assert.Equal(t, "red", idx.Icon.Color)
 		assert.Empty(t, idx.IconImageId(), "a colour names no image")
 
-		out, err := MarshalIndex(idx)
+		out, err := MarshalIndex(idx, Options{})
 		require.NoError(t, err)
 		assert.Contains(t, string(out), `"format": "color"`)
 		assert.Contains(t, string(out), `"color": "red"`)
@@ -387,7 +407,7 @@ func TestIndex_Icon(t *testing.T) {
 			"icon": {"format": "file", "file": "acme-logo", "color": "red"}}`), Options{})
 
 		require.NoError(t, err)
-		out, err := MarshalIndex(idx)
+		out, err := MarshalIndex(idx, Options{})
 		require.NoError(t, err)
 		assert.Contains(t, string(out), `"file": "acme-logo"`)
 		assert.Contains(t, string(out), `"color": "red"`)

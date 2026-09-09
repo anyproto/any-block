@@ -6,6 +6,7 @@ package anyblockjson
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,6 +47,8 @@ func TestSchemaVocabularies_MatchTheCodec(t *testing.T) {
 		{"objectOrigin", keysOfEnumNames(originNames), "object origin"},
 		{"importType", keysOfEnumNames(importTypeNames), "import type"},
 		{"imageKind", keysOfEnumNames(imageKindNames), "image kind"},
+		{"participantPermissions", keysOfEnumNames(participantPermissionsNames), "participant permissions"},
+		{"participantStatus", keysOfEnumNames(participantStatusNames), "participant status"},
 	} {
 		t.Run(tc.def, func(t *testing.T) {
 			got := append([]string(nil), schema.Defs[tc.def].Enum...)
@@ -128,5 +131,48 @@ func TestSchemaVocabularies_OneAlignDefinition(t *testing.T) {
 			"%s.%s must share the one alignment definition", tc.def, tc.member)
 		assert.Empty(t, node.Properties[tc.member].Enum,
 			"a second copy of the vocabulary is a place to drift")
+	}
+}
+
+// Every vocabulary the codec writes into a PROPERTY value is published in
+// the schema, so a reader holding the bundle and the schema — and no Go —
+// can learn the names. The requirement is derived from namedEnumProperties
+// rather than listed beside it: the table above is a second list, and a key
+// added to the codec without a $def slipped past it silently until this ran.
+// (That is how `participantPermissions` and `participantStatus` were
+// published seven keys late.)
+//
+// Matching is by CONTENT, not by name: one $def serves the three layout keys
+// and another serves alignment across three unrelated slots, so what must
+// hold is that some published definition states exactly this vocabulary.
+//
+// How this can fail: name a stored key in the codec and publish nothing, so
+// the dictionary entry's `value_names` is the only place the names exist and
+// a schema reader is told the property is a plain number.
+func TestSchemaVocabularies_EveryNamedPropertyVocabularyIsPublished(t *testing.T) {
+	var schema struct {
+		Defs map[string]struct {
+			Enum []string `json:"enum"`
+		} `json:"$defs"`
+	}
+	require.NoError(t, json.Unmarshal(schemaJSON, &schema))
+
+	published := map[string]string{} // joined sorted names → the $def that states them
+	for name, def := range schema.Defs {
+		if len(def.Enum) == 0 {
+			continue
+		}
+		names := append([]string(nil), def.Enum...)
+		sort.Strings(names)
+		published[strings.Join(names, "\x1f")] = name
+	}
+
+	require.NotEmpty(t, namedEnumProperties)
+	for key, vocab := range namedEnumProperties {
+		want := strings.Join(vocab.names(), "\x1f")
+		_, ok := published[want]
+		assert.Truef(t, ok,
+			"%s writes names the schema does not publish — no $defs enum states %s",
+			key, strings.Join(vocab.names(), ", "))
 	}
 }

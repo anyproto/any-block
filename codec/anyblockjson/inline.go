@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/anyproto/any-block/codec/anyblockjson/internal/text"
 	"github.com/anyproto/any-block/format/v1/model"
@@ -110,6 +111,7 @@ type span struct {
 	typ      model.BlockContentTextMarkType
 	param    string
 	from, to int
+	linkDest string // checked, escaped destination for Link/Object spans
 }
 
 func sortSpans(s []span) {
@@ -126,21 +128,33 @@ func sortSpans(s []span) {
 
 // renderInline serializes text and its marks into §8 inline Markdown.
 func renderInline(txt string, marks []*model.BlockContentTextMark) string {
+	md, _ := renderInlineWithLinkPolicy(txt, marks, false)
+	return md
+}
+
+func renderInlineChecked(txt string, marks []*model.BlockContentTextMark) (string, error) {
+	return renderInlineWithLinkPolicy(txt, marks, true)
+}
+
+func renderInlineWithLinkPolicy(txt string, marks []*model.BlockContentTextMark, rejectUnwritableLinks bool) (string, error) {
 	u16 := text.StrToUTF16(txt)
-	spans := sanitizeSpans(u16, marks)
+	spans, err := sanitizeSpans(u16, marks, rejectUnwritableLinks)
+	if err != nil {
+		return "", err
+	}
 	u16, spans = materializeEmoji(u16, spans)
 	spans = shrinkWhitespaceBoundaries(u16, spans)
 	spans = resolveSameTypeOverlaps(spans)
 	spans = splitEmphasisAtBoundaryWhitespace(u16, spans)
-	return emitSegments(u16, spans)
+	return emitSegments(u16, spans), nil
 }
 
 // sanitizeSpans drops nil, zero-length, out-of-bounds and surrogate-splitting
 // ranges, unknown mark types and empty params on param-carrying marks (§8.3
 // step 1).
-func sanitizeSpans(u16 []uint16, marks []*model.BlockContentTextMark) []span {
+func sanitizeSpans(u16 []uint16, marks []*model.BlockContentTextMark, rejectUnwritableLinks bool) ([]span, error) {
 	spans := make([]span, 0, len(marks))
-	for _, m := range marks {
+	for i, m := range marks {
 		if m == nil || m.Range == nil {
 			continue
 		}
@@ -174,15 +188,22 @@ func sanitizeSpans(u16 []uint16, marks []*model.BlockContentTextMark) []span {
 			// empty lets equal-range marks merge (§8.3)
 			param = ""
 		}
-		// params beyond the §8 resource bounds are invalid: the parser will
-		// not recognize them, so rendering them would not round-trip
+		// Check the actual spelling before overlap normalization or emission.
+		// The legacy string-only helper drops unwritable links; checked
+		// exports refuse them, because dropping the target loses content.
+		var linkDest string
 		switch typ {
-		case model.BlockContentTextMark_Link:
-			if text.UTF16RuneCountString(param) > maxLinkDestLen {
-				continue
+		case model.BlockContentTextMark_Link, model.BlockContentTextMark_Object:
+			dest := param
+			if typ == model.BlockContentTextMark_Object {
+				dest = objectLinkDest(param)
 			}
-		case model.BlockContentTextMark_Object:
-			if text.UTF16RuneCountString(objectLinkDest(param)) > maxLinkDestLen {
+			var err error
+			linkDest, err = checkedLinkDest(dest)
+			if err != nil {
+				if rejectUnwritableLinks {
+					return nil, fmt.Errorf("mark %d: %w", i, err)
+				}
 				continue
 			}
 		case model.BlockContentTextMark_Emoji:
@@ -190,9 +211,9 @@ func sanitizeSpans(u16 []uint16, marks []*model.BlockContentTextMark) []span {
 				continue
 			}
 		}
-		spans = append(spans, span{typ: typ, param: param, from: from, to: to})
+		spans = append(spans, span{typ: typ, param: param, from: from, to: to, linkDest: linkDest})
 	}
-	return spans
+	return spans, nil
 }
 
 func splitsSurrogatePair(u16 []uint16, i int) bool {
@@ -466,8 +487,9 @@ func splitEmphasisAtBoundaryWhitespace(u16 []uint16, spans []span) []span {
 
 // stackItem identifies one active mark on a segment.
 type stackItem struct {
-	typ   model.BlockContentTextMarkType
-	param string
+	typ      model.BlockContentTextMarkType
+	param    string
+	linkDest string
 }
 
 // treeNode / treeKid form the well-nested render tree built from segment
@@ -536,7 +558,7 @@ func activeItems(spans []span, from, to int) []stackItem {
 	var items []stackItem
 	for _, s := range spans {
 		if s.from <= from && s.to >= to {
-			items = append(items, stackItem{typ: s.typ, param: s.param})
+			items = append(items, stackItem{typ: s.typ, param: s.param, linkDest: s.linkDest})
 		}
 	}
 	sort.SliceStable(items, func(i, j int) bool {
@@ -568,14 +590,10 @@ func renderNode(b *strings.Builder, u16 []uint16, n *treeNode, inLabel bool) {
 		b.WriteString(`<mention object_id="` + escapeAttr(n.item.param) + `">`)
 		renderKids(inLabel)
 		b.WriteString(`</mention>`)
-	case model.BlockContentTextMark_Object:
+	case model.BlockContentTextMark_Object, model.BlockContentTextMark_Link:
 		b.WriteByte('[')
 		renderKids(true)
-		b.WriteString("](" + escapeDest(objectLinkDest(n.item.param)) + ")")
-	case model.BlockContentTextMark_Link:
-		b.WriteByte('[')
-		renderKids(true)
-		b.WriteString("](" + escapeDest(n.item.param) + ")")
+		b.WriteString("](" + n.item.linkDest + ")")
 	case model.BlockContentTextMark_TextColor:
 		// Coincident color+background ranges combine into one tag (§8.1):
 		// in the tree that is a TextColor node whose sole child is a
@@ -825,6 +843,21 @@ func escapeAttr(s string) string {
 	return r.Replace(s)
 }
 
+// checkedLinkDest returns exactly the spelling the renderer will emit. The
+// parser measures Unicode code points from the first destination character
+// to its terminator: an angle wrapper's '<' counts, its closing '>' does not.
+func checkedLinkDest(dest string) (string, error) {
+	spelling := escapeDest(dest)
+	count := utf8.RuneCountInString(spelling)
+	if strings.HasPrefix(spelling, "<") {
+		count--
+	}
+	if count > maxLinkDestLen {
+		return "", fmt.Errorf("link destination needs %d Unicode code points as written; maximum is %d", count, maxLinkDestLen)
+	}
+	return spelling, nil
+}
+
 // escapeDest renders a link destination: bare with \-escaped specials, or
 // angle-wrapped when it contains whitespace.
 func escapeDest(dest string) string {
@@ -942,9 +975,9 @@ func parseInlineNotes(md string) (string, []*model.BlockContentTextMark, *inline
 // Resource bounds (deterministic local rules, recorded in SPEC §8): they keep
 // parsing linear on the untrusted-document boundary.
 const (
-	// maxLinkDestLen bounds a link destination; longer candidates are not
-	// links (the '[' stays literal). Export drops Link/Object marks whose
-	// param exceeds it, keeping the round trip stable.
+	// maxLinkDestLen bounds the written destination in Unicode code points.
+	// Longer candidates stay literal on import; checked export refuses a
+	// Link/Object mark whose escaped spelling would exceed the same bound.
 	maxLinkDestLen = 2048
 	// maxLinkDestWS bounds the whitespace tolerated around a destination.
 	maxLinkDestWS = 32

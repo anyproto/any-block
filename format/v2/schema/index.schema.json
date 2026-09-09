@@ -16,6 +16,10 @@
     "formatVersion": {
       "const": "2.0"
     },
+    "network_id": {
+      "type": "string",
+      "description": "Optional opaque source network identifier from the exporting node's active configuration. Its value is not validated by export or bundle validation. Import uses it to determine whether remote files can be recovered. An absent, empty, or unrecognized identifier does not invalidate the bundle."
+    },
     "name": {
       "type": "string",
       "minLength": 1,
@@ -33,7 +37,7 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[^_]",
-      "description": "The object opened once, immediately after the space is created from this bundle — the first thing a user ever sees. Must be an object id from this bundle, so it may not begin with `_`: that prefix is the platform's own address space (built-in screens, listings and bundled objects), and no reserved screen can be the thing a space opens *with*. Readers that cannot represent a distinct one-time entrypoint may fall back to the first object widget; portable authored bundles should therefore list the entrypoint as their first widget as well."
+      "description": "The declared entry object's bundle-local id. Used as the space homepage when `homepage` is absent, on the first entry through the bundle install path and later entries (SPEC §2c). Declaring it does not insert or reorder sidebar widgets. For compatibility with legacy built-in archives that open the first profile widget once, authors may also list this object first. If absent, the first widget naming an object supplies the compatibility fallback; reserved listings are skipped."
     },
     "homepage": {
       "type": "string",
@@ -49,11 +53,11 @@
           "pattern": "^[^_]"
         }
       ],
-      "description": "What opens whenever the user enters the space afterwards. An object id from this bundle, which may not begin with `_`; defaults to `entrypoint`. The reserved `_widgets` (sidebar dashboard) and `_graph` are accepted but are rarely right for a use case — on desktop the widgets are always in the sidebar anyway, so `_widgets` wastes the main pane; it only reads well on mobile, which shows one screen at a time. Name a page."
+      "description": "What opens on entering the space, including the first entry through the bundle install path (SPEC §2c). An explicit homepage takes precedence over entrypoint. If absent, use entrypoint, then the first widget naming an object, skipping reserved listings; if none exists, the installer supplies its default dashboard. An unresolved explicit id is an error, not a reason to try a fallback. May name a bundle object or the reserved _widgets or _graph screens; explicit reserved values also take precedence."
     },
     "widgets": {
       "type": "array",
-      "description": "Sidebar widgets, in the order they should appear. Independent of `entrypoint` — declaring one does not require a widget for it. Only give a type a widget when you want fast access to its objects (`layout: \"view\"`); the sidebar already lists every type automatically, so a link or list widget on a type just duplicates that.",
+      "description": "Sidebar widgets in their declared order. Navigation fields do not insert or reorder them. When homepage and entrypoint are both absent, the first widget naming an object supplies the homepage fallback (SPEC §2c); reserved listings are skipped. A type needs a widget only for fast access to its objects (layout \"view\").",
       "items": {
         "$ref": "#/$defs/widget"
       }
@@ -71,7 +75,11 @@
     },
     "manifest": {
       "$ref": "#/$defs/manifest",
-      "description": "Where to find what a reader must resolve by key or id rather than by walking (§2c): types, the property dictionary, and file blobs. The format defines NO folder layout — objects/, types/, files/ are one exporter's convention — and an object names its type by spelling alone, so without this a reader resolves a type by scanning every document for a matching key, and a file document's bytes by guessing at a layout."
+      "description": "Where to find what a reader cannot reach by walking the documents (§2c): the property dictionary and the bytes behind each file document. The format defines NO folder layout — objects/, types/, files/ are one exporter's convention — and a document is found by its id; a type document's id is its stored key spelled type-<internal_key> (§9), so no type table is needed or admitted here (§15 #26). An AUTHORED bundle may file a type document under some other id, and the object → type-document join then costs a scan; the member is still not admitted. The `NoDerivedTypeIds` export mode cannot produce such a bundle — it is scoped to a single document and the bundle composer refuses it, precisely because this join is the only one a bundle has (§9)."
+    },
+    "unresolved": {
+      "$ref": "#/$defs/unresolved",
+      "description": "What this bundle NAMES and cannot answer for (§2c). Optional, and present only when there is something to report — an index with no \"unresolved\" member says that it reports nothing, NEVER that every reference in every document resolves: what a writer checks here is bounded, so absence is not a completeness claim. Both losses reach a reader as silence — a property key that resolves to no definition, a reference that leads nowhere — and in both cases the reader's next question is whether the export is incomplete or the read was wrong. Only the writer can answer that, and this is where it does."
     }
   },
   "$defs": {
@@ -79,19 +87,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "types": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "\\S"
-          },
-          "additionalProperties": {
-            "type": "string",
-            "minLength": 1
-          },
-          "description": "The type's CANONICAL SPELLING → the type document's path, relative to this file. The canonical spelling, not a per-document term: the display name from the shipped table for a bundled type, the stored key verbatim for a space-minted one — a pure function of the key, the same rule the property dictionary applies to its entry keys (§2f), because this file carries no legend and its keys must resolve through the shipped chain alone: an exact stored key names itself, then the shipped display-name table, then the forgiving fold. Reader flow: object → `type` spelling → the object's own legend → stored key → this map's key resolved the same way → the type file, no scanning. The manifest locates types, the dictionary and file blobs: it does not locate options, because the dictionary states each property's whole vocabulary inline (name, colour, position, internal_key), so a reader never has an option lookup to resolve by path."
-        },
         "properties": {
           "type": "string",
           "minLength": 1,
@@ -103,7 +98,37 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "File object id → the blob's path, relative to this file (§2c, v0.47). The authoritative binding between a `kind: \"file_object\"` document and its bytes: the document itself carries no path — a document member is not a slot for archive bookkeeping — and every importer holding a file document must find its bytes, so the lookup lives where every other by-id lookup lives. Keys are object ids verbatim, an authored bundle writes them against its own minted ids and any layout it likes; adjacency of blob and document in files/ is one exporter's convention, never load-bearing. An entry that cannot be honoured — a key naming no document, a path escaping the bundle, a blob missing at the path — is a cross-document refusal for the tooling; a file document a present map does not bind is warned about (its bytes did not travel), and a bundle with no map is a metadata-only export."
+          "description": "File object id → the blob's path, relative to this file (§2c, v0.47). The authoritative binding between a `kind: \"file_object\"` document and its bytes: the document itself carries no path — a document member is not a slot for archive bookkeeping — and every importer holding a file document must find its bytes, so the lookup lives where every other by-id lookup lives. Keys are object ids verbatim, an authored bundle writes them against its own minted ids and any layout it likes; adjacency of blob and document in files/ is one exporter's convention, never load-bearing. An entry that cannot be honoured — a key naming no document, a path escaping the bundle, a blob missing at the path — is a cross-document refusal for the tooling; a file document a present map does not bind is warned about (its bytes did not travel). The member has THREE states, and the third is the one a reader kept asking for. A populated map is the binding. An ABSENT member states nothing, which this format reads as a metadata-only export (§2c) — the mode inferred, and also what an authored bundle and every exporter written before the map existed produce. An EMPTY object, \"files\": {}, is the export SAYING it: this run enumerated its file documents and carried the bytes of none of them. Two bytes settle a real ambiguity: one audited space carries 666 file_object documents and not one blob, 68 of 79 measured bundles are in the same state, and an absent member alone cannot tell an export that chose metadata-only from one whose manifest never got written. Only the writer knows which, so only the writer can say it — a reader must not infer intent from an absence, and must not read an empty object as an error."
+        }
+      },
+      "description": "Where to find what a reader cannot reach by walking the documents (§2c): the property dictionary and the bytes behind each file document. Types are NOT located here (§15 #26): a type document is found by its id, which is its stored key spelled type-<internal_key>, and every object states that key in type_internal_key. An AUTHORED bundle may file a type document under any id, and a reader that needs the join then indexes the type documents by their internal_key itself. The `NoDerivedTypeIds` export mode is not a source of such a bundle: it is scoped to a single document and the bundle composer refuses it, because this join is the only one a bundle has (§9)."
+    },
+    "unresolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "description": "The bundle's account of the names it uses and cannot explain. Two lists, and each earns its place differently.\n\n`properties` RESTATES what properties.json already says per key (an entry whose format is the `unknown` sentinel, §2f). The restatement is the point: the per-key entry answers 'what is this key', one key at a time, in another file; this answers 'did this export lose definitions, and which' — a set, and a property of the export rather than of any key. index.json is where a bundle is described as a whole, so the set belongs here, and answering the question must not require opening a dictionary of hundreds of entries and filtering it.\n\n`targets` has no other home at all. Whether an id resolves is a cross-document fact no single document holds, and this file is the only one that names these ids. Stating them does NOT make them legal: a bundle whose index points at a document it does not carry is still refused by cross-document validation (§2c). What the statement buys is the distinction the refusal cannot make — an export that knew what it could not carry, against one that shipped a dangling reference without noticing.\n\nMeasured, so the shape is not theoretical: one audited 3,286-document space names 238 property keys nothing defines, and its homepage and 16 of its 23 widget targets name documents the bundle does not carry; 61 of 79 measured bundles carry at least one unresolved index reference.",
+      "properties": {
+        "properties": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[^\u0000-\u001f]+$"
+          },
+          "description": "The stored property keys the bundle's documents reference and nothing could define — mostly relations the user deleted, whose definition went with them. Written VERBATIM: a key nothing defines has no spelling but itself, and nothing may ever be derived from a stored id (§2f). Each also has a dictionary entry carrying `format: \"unknown\"`, so the key resolves to something; this list is the same fact stated as a set."
+        },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^_]"
+          },
+          "description": "The ids this index names that no document in the bundle carries — an `entrypoint`, a `homepage`, a widget `target`, an image icon. Spelled like every other reference in this file, the derived-id fold included (§9), so the report and the slot it reports on name the same thing. A reserved listing (`_set`, `_widgets`) never appears: those name built-in screens, resolve everywhere, and are not the bundle's to carry. Neither does the auto-widget ledger's content — an entry there usually names a widget the user deleted, which is what the ledger is FOR, so a missing document is its normal state rather than a loss."
         }
       }
     },
@@ -143,7 +168,7 @@
         "layout": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/widgetLayout",
           "default": "link",
-          "description": "How the widget renders — the widget BLOCK's own §5 vocabulary, one $ref rather than a copy. `link` is a single row; `tree` expands children; `list` and `compact_list` show contents; `view` renders a type's or set's own view."
+          "description": "How the widget renders — the widget BLOCK's own §5 vocabulary, one $ref rather than a copy. `link` is a single row; `tree` expands children; `list` and `compact_list` show contents; `view` renders a type's or query's own view."
         },
         "limit": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/widgetListingLimit",

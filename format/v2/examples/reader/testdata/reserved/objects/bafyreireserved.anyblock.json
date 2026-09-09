@@ -1,0 +1,29 @@
+{
+  "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
+  "formatVersion": "2.0",
+  "id": "bafyreireserved",
+  "type": "Page",
+  "type_internal_key": "page",
+  "properties": {
+    "Name": "Four reserved ids, four different answers",
+    "Created by": "_anytype_profile",
+    "Last modified by": "_participant_bafyreiotherspace_A11111111111111111111111111111111111111111111111"
+  },
+  "blocks": [
+    {
+      "id": "b1",
+      "type": "paragraph",
+      "text": "Every id below begins with an underscore, so none of them is this bundle's to carry — and no two of them mean the same thing."
+    },
+    {
+      "id": "b2",
+      "type": "link",
+      "object_id": "_missing_object"
+    },
+    {
+      "id": "b3",
+      "type": "link",
+      "object_id": "_date_2026-04-02"
+    }
+  ]
+}

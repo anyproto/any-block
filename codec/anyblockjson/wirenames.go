@@ -15,8 +15,11 @@ package anyblockjson
 //     to write one, because the app mints internal keys).
 //   - `property` is the spelling a property definition states — the same
 //     document-facing label every other key slot writes.
-//   - the two legends say what their VALUES are: `property_internal_keys` and
-//     `type_internal_keys` map a document's spellings to stored internal keys.
+//   - the property legend says what its VALUES are: `property_internal_keys`
+//     maps a document's property spellings to stored internal keys — and the
+//     type namespace has no legend at all: `type_internal_key` is the ONE
+//     stored type key a document's `type` names, a scalar beside the
+//     spelling, because an object has exactly one type (§2, §3).
 //
 // Struct tags cannot reference constants, so the decoder tags in import.go,
 // typeproperties.go and Heart's extraction-time batch tool state the same strings;
@@ -41,7 +44,11 @@ const (
 	// memberPropertyInternalKeys is the property legend: document spelling →
 	// stored internal key (§3).
 	memberPropertyInternalKeys = "property_internal_keys"
-	// memberTypeInternalKeys is the same legend on the type namespace (§3).
+	// memberTypeInternalKey is the stored key of the envelope `type` (§2,
+	// §3): written on every document that states a type, bundled or not.
+	memberTypeInternalKey = "type_internal_key"
+	// memberTypeInternalKeys is the RETIRED type legend (§15 #28), kept only
+	// to refuse it with the repair named.
 	memberTypeInternalKeys = "type_internal_keys"
 	// memberPropertySettings is a property document's definition group (§2d)
 	// — the group that was born `relation_settings`. The `relation`→`property` rename is the

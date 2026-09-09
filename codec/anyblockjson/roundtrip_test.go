@@ -368,11 +368,12 @@ func TestOmitIds(t *testing.T) {
 	require.NoError(t, Validate(data, Options{}))
 
 	s := string(data)
-	// no block/row/column/view/sort/filter ids; id-dependent view state gone
+	// Block/row/column/sort/filter ids and id-dependent view state are gone.
+	// View ids survive because widgets outside the document can select them.
 	assert.NotContains(t, s, `"id": "b1"`)
 	assert.NotContains(t, s, `"id": "r1"`)
 	assert.NotContains(t, s, `"id": "c1"`)
-	assert.NotContains(t, s, `"id": "v1"`)
+	assert.Contains(t, s, `"id": "v1"`)
 	assert.NotContains(t, s, `"id": "s1"`)
 	assert.NotContains(t, s, `"id": "f1"`)
 	assert.NotContains(t, s, `"groups"`)
@@ -443,7 +444,7 @@ func TestEnvelope_Variants(t *testing.T) {
 		require.NoError(t, err)
 		s := string(data)
 		assert.Contains(t, s, `"type": "Template"`)
-		assert.Contains(t, s, `"template_for": "Task"`)
+		assert.Contains(t, s, `"template_for": "type-task"`, "the target type is a reference by key (§9)")
 		// A template says so, always. `kind` used to be omitted here as
 		// derivable from the type term, which is what made the type term
 		// carry two meanings at once (§2, v0.22): the cost is ~21 bytes on a
@@ -481,7 +482,7 @@ func TestEnvelope_Variants(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_Page, snap, Options{})
 		require.NoError(t, err)
 		s := string(data)
-		assert.Contains(t, s, `"items"`)
+		assert.Contains(t, s, `"collection_items"`)
 		assert.Contains(t, s, `"bafyreitask1"`)
 		assert.Contains(t, s, `"store"`)
 

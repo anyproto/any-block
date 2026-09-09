@@ -177,6 +177,6 @@ func TestKeyCandidates_TheAmbiguityNamesTheOffendingSlot(t *testing.T) {
 
 		// then
 		assert.Equal(t, want, got.Path, "the type namespace has carried its slot pointer all along")
-		assert.Contains(t, got.Message, memberTypeInternalKeys)
+		assert.Contains(t, got.Message, "type-<internal_key>")
 	})
 }

@@ -640,6 +640,22 @@ var formatNames = newEnumNames(map[model.RelationFormat]string{
 	model.RelationFormat_map:       "map",
 })
 
+// propertyFormatUnknown is the dictionary entry's statement that NOTHING
+// could define this property (§2f). It is deliberately not a member of
+// formatNames and not a member of $defs/propertyFormat: it names the ABSENCE
+// of a definition rather than a stored format, so no format slot speaks it,
+// FormatByName does not answer it, and a type document cannot declare a
+// property that holds it. Its only home is a dictionary entry, whose own
+// schema layer admits it in place of the shared shape.
+//
+// A bundle needs the word because its documents reference keys the space no
+// longer defines — mostly relations the user deleted, whose definition is
+// gone with them. Without an entry those keys resolve to nothing, and a
+// reader cannot tell "the writer had nothing to say" from "I failed to
+// look". With one, every referenced key resolves, and the answer to some of
+// them is that there is no answer.
+const propertyFormatUnknown = "unknown"
+
 // filterTemplatePrefix marks a dynamic filter value: a placeholder the
 // client substitutes for a real object id before it issues the query
 // (anytype-ts Dataview.valueTemplateMapper). The tokens are built as
@@ -813,17 +829,19 @@ var importTypeVocabulary = vocabularyOf(importTypeNames, "import type")
 //
 // This is the fourth of the five 2026-08 bare-integer enums to be named, and
 // it is named on the same measured ground the others were left as numbers:
-// imageKind occurs on 4,079 file objects across the 77-space corpus — 4,053
-// automatically_added, 23 icon, 3 basic-or-cover — where widgetLayout is on
-// 13 documents and headerRelationsLayout on 51. A reader of an export saw a
-// bare 3 and had no way to learn what it meant.
+// imageKind occurs on 4,094 file objects across the 79-bundle,
+// 24,889-document corpus — 4,066 automatically_added, 24 icon, 4 cover and
+// not one basic — where widgetLayout is on 13 documents and
+// headerRelationsLayout on 62. A reader of an export saw a bare 3 and had no
+// way to learn what it meant.
 //
 // The two small ones were once recorded as 13 and ZERO, and the zero was
-// wrong: headerRelationsLayout is on 51 documents and holds two distinct
-// values (44 ones, 7 zeros), which is what typesettings.go already says
-// about it. The decision to leave it bare therefore rests on VOLUME alone
-// now, not on "nothing writes it" — 51 documents against imageKind's 4,079
-// — and it is the weakest of the five verdicts on that account.
+// wrong: headerRelationsLayout is on 62 documents and holds two distinct
+// values (55 ones, 7 zeros) — a real per-type editor setting, which is the
+// verdict typesettings.go records for it. The decision to leave it bare
+// therefore rests on VOLUME alone now, not on "nothing writes it" — 62
+// documents against imageKind's 4,094 — and it is the weakest of the five
+// verdicts on that account.
 //
 // Note the enum's ZERO is `basic`, and the app never STORES it:
 // makeInitialDetails returns early for Basic, so the key is absent rather
@@ -839,6 +857,85 @@ var imageKindNames = newEnumNames(map[model.ImageKind]string{
 
 var imageKindVocabulary = vocabularyOf(imageKindNames, "image kind")
 
+// participantPermissionsNames maps model.ParticipantPermissions — what a
+// space member may DO — to the format's names: the proto's own identifiers
+// snake_cased, the originNames/imageKindNames spelling. TOTAL over the proto
+// enum, pinned by TestNamedEnum_VocabulariesTotalOverModelEnums.
+//
+// This pair is the largest naming gap the format had, and it is measured
+// rather than argued. Across the 79-bundle, 24,889-document corpus,
+// participantPermissions and participantStatus each fill 2,519 property
+// slots — every one of them a bare integer, on `participant` documents, in
+// all 79 bundles. Against that, every other bundled number-format key that
+// holds an enum totals 81 slots — widgetLayout 13 and
+// templateNamePrefillType 6, both proto enums, and headerRelationsLayout 62,
+// a client-side one this repo has no _name table for — so the two keys here
+// are 5,038 of 5,119 unnamed enum slots. The values in use span the enum:
+// Writer 1,888 · NoPermissions 566 · Owner 48 · Reader 13 · Admin 4, all
+// five members present.
+//
+// A reader could not look the meaning up. The stored description is
+// "Participant permissions. Possible values: models.ParticipantPermissions"
+// — a pointer to a Go symbol in a repository the bundle does not ship, which
+// is the `layout` description's failure mode in a different costume: it
+// tells the reader the number means something and gives it no way to learn
+// what, so `2` beside a named `resolved_layout: "participant"` stayed 2.
+//
+// Note the enum's ZERO is Reader, which is why naming it MATTERS rather than
+// merely reads better: before this entry a string on this key validated and
+// stored verbatim on a number detail, where every int getter answered 0 —
+// so a mistyped owner did not read as "unset", it read as a viewer.
+//
+// This one BREAKS EXISTING DOCUMENTS, and unlike the five keys named before
+// it. The vocabulary brings the §3 refusal of a number it can name, and for
+// those five nothing real was refused — no corpus value in their slots was a
+// number. Here every corpus value is: run against the 79 bundles, all 2,519
+// participant documents are rejected by Validate now, each refusal naming
+// the value its number stands for. That is the accepted cost of the ruling,
+// taken pre-release, and it is pinned rather than glossed
+// (TestNamedEnum_Participant/every_number_a_real_export_carries_is_refused).
+//
+// The names are the PROTO's, not the public REST API's, and the divergence
+// is deliberate. api/service/member.go maps Reader→"viewer", Writer→"editor"
+// and Admin→"admin" for its `role` field, falling back to the snake_cased
+// proto name for the rest — a vocabulary this format cannot borrow, because
+// its inverse (mapMemberRole) sends everything outside those three back to
+// Reader, "owner" included. A name that does not round-trip to the number it
+// came from is not a name this format can write (§3), and the API's status
+// vocabulary — strcase.ToSnake over the same ParticipantStatus_name table —
+// is what the six names below already spell.
+var participantPermissionsNames = newEnumNames(map[model.ParticipantPermissions]string{
+	model.ParticipantPermissions_Reader:        "reader",
+	model.ParticipantPermissions_Writer:        "writer",
+	model.ParticipantPermissions_Owner:         "owner",
+	model.ParticipantPermissions_NoPermissions: "no_permissions",
+	model.ParticipantPermissions_Admin:         "admin",
+})
+
+var participantPermissionsVocabulary = vocabularyOf(participantPermissionsNames, "participant permissions")
+
+// participantStatusNames maps model.ParticipantStatus — where a member is in
+// joining or leaving the space — to the proto identifiers lowercased. TOTAL
+// over the proto enum, and total is load-bearing on the one member the
+// corpus never carries: Active 1,945 · Removed 561 · Removing 8 · Declined 4
+// · Canceled 1 across the 2,519 slots, and not one Joining. It is named all
+// the same, the imageKind precedent — a vocabulary with a hole in it exports
+// a bare integer the day something writes into the hole, and `joining` is a
+// state a live space passes through, merely not one an export tends to catch.
+//
+// `canceled` is the proto's spelling and stays; inventing `cancelled` beside
+// it would give one concept two names (§15 #14) and break the round trip.
+var participantStatusNames = newEnumNames(map[model.ParticipantStatus]string{
+	model.ParticipantStatus_Joining:  "joining",
+	model.ParticipantStatus_Active:   "active",
+	model.ParticipantStatus_Removed:  "removed",
+	model.ParticipantStatus_Declined: "declined",
+	model.ParticipantStatus_Removing: "removing",
+	model.ParticipantStatus_Canceled: "canceled",
+})
+
+var participantStatusVocabulary = vocabularyOf(participantStatusNames, "participant status")
+
 // viewTypeVocabulary is not a property vocabulary — no stored detail key
 // maps to it — but §2a's default_view member shares the reading, and the
 // guarded adapter is how both enum members stopped naming NaN.
@@ -849,8 +946,8 @@ var viewTypeVocabulary = vocabularyOf(viewTypeNames, "view type")
 // ObjectTypeLayout. The remaining layout-ish bundled keys are left as
 // numbers deliberately: layoutWidth is a fraction, not an enum, and
 // widgetLayout/headerRelationsLayout hold enums almost nothing writes — 13
-// and 51 occurrences across 28,831 real exported documents, against
-// imageKind's 4,079.
+// and 62 occurrences across the 24,889 real exported documents of the
+// 79-bundle corpus, against imageKind's 4,094.
 var namedEnumProperties = map[string]propertyVocabulary{
 	"recommendedLayout": layoutVocabulary,
 	"layout":            layoutVocabulary,
@@ -872,13 +969,13 @@ var namedEnumProperties = map[string]propertyVocabulary{
 	// TYPE documents as install provenance precisely because "on ordinary
 	// objects origin is real provenance and stays", and §2f drops both only
 	// on bundled-identical property documents. The corpus agrees it is real:
-	// all TEN origin values occur across 15,943 documents (import 6,463 ·
-	// bookmark 2,444 · api 2,293 · webclipper 2,080 · usecase 1,110 ·
-	// clipboard 449 · none 425 · builtin 333 · drag_and_drop 301 ·
-	// sharing_extension 45) — a reader can tell an object a person clipped
-	// from one a pipeline made, which is not the class of syncStatus but the
-	// class of createdDate (which the import pipeline deliberately preserves
-	// as OriginalCreatedTimestamp) and creator (written as attribution).
+	// all TEN origin values occur across 12,463 documents (import 4,024 ·
+	// bookmark 2,462 · webclipper 2,080 · api 1,995 · usecase 651 ·
+	// clipboard 456 · none 440 · drag_and_drop 302 · sharing_extension 45 ·
+	// builtin 8) — a reader can tell an object a person clipped from one a
+	// pipeline made, which is not the class of syncStatus but the class of
+	// createdDate (which the import pipeline deliberately preserves as
+	// OriginalCreatedTimestamp) and creator (written as attribution).
 	//
 	// Deprecation was weighed: heart's own import pipeline re-stamps both on
 	// every snapshot (objectcreator.injectImportDetails), so nothing
@@ -897,19 +994,28 @@ var namedEnumProperties = map[string]propertyVocabulary{
 	//
 	// Deprecation was weighed and is still arguable. The behaviour a client
 	// actually runs on is `isHiddenDiscovery`, which travels independently
-	// and is in perfect lockstep with the automatically_added member — 4,053
-	// of 4,053 in the corpus — so the one live consumer (the client's
+	// and is in perfect lockstep with the automatically_added member — 4,066
+	// of 4,066 in the corpus — so the one live consumer (the client's
 	// subscription filter, which hides auto-added images) survives without
 	// this key. The two anytype-ts filters that DO read imageKind, in the
 	// icon and cover pickers, are both commented out. What would be lost is
-	// the 26 documents where the key says icon or cover and nothing else
+	// the 28 documents where the key says icon or cover and nothing else
 	// does, and even those are recoverable from whichever object references
 	// the image through icon_image or cover_id.
 	//
 	// It stays because naming costs one entry and drops nothing, while
-	// dropping 4,079 documents' worth of a stored, user-visible-in-principle
+	// dropping 4,094 documents' worth of a stored, user-visible-in-principle
 	// fact is a decision the freeze does not need to take.
-	"imageKind": imageKindVocabulary,
+	"imageKind": imageKindVocabulary, // a space member's permissions and status — 2,519 slots each across the
+	// 79-bundle corpus, both bare integers before this entry and together
+	// 5,038 of the 5,119 unnamed enum slots the corpus carries. Named on
+	// the same ground as the keys above and one of its own: the stored
+	// description points at a Go symbol ("Possible values:
+	// models.ParticipantPermissions") that a reader holding the bundle
+	// cannot open, so the number was not merely unnamed but advertised as
+	// meaningful and left unexplained.
+	"participantPermissions": participantPermissionsVocabulary,
+	"participantStatus":      participantStatusVocabulary,
 }
 
 // namedEnumProperty answers whether a stored key is written by name, and
@@ -917,6 +1023,40 @@ var namedEnumProperties = map[string]propertyVocabulary{
 func namedEnumProperty(key string) (propertyVocabulary, bool) {
 	v, ok := namedEnumProperties[key]
 	return v, ok
+}
+
+// namedEnumValueNames is the vocabulary a stored key's exported value can
+// hold, sorted, for an entry that states the format those names belong to —
+// the dictionary entry's `value_names` (§2f). Nil for a key this format does
+// not name, and nil for one it does where the entry's format is not
+// "number".
+//
+// It exists so the PUBLISHED list and the WRITTEN value have one source. The
+// nine keys concerned declare format "number" and export a string, and a
+// reader holding only the bundle cannot learn the members from anywhere
+// else: object.schema.json's enum vocabularies are $ref'd from the slots that
+// use them and not from a property value, and $defs/propertyMap accepts any
+// value at all. A second list maintained beside this table would answer that
+// reader with names export had stopped writing, which is worse than the
+// silence it replaced — so there is no second list, not even a field on
+// PropertyDefinition: the writer derives, the reader re-derives.
+//
+// The FORMAT is a parameter rather than an assumption because the table is
+// keyed on the stored key and a stored key does not settle the format an
+// entry states. A space may diverge from the bundled table, and the entry
+// then publishes the space's own format; a `layout` diverged to `select`
+// with the layout names attached would state two incompatible things about
+// its own values, and READING.md's rule — read `format` together with
+// `value_names` — holds only while they agree. Nothing in the corpus reaches
+// it (79 of 5,385 dictionary entries are bundled_diverged, none of them one
+// of the 658 entries for these nine keys), and the entry is a read contract
+// a reader cannot check the space's history against.
+func namedEnumValueNames(key string, format model.RelationFormat) ([]string, bool) {
+	v, named := namedEnumProperties[key]
+	if !named || format != model.RelationFormat_number {
+		return nil, false
+	}
+	return v.names(), true
 }
 
 // formatName is the export-side name of a stored format: the canonical name

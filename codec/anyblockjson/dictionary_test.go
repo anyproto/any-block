@@ -28,13 +28,12 @@ func boolPtr(b bool) *bool { return &b }
 //
 // How this can fail: drop a member from dictionaryEntryOmap or from the
 // TypeProperty decode path (the member vanishes on the way round); stop
-// sorting entries or `installed` (the second marshal reorders and the byte
-// check goes red); or route default_value around the canonicalizing value
+// sorting entries (the second marshal reorders and the byte check goes
+// red); or route default_value around the canonicalizing value
 // pipeline (a map-shaped default re-marshals with unstable member order).
 func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 	// given
 	in := &PropertyDictionary{
-		Installed: []string{"tag", "dueDate"},
 		Properties: []PropertyDefinition{
 			{
 				Key:    "6a32d4856761631534b22f85",
@@ -52,10 +51,15 @@ func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 				DefaultValue: map[string]any{"b": 2.0, "a": 1.0},
 			},
 			{
-				Key:         "5f1e0a7788aa631534b22f02",
-				Name:        "Stage",
-				Format:      model.RelationFormat_status,
-				Options:     []OptionDefinition{{Name: "Now", Color: "red"}, {Name: "Later"}},
+				Key:     "5f1e0a7788aa631534b22f02",
+				Name:    "Stage",
+				Format:  model.RelationFormat_status,
+				Options: []OptionDefinition{{Name: "Now", Color: "red"}, {Name: "Later"}},
+			},
+			{
+				Key:         "5f1e0a7788aa631534b22f03",
+				Name:        "Deadline",
+				Format:      model.RelationFormat_date,
 				IncludeTime: boolPtr(false), // a pointer false is a declaration, not an absence
 			},
 		},
@@ -71,7 +75,7 @@ func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 
 	// then
 	assert.Equal(t, string(data), string(data2), "Marshal ∘ Unmarshal must be byte-stable")
-	require.Len(t, got.Properties, 3)
+	require.Len(t, got.Properties, 4)
 	byKey := map[domain.RelationKey]PropertyDefinition{}
 	for _, def := range got.Properties {
 		byKey[def.Key] = def
@@ -84,10 +88,10 @@ func TestPropertyDictionary_RoundTripBytesStable(t *testing.T) {
 	assert.True(t, owner.Readonly)
 	assert.Equal(t, map[string]any{"a": 1.0, "b": 2.0}, owner.DefaultValue)
 	stage := byKey["5f1e0a7788aa631534b22f02"]
-	require.NotNil(t, stage.IncludeTime)
-	assert.False(t, *stage.IncludeTime)
 	assert.Equal(t, []OptionDefinition{{Name: "Now", Color: "red"}, {Name: "Later"}}, stage.Options)
-	assert.Equal(t, []string{"dueDate", "tag"}, got.Installed, "installed is sorted on the way out")
+	deadline := byKey["5f1e0a7788aa631534b22f03"]
+	require.NotNil(t, deadline.IncludeTime)
+	assert.False(t, *deadline.IncludeTime)
 }
 
 // `format` resolves per key, exactly as a property_settings format does
@@ -176,17 +180,6 @@ func TestPropertyDictionary_OneSlotPerKey(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "/properties/1/property")
 	})
-	t.Run("a duplicated installed key is refused on read", func(t *testing.T) {
-		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["tag","tag"]}`), Options{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "/installed/1")
-	})
-	t.Run("installed aliases resolving to one key are refused", func(t *testing.T) {
-		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["Due date","due_date"]}`), Options{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "/installed/1")
-		assert.Contains(t, err.Error(), `"dueDate"`)
-	})
 	t.Run("definition aliases resolving to one key are refused", func(t *testing.T) {
 		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","properties":[
 			{"property":"Due date","format":"date"},{"property":"due_date","format":"text"}]}`), Options{})
@@ -203,22 +196,12 @@ func TestPropertyDictionary_OneSlotPerKey(t *testing.T) {
 		assert.Contains(t, err.Error(), "/properties/1/property")
 		assert.Contains(t, err.Error(), `"dueDate"`)
 	})
-	t.Run("installed and overriding definition stay separate domains", func(t *testing.T) {
-		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["Due date"],
-			"properties":[{"property":"due_date","format":"date"}]}`), Options{})
-
-		require.NoError(t, err)
-	})
 	t.Run("marshal refuses the duplicate entry too", func(t *testing.T) {
 		_, err := MarshalPropertyDictionary(&PropertyDictionary{Properties: []PropertyDefinition{
 			{Key: "dueDate", Format: model.RelationFormat_date},
 			{Key: "dueDate", Format: model.RelationFormat_longtext},
 		}}, Options{})
 
-		require.Error(t, err)
-	})
-	t.Run("marshal refuses the duplicate installed key too", func(t *testing.T) {
-		_, err := MarshalPropertyDictionary(&PropertyDictionary{Installed: []string{"tag", "tag"}}, Options{})
 		require.Error(t, err)
 	})
 }
@@ -253,31 +236,6 @@ func TestPropertyDictionary_NameOnlyIdentityObeysWritableKeyBound(t *testing.T) 
 	_, err := UnmarshalPropertyDictionary(data, Options{})
 	require.NoError(t, err)
 	require.NoError(t, ValidateAuthoringPropertyDictionary(data))
-}
-
-// `installed` restores from the bundled table, so the two sides treat an
-// unknown key differently ON PURPOSE: the writer checks against its own
-// table and refuses (a key it cannot name tells the reader to install
-// nothing — the repair is a full entry, where the format travels along),
-// while the reader TOLERATES one, because the bundled table grows
-// independently of the format version and a backup written by a newer app
-// must stay readable one app version back.
-//
-// How this can fail: drop the writer-side bundled check (first case goes
-// green and a typo'd installed key ships, silently installing nothing), or
-// "fix" the asymmetry by refusing unknown keys on read (second case red,
-// and every forward-written backup with it).
-func TestPropertyDictionary_InstalledDiscipline(t *testing.T) {
-	t.Run("the writer refuses a key its table cannot name", func(t *testing.T) {
-		_, err := MarshalPropertyDictionary(&PropertyDictionary{Installed: []string{"notABundledKey"}}, Options{})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "properties", "the error names the repair: a full entry")
-	})
-	t.Run("the reader tolerates one", func(t *testing.T) {
-		got, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["aKeyFromANewerApp"]}`), Options{})
-		require.NoError(t, err)
-		assert.Equal(t, []string{"aKeyFromANewerApp"}, got.Installed)
-	})
 }
 
 // Marshal never emits what its own Unmarshal rejects (§11 I1): an entry key
@@ -339,9 +297,9 @@ func TestPropertyDictionary_MaxCountStaysWithinWhatItCanRead(t *testing.T) {
 	}
 
 	t.Run("an ordinary bound still writes and reads back", func(t *testing.T) {
-		// given
+		// given — on a format where the member exists (§2a)
 		d := &PropertyDictionary{Properties: []PropertyDefinition{{
-			Key: "estimated_hours", Format: model.RelationFormat_number, MaxCount: 1,
+			Key: "attendees", Format: model.RelationFormat_object, MaxCount: 1,
 		}}}
 
 		// when
@@ -354,4 +312,387 @@ func TestPropertyDictionary_MaxCountStaysWithinWhatItCanRead(t *testing.T) {
 		require.Len(t, back.Properties, 1)
 		assert.Equal(t, int64(1), back.Properties[0].MaxCount)
 	})
+}
+
+// An entry may state `uninstalled: true` — the user removed the property
+// from the space, and the bundle carries the removal for backup fidelity
+// rather than a document (§2f, §15 #22). The flag is the whole statement:
+// there is no list of installed keys for it to contradict (§15 #24), and no
+// "deleted" member beside it — uninstalling a space-minted property is the
+// same act as uninstalling a bundled one, the object stays and is hidden.
+//
+// It is stated by the two homes that mean it — this one and a type's
+// property_definitions entry, each a complete standalone definition — and
+// refused by the third. It is NOT on the shared shape: that is what makes
+// the third home refuse it.
+//
+// How this can fail: leave the member off the schema's dictionaryEntry (the
+// round trip is refused on read); or write it from the shared member
+// renderer (a property document's settings start carrying a member that
+// describes nothing there).
+func TestPropertyDictionary_UninstalledEntry(t *testing.T) {
+	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
+		in := &PropertyDictionary{
+			Properties: []PropertyDefinition{
+				{Key: "dueDate", Name: "Due date", Format: model.RelationFormat_date, Uninstalled: true},
+				{Key: "6a32d4856761631534b22f85", Name: "Budget", Format: model.RelationFormat_number},
+			},
+		}
+		data, err := MarshalPropertyDictionary(in, Options{})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"uninstalled": true`)
+		assert.Equal(t, 1, strings.Count(string(data), "uninstalled"), "a false flag is not written")
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		data2, err := MarshalPropertyDictionary(got, Options{})
+		require.NoError(t, err)
+		assert.Equal(t, string(data), string(data2))
+		byKey := map[domain.RelationKey]PropertyDefinition{}
+		for _, def := range got.Properties {
+			byKey[def.Key] = def
+		}
+		assert.True(t, byKey["dueDate"].Uninstalled)
+		assert.False(t, byKey["6a32d4856761631534b22f85"].Uninstalled)
+	})
+	t.Run("a non-boolean is refused", func(t *testing.T) {
+		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"property":"Due date","format":"date","uninstalled":"yes"}]}`), Options{})
+		require.Error(t, err)
+	})
+	t.Run("the third home refuses it, the second states it too", func(t *testing.T) {
+		// a property document's property_settings mirrors STORED presence
+		// exactly (§2d), and the removal is not one of the members that
+		// travel there
+		relDoc := []byte(`{"formatVersion":"2.0","id":"r1","kind":"property","type":"Property",
+			"internal_key":"dueDate","property_settings":{"format":"date","uninstalled":true}}`)
+		require.Error(t, Validate(relDoc, Options{}), "a property document's property_settings")
+		// a type's property_definitions entry is a complete standalone
+		// definition (§2e), so it states the removal too (§15 #22,
+		// typepropertyuninstalled_test.go)
+		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
+			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","uninstalled":true}]}}`)
+		require.NoError(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
+	})
+	t.Run("the authoring subset does not admit it", func(t *testing.T) {
+		// an author has nothing to uninstall: the member is export fidelity,
+		// like internal_key
+		err := ValidateAuthoringPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"name":"Streak","format":"number","uninstalled":true}]}`))
+		require.Error(t, err)
+	})
+}
+
+// An entry may state `hidden: true` — the store hid the property from every
+// listing (stored `isHidden`), and with no property document left in a
+// bundle (§15 #23) the entry is the only place the fact can travel. Mirrors
+// `uninstalled` exactly: dictionary-owned, refused by the shape's other two
+// homes and by the authoring subset, written `true` only. It is distinct
+// from a type declaration's `section`, which says where a property sits on
+// ONE type; `hidden` says whether the property is shown at all.
+//
+// How this can fail: leave the member off the schema's dictionaryEntry (the
+// round trip is refused on read); write it from the shared member renderer
+// (a type declaration starts carrying a flag it cannot act on); or read it
+// through the shared builder (the PATCH-type channel starts hiding
+// properties).
+func TestPropertyDictionary_HiddenEntry(t *testing.T) {
+	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
+		in := &PropertyDictionary{
+			Properties: []PropertyDefinition{
+				{Key: "6a32d4856761631534b22f85", Name: "Chat counter", Format: model.RelationFormat_number, Hidden: true},
+				{Key: "693c14f2aa11631534b22f01", Name: "Budget", Format: model.RelationFormat_number},
+			},
+		}
+		data, err := MarshalPropertyDictionary(in, Options{})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"hidden": true`)
+		assert.Equal(t, 1, strings.Count(string(data), "hidden"), "a false flag is not written")
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		data2, err := MarshalPropertyDictionary(got, Options{})
+		require.NoError(t, err)
+		assert.Equal(t, string(data), string(data2))
+		byKey := map[domain.RelationKey]PropertyDefinition{}
+		for _, def := range got.Properties {
+			byKey[def.Key] = def
+		}
+		assert.True(t, byKey["6a32d4856761631534b22f85"].Hidden)
+		assert.False(t, byKey["693c14f2aa11631534b22f01"].Hidden)
+	})
+	t.Run("beside uninstalled on one entry", func(t *testing.T) {
+		data, err := MarshalPropertyDictionary(&PropertyDictionary{
+			Properties: []PropertyDefinition{{Key: "6a32d4856761631534b22f85", Name: "Gone", Format: model.RelationFormat_number, Hidden: true, Uninstalled: true}},
+		}, Options{})
+		require.NoError(t, err)
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		require.Len(t, got.Properties, 1)
+		assert.True(t, got.Properties[0].Hidden)
+		assert.True(t, got.Properties[0].Uninstalled)
+	})
+	t.Run("a non-boolean is refused", func(t *testing.T) {
+		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"property":"Due date","format":"date","hidden":"yes"}]}`), Options{})
+		require.Error(t, err)
+	})
+	t.Run("the other two homes refuse it", func(t *testing.T) {
+		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
+			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","hidden":true}]}}`)
+		require.Error(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
+		relDoc := []byte(`{"formatVersion":"2.0","id":"r1","kind":"property","type":"Property",
+			"internal_key":"dueDate","property_settings":{"format":"date","hidden":true}}`)
+		require.Error(t, Validate(relDoc, Options{}), "a property document's property_settings")
+	})
+	t.Run("the authoring subset does not admit it", func(t *testing.T) {
+		// an author declares a property to use it; hiding it is a store
+		// fact the export records, like internal_key
+		err := ValidateAuthoringPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"name":"Streak","format":"number","hidden":true}]}`))
+		require.Error(t, err)
+	})
+}
+
+// An entry may state `bundled_diverged: true` — the space's copy of a
+// BUNDLED property had diverged from the shipped table when the bundle was
+// written (§2f, §15 #25). The verdict is only knowable at export time: an
+// importer could diff the entry against its own table, but the table moves
+// between app versions, and once it does a later importer cannot tell the
+// user's rename from the table's. The member is the dictionary's third owned
+// one, on `uninstalled`'s footing exactly: refused by the shape's other two
+// homes and by the authoring subset, written `true` only. It is NOT a
+// `bundled` flag (§15 #24): absent says "not bundled, or bundled and not
+// diverged", and the table lookup still tells which.
+//
+// How this can fail: leave the member off the schema's dictionaryEntry (the
+// round trip is refused on read); write it from the shared member renderer
+// (a type declaration starts carrying a verdict about a space it never
+// saw); or read it through the shared builder (the PATCH-type channel
+// starts overriding bundled properties).
+func TestPropertyDictionary_BundledDivergedEntry(t *testing.T) {
+	t.Run("round trip, byte-stable, false is absent", func(t *testing.T) {
+		in := &PropertyDictionary{
+			Properties: []PropertyDefinition{
+				{Key: "dueDate", Name: "Deadline", Format: model.RelationFormat_date, BundledDiverged: true},
+				{Key: "createdDate", Name: "Creation date", Format: model.RelationFormat_date},
+				{Key: "6a32d4856761631534b22f85", Name: "Budget", Format: model.RelationFormat_number},
+			},
+		}
+		data, err := MarshalPropertyDictionary(in, Options{})
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `"bundled_diverged": true`)
+		assert.Equal(t, 1, strings.Count(string(data), "bundled_diverged"), "a false flag is not written")
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		data2, err := MarshalPropertyDictionary(got, Options{})
+		require.NoError(t, err)
+		assert.Equal(t, string(data), string(data2))
+		byKey := map[domain.RelationKey]PropertyDefinition{}
+		for _, def := range got.Properties {
+			byKey[def.Key] = def
+		}
+		assert.True(t, byKey["dueDate"].BundledDiverged)
+		assert.False(t, byKey["createdDate"].BundledDiverged, "absent: bundled and not diverged")
+		assert.False(t, byKey["6a32d4856761631534b22f85"].BundledDiverged, "absent: not bundled at all")
+	})
+	t.Run("beside uninstalled and hidden on one entry", func(t *testing.T) {
+		data, err := MarshalPropertyDictionary(&PropertyDictionary{
+			Properties: []PropertyDefinition{{Key: "tag", Name: "Labels", Format: model.RelationFormat_tag,
+				Hidden: true, Uninstalled: true, BundledDiverged: true}},
+		}, Options{})
+		require.NoError(t, err)
+		got, err := UnmarshalPropertyDictionary(data, Options{})
+		require.NoError(t, err)
+		require.Len(t, got.Properties, 1)
+		assert.True(t, got.Properties[0].Hidden)
+		assert.True(t, got.Properties[0].Uninstalled)
+		assert.True(t, got.Properties[0].BundledDiverged)
+	})
+	t.Run("a non-boolean is refused", func(t *testing.T) {
+		_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"property":"Due date","format":"date","bundled_diverged":"yes"}]}`), Options{})
+		require.Error(t, err)
+	})
+	t.Run("the other two homes refuse it", func(t *testing.T) {
+		typeDoc := []byte(`{"formatVersion":"2.0","id":"t1","kind":"object_type","type":"Type",
+			"type_settings":{"property_definitions":[{"property":"Due date","format":"date","bundled_diverged":true}]}}`)
+		require.Error(t, Validate(typeDoc, Options{}), "a type's property_definitions entry")
+		relDoc := []byte(`{"formatVersion":"2.0","id":"r1","kind":"property","type":"Property",
+			"internal_key":"dueDate","property_settings":{"format":"date","bundled_diverged":true}}`)
+		require.Error(t, Validate(relDoc, Options{}), "a property document's property_settings")
+	})
+	t.Run("the authoring subset does not admit it", func(t *testing.T) {
+		// an author has no space whose copy could have diverged: the member
+		// is an export-time verdict, like internal_key
+		err := ValidateAuthoringPropertyDictionary([]byte(`{"formatVersion":"2.0",
+			"properties":[{"name":"Streak","format":"number","bundled_diverged":true}]}`))
+		require.Error(t, err)
+	})
+}
+
+// `installed` is not a member of the dictionary, and the schema refuses it.
+// The list once named the bundled properties present in the space —
+// presence without definition — and was retired (§2f, §15 #24): every
+// property the bundle carries is an entry in `properties`, and a reader
+// tells a bundled key from a space-minted one by looking it up in its own
+// shipped table. A second statement of the same fact is what this format's
+// one-source discipline exists to refuse.
+//
+// How this can fail: put the member back on the schema (the read goes
+// clean, and a dictionary can again say "installed" beside an entry that
+// says "uninstalled", with no rule for which wins).
+func TestPropertyDictionary_InstalledIsNotAMember(t *testing.T) {
+	_, err := UnmarshalPropertyDictionary([]byte(`{"formatVersion":"2.0","installed":["Due date"]}`), Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "/installed")
+}
+
+// A vocabulary entry states the option's api key, and the option's shape
+// stays canonical: the bare name for an option with nothing else to say,
+// the object form the moment any of colour, stored key or api key exists.
+//
+// The api key travels because no restore mints one. The app derives an api
+// key from a name on its create path, and import does not take that path —
+// relation and relation-option snapshots are written straight into their
+// trees — so an option restored from a bundle stating none gets none, and
+// the API addresses it by a hash-derived local key rather than the spelling
+// its callers wrote. It would not be recoverable even if something tried:
+// an api key does not follow a rename.
+//
+// How this can fail: leave the api key out of the bare-name condition (an
+// option carrying only an api key is written as a bare string and the key
+// is lost at the writer); state it on the type-declaration home but not the
+// dictionary's, or the reverse, so the shape means two things (§2e).
+func TestPropertyDictionary_OptionApiKeyRoundTrips(t *testing.T) {
+	// given
+	in := &PropertyDictionary{Properties: []PropertyDefinition{{
+		Key:    "5f1e0a7788aa631534b22f02",
+		Name:   "Stage",
+		Format: model.RelationFormat_status,
+		Options: []OptionDefinition{
+			{Name: "Canceled", Color: "red", InternalKey: "63454af2", ApiKey: "cancelled"},
+			{Name: "Shipped", ApiKey: "done"},
+			{Name: "Later"},
+		},
+	}}}
+
+	// when
+	data, err := MarshalPropertyDictionary(in, Options{})
+	require.NoError(t, err)
+
+	// then
+	assert.Contains(t, string(data), `"api_key": "cancelled"`)
+	assert.Contains(t, string(data), `"Later"`, "an option with nothing else to say stays a bare name")
+	back, err := UnmarshalPropertyDictionary(data, Options{})
+	require.NoError(t, err)
+	require.Len(t, back.Properties, 1)
+	assert.Equal(t, in.Properties[0].Options, back.Properties[0].Options)
+
+	again, err := MarshalPropertyDictionary(back, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, string(data), string(again), "the second write is byte-identical (§4)")
+}
+
+// An entry that STATES its stored key has stated it, whatever else it spells.
+// `KeyIsInternal` is what tells an importer to reuse the key exactly rather
+// than mint a fresh one, and `internal_key` is the document saying so — the
+// purpose the member exists for (§2f): "a bundle re-imported elsewhere yields
+// the same stored key".
+//
+// The reader used to re-derive the verdict from TypeProperty.authoredKey,
+// whose precedence is SPELLING-first and correct for authoring: a hand-written
+// entry says `"property": "Due date"` and that spelling is what the document's
+// values resolve through. Applied to a dictionary entry it answers a different
+// question than the one asked. This writer emits both members for a
+// space-minted property and they hold the same bson id, so spelling-first
+// reported "identity came from the spelling" and the flag came out false with
+// the stored key sitting in the entry — and the importer then minted a fresh
+// key, making the property a DIFFERENT property on the far side.
+//
+// A bundled entry came out true only by accident: its spelling is a display
+// name, so it differs from the resolved key and the `key != term` arm caught
+// it. Right answer, wrong derivation.
+//
+// How this can fail: recompute the verdict in the shared builder from the
+// authoring precedence (space-minted entries read false); take the spelling
+// arm for a writer-canonical pair (the same).
+func TestPropertyDictionary_StatedInternalKeyIsAuthoritative(t *testing.T) {
+	const minted = "68ba835996ab900b9b0231ac"
+	data := []byte(`{"formatVersion":"2.0","properties":[
+		{"property":"` + minted + `","internal_key":"` + minted + `","name":"Budget","format":"number"},
+		{"property":"Due date","internal_key":"dueDate","name":"Due date","format":"date"},
+		{"property":"Cooking time","name":"Cooking time","format":"number"}
+	]}`)
+	dict, err := UnmarshalPropertyDictionary(data, Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 3)
+
+	byKey := map[string]PropertyDefinition{}
+	for _, def := range dict.Properties {
+		byKey[string(def.Key)] = def
+	}
+
+	require.Contains(t, byKey, minted)
+	assert.True(t, byKey[minted].KeyIsInternal,
+		"a space-minted entry states its stored key in internal_key; the importer must reuse it, not mint a fresh one")
+	require.Contains(t, byKey, "dueDate")
+	assert.True(t, byKey["dueDate"].KeyIsInternal,
+		"a bundled entry states it too — and must be true for that reason, not because its spelling differs")
+
+	// the contrast that keeps the flag meaningful: an entry stating no
+	// internal_key has no stored key to reuse, and a reader mints one
+	for key, def := range byKey {
+		if key != minted && key != "dueDate" {
+			assert.False(t, def.KeyIsInternal,
+				"a name-only entry states no stored key, so %q is a spelling awaiting one", key)
+		}
+	}
+}
+
+// A property's api key travels on its dictionary entry, for the reason the
+// option's does (§2f): no restore mints one. The rule that derives an api key
+// from a name lives on the create path, and import does not take it — a
+// relation snapshot is written straight into its tree — so a property
+// restored from a bundle stating no api key gets none, and the API then
+// addresses it by something its callers never wrote.
+//
+// The dictionary is the only home that can carry it: since §15 #23 a bundle
+// writes no property document, so the stored `apiObjectKey` has nowhere else
+// to go.
+//
+// How this can fail: treat the api key as derivable from the name (the census
+// that suggested it measured reproducibility, which was never the question);
+// write it into the shared builder, where a type's declaration would carry a
+// member that says nothing about how that type uses the property.
+func TestPropertyDictionary_EntryCarriesTheApiKey(t *testing.T) {
+	const minted = "68ba835996ab900b9b0231ac"
+	data := []byte(`{"formatVersion":"2.0","properties":[
+		{"property":"` + minted + `","internal_key":"` + minted + `","name":"Location",
+		 "format":"text","api_key":"restaurant_location"},
+		{"property":"Cooking time","internal_key":"cookingtime","name":"Cooking time","format":"number"}
+	]}`)
+	dict, err := UnmarshalPropertyDictionary(data, Options{})
+	require.NoError(t, err)
+	require.Len(t, dict.Properties, 2)
+
+	byKey := map[string]PropertyDefinition{}
+	for _, def := range dict.Properties {
+		byKey[string(def.Key)] = def
+	}
+	assert.Equal(t, "restaurant_location", byKey[minted].ApiKey,
+		"the api key does not follow the name and nothing re-derives it")
+	assert.Empty(t, byKey["cookingtime"].ApiKey, "an entry stating none has none")
+
+	// and it survives the writer, so a re-export addresses the property the
+	// same way the source space did
+	out, err := MarshalPropertyDictionary(dict, Options{})
+	require.NoError(t, err)
+	assert.Contains(t, string(out), `"api_key": "restaurant_location"`)
+
+	back, err := UnmarshalPropertyDictionary(out, Options{})
+	require.NoError(t, err)
+	for _, def := range back.Properties {
+		if string(def.Key) == minted {
+			assert.Equal(t, "restaurant_location", def.ApiKey)
+		}
+	}
 }
