@@ -193,7 +193,7 @@ func TestValidate_Valid(t *testing.T) {
 			 ]}
 		]}`},
 		{"template", `{"formatVersion": "2.0", "kind": "template", "type": "template", "template_for": "task"}`},
-		{"collection items", `{"formatVersion": "2.0", "type": "collection", "items": ["obj1", "obj2"]}`},
+		{"collection items", `{"formatVersion": "2.0", "type": "collection", "collection_items": ["obj1", "obj2"]}`},
 		{"widget", `{"formatVersion": "2.0", "kind": "widget", "blocks": [
 			{"type": "widget", "layout": "tree", "limit": 6},
 			{"indent": 1, "type": "link", "object_id": "obj1"}

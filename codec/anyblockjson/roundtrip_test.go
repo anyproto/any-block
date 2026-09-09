@@ -368,11 +368,12 @@ func TestOmitIds(t *testing.T) {
 	require.NoError(t, Validate(data, Options{}))
 
 	s := string(data)
-	// no block/row/column/view/sort/filter ids; id-dependent view state gone
+	// Block/row/column/sort/filter ids and id-dependent view state are gone.
+	// View ids survive because widgets outside the document can select them.
 	assert.NotContains(t, s, `"id": "b1"`)
 	assert.NotContains(t, s, `"id": "r1"`)
 	assert.NotContains(t, s, `"id": "c1"`)
-	assert.NotContains(t, s, `"id": "v1"`)
+	assert.Contains(t, s, `"id": "v1"`)
 	assert.NotContains(t, s, `"id": "s1"`)
 	assert.NotContains(t, s, `"id": "f1"`)
 	assert.NotContains(t, s, `"groups"`)
@@ -481,7 +482,7 @@ func TestEnvelope_Variants(t *testing.T) {
 		data, err := Marshal(model.SmartBlockType_Page, snap, Options{})
 		require.NoError(t, err)
 		s := string(data)
-		assert.Contains(t, s, `"items"`)
+		assert.Contains(t, s, `"collection_items"`)
 		assert.Contains(t, s, `"bafyreitask1"`)
 		assert.Contains(t, s, `"store"`)
 

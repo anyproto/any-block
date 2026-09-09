@@ -127,7 +127,7 @@ const suffixedRefDoc = `{
        "object_orders": [{"object_ids": ["bafyreikanban#kanban_card"]}]}
     ]}
   ],
-  "items": ["bafyreicollected#collected_page"]
+  "collection_items": ["bafyreicollected#collected_page"]
 }`
 
 // A caption-era document and its bare twin are two DIFFERENT documents now,

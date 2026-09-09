@@ -60,10 +60,10 @@ func TestImport_UnnameableLayoutNumberStillAccepted(t *testing.T) {
 func TestExport_LayoutNumberToName(t *testing.T) {
 	snapshot := &model.SmartBlockSnapshotBase{
 		Blocks: []*model.Block{
-			{Id: "t1", Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
+			{Id: "type-k", Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
 		},
 		Details: fields(map[string]*types.Value{
-			"id":                str("t1"),
+			"id":                str("type-k"),
 			"recommendedLayout": num(float64(model.ObjectType_profile)),
 			"resolvedLayout":    num(float64(model.ObjectType_todo)),
 		}),
@@ -78,7 +78,7 @@ func TestExport_LayoutNumberToName(t *testing.T) {
 }
 
 func TestRoundtrip_LayoutSurvives(t *testing.T) {
-	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "type-k", "internal_key": "k",
 		"type_settings": {"layout": "profile"}}`
 	_, snap, err := Unmarshal([]byte(doc), Options{GenerateId: seqIds("g")})
 	require.NoError(t, err)

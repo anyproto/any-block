@@ -370,12 +370,10 @@ type Index struct {
 	// author's. An image needs the image object and its file in the archive,
 	// which is why a generated bundle uses an emoji.
 	Icon *Icon `json:"icon"`
-	// Entrypoint is the object opened once, right after the space is created
-	// — the first thing a user ever sees. Distinct from Homepage, which is
-	// what opens on every later entry, and deliberately not the widget order:
-	// the wire format carries the entry point as widgets[0], but making
-	// authors express it by sorting a list means reordering the sidebar
-	// silently changes what opens.
+	// Entrypoint is the declared entry object, used by SpaceHomepage when
+	// Homepage is absent. The bundle install path uses SpaceHomepage on the
+	// first entry as well as later entries; legacy built-in archives instead
+	// take their one-time starting page from profile widget order (§2c).
 	Entrypoint string   `json:"entrypoint"`
 	Homepage   string   `json:"homepage"`
 	Widgets    []Widget `json:"widgets"`
@@ -468,11 +466,9 @@ func (u *Unresolved) empty() bool {
 // field, or for a bundle written before it existed, the first widget naming an
 // object.
 //
-// TEMPORARY: this is intent, not behaviour. The wire's profile record has no
-// field for an entry point — the installer opens the first widget's target —
-// so until the profile handling grows one, what actually opens is
-// EffectiveEntryPoint. The two differ exactly when a bundle declares an
-// entrypoint that is not its first widget, which is worth reporting.
+// This does not choose the space homepage: SpaceHomepage gives an explicit
+// homepage precedence over this result. Nor does it reorder widgets. Legacy
+// built-in archives use profile widget order for one-time opening (§2c).
 func (i *Index) EntryPoint() string {
 	if i.Entrypoint != "" {
 		return i.Entrypoint
@@ -485,10 +481,11 @@ func (i *Index) EntryPoint() string {
 	return ""
 }
 
-// EffectiveEntryPoint returns what the installer opens *today*: the first
-// widget naming an object, which is all the wire's profile record can
-// express. Compare with EntryPoint to detect a declared entry point that
-// will not be honoured yet.
+// EffectiveEntryPoint returns the first widget naming an object, skipping
+// reserved listings. Compare with EntryPoint when checking compatibility
+// with legacy adapters that use widget order for one-time opening (§2c).
+// This is not the homepage selected on the bundle install path; use
+// SpaceHomepage for that.
 func (i *Index) EffectiveEntryPoint() string {
 	for _, w := range i.Widgets {
 		if !IsReservedWidgetTarget(w.Target) {
@@ -547,9 +544,11 @@ func (i *Index) ReferencedObjectIds(opts Options) []string {
 	return out
 }
 
-// SpaceHomepage returns what opens on entering the space: the declared
-// homepage, else the entry point. Only an explicit reserved value gives up a
-// real page — omitting homepage does not.
+// SpaceHomepage returns the explicit homepage, else the explicit entrypoint,
+// else the first widget naming an object (§2c). It returns an empty string
+// when none declares a destination; the installer then supplies its default
+// widgets dashboard. These are absence fallbacks, not reference resolution:
+// an explicit unresolved id is returned as-is for bundle validation to report.
 func (i *Index) SpaceHomepage() string {
 	if i.Homepage != "" {
 		return i.Homepage

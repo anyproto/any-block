@@ -50,7 +50,7 @@ func declaringTypeDoc(key, name, format string) []byte {
 // the declaration (`,"uninstalled":true`), for the members of the §2a shape
 // that are facts about the PROPERTY rather than about this type's use of it.
 func declaringTypeDocWith(key, name, format, extra string) []byte {
-	return []byte(`{"formatVersion":"2.0","id":"type-releasenotes","kind":"object_type",` +
+	return []byte(`{"formatVersion":"2.0","id":"type-releaseNotes","kind":"object_type",` +
 		`"type":"Type","internal_key":"releaseNotes",` +
 		`"property_internal_keys":{"` + key + `":"` + key + `"},` +
 		`"type_settings":{"property_definitions":[` +
@@ -61,7 +61,7 @@ func declaringTypeDocWith(key, name, format, extra string) []byte {
 
 func typeSnapshot() *model.SmartBlockSnapshotBase {
 	return &model.SmartBlockSnapshotBase{Key: "releaseNotes", Details: detFields(map[string]*types.Value{
-		"id": strVal("type-object"), "uniqueKey": strVal("ot-releaseNotes"),
+		"id": strVal("type-releaseNotes"), "uniqueKey": strVal("ot-releaseNotes"),
 	})}
 }
 

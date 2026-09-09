@@ -9,6 +9,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -96,6 +97,41 @@ func TestMalformedSpaceIDFailsBeforeOutputCreation(t *testing.T) {
 			_, statErr = os.Stat(outputDir)
 			assert.ErrorIs(t, statErr, os.ErrNotExist, "failure must not create output parents")
 		})
+	}
+}
+
+func TestUnmappedTypeExportFailsBeforeReplacingOutput(t *testing.T) {
+	temp := t.TempDir()
+	input := filepath.Join(temp, "type.pb")
+	output := filepath.Join(temp, "type.anyblock.json")
+	envelope := &envelopepb.SnapshotWithType{
+		SbType: model.SmartBlockType_STType,
+		Snapshot: &envelopepb.ChangeSnapshot{Data: &model.SmartBlockSnapshotBase{
+			Key: "wine",
+			Details: &types.Struct{Fields: map[string]*types.Value{
+				"id": {Kind: &types.Value_StringValue{StringValue: "stored-wine"}},
+			}},
+			Blocks: []*model.Block{{
+				Id: "stored-wine", Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
+			}},
+		}},
+	}
+	data, err := proto.Marshal(envelope)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(input, data, 0o644))
+	for _, existing := range []bool{false, true} {
+		if existing {
+			require.NoError(t, os.WriteFile(output, []byte("previous export"), 0o644))
+		}
+		err := runToV2([]string{"-in", input, "-out", output, "-encoding", "pb"})
+		require.ErrorContains(t, err, "TypeResolver")
+		result, readErr := os.ReadFile(output)
+		if existing {
+			require.NoError(t, readErr)
+			assert.Equal(t, "previous export", string(result))
+		} else {
+			assert.ErrorIs(t, readErr, os.ErrNotExist)
+		}
 	}
 }
 

@@ -68,7 +68,7 @@ func TestImport_OptionColorsReachTheWiring(t *testing.T) {
 }
 
 func TestExport_OptionsRoundTrip(t *testing.T) {
-	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "type-k", "internal_key": "k",
 		"type_settings": {"property_definitions": [{"property": "stage", "name": "Stage", "format": "select",
 			"options": ["Backlog", "In progress", "Done"]}]}}`
 	_, snap, err := Unmarshal([]byte(doc), Options{
@@ -87,7 +87,7 @@ func TestExport_OptionsRoundTrip(t *testing.T) {
 // The bare string is canonical whenever the option carries no color, the
 // object form otherwise — the rule §6.1 already gives table cells.
 func TestExport_ColorlessOptionStaysABareString(t *testing.T) {
-	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "t1", "internal_key": "k",
+	doc := `{"formatVersion": "2.0", "kind": "object_type", "id": "type-k", "internal_key": "k",
 		"type_settings": {"property_definitions": [{"property": "stage", "name": "Stage", "format": "select",
 			"options": ["Backlog", {"name": "Done", "color": "lime"}]}]}}`
 	_, snap, err := Unmarshal([]byte(doc), Options{

@@ -245,9 +245,9 @@ func (c countingOptions) OptionId(key domain.RelationKey, name string) (string, 
 }
 
 // The census probe (emittedLocalIds) is a SECOND full block emit, and the most
-// expensive thing a compact export does. OmitIds writes no document-local id, so a
-// label plan has nothing to label — running the probe for that combination
-// costs a whole extra emit for output that carries no ids.
+// expensive thing a compact export does. OmitIds retains only envelope and
+// view ids, neither of which relabels, so a label plan has nothing to label.
+// Running the probe for that combination costs a whole extra emit.
 //
 // The bytes are byte-identical either way, which is exactly why the waste went
 // unnoticed. So this counts RESOLVER CALLS through the public Marshal instead:
@@ -270,7 +270,7 @@ func TestExport_NoCensusProbeWhenNoLocalIdIsWritten(t *testing.T) {
 	compact := callsFor(Options{OmitIds: true, CompactBlockLabels: true})
 	require.NotZero(t, plain, "the fixture must reach the resolver, or this proves nothing")
 	assert.Equal(t, plain, compact,
-		"OmitIds writes no document-local id, so compaction must not run the census probe")
+		"the ids OmitIds preserves never relabel, so compaction must not run the census probe")
 
 	// the control: WITHOUT OmitIds, compaction does run the probe, so the
 	// assertion above cannot pass by never probing at all

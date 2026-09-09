@@ -33,6 +33,12 @@ import (
 // file is about.
 const noDerivedTypeStoreId = testfixtures.ObjectID
 
+func noDerivedPlanningOptions() anyblockjson.Options {
+	return anyblockjson.Options{ResolveProperties: planTypeResolver{
+		keyById: map[string]string{noDerivedTypeStoreId: "bug"},
+	}}
+}
+
 // The refusal, at the seam where a path table would have been built. It
 // arrives before the first path is fixed, so an exporter learns it has asked
 // for something impossible while it still has every document in front of it.
@@ -61,7 +67,7 @@ func TestBuildPlan_RefusesNoDerivedTypeIds(t *testing.T) {
 
 	// the same documents, the mode off: a plan, with the type document filed
 	// under its derived id and everything else under its own
-	planOff, err := BuildPlan(anyblockjson.Options{}, docs)
+	planOff, err := BuildPlan(noDerivedPlanningOptions(), docs)
 	require.NoError(t, err)
 	path, ok := planOff.DocPath(noDerivedTypeStoreId)
 	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds")
@@ -79,7 +85,9 @@ func TestBuildPlan_RefusesTheModeAndNothingElseAboutDerivedIds(t *testing.T) {
 	spaceId := testfixtures.SpaceID
 	participant := domain.NewParticipantId(spaceId, identity)
 
-	plan, err := BuildPlan(anyblockjson.Options{SpaceId: spaceId}, []DocMeta{
+	opts := noDerivedPlanningOptions()
+	opts.SpaceId = spaceId
+	plan, err := BuildPlan(opts, []DocMeta{
 		{Id: participant, SbType: model.SmartBlockType_Participant},
 		{Id: noDerivedTypeStoreId, SbType: model.SmartBlockType_STType, Key: "bug"},
 	})
@@ -123,7 +131,7 @@ func TestBuildPlan_AnAlreadyFoldedIdIsStillRefused(t *testing.T) {
 // this is it — read from the document itself rather than from a second
 // opinion, since agreeing is precisely what a second opinion would not prove.
 func TestBuildPlan_TheStemAndTheEnvelopeAreOneDecision(t *testing.T) {
-	opts := anyblockjson.Options{}
+	opts := noDerivedPlanningOptions()
 	snap := &model.SmartBlockSnapshotBase{
 		Key: "bug",
 		Blocks: []*model.Block{{Id: noDerivedTypeStoreId,

@@ -382,12 +382,12 @@ func typeKeyFoldable(key string) bool {
 }
 
 // foldTypeRef is the export half of the type fold (§9): a type object's id
-// becomes `type-<internal_key>` wherever it is referenced, and on the type
-// document's own envelope. It needs the store's answer to "which key does
-// this id name" — the TypeResolver capability of Options.ResolveProperties
-// (§2d) — and with no resolver it folds NOTHING, so that a document folded
-// by one run never sits beside references a resolver-less run could not
-// fold. A key the fold gate refuses keeps the id.
+// becomes `type-<internal_key>` wherever it is referenced. It needs the
+// store's answer to "which key does this id name" — the TypeResolver
+// capability of Options.ResolveProperties
+// (§2d). With no mapping it keeps the id. ValidateTypeExportMapping refuses
+// exporting a type document when that would leave its references under a
+// different id. A key the fold gate refuses keeps the id.
 func (o Options) foldTypeRef(id string) string {
 	if o.NoDerivedTypeIds {
 		return id
@@ -651,6 +651,8 @@ func IsDerivedTypeId(s string) bool {
 // `type-<key>` document did not exist. Deriving from the key makes the two
 // one function, so a type document and every key-spelled reference to it
 // agree by construction, resolver or no resolver.
+// This calculation alone does not establish agreement with id-valued
+// references: ValidateTypeExportMapping checks that before actual export.
 func FoldDocumentId(opts Options, sbType model.SmartBlockType, id, internalKey string) string {
 	switch {
 	case sbType == model.SmartBlockType_Participant:
@@ -671,6 +673,26 @@ func FoldDocumentId(opts Options, sbType model.SmartBlockType, id, internalKey s
 		}
 	}
 	return id
+}
+
+// ValidateTypeExportMapping checks that a type document and references to
+// its stored id export under the same identity (§9). Marshal and the bundle
+// path planner run it before emitting bytes or committing a path. A type's
+// own key still determines its derived id; a missing or conflicting resolver
+// mapping is an export error, never a reason to change that identity.
+// Already-derived ids and ids the fold leaves unchanged need no mapping.
+func ValidateTypeExportMapping(opts Options, sbType model.SmartBlockType, id, internalKey string) error {
+	if !isTypeSmartBlock(sbType) || id == "" {
+		return nil
+	}
+	documentID := FoldDocumentId(opts, sbType, id, internalKey)
+	referenceID := opts.foldRef(id)
+	if documentID == referenceID {
+		return nil
+	}
+	return fmt.Errorf("type document %q exports as %q, but references export as %q: "+
+		"ResolveProperties must provide a TypeResolver mapping this id to stored key %q (SPEC §9)",
+		id, documentID, referenceID, internalKey)
 }
 
 // reservedIdViolation states the derived-id reservation (§9) once, for the

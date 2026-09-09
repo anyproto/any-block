@@ -42,7 +42,7 @@ func TestImport_PrimaryDataviewGetsFixedId(t *testing.T) {
 		assert.Equal(t, []string{"dataview"}, blockIds(t, snap, "t1"))
 	})
 
-	// sets and collections are kind:page — the convention is not type-specific,
+	// Queries and collections are kind:page — the convention is not type-specific,
 	// so the rule must not key on kind.
 	t.Run("collection document", func(t *testing.T) {
 		doc := `{"formatVersion": "2.0", "id": "c1", "type": "collection",
@@ -51,7 +51,7 @@ func TestImport_PrimaryDataviewGetsFixedId(t *testing.T) {
 		assert.Equal(t, []string{"dataview"}, blockIds(t, snap, "c1"))
 	})
 
-	// objectId means the block views *another* set: an inline dataview, which
+	// A target naming another query makes this an inline dataview, which
 	// must keep a generated id or it would shadow the object's own.
 	t.Run("inline view keeps generated id", func(t *testing.T) {
 		doc := `{"formatVersion": "2.0", "id": "p1",
@@ -92,12 +92,53 @@ func TestImport_PrimaryDataviewGetsFixedId(t *testing.T) {
 	})
 }
 
+func TestImport_PrimaryDataviewRecognizesSelfTargets(t *testing.T) {
+	for _, tc := range []struct {
+		name, doc, wantID string
+		opts              Options
+	}{
+		{"query", `{"formatVersion":"2.0","id":"query","type":"Query",
+			"blocks":[{"type":"dataview","object_id":"query","views":[{"id":"chosen"}]}]}`, "dataview", Options{}},
+		{"collection", `{"formatVersion":"2.0","id":"collection","type":"Collection",
+			"blocks":[{"type":"dataview","object_id":"collection","views":[{"id":"chosen"}]}]}`, "dataview", Options{}},
+		{"derived type offline", `{"formatVersion":"2.0","kind":"object_type","id":"type-wine","internal_key":"wine",
+			"blocks":[{"type":"dataview","object_id":"type-wine","views":[{"id":"chosen"}]}]}`, "dataview", Options{}},
+		{"derived envelope and stored target", `{"formatVersion":"2.0","kind":"object_type","id":"type-wine","internal_key":"wine",
+			"blocks":[{"type":"dataview","object_id":"typeid-wine","views":[{"id":"chosen"}]}]}`, "dataview", typeRefOptions()},
+		{"stored envelope and derived target", `{"formatVersion":"2.0","kind":"object_type","id":"typeid-wine","internal_key":"wine",
+			"blocks":[{"type":"dataview","object_id":"type-wine","views":[{"id":"chosen"}]}]}`, "dataview", typeRefOptions()},
+		{"external target", `{"formatVersion":"2.0","kind":"object_type","id":"type-wine","internal_key":"wine",
+			"blocks":[{"type":"dataview","object_id":"type-page","views":[{"id":"chosen"}]}]}`, "g1", typeRefOptions()},
+		{"nested self-target", `{"formatVersion":"2.0","id":"query","type":"Query",
+			"blocks":[{"type":"callout","text":"wrapper"},{"type":"dataview","indent":1,"object_id":"query","views":[{"id":"chosen"}]}]}`, "g2", Options{}},
+		{"explicit id wins", `{"formatVersion":"2.0","id":"query","type":"Query",
+			"blocks":[{"id":"custom","type":"dataview","object_id":"query","views":[{"id":"chosen"}]}]}`, "custom", Options{}},
+		{"generated envelope is not an authored self-reference", `{"formatVersion":"2.0","type":"Query",
+			"blocks":[{"type":"dataview","object_id":"g1","views":[{"id":"chosen"}]}]}`, "g2", Options{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.opts.GenerateId = seqIds("g")
+			_, snapshot, err := Unmarshal([]byte(tc.doc), tc.opts)
+			require.NoError(t, err)
+			var viewBlock *model.Block
+			for _, b := range snapshot.Blocks {
+				if b.GetDataview() != nil {
+					viewBlock = b
+				}
+			}
+			require.NotNil(t, viewBlock)
+			assert.Equal(t, tc.wantID, viewBlock.Id)
+			assert.Equal(t, "chosen", viewBlock.GetDataview().Views[0].Id)
+		})
+	}
+}
+
 // omitIds used to break every dataview-backed object: the export dropped the
 // fixed id and the re-import could not put it back.
 func TestRoundtrip_OmitIdsKeepsPrimaryDataview(t *testing.T) {
 	snapshot := &model.SmartBlockSnapshotBase{
 		Blocks: []*model.Block{
-			{Id: "t1", ChildrenIds: []string{"dataview"},
+			{Id: "type-wikiCategory", ChildrenIds: []string{"dataview"},
 				Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}},
 			{Id: "dataview", Content: &model.BlockContentOfDataview{Dataview: &model.BlockContentDataview{
 				Views: []*model.BlockContentDataviewView{{
@@ -110,7 +151,7 @@ func TestRoundtrip_OmitIdsKeepsPrimaryDataview(t *testing.T) {
 			}}},
 		},
 		Details: &types.Struct{Fields: map[string]*types.Value{
-			"id": {Kind: &types.Value_StringValue{StringValue: "t1"}},
+			"id": {Kind: &types.Value_StringValue{StringValue: "type-wikiCategory"}},
 		}},
 		Key: "wikiCategory",
 	}

@@ -125,7 +125,7 @@ func typeRefOptions() Options {
 // typeRefSnapshot puts a type object id in every slot the census found
 // them in (§9): a `Template's Type` value, the query source, a filter on the
 // `type` property, a view's `default_type_id`, a link block, a mention,
-// and `items`.
+// and `collection_items`.
 func typeRefSnapshot() *model.SmartBlockSnapshotBase {
 	return &model.SmartBlockSnapshotBase{
 		Blocks: []*model.Block{
@@ -193,7 +193,7 @@ func TestDerivedIds_TypePrefixOnEverySlot(t *testing.T) {
 		`"default_type_id": "type-wine"`,
 		`"object_id": "type-page"`,
 		`<mention object_id=\"type-page\">Pages</mention>`,
-		`"items": [
+		`"collection_items": [
     "type-wine"`,
 	} {
 		assert.Contains(t, doc, want)
@@ -439,10 +439,11 @@ func TestDerivedIds_PrefixesAreReserved(t *testing.T) {
 }
 
 // A type document's own id is derived from the key it already states in
-// `internal_key`, with no resolver: the document knows its own key, so the
+// `internal_key`: the document knows its own key, so the
 // envelope id, the type-KEY slots that name it (`template_for`, every
 // `object_types`) and the bundle's path plan reach `type-<key>` by the same
-// pure function and cannot disagree.
+// pure function and cannot disagree. Export additionally requires a matching
+// resolver mapping so id-valued references reach the same derived id.
 //
 // How this can fail: put the envelope id back on TypeResolver.TypeKeyById
 // and a run whose resolver cannot map one type object — a deleted type,
@@ -480,16 +481,22 @@ func TestDerivedIds_TypeDocumentIdComesFromItsOwnKey(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			data, err := Marshal(model.SmartBlockType_STType, typeDoc(), opts)
-			require.NoError(t, err)
-			require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (§11 I1)")
-			assert.Contains(t, string(data), `"id": "type-corpse"`,
-				"the document states internal_key: corpse, so its own id needs no resolver")
+			require.ErrorContains(t, err, "TypeResolver")
+			assert.Nil(t, data, "missing reference mappings must not produce a disconnected type document")
+			assert.Equal(t, "type-corpse", FoldDocumentId(opts, model.SmartBlockType_STType, "typeid-corpse", "corpse"))
 
 			tmpl, err := Marshal(model.SmartBlockType_Template, template(), opts)
 			require.NoError(t, err)
 			assert.Contains(t, string(tmpl), `"template_for": "type-corpse"`)
 		})
 	}
+
+	opts := typeRefOptions()
+	opts.ResolveProperties.(*typeIdVocabulary).keyById["typeid-corpse"] = "corpse"
+	data, err := Marshal(model.SmartBlockType_STType, typeDoc(), opts)
+	require.NoError(t, err)
+	require.NoError(t, Validate(data, Options{}))
+	assert.Contains(t, string(data), `"id": "type-corpse"`)
 }
 
 // The reserved prefixes are the only spellings that unfold in a REFERENCE
@@ -676,7 +683,7 @@ func TestDerivedIds_TypeRefWithoutAResolverIsReported(t *testing.T) {
 // left one document half rebuilt: the slots reached through Options.unfoldRef
 // directly (a view's default type, an icon, the index) came back as store
 // ids while the slots reached through the importer's own objectRef (property
-// values, `items`, block targets, marks) kept the folded string.
+// values, `collection_items`, block targets, marks) kept the folded string.
 //
 // How this can fail: put the type unfold back behind the SpaceId early
 // return and `Template's Type` and `default_type_id` disagree about the same

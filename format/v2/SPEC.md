@@ -272,7 +272,7 @@ The format uses six Anytype concepts; everything else is borrowed vocabulary:
 - **type** — the object's user-level type (`page`, `task`, `bookmark`…),
   identified by a key.
 - **option** — a named choice of a `select`/`multi_select` property.
-- **set vs collection** — a *set* is a live query over a type; a
+- **query vs collection** — a *query* selects objects by type or property presence; a
   *collection* is a manually curated list of objects. Both are presented
   through dataview blocks/objects.
 - **space** — the container all object ids resolve within (never appears in
@@ -324,9 +324,9 @@ Fields, in **canonical order** (§4):
 | `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. (In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode those two slots spell the vocabulary rather than the derived id; the type namespace carries no legend either way, and a bundle refuses that mode — §9.) A document carrying the map is refused with the repair named (§10). |
 | `option_ids` | object | no | Legend: the id of the option each select/multi_select **name** in this document stands for — nested, `{property spelling: {option name: option id}}` (§3, §9a). Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the name resolves exactly as it did before the legend existed. |
 | `blocks` | array | no | The document's blocks as a **flat pre-order array**; nesting via `indent` (§4). |
-| `query_source` | object | no | For SET objects: what the live query ranges over (§6.2), in two typed lists — `types` (type targets, each the type's derived id `type-<internal_key>`, §9) and `properties` (property targets, each a bare stored key). Stands for the stored `setOf` key, which `properties` refuses. THREE states: absent (this document states no query), present and EMPTY (a query naming no source), populated. Present on a document that is not a set → validation error, enforced by the import *wiring* for the same reason `items` is. |
-| `items` | array | no | For collection objects: member object ids, in order (from the internal collection store key `objects`). Present on a non-collection document → validation error — enforced by the import *wiring* (collection-ness resolves against the space's types, not offline); the package's `Validate` checks structure only (implementation decision). |
-| `store` | object | no | Escape hatch: remaining internal store content as a free-form JSON object, with the `objects` key lifted into `items`. Output-only (§4a). (Named `store` — its internal name — to avoid colliding with the collection concept.) |
+| `query_source` | object | no | A query object's source (§6.2), in two typed lists: `types` holds type targets (`type-<internal_key>`, §9); `properties` holds bare stored property keys. Stands for the stored `setOf` key, which `properties` refuses. Absent means no query declaration; `{}` declares a query with no source; a populated object declares its source. May coexist with `collection_items`; the dataview selects which source to use (§6.2), independently of whether either value is empty. |
+| `collection_items` | array | no | A collection's member object ids, in order, from the internal collection store key `objects`. Absent and `[]` both mean empty membership; canonical export omits the empty array. May coexist with `query_source` (§6.2). The former object-root spelling `items` is refused with a rename hint; it is not an input alias. |
+| `store` | object | no | Escape hatch: remaining internal store content as a free-form JSON object, with the `objects` key lifted into `collection_items`. Output-only (§4a). (Named `store` — its internal name — to avoid colliding with the collection concept.) |
 | `root` | object | no | Escape hatch for non-default root-block attributes (`fields`, `background_color`); absent in the common case. Output-only (§4a). |
 
 The root block of the snapshot (whose id equals the object id) is
@@ -705,8 +705,8 @@ Four reasons, all forced:
    which is a hole in §11's Marshal-never-emits rule and a laundering
    primitive. Envelope field names are outside the key namespace and immune
    to the legend.
-2. **`properties` carries presence-is-meaningful; the envelope omits empty
-   (§4).** Presence-is-meaningful is what generated the noise in the first
+2. **Property presence is meaningful; empty icon and cover decoration is
+   omitted (§4).** Presence-is-meaningful is what generated the noise in the first
    place. All nine relations are `hidden: true` — they have no property row
    for presence to be meaningful *to*.
 3. **It closes a gap §4a recorded and could not fix**: `coverId`/`coverType`
@@ -784,9 +784,35 @@ object. That is `index.json`, one file at the bundle root, validated against
 |---|---|
 | `name` · `description` | the space's own identity, applied on install |
 | `icon` | the space's icon, in exactly the shape an object's icon has (§2b), restricted to the two variants a bundle can hold: `{"format": "emoji", "emoji": "📚"}`, or `{"format": "file", "file": "<object id of an image in the bundle>"}`. The image variant needs the image object *and* its file in the archive, so a generated bundle uses an emoji. It is one `$ref` into the object schema, not a copy — an index and an object cannot disagree about what an icon is. |
-| `homepage` | what opens on entering the space: an object id, or the reserved `_widgets` (the sidebar dashboard, the default) or `_graph` |
-| `widgets` | sidebar widgets, in order. **The first one is what the install opens**, so the entry point goes first |
+| `entrypoint` | the declared entry object; used when `homepage` is absent. Must name an object in the bundle. The legacy one-time opening behavior is described below |
+| `homepage` | what opens on entering the space: an object id, or `_widgets` (the sidebar dashboard) or `_graph`. Takes precedence over `entrypoint`, including on the first entry through the bundle install path |
+| `widgets` | sidebar widgets, in order. When both `homepage` and `entrypoint` are absent, the first widget naming an object supplies the compatibility fallback. Reserved listing targets are skipped |
 | `unresolved` | what this bundle NAMES and cannot answer for — the property keys nothing could define, and the ids this file points at that no document here carries (below). Optional, and its absence is not a completeness claim |
+
+**Navigation precedence (normative).** Resolve the space homepage in this order:
+
+1. An explicit `homepage`, including `_widgets` or `_graph`.
+2. Otherwise, an explicit `entrypoint`.
+3. Otherwise, the first `widgets[].target` that names an object, skipping
+   reserved listing targets such as `_recent`.
+4. If none exists, the index declares no homepage; a newly created Anytype
+   space uses its default widgets dashboard.
+
+These are absence fallbacks, not error recovery: an explicit object id that
+does not resolve remains an unresolved reference and fails bundle validation;
+it does not cause the reader to try a lower-priority field. Empty strings are
+invalid here. The codec's `Index.SpaceHomepage` implements the first three
+steps and returns an empty string for the fourth; the installer supplies the
+default. `widgets` keeps its declared order. Neither `entrypoint` nor
+`homepage` requires inserting or moving a sidebar widget.
+
+For example, `homepage: "dashboard"`, `entrypoint: "welcome"`, and a first
+widget targeting `tasks` opens `dashboard` on the bundle install path.
+Removing `homepage` selects `welcome`; removing both selects `tasks`.
+An explicit `_graph` wins over all three object targets. The separate
+one-time opening behavior of legacy built-in archives is an adapter
+limitation, described under **How it reaches the space**; it does not change
+this precedence.
 
 `formatVersion` is the same format version, with the same rules, that object
 documents carry (§10): one `major.minor` string, one namespace, bumped together. A reader
@@ -818,7 +844,7 @@ rather than a copy that drifts. `properties` keys resolve through the
 bundle's property dictionary (§2f), the file that answers for stored keys,
 since there is no per-document legend here.
 
-`target` is an object id from the bundle — a page, a type, a set, a
+`target` is an object id from the bundle — a page, a type, a query, a
 collection — or one of the eight reserved listings `_favorite · _recent ·
 _recent_open · _set · _collection · _all_objects · _chat · _bin`, which name
 a built-in rather than something the bundle ships. The leading `_` is what
@@ -1176,7 +1202,7 @@ outputs the wiring produces, and who reads them:
 |---|---|---|
 | `homepage`, falling back to `entrypoint` | `profile.spaceDashboardId` | the space's `homepage` detail — what opens on **every** entry, and on this path the only thing that decides what a new user sees |
 | `widgets` | the Widget snapshot's root children, in order | the sidebar |
-| `entrypoint` | `profile.widgets[0].targetObjectId` | the object the install opens **once** — on the `inject` path only. On a bundle's own path it lands only through the `homepage` fallback above |
+| `entrypoint` | the `profile.spaceDashboardId` fallback above | no separate one-time navigation on the bundle install path. Legacy `inject` reads the first profile widget instead, as described below |
 | `name` | `profile.name` | the space's own name, when the install CREATES the space; nothing on an install into an existing space |
 | `icon` (the `file` variant) | `profile.avatar` | the space's icon (the file object's id re-mapped to its imported id), under the same new-space gate |
 
@@ -1202,28 +1228,26 @@ Five consequences worth stating, because none is obvious from the wire format:
   icon become the created space's own identity and can never overwrite a
   name the user already chose: an install into an existing space skips the
   profile read entirely.
-- **`entrypoint` is encoded as the first widget.** There is no independent
-  field for "open this after import" — `inject` takes
-  `widgets[0].targetObjectId` as its starting page, and the deprecated
-  `startingPage` is only read when `widgets` is empty, so it cannot coexist
-  with a sidebar. The wiring therefore has to make the entrypoint
-  `widgets[0]`, prepending a widget for it when the author listed something
-  else first. The entry point consequently always appears first in the
-  sidebar. `entrypoint` exists as a separate field anyway, because expressing
-  it by sorting `widgets` means reordering the sidebar silently changes what
-  a new user sees.
+- **Legacy one-time opening uses profile widget order.** `inject` takes
+  `widgets[0].targetObjectId` as its starting page; its deprecated
+  `startingPage` fallback is read only when that list is empty. The converter
+  writes the declared widgets in order and does not prepend or reorder them
+  to match `entrypoint`. An author targeting that legacy path can put the
+  intended entry object first. This is a portability recommendation, not a
+  requirement on the index or a rule for choosing its homepage.
 
-  On a bundle's own path even that does not fire: `CreateObjectsForExperience`
+  On the bundle install path `CreateObjectsForExperience`
   computes no starting page and `ObjectImportExperience` returns none, so
   nothing is opened once. What a new user lands on is the space `homepage` —
-  which is why an omitted `homepage` falling back to `entrypoint` is what
-  makes the field mean anything at all here.
+  resolved by the precedence rule above, on the first entry as well as later
+  entries.
 - **Omitting `homepage` does not mean the widgets screen.** An absent
   `spaceDashboardId` makes `setWorkspaceSettings` default to `widgets`, which
   is the right default for a *blank* space and the wrong one for a use case:
   on desktop the widgets are already in the sidebar, so it leaves the main
-  pane empty. So an omitted `homepage` resolves to the `entrypoint` instead,
-  and only an explicit `"_widgets"` or `"_graph"` gives up a real page.
+  pane empty. An omitted `homepage` therefore uses `entrypoint`, then the
+  first object widget. The default widgets screen applies only when none of
+  those declares a page, or when `_widgets` is explicitly requested.
 
 - **A widget target that does not resolve loses the widget, silently.** This
   is the only reference in the format whose failure produces no diagnostic at
@@ -3694,11 +3718,32 @@ byte-stable over it (§11):
   Nested dataview/table objects: the order listed in §6. `property_internal_keys`
   and `option_ids` entries sorted by key, and each `option_ids`
   inner map sorted by option name.
-- **Omit empty and default.** Canonical form never writes an empty string,
-  empty array, or empty object (envelope included — no `"properties": {}`),
-  nor a default scalar (`"indent": 0`, `"checked": false`, `"align":
-  "left"`, `"hidden": false`…). Absent `text` means empty text. Import
-  accepts explicit empties/defaults and canonicalizes them away.
+- **Omit only semantically redundant empty and default values.** An optional
+  field is omitted when its own rules make absence equivalent to that value:
+  for example `"indent": 0`, `"checked": false`, `"align": "left"`, empty
+  block `text`, an empty envelope `properties` map, and empty
+  `collection_items`. Import accepts these explicit forms and canonicalizes
+  them away. This is not a recursive JSON-cleanup rule: a field's presence,
+  a required member, or an array element can carry meaning even when empty.
+
+**Meaningful empty values and defaults (normative).** Field-specific presence
+rules take precedence over the omission rule. In particular:
+
+| Location | What must survive canonicalization |
+|---|---|
+| User property values in `properties` (§3) | A present key and its value, including `false`, `0`, `""`, `[]`, `{}` where the format permits it, and `null`. Absence means the property is not set. The explicitly listed system-key normalizations in §3 still apply |
+| `query_source` (§6.2) | `{}` declares a query with no source and must remain distinct from no declaration. Empty `types` and `properties` lists inside it may be omitted, but the enclosing group remains |
+| `index.manifest.files` (§2c) | `{}` explicitly declares that no file bytes were carried. Absent states no such intent. Preserve the containing `manifest` even when this is its only member |
+| `type_settings.property_definitions` (§2a) | `[]` tells import to rebuild all four recommended-property lists as empty. Absence does not request that rebuild; preserve the containing `type_settings` |
+| `property_settings` (§2d) | Stored presence of `include_time` and `object_types`, including `false`, `[]` and `null` where their schemas admit them |
+| Date definitions in type declarations and the dictionary (§2a, §2f) | `include_time: false` and `include_time: null` are declarations, distinct from an absent member |
+| Required members and positional values | Required arrays such as the dictionary's `properties: []` remain. A table cell's `null` placeholder retains its column position; only the table's explicit trailing-cell normalization applies (§6.1) |
+| Filter operands and free-form payloads | Preserve operands such as `false` or `0` when the operator requires a value (§6.2). Do not recursively strip empty values from `store`, block `fields`, or other preserved payloads (§4a) |
+| Filter groups (§6.2) | Preserve the operator and `filters: []` of an empty group, including its position inside a parent group. Removing a group can change query results |
+
+`collection_items: []` and an absent `collection_items` both
+mean empty membership. Neither form selects a query instead. Selection of a
+dataview's source is independent of emptiness (§6.2).
 
 ### 4a. Output-only fields
 
@@ -3977,7 +4022,7 @@ machinery:
 
 ### 6.2 Dataview
 
-Dataview blocks embed a queryable view over objects — a *set* (live query)
+Dataview blocks embed a view over objects — a *query* (evaluated against the space)
 or a *collection* (curated list, `is_collection: true`) — that they reference
 but do not own.
 
@@ -3985,21 +4030,76 @@ but do not own.
 carries a view *definition* — properties, columns, sorts, filters — and the
 records it shows come from a **source** it names, which is the half a reader
 has to be told, because none of the members that describe it look like a
-source. Counts are the 2,560 dataview blocks of the 79-bundle corpus:
+source. The counts below describe the 2,560 dataview blocks of the audited
+79-bundle corpus, before canonical self-target omission:
+
+The product concept is a **query** (the bundled type's display name is
+`Query`). Its stored type key remains `set`, and its stored source detail
+remains `setOf`; these identifiers do not change the product terminology.
+
+**Authoring the source.** Set `object_id` only for an inline dataview hosted
+by an object whose resolved type is neither Query nor Collection. It must
+point to a Query or Collection object. A Query or Collection's own dataview
+omits `object_id` and uses the host's `query_source` or `collection_items`;
+a collection view sets `is_collection: true`. A type document's own listing
+also omits `object_id` and uses the host's `internal_key`.
+
+Existing exports also carry type-document targets, often a type's own
+self-reference, and detached inline queries with legacy `source` fields.
+The full reader accepts these stored forms. The table and decoding rules
+below cover them as well as authored sources.
+
+**Canonical self-targets.** On a Query, Collection, or type document, export
+omits a dataview's `object_id` when it names that host. Compare identities
+after the derived-id mapping (§9), so a stored type id and its derived form
+can name the same host. The explicit target previously determined the source
+even when the other fields disagreed; preserve that choice in the implicit
+form: emit `is_collection: true` for a Collection, omit it for a Query or
+type listing, and omit legacy `source` that the explicit target had
+overridden. This normalization preserves which records the view selects and
+does not change the host's `collection_items` or `query_source`.
+
+An existing implicit source keeps its stated flags and legacy `source`.
+Targets naming another object, and self-targets whose host has no resolved
+Query, Collection, or type source kind, remain explicit. Payload presence
+alone does not establish the source kind. Import still accepts explicit
+self-targets and restores a primary dataview's fixed block id (§7).
+
+For a dataview, an absent or empty `object_id` names no target. The full
+format accepts `object_id: ""` as equivalent to absence, and export omits
+it. The authoring profile requires omission instead of an empty string.
+In the table below, "no `object_id`" includes the empty-string form.
 
 | The block says | Its records are | Where that is stated | Count |
 |---|---|---|---|
-| `object_id` naming a **type** document (`kind: "object_type"`) | the objects of that type — the listing a type carries a view for | the target's own `internal_key`; the reference already spells it, `type-<key>` (§9), or — in an authored bundle — names the type document by whatever id that document carries, and then the target document answers | 1,786, of which 1,776 are a type document's own block naming ITSELF |
-| `object_id` naming a **set** object that states a query | every object matching that set's query | the target's `query_source`, below | 77 |
-| `object_id` naming a **set** object that states none | nothing anything can name: the target states a `query_source` and it names nothing, so no query exists to run | the target's `query_source`, empty | 1 |
-| `object_id` naming a **collection** object | exactly the ids the target lists, in that order | the target document's `items` (§2) | 11 (10 of them also flag `is_collection`) |
-| no `object_id`, `is_collection: true` | exactly the ids THIS document lists — the block belongs to the collection it shows | this document's own `items` | 430, on 331 host documents — 167 of the 331 carry an `items`; in the other 164 the collection is empty |
-| no `object_id`, no `is_collection`, on a **type** document | the objects of that type — the first row's listing, written without the self-reference 1,776 blocks spell out | the HOST's own `internal_key` | 32 |
-| no `object_id`, no `is_collection`, on any other document | every object matching THIS document's query — the block belongs to the set it shows | this document's own `query_source` | 142, of which 132 state one; 9 state no `query_source` and 1 states an empty one |
-| no `object_id`, `source` present | a legacy detached inline set | `source`, output-only (§4a) | 48 |
+| stored `object_id` naming a **type** document (`kind: "object_type"`) | the objects of that type — the listing a type carries a view for | the target's own `internal_key`; the reference already spells it, `type-<key>` (§9), or names the type document by its bundle-local id, and then the target document answers | 1,786, of which 1,776 are a type document's own block naming ITSELF |
+| `object_id` naming a **query** object with a source | every object matching that query | the target's `query_source`, below | 77 |
+| `object_id` naming a **query** object with an empty source | the declared source names no targets to evaluate; this does not mean a query evaluated to zero matches | the target's `query_source`, empty | 1 |
+| `object_id` naming a **collection** object | exactly the ids the target lists, in that order | the target document's `collection_items` (§2) | 11 (10 of them also flag `is_collection`) |
+| no `object_id`, `is_collection: true` | exactly the ids THIS document lists — the block belongs to the collection it shows | this document's own `collection_items` | 430, on 331 host documents — 167 carry `collection_items`; in the other 164 the collection is empty |
+| no `object_id`, no `is_collection`, no non-empty legacy `source`, on a **type** document | the objects of that type — the first row's listing, written without a self-reference | the HOST's own `internal_key` | 32 |
+| no `object_id`, no `is_collection`, no non-empty legacy `source`, on any other document | every object matching THIS document's query | this document's own `query_source` | 142, of which 132 state one; 9 state no `query_source` and 1 states an empty one |
+| no `object_id`, no `is_collection`, non-empty `source` | a legacy detached inline query | `source`, output-only (§4a) | 48 |
 | `object_id` naming a document the bundle does not carry | nothing resolvable here | §9's reference table | 33 |
 
-**`query_source` is the query.** It is a ROOT member of the set object,
+**Source selection when reading the full format (normative).** Apply these
+steps in order:
+
+1. If `object_id` is non-empty, resolve that target. A type document supplies
+   objects of that type; a collection supplies its `collection_items`; a
+   query supplies its `query_source`. The target's resolved type determines
+   which rule applies (§3, including `type_internal_key` precedence).
+   `is_collection`, the host's source fields, and legacy block `source` do
+   not override an explicit target. If the target or its source kind cannot
+   be resolved, report that limitation; do not infer a kind from which
+   payload happens to be populated.
+2. With an absent or empty `object_id`, `is_collection: true` selects the
+   host's `collection_items`.
+3. Otherwise, a non-empty legacy block `source` supplies its detached inline
+   query. If there is none, a type document supplies objects of its own type;
+   every other host uses its `query_source`.
+
+**`query_source` is the query definition.** It is a ROOT member of the query object,
 promoted out of the stored `setOf` detail, and it holds two typed lists:
 
 ```json
@@ -4058,7 +4158,7 @@ type and its own description.
 
 **What a source MEANS.** A type target matches objects **of** that type. A
 property target matches objects that **carry** that property — presence, not
-a non-empty value, so an object holding it empty belongs to the set. Several
+a non-empty value, so an object holding it empty matches the query. Several
 targets, in either list, combine with **OR**: the value is a union. Because
 it is a union the order ACROSS the two lists carries no meaning, which is
 what lets one stored list become two; within a list the stored order is
@@ -4074,25 +4174,37 @@ Either way the entry keeps the property's object id, which is what the stored
 slot held anyway, and export warns. It stays in `properties` regardless: the
 resolver already said it is a property, and the id round-trips exactly.
 
-A `query_source` and an `items` are alternatives in meaning — one document is
-a set or a collection, not both — but neither surface refuses the pair, and
-that is measured rather than lenient: ONE of the 175 corpus documents
-carrying a query source also carries an `items`, so a refusal would reject
-real stored state and export would then emit what `Validate` rejects (§11
-I1). A reader meeting both should read the block that names them (the table
-above) and not guess.
+**Coexistence is valid; selection is exclusive.** A document may carry both
+`query_source` and `collection_items`. One of the 175 corpus documents with
+a query source also carries membership; rejecting the pair would reject
+stored state and violate §11 I1. Import and export preserve both under their
+ordinary field rules. Neither member changes the object's type merely by
+being present, and coexistence is not itself a validation error.
 
-**Three states, not two.** ABSENT means this document states no query.
-PRESENT AND EMPTY — `"query_source": {}` — means a query that names no
-source, which is a different thing from a query that matches nothing: a
-reader has nothing to run and nothing to say, and the table above gives it a
-row because one dataview block in the corpus names such a set. POPULATED is
-the query. Only the writer can tell the first two apart, so the group is
-written whenever the stored key is present, empty or not — the same
-three-state rule `manifest.files` states in §2c, and the same trap: an
-omit-empty on the enclosing member would drop the statement before the lists
-could make it. Within the group the §4 canon applies as usual, so an empty
-list is not written and an absent list and an empty one say the same thing.
+A dataview uses exactly the source selected above. Readers MUST NOT merge
+the two sources, intersect them, treat membership as cached query results,
+or use one as a fallback when the other is empty or absent. In particular:
+
+- A collection with absent or empty `collection_items` has zero members,
+  even if `query_source` is populated.
+- A selected `query_source: {}` declares no source to evaluate, even if
+  `collection_items` is populated. An absent `query_source` states no query
+  declaration; it does not select membership instead.
+- Two host dataviews can select different sources from the same document:
+  a block with `is_collection: true` reads membership, while a block without
+  that flag or a legacy `source` reads the query definition.
+
+**Three states, not two.** ABSENT means this document states no query
+declaration. PRESENT AND EMPTY — `"query_source": {}` — declares a query
+with no source targets. A reader can report that explicit empty source;
+it is neither a request for all objects nor a claim that a query ran and
+matched nothing. POPULATED declares the source to evaluate.
+
+Export distinguishes the first two states by stored-key presence: write the
+group whenever `setOf` is present, even when empty. As with `manifest.files`
+(§2c), omitting the enclosing group would erase the declaration. Within the
+group, absent and empty lists mean the same thing; canonical export omits
+empty `types` and `properties` lists while retaining the group.
 
 **The lift is unconditional, and it is the format's first.** Every other
 detail lift is kind-scoped — §2a's five type settings, §2d's three
@@ -4117,8 +4229,8 @@ what the source yields and `sorts` order it; neither can widen it, and
 neither is where the source lives. `properties` says which properties are
 available to the view and `columns` which of them a table shows: that is
 presentation. So a reader renders a **collection** from the bundle alone —
-its members are ids in a document it holds — and cannot render a **set**
-from the bundle at all, because the objects a query matches are whatever the
+its members are ids in a document it holds — and cannot render **query results**
+from the bundle alone, because the objects a query matches are whatever the
 space holds when it runs. The bundle ships the definition; evaluating it is
 the reader's.
 
@@ -4128,7 +4240,7 @@ string enums, and defaults omitted:
 ```json
 {
   "type": "dataview",
-  "object_id": "bafyrei…targetSet",
+  "object_id": "bafyrei…targetQuery",
   "properties": [
     { "property": "Name", "format": "text" },
     { "property": "Status", "format": "select" },
@@ -4161,9 +4273,9 @@ string enums, and defaults omitted:
 
 | Prop | Proto field | Notes |
 |---|---|---|
-| `object_id` | `TargetObjectId` | the set/collection object this view queries; empty for original set/collection objects and detached inline sets |
+| `object_id` | `TargetObjectId` | authored inline views on a host whose type is neither Query nor Collection point to a Query or Collection; omit on their own views and a type document's own listing. The full format also accepts stored type/self targets and treats an empty string as absence; see source selection above |
 | `is_collection` | `is_collection` | |
-| `source` | `source` | legacy, detached inline sets only; output-only (§4a) |
+| `source` | `source` | legacy, detached inline queries only; output-only (§4a) |
 | `properties` | `relationLinks` | array of `{ "property", "format" }` — the properties available to this view, with formats per §3's vocabulary; `property` is the same member name the columns, sorts and filters use to refer to one (one spelling per concept). **This field is live** (maintained by the dataview editor), unlike the deprecated snapshot-level relationLinks |
 | `views` | `views` | see below |
 
@@ -4186,8 +4298,8 @@ dataview may not share an `id` — that is a validation error naming both
 positions — but two views in *different* dataview blocks may. This is the
 only id domain in the format that is not document-wide (§4). Across blocks, each view is reached through its own block and
 nothing is ambiguous — and the app itself produces that case: the default
-view of every set, collection and type is minted with the literal id
-`default`, and creating an inline set from an existing object copies that
+view of every query, collection and type is minted with the literal id
+`default`, and creating an inline query from an existing object copies that
 object's views verbatim, so a page with two inline collections legitimately
 holds two views called `default`.
 
@@ -4253,9 +4365,10 @@ with an implicit **AND** (canonical form uses bare leaves at the top level;
 a group exists only for `or` or nesting):
 
 - group: `{ "operator": "and" | "or", "filters": [nodes…] }`. Export maps a
-  proto node with non-empty `nestedFilters` to a group and drops its leaf
-  fields; import writes `operator` only on groups (leaves get the proto
-  default).
+  proto node with an explicit `And` or `Or` operator to a group, including
+  when `nestedFilters` is empty, and drops its leaf fields. Legacy nodes
+  with non-empty `nestedFilters` also map to groups. Import writes
+  `operator` only on groups (leaves get the proto default).
 - leaf, canonical order: `property` (**required** — a leaf filter names the
   property it filters on, like the sort and the column beside it; export drops
   a filter whose stored relation key is empty rather than write a node that
@@ -4348,21 +4461,21 @@ a view matches; out-of-range proto enum values are omitted rather than
 serialized (an unknown *text style* is an export error — silently
 restyling content would be worse).
 
-A **group with no live children is dropped too, and that drop is NOT a
-no-op.** The engine reads an empty `FiltersAnd` and an empty `FiltersOr`
-alike as **TRUE** (`pkg/lib/database/filter.go`), so such a branch is inert
-under an enclosing AND — the top-level array included, which is an implicit
-AND — and matches EVERYTHING under an enclosing OR. `OR(AND[], Done ==
-true)` therefore exports as `OR(Done == true)`, and a view that matched
-every object comes back matching only the done ones. The drop is reported,
-though through the nameless-leaf warning rather than one of its own. This
-is a stated defect of the export normalization, not a repair the document
-shape should make: an empty group is a shape 2.0 admits — `filters` carries
-no `minItems`, deliberately — so refusing it would invalidate documents
-this version accepts, and the fix belongs in the simplifier, which has to
-read the enclosing operator before deleting a true branch. Nothing measured
-is affected: 0 of the 18 filter groups across the 79 corpus bundles is
-empty.
+**Empty groups are preserved.** Export retains their operator, position,
+and required `filters: []` member, including when dropping nameless leaves
+empties a group. It does not simplify Boolean expressions. An empty `and`
+matches all records in both Heart's in-memory evaluator and AnyStore, so
+deleting it from `OR(AND[], Done == true)` would narrow the view to done
+records. Empty `or` exposes a separate runtime disagreement: Heart's
+`FiltersOr.FilterObject` returns true, while AnyStore's `query.Or` returns
+false. Preserving the tree retains each evaluator's behavior across an
+export/import cycle; the codec does not resolve that disagreement.
+
+This is compatibility behavior for a shape 2.0 already accepts (`filters`
+has no `minItems`). The editor creates advanced groups with a
+`Name contains ""` rule and deletes a group when its final rule is removed.
+Export does not perform that editing operation on stored data. The audited
+79 corpus bundles contained no empty groups among their 18 filter groups.
 
 #### 6.2.1 Compact filter syntax — shipped grammar, reserved document field
 
@@ -4498,7 +4611,7 @@ otherwise — together with any blocks indented under them; a top-level
 `featured_properties` block (which carries no content) is simply dropped.
 
 **The primary dataview** is the one structural id import *does* rebuild.
-Object types, sets and collections keep their own dataview at the fixed
+Object types, queries and collections keep their own dataview at the fixed
 block id `dataview` (`state.DataviewBlockID`); the editor recreates it on
 open only *if absent* (`template.WithDataviewIDIfNotExists`), so a document
 whose dataview lands on a generated id gets a second, empty dataview
@@ -4506,16 +4619,23 @@ alongside the configured one. Unlike `title`/`description`, the block cannot
 simply be dropped and regenerated — its views, columns and widths are the
 author's configuration, not derivable — so import **pins the id** instead:
 
-> the first indent-0 `dataview` block with neither an explicit `id` nor an
-> `object_id` becomes `dataview`.
+> The first indent-0 `dataview` block without an explicit `id`, whose
+> `object_id` is absent, empty, or resolves to the host's stated envelope
+> `id`, becomes `dataview`.
 
-`object_id` is what separates the two cases: an inline view of *another* set
-or collection has it set (§6.2) and keeps its generated id, as does any
-dataview nested below indent 0, and any dataview after the first. If some
-block already claims `dataview`, that block wins and nothing is pinned — an
-explicit id stays authoritative and cannot collide (§13). Export is
-unchanged: it emits the id verbatim, and under `OmitIds` (§9) the rule
-restores it on the way back in.
+Compare the target and envelope in the imported identity namespace (§9): a
+derived type id and its stored id can name the same host. A generated
+envelope id cannot establish an authored self-reference merely by matching
+the target string.
+
+An inline view of *another* query or collection keeps its generated id, as
+does any dataview nested below indent 0, and any dataview after the first.
+If some block already claims `dataview`, that block wins and nothing is
+pinned — an explicit id stays authoritative and cannot collide (§13).
+Export omits redundant self-targets (§6.2). Under `OmitIds` (§9), import
+restores the primary block's id while preserving its view ids, so widgets
+still find their selected view in that block. Existing explicit self-targets
+use the same primary-block rule.
 
 **Content-less blocks** (legacy data): old accounts hold blocks whose
 content oneof is unset — relation objects wrap their "used in" dataview in
@@ -4739,24 +4859,29 @@ wrapped destination gets **2047** between the delimiters. Stated on the
 spelling because that is what a reader can apply to the bytes in front of
 it, with nothing decoded first, and because it is what bounds the work.
 
-**Export bounds a different measurement, and the two do not agree.** It
-drops a Link or Object mark whose **decoded** destination exceeds 2048
-**UTF-16 code units** — measured before escaping and wrapping — and an Emoji
-mark whose param exceeds 64 code units, as invalid (§8.3 step 1). Where the
-two coincide, which is every destination needing no escape and carrying no
-astral character, round trips are byte-stable. Where they do not, they are
-not, and it fails silently in both directions: a 2048-unit destination
-containing one `&` renders to a 2049-code-point spelling that export emits
-and the parser then refuses, so `[click](…)` reparses as literal prose with
-the link gone, its caption swallowed and its escapes resolved — not even the
-bytes survive; and a destination of 1,019 astral
-characters after a 13-character prefix is 1,032 code points but 2,051 UTF-16
-units, so export drops the mark while the parser reads a hand-written one as
-a link. This is a **stated defect, not a licence** — export has to measure
-the spelling it is about to write, and until it does, a writer that keeps
-destinations inside BOTH numbers is byte-stable. Nothing measured is near
-either: across the 79 corpus bundles the longest of 40,694 link destination
-spellings is **443 code points**, and none exceeds 2048 under either count.
+**Export checks the same written spelling.** `Marshal`,
+`MarshalBlockSubtree`, and `RenderInlineTextChecked` refuse a Link or Object
+mark whose canonical destination exceeds the parser's bound after escaping
+and angle wrapping. Object destinations are measured after reference
+rewriting and percent-encoding the id into the canonical Anytype deep link.
+The error identifies the block and mark (only the mark for the inline API);
+no partial document or text is returned. An `OnWarning` callback does not
+turn this refusal into a dropped link. Invalid mark ranges and marks on
+literal code blocks still normalize as described in §8.3–§8.4.
+
+A 2048-character ASCII destination containing one `&` needs 2049 code points
+when escaped, so export returns an error. Import can still accept a
+hand-written spelling with a bare `&` that fits its bound; acceptance alone
+does not promise that the canonical spelling will fit (§11). Conversely,
+1,019 astral characters after a 13-character prefix need only 1,032 written
+code points, so the link survives export regardless of its UTF-16 length.
+The string-only `RenderInlineText` compatibility helper cannot report an
+error and drops an over-bound link while retaining its caption; callers
+requiring preservation use the checked API. Emoji params keep their separate
+bound of 64 UTF-16 code units and normalize away above it (§8.3).
+
+Across the audited 79 corpus bundles the longest of 40,694 link destination
+spellings was **443 code points**, below the bound.
 
 ### 8.3 Canonical rendering (the round-trip contract for marks)
 
@@ -4849,12 +4974,14 @@ on such blocks are dropped on export (§5).
   generator); provided → validated for uniqueness (§4) and charset, preserved
   so that re-exports diff cleanly.
 - On output, export writes ids by default (stable diffs, §11 canon). The
-  `OmitIds` marshal option (§13) instead drops **every document-local id**
-  — blocks, table rows/columns, views, sort/filter ids — along with the
+  `OmitIds` marshal option (§13) instead drops block, table row/column and
+  sort/filter ids, along with the
   id-dependent output-only view state (`groups`, `object_orders`) and the
-  `option_ids` legend (§9a). It **retains the envelope object `id`** and every
-  full object reference. For templates, prompt examples, and any content
-  meant to be re-inserted rather than diffed. A local-ID-free export is valid
+  `option_ids` legend (§9a). It **retains the envelope object `id`, view ids**,
+  and every full object reference. A widget in another document or in
+  `index.widgets` can select a view through `view_id`; that selector must
+  still identify the same view after import. For templates, prompt examples,
+  and content meant to be re-inserted rather than diffed. This export is valid
   but not the canonical round-trip form (re-importing mints fresh local ids,
   and option values resolve by name).
 
@@ -4919,7 +5046,7 @@ a document is found by its id and by nothing else (§2c).
 
 | Form | Where it occurs | How to resolve it | When it resolves to nothing |
 |---|---|---|---|
-| `bafyrei…` — a bare object id (a CID, lowercase base32; older spaces also hold 24-hex bson ids) | every reference slot: object/file property values, `items`, block `object_id`s, filter values, sort `custom_order`, `object_orders`, icon/cover `file`, index `entrypoint`/`homepage`/widget `target` | the document whose envelope `id` is that string | the object exists in its space and did not travel, or the space deleted it — **the bundle cannot tell you which**, and neither can a reader. Measured: 1,265 of 10,053 reference occurrences in a deliberately narrow census (property values, `items`, block targets, icon/cover) name no document here, over 723 distinct ids. For the ids `index.json` itself names, the export says so: `unresolved.targets` (§2c) |
+| `bafyrei…` — a bare object id (a CID, lowercase base32; older spaces also hold 24-hex bson ids) | every reference slot: object/file property values, `collection_items`, block `object_id`s, filter values, sort `custom_order`, `object_orders`, icon/cover `file`, index `entrypoint`/`homepage`/widget `target` | the document whose envelope `id` is that string | the object exists in its space and did not travel, or the space deleted it — **the bundle cannot tell you which**, and neither can a reader. Measured: 1,265 of 10,053 reference occurrences in a deliberately narrow census (property values, `collection_items`, block targets, icon/cover) name no document here, over 723 distinct ids. For the ids `index.json` itself names, the export says so: `unresolved.targets` (§2c) |
 | `type-<internal_key>` — a type, by its stored key (§9 *Derived ids*) | a type document's own `id`; `template_for`; every `object_types`; `query_source.types` (§6.2); the `Template's Type` and `Default type id` values; a view's `default_type_id`; a filter `value`; a link or dataview block's `object_id`; a widget `target` | the document whose `id` is that string. The key is the text after the prefix, so the reference says WHICH type without any lookup at all | a **bundled** key (`type-page`) needs no document — every reader has it in the shipped table, and `bundle.Validate` exempts it. A minted key (`type-68c2…`) that finds no document is a real dangling reference. Measured over the audited space (3,286 documents), which is the population every figure in this row counts: 354 occurrences across nine slots; 92 typed documents (29 distinct keys) name a `type-<key>` no document here carries |
 | `participant-<identity>` — a space member, by account identity (§9 *The participant fold*) | a participant document's own `id`, the two attribution properties, and any slot whose VALUE passes the identity's checksum — the classifier is the value's shape, never the property's name | the participant document with that id. An importer rebuilds the store's composite `_participant_<spaceId>_<identity>` against its own `Options.SpaceId` | a reader that sets no `SpaceId` stores the folded id, which addresses nobody; it is told so once per document (§13). Measured: 6,569 occurrences |
 | `_missing_object` — the space's own sentinel for a reference it could not serve | singular slots only: a block `object_id`, a `<mention>` target. A list slot drops the entry instead of writing the sentinel | it does not resolve — **it is the answer.** The link or mention existed and its target does not | already nothing: which object it was is gone. Measured: 12 |
@@ -4966,7 +5093,7 @@ no caption, no display hint, no second half after a separator:
   nothing, exactly like any other id a bundle does not carry. Nothing splits
   it, on either side of the codec, and it survives a round trip byte for
   byte.
-- **The slots**: object/file-format property values, `items`, every block
+- **The slots**: object/file-format property values, `collection_items`, every block
   `object_id` (link, file, bookmark, dataview), object-valued filter
   `value`s and sort `custom_order` entries, `object_orders[].object_ids`,
   and the two attribution properties. The rule is the same in all of them,
@@ -4997,7 +5124,7 @@ each rules out a weaker fix:
   through the READ shape — every resolver wired, which is what a read
   surface does — puts a caption on **105,600** references across 22 distinct
   slots: block `object_id`s (19,504), `Created in context` (9,767), the four
-  recommended-property lists (7,431 + 5,368 + 5,239 + 2,420), `items`
+  recommended-property lists (7,431 + 5,368 + 5,239 + 2,420), `collection_items`
   (3,202), `Picture` (1,958), filter values (736), `object_orders` (295),
   a table cell's target (8). A reader that had only ever met bare ids breaks
   the first day one of those is emitted. Removing the grammar is the only
@@ -5055,7 +5182,7 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   folds under the classifier the participant fold always used (below).
 - **Every reference slot folds, and only under a resolver.** A type
   reference in an id-valued slot — a filter `value`, `Template's
-  Type`, a view's `default_type_id`, a link block, a mention, `items`, the
+  Type`, a view's `default_type_id`, a link block, a mention, `collection_items`, the
   index's widget targets — holds a space-local CID, so folding it needs the
   store to say which key that id names (`TypeResolver.TypeKeyById`, §2d,
   §13). **No resolver, no fold, in either direction** for those slots: a
@@ -5072,11 +5199,16 @@ type-<internal_key>             type-task   type-6a32d4856761631534b22f85
   the document id through the resolver instead produced exactly that on a
   159-space corpus — 15 of 1,808 type documents kept their CID because no
   resolver could map them, and two templates and 14 objects named those
-  types by a `type-<key>` no document carried. The residue the resolver
-  gate still owns is one-directional and harmless by comparison: an
-  id-valued reference a resolver-less run leaves as a CID names a document
-  the bundle addresses differently, so it dangles — but it dangled before
-  the fold existed too, and it never contradicts a document that folded.
+  types by a `type-<key>` no document carried.
+  **Export MUST also verify that references to the stored id fold to this
+  same envelope id.** A missing or conflicting `TypeResolver.TypeKeyById`
+  mapping is an export error; otherwise a previously valid link would keep
+  the CID while its target changed address. Collect mappings from every
+  type snapshot being exported, including types absent from the live index,
+  and use the same resolver for all documents and the index. `Marshal`,
+  `bundle.BuildPlan`, and `Composer.ObserveWritten` enforce the agreement
+  through `ValidateTypeExportMapping` (§13). An already-derived id, or an
+  id whose fold is unchanged, needs no additional mapping.
   `NoDerivedTypeIds` declines this fold along with every reference's, which
   is the one way the document id and the references naming it move together
   rather than apart (below).
@@ -5454,7 +5586,7 @@ read as a member, it is reserved as one: no document but a participant's
 may carry a bare identity as its own `id` (*Derived ids* below).
 
 Every slot folds, not only the ones a property census found participants
-in: object/file-format property values, `items`, block `object_id`s,
+in: object/file-format property values, `collection_items`, block `object_id`s,
 filter values and sort orders, `object_orders`, the two attribution
 properties, the icon and cover `file` (§2b), a callout's icon, a view's
 `default_template_id`/`default_type_id`, mention and object-link targets
@@ -5498,7 +5630,7 @@ no fold at all.
   re-homes deliberately and correctly, because its folded references
   rebuild against the READER's SpaceId.)
 - Measured (37,429 production objects): 3,446 same-space composite
-  occurrences across properties, `items`, block `object_id`s, filter
+  occurrences across properties, `collection_items`, block `object_id`s, filter
   values, object orders and the participants' own envelope ids — all fold,
   none remain. The corpus held zero cross-space composites.
 
@@ -5525,7 +5657,7 @@ it re-exports.
   absence by being shorter. A stored sentinel drops too. The emptied list
   stays `[]`, never omitted: the key's presence is meaningful (§3), and for
   `object_types` an empty list is a cleared target set (§2d).
-- Everything else is deliberately out of scope: collection `items`, filter
+- Everything else is deliberately out of scope: collection `collection_items`, filter
   values, custom orders, `object_orders`, a type's `default_template_id`,
   and object-link marks keep their ids verbatim. Each of those can be
   extended later on this section's precedent; none was in the evidence.
@@ -5665,7 +5797,7 @@ the key admission rule, the two charsets, and the joined key's length bound.
 **Object references are never compacted.** Every object id — mention and
 object-link targets in `text`, `object_id` props, a callout's `icon.file`,
 the envelope `icon.file` and `cover.file` (§2b), `objects`/`files` property
-values, `items`,
+values, `collection_items`,
 view `default_template_id`/`default_type_id`, `object_orders[].object_ids`,
 and filter `value`/sort `custom_order` entries of `objects`/`files`
 properties — is written in full, on every shape, with no legend. The derived
@@ -5698,7 +5830,7 @@ three at once — which is why the half sold as "lossless, because the legend
 inverts it" is gone and the half documented as *lossy* stayed.
 
 With `CompactBlockLabels`,
-block/row/column/view ids are relabeled to their last 5 characters. Only
+block/row/column ids are relabeled to their last 5 characters. Only
 machine-minted opaque ids relabel: `dataview` is a documented constant,
 `title`/`header` are structural, and an imported document's human-readable
 ids carry meaning that relabeling would destroy for no benefit. Labels are
@@ -5709,6 +5841,14 @@ another id in the document — relabeled or not — or that yields no valid
 label stays uncompacted (implementation decision — fixed-width suffixes with
 a full-id fallback, chosen over shortest-unique lengthening for simplicity; 5
 characters over CID/hex alphabets make collisions birthday-rare).
+
+**View ids remain full under both `CompactBlockLabels` and `OmitIds`.**
+They are addressed outside their document by widget `view_id` selectors,
+including those lifted into `index.widgets` (§2c). A one-document exporter
+cannot know which views another document references, so it preserves every
+supplied view id. Missing view ids remain valid input and are generated on
+import. Preserved view ids still participate in the collision census, so
+shortening a block id cannot make it alias a view or share its suffix.
 
 The collision rule counts BOTH id populations, and that is not an accident of
 implementation: the labeller's own census sees only the doc-local ids it may
@@ -5750,8 +5890,8 @@ a second statement of "what export emits" would be a second thing to keep in
 step with the first, and the census is correct only while the two agree
 exactly. Measured on a 1,630-block document: 4.2 ms → 6.7 ms, +57%. It is
 paid only where labels are minted — that is, on the API's default read shape,
-and never on the export/backup shape or under `OmitIds`, which writes no
-document-local id for a plan to label (the envelope object id still remains).
+and never on the export/backup shape or under `OmitIds`, which retains only
+envelope and view ids, neither of which a plan may relabel.
 
 The two shapes the API serves are the two this leaves: API v2 default reads
 use block labels (the server resolves them by unique suffix) and keep object
@@ -5928,9 +6068,12 @@ is recorded here rather than discovered later.
 
 ## 11. Round-trip guarantees
 
-Let `N(S)` be state normalization (given export and import wired with
-equivalent resolvers, §3). One normalization per bullet, grouped under the
-section that owns it:
+Let `N(S)` be state normalization for a snapshot that exports successfully
+under the selected options, with export and import wired with equivalent
+resolvers (§3). Export may refuse an unrepresentable state; in particular,
+a link whose canonical spelling exceeds the §8.2 bound produces an error
+instead of becoming a dropped mark in `N(S)`. One normalization per bullet,
+grouped under the section that owns it:
 
 - Deprecated snapshot and block fields cleared (§2, §5).
 - A type object gains an empty list for every recommended role nothing
@@ -6004,9 +6147,15 @@ section that owns it:
   because `query_source.types` is a type-KEY slot and a key the space does
   not serve stays a key for the wiring to reconcile.
 - Restrictions rebuilt (§4).
-- Empty strings/arrays/objects and default scalars dropped from block
-  attributes and envelope fields — but never from property values, whose
-  presence is meaningful (§3, §4).
+- A dataview's explicit self-target on a Query, Collection, or type document
+  becomes an implicit host source (§6.2): `object_id` is omitted,
+  `is_collection` follows the source kind, and overridden legacy `source`
+  is cleared. The selected records are unchanged. An id-less primary
+  dataview regains the fixed `dataview` block id (§7).
+- Empty strings/arrays/objects and default scalars dropped only where
+  field-specific rules equate them with absence (§4). Property values,
+  filter operands, empty filter groups, and the other meaningful empties
+  listed in §4 retain their presence.
 - Deprecated `Header4` re-styled to `heading_3` (§5).
 - `checked` outside checkboxes dropped (§5).
 - Marks on literal blocks dropped (§5).
@@ -6314,7 +6463,8 @@ implementation from anyone.
 1. `Import(Export(S)) ≡ N(S)` — state-level equality on the snapshot after
    normalization.
 2. `Export ∘ Import` is **idempotent and byte-stable**: for any valid
-   document `J`, `Export(Import(J))` is the canonical form of `J`, and
+   document `J` whose imported state is exportable under the selected
+   options, `Export(Import(J))` is the canonical form of `J`, and
    re-importing/re-exporting it is byte-identical. (Byte equality with the
    *original* `J` holds only when `J` is already canonical — import mints
    missing document-local ids, merges marks, maps aliases like `heading_4`/`equation`,
@@ -6405,7 +6555,7 @@ fail neither test belong in authoring guidance and in review.
   with empty cells counted, a cell block that is a transparent container, and
   a SECOND root in a cell's array form — an element after the first at indent
   0, which is one root too many for a position that holds one),
-  envelope combinations (`items`/`template_for`/`kind`, §2),
+  envelope combinations (`collection_items`/`template_for`/`kind`, §2),
   **property-key admission on the resolved stored key** (§3 — each
   `properties` spelling resolves through the §3 chain before the deny rule,
   the enum-name check and the format-shape warning run; validation
@@ -6444,7 +6594,7 @@ fail neither test belong in authoring guidance and in review.
   NOT checked here is which list an ordinary entry belongs in: a bare stored
   key and a store id look alike to bytes, which is why `types` states the
   derived id and only the prefixed direction is catchable — and neither
-  surface can know whether the document is a set, exactly as for `items`),
+  surface can resolve the document’s query or collection type from bytes alone; coexistence of the source members is allowed (§6.2)),
   and
   **inline-markup parsing** (§8) — grammar errors report the block's JSON
   path and the offending snippet. The indent bound [0, 32] lives in the
@@ -6923,7 +7073,8 @@ const (
 type Options struct {
     ResolveFormat     FormatResolver   // optional; nil = bundle-only resolution (§3)
     ResolveOptions    OptionResolver   // optional; nil = option values pass through as ids
-    ResolveProperties PropertyResolver // optional; nil = type documents keep raw recommended-relation ids (§2a)
+    ResolveProperties PropertyResolver // nil keeps raw recommended-relation ids (§2a); exporting a type whose
+                                      // id changes requires its TypeResolver mapping to agree with the envelope (§9)
     ResolveObjectNames ObjectNameResolver // optional; export only. Its ObjectName method is never called: a
                                        // reference is an id (§9). It is the carrier for ObjectExistenceResolver
                                        // and ObjectDeletionResolver (type-asserted), which arm the
@@ -6949,9 +7100,9 @@ type Options struct {
                                       // non-widening bundled vocabulary) has exact Validate/Unmarshal agreement;
                                       // a wider/store-backed vocabulary may add path-addressed semantic refusals.
     Legend            Legend           // fragment entry points only: the enclosing document's legends (§3)
-    OmitIds            bool            // export only: drop doc-local block/table/view/query ids and option_ids;
-                                      // preserve the envelope object id and full object references (§9, §9a)
-    CompactBlockLabels bool            // export only: relabel doc-local block/row/column/view ids (§9a; lossy, legend-less)
+    OmitIds            bool            // export only: drop block/table/sort/filter ids and option_ids;
+                                      // preserve envelope and view ids and full object references (§9, §9a)
+    CompactBlockLabels bool            // export only: relabel block/row/column ids; preserve view ids (§9a)
     GenerateId        func() string    // import only: id generator for missing ids;
                                       // nil = random 24-hex (editor-shaped). The wiring
                                       // passes the editor's generator.
@@ -7013,9 +7164,13 @@ func UnmarshalSorts(raw json.RawMessage, opts Options) ([]*model.BlockContentDat
 // the document path refuses.
 func BuildRecommendedLists(props []TypeProperty, opts Options) ([]RecommendedList, error)
 
-// ParseInlineText and RenderInlineText are the §8 inline codec, exported:
-// the single-field pair Marshal uses for every text-bearing block.
+// The checked §8 inline codec is the single-field pair Marshal and
+// MarshalBlockSubtree use for text-bearing blocks.
 func ParseInlineText(md string) (string, []*model.BlockContentTextMark, error)
+func RenderInlineTextChecked(text string, marks []*model.BlockContentTextMark) (string, error)
+
+// Compatibility helper: drops links whose written destinations exceed the
+// format bound. Use RenderInlineTextChecked to report that loss as an error.
 func RenderInlineText(text string, marks []*model.BlockContentTextMark) string
 
 // ParseMarkdownBlocks slices block-level markdown into a §4 flat run
@@ -7045,7 +7200,7 @@ leaves the field zero.
 
 **`OmitIds` and the compaction flags are refused on a fragment, not
 ignored.** This surface exists to address a live document, and both take the
-addresses away: `OmitIds` drops every block id, the view id and the filter
+addresses away: `OmitIds` drops every block id and the filter
 id, so the run says what to write but not where; block-label compaction
 rewrites doc-local ids to short suffixes that are local to the emitted run
 and are not the object's ids at all. Either produced a fragment that reads
@@ -7108,6 +7263,17 @@ and `FoldDocumentId` reads the flag off the same `Options` the marshaller
 does, so a caller naming a file after a document cannot disagree with the
 document inside it. The bundle path plan never reaches that branch:
 `BuildPlan` refuses the mode before it fixes a path (§9, §13).
+
+```go
+func ValidateTypeExportMapping(opts Options, sbType model.SmartBlockType, id, internalKey string) error
+```
+
+checks the other half of that agreement: a type document's stored id must
+export to the same id in references as on its envelope. `Marshal`,
+`bundle.BuildPlan`, and `Composer.ObserveWritten` run this check and refuse
+missing or conflicting type mappings. `FoldDocumentId` remains the pure
+identity calculation; callers must not treat its result as evidence that
+their resolver can translate references to that document.
 
 The dictionary's Go surface is `[]PropertyDefinition` — the same struct the
 resolvers speak and both doors of the §2a array build — rather than a
@@ -7910,7 +8076,7 @@ being true.
   here rather than paid for with a legend every document would carry for
   it. A document carrying the map is refused with the repair named (§10).
 
-- **#29 `query_source`** — settled: **a set states its query in a root
+- **#29 `query_source`** — settled: **a query states its source in a root
   member with two typed lists, and the stored `setOf` key is refused in
   `properties` on every kind** (§2, §6.2, §9, §11). The stored slot holds
   type object ids AND property object ids — the platform's own v2 refusal

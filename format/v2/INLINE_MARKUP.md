@@ -167,9 +167,14 @@ Count the spelling, not the URL it decodes to: each escape backslash is its
 own code point (`\&` is two), and an astral character counts once rather than
 as two UTF-16 units. The 2,048 starts at the destination's first character, so
 in the angle-wrapped form the `<` is inside the count and only 2,047 code
-points fit between the delimiters. The exporter currently bounds the *decoded*
-destination at 2,048 UTF-16 units instead, so it can emit a spelling this
-parser refuses — SPEC §8.2 records the mismatch and the two cases it bites.
+points fit between the delimiters. Document and subtree export check the
+final escaped spelling against this same bound. An oversized destination
+produces an error identifying its block and mark, with no partial output.
+The checked single-field API, `RenderInlineTextChecked`, follows the same
+rule; the string-only `RenderInlineText` compatibility helper drops the
+oversized link and keeps its caption. SPEC §8.2 states the export rule and
+the distinction between accepting a spelling and being able to write its
+canonical form within the bound.
 
 ---
 

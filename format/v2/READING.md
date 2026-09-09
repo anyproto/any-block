@@ -383,7 +383,7 @@ way, the same advice applies with nothing to index against: read
 spelling as a name to resolve, not as an address.
 
 **Say which slots a census counted, always.** That 654 is one scope, not the
-export's total. Widen it to `items`, block `object_id`s and the icon/cover
+export's total. Widen it to `collection_items`, block `object_id`s and the icon/cover
 `file` — the census SPEC §9 publishes — and the same export reads **1,265 of
 10,053 occurrences, over 723 distinct ids**. The two disagree about nothing:
 the extra 611 are 5 collection members, 108 block targets and **498 icons and
@@ -471,29 +471,47 @@ indent of 5.
   can be rendered from a bundle at all.
 
   A **collection**'s records are ids a document in this bundle lists in its
-  top-level `items` member, in that order, so a reader renders a collection
-  from the bundle alone. A **set**'s records are whatever its query matches
-  when it runs against a live space, so a reader cannot render a set from the
-  bundle at all: ship the definition, say the rows are not here, do not invent
+  top-level `collection_items` member, in that order, so a reader renders a collection
+  from the bundle alone. A **query**'s results are whatever its query matches
+  when it runs against a live space, so a reader cannot render query results from the
+  bundle alone: ship the definition, say the rows are not here, do not invent
   them. SPEC §6.2 has all seven shapes and which member says which.
 
-  The set's definition is its own top-level member, `query_source`, and it
+  The query's definition is its own top-level member, `query_source`, and it
   is worth reading even though you cannot run it, because it says what the
-  set is FOR. Two lists: `types` names types, each as the derived id
+  query is FOR. Two lists: `types` names types, each as the derived id
   `type-<internal_key>` — the id the type's own document in this bundle
   carries, so you look it up by string equality — and `properties` names
   properties by their bare stored key, which you resolve against the bundled
   table first and this bundle's `properties.json` second. A type target
   means "every object of this type"; a property target means "every object
   that CARRIES this property", whatever its value; several targets combine
-  with OR. An empty `query_source` is a set that names no source, which is
+  with OR. An empty `query_source` declares a query with no source targets, which is
   not the same as no `query_source` at all.
+
+  A document may carry both `query_source` and `collection_items`. Preserve
+  both, then select the source for each dataview: a non-empty `object_id`
+  uses its target's resolved type; with it absent or empty,
+  `is_collection: true` reads membership, and the remaining cases follow
+  SPEC §6.2. An empty selected
+  source never falls back to the other field. If a target's source kind
+  cannot be resolved, report that limitation instead of guessing from which
+  field is populated.
+
+  When authoring, set `object_id` only for an inline view on a non-Query,
+  non-Collection host, pointing to a Query or Collection. Their own views
+  omit it, as does a type document's own listing. Canonical export also omits
+  those redundant self-targets, preserving the selected source. Existing
+  exports can carry type targets and explicit self-references; the full-format
+  rules in SPEC §6.2 explain how to read those stored forms. Import recognizes
+  a primary view's explicit self-target when restoring its fixed `dataview`
+  block id, which lets widgets find the configured views (§7).
 
   Getting this backwards is expensive in exactly the wrong direction. **90 of
   Community's 205 dataviews are collection-sourced, and 87 of those carry no
   filter in any view** — so "run the query" runs an unfiltered one and renders
   a 3,286-row table of the entire space, where the right answer was sitting in
-  the host document: its 89 collection hosts list **60 ids** in `items` between
+  the host document: its 89 collection hosts list **60 ids** in `collection_items` between
   them, and 80 of the 89 list none at all, which makes the correct rendering of
   most of them an empty table.
 

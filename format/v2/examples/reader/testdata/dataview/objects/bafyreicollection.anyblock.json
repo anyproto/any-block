@@ -5,7 +5,7 @@
   "type": "Collection",
   "type_internal_key": "collection",
   "properties": { "Name": "Walks, kept by hand" },
-  "items": ["bafyreimemberone", "bafyreimembertwo", "bafyreighost"],
+  "collection_items": ["bafyreimemberone", "bafyreimembertwo", "bafyreighost"],
   "blocks": [
     {
       "id": "dataview",

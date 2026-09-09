@@ -11,6 +11,7 @@ import (
 
 	"github.com/gogo/protobuf/types"
 
+	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
@@ -27,11 +28,12 @@ func (e *exporter) dvFormat(dv *model.BlockContentDataview, key string) (model.R
 
 func (e *exporter) dataviewToJSON(m *omap, dv *model.BlockContentDataview) error {
 	m.set("type", "dataview")
+	target, isCollection, source := e.dataviewSourceForExport(dv)
 	// a singular reference slot: a target the space does not hold is
 	// written as the sentinel, never as if it existed (§9)
-	m.setNonEmpty("object_id", e.singularObjectRef("/blocks", "dataview object_id", dv.TargetObjectId))
-	m.setNonEmpty("is_collection", dv.IsCollection)
-	m.setNonEmpty("source", stringsToAny(dv.Source))
+	m.setNonEmpty("object_id", e.singularObjectRef("/blocks", "dataview object_id", target))
+	m.setNonEmpty("is_collection", isCollection)
+	m.setNonEmpty("source", stringsToAny(source))
 
 	var props []any
 	for _, rl := range dv.RelationLinks {
@@ -67,12 +69,42 @@ func (e *exporter) dataviewToJSON(m *omap, dv *model.BlockContentDataview) error
 	return nil
 }
 
+// dataviewSourceForExport replaces an explicit self-target with the host
+// source (§6.2). The target's kind previously overrode is_collection and
+// source, so carry that choice into the implicit form and discard only the
+// legacy source that the target made inactive. Unknown host kinds retain
+// their target: source payload presence alone cannot establish its meaning.
+func (e *exporter) dataviewSourceForExport(dv *model.BlockContentDataview) (target string, isCollection bool, source []string) {
+	target, isCollection, source = dv.TargetObjectId, dv.IsCollection, dv.Source
+	hostID := e.objectId()
+	if target == "" || hostID == "" || e.fragmentRoot {
+		return
+	}
+	if target != hostID && e.opts.foldRef(target) != FoldDocumentId(e.opts, e.sbType, hostID, e.snapshot.Key) {
+		return
+	}
+	if isTypeSmartBlock(e.sbType) {
+		return "", false, nil
+	}
+	keys := e.modelledTypeKeys(false)
+	if len(keys) > 0 {
+		switch keys[0] {
+		case string(vocabulary.TypeKeyCollection):
+			return "", true, nil
+		case string(vocabulary.TypeKeySet):
+			return "", false, nil
+		}
+	}
+	return
+}
+
 func (e *exporter) viewToJSON(v *model.BlockContentDataviewView, dv *model.BlockContentDataview) (*omap, error) {
 	vm := &omap{}
 	e.recordEmitted(v.Id)
-	if !e.opts.OmitIds {
-		vm.setNonEmpty("id", e.localId(v.Id))
-	}
+	// A widget in another document or index.json can select this view by id.
+	// Neither compaction nor OmitIds may disconnect that selector. Keep views
+	// in the local-id census as reservations against block-label collisions.
+	vm.setNonEmpty("id", v.Id)
 	if v.Type != model.BlockContentDataviewView_Table {
 		// an out-of-range view type is omitted rather than emitted as an
 		// empty string, which the schema would reject; it therefore reads
@@ -224,13 +256,15 @@ func (e *exporter) sortToJSON(s *model.BlockContentDataviewSort, dv *model.Block
 
 func (e *exporter) filterToJSON(f *model.BlockContentDataviewFilter, dv *model.BlockContentDataview) *omap {
 	fm := &omap{}
-	if len(f.NestedFilters) > 0 {
-		// a proto node with nested filters maps to a group; leaf fields drop
+	if f.Operator == model.BlockContentDataviewFilter_And ||
+		f.Operator == model.BlockContentDataviewFilter_Or || len(f.NestedFilters) > 0 {
+		// Explicit groups retain their operator and position even when empty.
+		// Legacy nodes with children still map to groups; leaf fields drop.
 		op := "and"
 		if f.Operator == model.BlockContentDataviewFilter_Or {
 			op = "or"
 		}
-		var nested []any
+		nested := make([]any, 0, len(f.NestedFilters))
 		for _, nf := range f.NestedFilters {
 			if nf == nil {
 				continue
@@ -239,17 +273,9 @@ func (e *exporter) filterToJSON(f *model.BlockContentDataviewFilter, dv *model.B
 				nested = append(nested, nm)
 			}
 		}
-		if len(nested) == 0 {
-			// A group left with no live children is dropped — and the drop
-			// is NOT a no-op, whatever it used to say here: the query engine
-			// reads an empty FiltersAnd and an empty FiltersOr alike as TRUE,
-			// so under an enclosing OR this deletes a match-all branch and
-			// narrows the view to its siblings (SPEC §6.2). Stated rather
-			// than repaired: the fix has to consult the enclosing operator,
-			// and refusing the shape would invalidate documents 2.0 accepts.
-			return nil
-		}
 		fm.set("operator", op)
+		// An empty group is meaningful, including when nameless leaves were
+		// removed above. Keep [] rather than null or an omitted member.
 		fm.set("filters", nested)
 		return fm
 	}

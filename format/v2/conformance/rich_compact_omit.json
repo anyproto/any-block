@@ -136,6 +136,7 @@
       ],
       "views": [
         {
+          "id": "v1",
           "type": "kanban",
           "name": "By status",
           "group_by": "customStatus",

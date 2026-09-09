@@ -107,6 +107,9 @@ func propertySettingsLiftedKeyRepair(key string) string {
 // the keys back into this space's ids — the same policy applyTypeProperties
 // applies to property definitions via PropertyId — and a key the reader's
 // space does not serve stays a key, for the wiring to reconcile (§2a).
+// Exporting a type document whose id changes additionally requires an
+// id-to-key mapping consistent with its own Key (ValidateTypeExportMapping,
+// §9), so id-valued references reach the same document.
 type TypeResolver interface {
 	TypeKeyById(id string) (string, bool)
 	TypeIdByKey(key string) (string, bool)

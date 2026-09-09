@@ -244,8 +244,8 @@ func TestComposerKeepsVocabularyOfAPropertyReferencedOnlyByAType(t *testing.T) {
 	}
 	t.Run("referenced by a type's property_definitions", func(t *testing.T) {
 		c := build(t)
-		typeSnap := &model.SmartBlockSnapshotBase{Key: "ritual", Details: detFields(map[string]*types.Value{"id": strVal("bafyritual")})}
-		doc := []byte(`{"formatVersion":"2.0","kind":"object_type","id":"bafyritual","internal_key":"ritual",
+		typeSnap := &model.SmartBlockSnapshotBase{Key: "ritual", Details: detFields(map[string]*types.Value{"id": strVal("type-ritual")})}
+		doc := []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-ritual","internal_key":"ritual",
 			"type_settings":{"property_definitions":[{"internal_key":"` + key + `","name":"Chat category","format":"select"}]}}`)
 		used, err := UsedPropertyKeysFromBytes(doc)
 		require.NoError(t, err)

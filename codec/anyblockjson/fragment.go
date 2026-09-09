@@ -204,7 +204,7 @@ func UnmarshalPropertyValue(key string, v any, opts Options) *types.Value {
 //
 // **OmitIds and the compaction flags are refused, not ignored.** This surface
 // exists for wiring that edits a live document op-by-op, and both destroy the
-// addresses that wiring runs on: OmitIds drops every block id, the view id
+// addresses that wiring runs on: OmitIds drops every block id
 // and the filter id, so the run says what to write but not where; the block
 // relabeling rewrites doc-local ids to short suffixes that are meaningful
 // only inside the emitted run and are not the object's ids at all. Silently
@@ -278,9 +278,18 @@ func ParseInlineText(md string) (string, []*model.BlockContentTextMark, error) {
 	return parseInline(md)
 }
 
-// RenderInlineText renders plain text and marks back into §8 inline
-// Markdown — the single-field export codec, the exact inverse used by
-// Marshal for every text-bearing block.
+// RenderInlineText renders plain text and marks into §8 inline Markdown.
+// This compatibility helper drops links whose escaped destinations exceed
+// the format bound. Use RenderInlineTextChecked to report that loss as an
+// error, as Marshal and MarshalBlockSubtree do.
 func RenderInlineText(text string, marks []*model.BlockContentTextMark) string {
 	return renderInline(text, marks)
+}
+
+// RenderInlineTextChecked renders plain text and marks into §8 inline
+// Markdown, refusing links whose escaped destinations exceed the format's
+// resource bound. Errors identify the mark; no partial text is returned.
+// Other mark normalization follows §8.3, including dropping invalid ranges.
+func RenderInlineTextChecked(text string, marks []*model.BlockContentTextMark) (string, error) {
+	return renderInlineChecked(text, marks)
 }

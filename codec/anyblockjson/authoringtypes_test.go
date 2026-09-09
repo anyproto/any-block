@@ -225,7 +225,7 @@ func TestAuthoringVocabularyPreservesRawNonNFCStoredTypeKey(t *testing.T) {
 	for name, input := range map[string][]byte{
 		"type":                  []byte(`{"formatVersion":"2.0","id":"one","type":"` + storedKey + `"}`),
 		"template_for":          []byte(`{"formatVersion":"2.0","kind":"template","id":"one","type":"template","template_for":"` + storedKey + `"}`),
-		"type object_types":     []byte(`{"formatVersion":"2.0","kind":"object_type","id":"host","internal_key":"host","properties":{"Name":"Host"},"type_settings":{"layout":"basic","property_definitions":[{"name":"Related","format":"objects","object_types":["` + storedKey + `"]}]}}`),
+		"type object_types":     []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-host","internal_key":"host","properties":{"Name":"Host"},"type_settings":{"layout":"basic","property_definitions":[{"name":"Related","format":"objects","object_types":["` + storedKey + `"]}]}}`),
 		"property object_types": []byte(`{"formatVersion":"2.0","kind":"property","id":"related","internal_key":"related","property_settings":{"format":"objects","object_types":["` + storedKey + `"]}}`),
 	} {
 		t.Run(name, func(t *testing.T) {

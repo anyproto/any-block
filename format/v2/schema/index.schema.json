@@ -33,7 +33,7 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[^_]",
-      "description": "The object opened once, immediately after the space is created from this bundle — the first thing a user ever sees. Must be an object id from this bundle, so it may not begin with `_`: that prefix is the platform's own address space (built-in screens, listings and bundled objects), and no reserved screen can be the thing a space opens *with*. Readers that cannot represent a distinct one-time entrypoint may fall back to the first object widget; portable authored bundles should therefore list the entrypoint as their first widget as well."
+      "description": "The declared entry object's bundle-local id. Used as the space homepage when `homepage` is absent, on the first entry through the bundle install path and later entries (SPEC §2c). Declaring it does not insert or reorder sidebar widgets. For compatibility with legacy built-in archives that open the first profile widget once, authors may also list this object first. If absent, the first widget naming an object supplies the compatibility fallback; reserved listings are skipped."
     },
     "homepage": {
       "type": "string",
@@ -49,11 +49,11 @@
           "pattern": "^[^_]"
         }
       ],
-      "description": "What opens whenever the user enters the space afterwards. An object id from this bundle, which may not begin with `_`; defaults to `entrypoint`. The reserved `_widgets` (sidebar dashboard) and `_graph` are accepted but are rarely right for a use case — on desktop the widgets are always in the sidebar anyway, so `_widgets` wastes the main pane; it only reads well on mobile, which shows one screen at a time. Name a page."
+      "description": "What opens on entering the space, including the first entry through the bundle install path (SPEC §2c). An explicit homepage takes precedence over entrypoint. If absent, use entrypoint, then the first widget naming an object, skipping reserved listings; if none exists, the installer supplies its default dashboard. An unresolved explicit id is an error, not a reason to try a fallback. May name a bundle object or the reserved _widgets or _graph screens; explicit reserved values also take precedence."
     },
     "widgets": {
       "type": "array",
-      "description": "Sidebar widgets, in the order they should appear. Independent of `entrypoint` — declaring one does not require a widget for it. Only give a type a widget when you want fast access to its objects (`layout: \"view\"`); the sidebar already lists every type automatically, so a link or list widget on a type just duplicates that.",
+      "description": "Sidebar widgets in their declared order. Navigation fields do not insert or reorder them. When homepage and entrypoint are both absent, the first widget naming an object supplies the homepage fallback (SPEC §2c); reserved listings are skipped. A type needs a widget only for fast access to its objects (layout \"view\").",
       "items": {
         "$ref": "#/$defs/widget"
       }
@@ -164,7 +164,7 @@
         "layout": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/widgetLayout",
           "default": "link",
-          "description": "How the widget renders — the widget BLOCK's own §5 vocabulary, one $ref rather than a copy. `link` is a single row; `tree` expands children; `list` and `compact_list` show contents; `view` renders a type's or set's own view."
+          "description": "How the widget renders — the widget BLOCK's own §5 vocabulary, one $ref rather than a copy. `link` is a single row; `tree` expands children; `list` and `compact_list` show contents; `view` renders a type's or query's own view."
         },
         "limit": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/widgetListingLimit",

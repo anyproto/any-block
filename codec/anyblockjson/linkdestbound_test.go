@@ -12,21 +12,8 @@ import (
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
-// linkdestbound_test.go pins WHAT the 2048 link-destination bound counts, and
-// pins SPEC §8.2 and INLINE_MARKUP.md to it.
-//
-// The prose said "2048 UTF-16 code units" without saying of what — the escaped
-// spelling, the decoded destination, or the source code points — and the two
-// surfaces answer differently. The parser bounds the destination AS SPELLED,
-// in code points; export bounds the DECODED destination, in UTF-16 units. An
-// implementer reading one number built whichever half they guessed.
-//
-// So the reading rule is the one the format states (a reader can apply it to
-// the bytes in front of it, with nothing decoded first) and the export
-// measurement is recorded as the defect it is. The cases below are the two
-// where the answers differ; they assert TODAY'S behaviour, so repairing the
-// exporter — a later, non-freeze-blocking code fix — reddens this test and
-// §8.2's third paragraph at the same time, which is the point.
+// The §8 bound counts the written destination in Unicode code points.
+// Import keeps oversized candidates literal; checked export refuses them.
 
 func linkMark(dest string) []*model.BlockContentTextMark {
 	return []*model.BlockContentTextMark{{
@@ -88,53 +75,41 @@ func TestLinkDestinationBoundCountsTheSpelling(t *testing.T) {
 	}
 }
 
-// TestLinkDestinationBoundIsCountedDifferentlyOnEachSurface is the export half:
-// the mismatch §8.2 now records, asserted so that the record stays true.
-func TestLinkDestinationBoundIsCountedDifferentlyOnEachSurface(t *testing.T) {
-	t.Run("export emits a spelling its own parser refuses", func(t *testing.T) {
-		// given: 2048 UTF-16 units decoded — inside EXPORT's bound — whose
-		// one `&` escapes to a 2049-code-point spelling, outside the PARSER's
+func TestRenderInlineTextChecked(t *testing.T) {
+	t.Run("refuse a link whose escaping exceeds the parser bound", func(t *testing.T) {
 		dest := "https://e.co/" + strings.Repeat("a", 2034) + "&"
 		require.Equal(t, 2048, utf16Units(dest))
 		require.Equal(t, 2048, len([]rune(dest)))
-
-		// when
-		markup := RenderInlineText("click", linkMark(dest))
-
-		// then: the mark survived export
-		require.Contains(t, markup, "[click](")
-		require.Equal(t, 2049, len([]rune(markup))-len("[click]()"),
-			"the escape makes the written spelling one code point too long")
-
-		// and the parser refuses it, swallowing the caption
-		text, marks, err := ParseInlineText(markup)
-		require.NoError(t, err)
-		assert.Empty(t, marks, "export emitted a link its own parser will not read")
-		assert.True(t, strings.HasPrefix(text, "[click](https://e.co/"),
-			"the caption is swallowed into prose")
-		assert.NotEqual(t, markup, text,
-			"and not even the bytes survive: the failed link's escapes resolve")
+		markup, err := RenderInlineTextChecked("click", linkMark(dest))
+		require.Error(t, err)
+		assert.Empty(t, markup, "checked rendering returns no partial text")
+		assert.Contains(t, err.Error(), "mark 0")
+		assert.Contains(t, err.Error(), "2049")
+		assert.Contains(t, err.Error(), "2048")
+		assert.NotContains(t, err.Error(), dest, "diagnostics do not repeat URLs")
+		assert.Equal(t, "click", RenderInlineText("click", linkMark(dest)),
+			"the compatibility helper drops the link while preserving its caption")
 	})
 
-	t.Run("export drops a destination the parser would have read", func(t *testing.T) {
-		// given: 1,032 code points — inside the PARSER's bound — but 2,051
-		// UTF-16 units, outside EXPORT's
+	t.Run("preserve an astral destination that fits the parser", func(t *testing.T) {
 		dest := "https://e.co/" + strings.Repeat("\U0001F600", 1019)
 		require.Equal(t, 1032, len([]rune(dest)))
 		require.Equal(t, 2051, utf16Units(dest))
-
-		// when
-		markup := RenderInlineText("click", linkMark(dest))
-
-		// then: export dropped the mark and kept the caption
-		assert.Equal(t, "click", markup, "over export's UTF-16 bound the mark is dropped")
-
-		// and yet a hand-written document spelling it IS read as a link
-		_, marks, err := ParseInlineText("[click](" + dest + ")")
+		markup, err := RenderInlineTextChecked("click", linkMark(dest))
 		require.NoError(t, err)
-		require.Len(t, marks, 1)
-		assert.Equal(t, model.BlockContentTextMark_Link, marks[0].Type,
-			"the parser counts code points and this one fits")
+		plain, marks, err := ParseInlineText(markup)
+		require.NoError(t, err)
+		assert.Equal(t, "click", plain)
+		assert.Equal(t, linkMark(dest), marks)
+		assert.Equal(t, markup, RenderInlineText("click", linkMark(dest)))
+	})
+
+	t.Run("invalid ranges are still normalizable", func(t *testing.T) {
+		marks := linkMark(strings.Repeat("a", 3000))
+		marks[0].Range.To = 0
+		markup, err := RenderInlineTextChecked("click", marks)
+		require.NoError(t, err)
+		assert.Equal(t, "click", markup)
 	})
 }
 
@@ -152,8 +127,8 @@ func TestDocsStateWhatTheLinkDestinationBoundCounts(t *testing.T) {
 		"§8.2 must say what the number counts")
 	assert.Contains(t, spec, "in the angle-wrapped form that first character is the `<` itself, so a\nwrapped destination gets **2047**",
 		"§8.2 must state the angle form's one-shorter bound")
-	assert.Contains(t, spec, "**Export bounds a different measurement, and the two do not agree.**",
-		"§8.2 must record the mismatch rather than promise byte-stability through it")
+	assert.Contains(t, spec, "**Export checks the same written spelling.**",
+		"§8.2 must state the shared resource bound")
 
 	assert.NotContains(t, inline, "Destinations longer than 2,048\nUTF-16 code units",
 		"the reader guide named the same wrong unit")

@@ -44,6 +44,13 @@ refusal folded participant references get. Without `-space-id` the conversion
 is bundle-local and the derived ids pass through as the bundle-local ids they
 are, which is what an authored bundle's own type documents use.
 
+`to-v2` also refuses a type snapshot whose stored id would change to
+`type-<internal_key>`: without a `TypeResolver`, references would keep the
+old id. The refusal happens before creating or replacing the output file.
+Use the Go API with `Options.ResolveProperties` supplying the matching
+type-id mapping. Types already carrying their derived id can be converted
+without that mapping.
+
 ## Conversion formats
 
 `-encoding` has opposite directions on the two conversion commands. File

@@ -73,12 +73,10 @@ type document struct {
 	Properties map[string]any    `json:"properties"`
 	Legend     map[string]string `json:"property_internal_keys"`
 	Blocks     []block           `json:"blocks"`
-	// Items is a collection's membership: the ids it lists, in order. It is a
-	// top-level member and not a property, and it is the only place a
-	// collection's records are written (§2, §6.2).
-	Items []string `json:"items"`
-	// QuerySource is a set's query: the collection member's opposite number,
-	// and a top-level member for the same reason (§2, §6.2). A POINTER,
+	// CollectionItems is a collection's membership: the ids it lists, in order.
+	// It is a top-level member, the only place its records are written (§2, §6.2).
+	CollectionItems []string `json:"collection_items"`
+	// QuerySource is a query's definition, a top-level member (§2, §6.2). A POINTER,
 	// because the member has three states and only a pointer tells them
 	// apart — absent (this document states no query), present and empty (a
 	// query that names no source), populated.
@@ -620,7 +618,7 @@ const membersListed = 5
 //
 // The distinction worth printing is not which member answered but what the
 // answer costs: a COLLECTION's records are ids a document in this bundle
-// lists, so a reader renders it from the bundle alone; a SET's records are
+// lists, so a reader renders it from the bundle alone; a query's records are
 // whatever its query matches when it runs, so no bundle can answer it and a
 // reader that promises to is lying.
 func (b *bundle) dataviewSource(host *document, blk block) []string {
@@ -634,41 +632,73 @@ func (b *bundle) dataviewSource(host *document, blk block) []string {
 		case target.Kind == "object_type":
 			return []string{fmt.Sprintf("records: every object of type %q (%s in %s) — a live query, and no bundle answers it (§6.2)",
 				b.title(target), target.ID, target.path)}
-		case len(target.Items) > 0:
-			return b.listMembers(fmt.Sprintf("records: the %s %s lists in `items` (%s)", countIDs(len(target.Items)), id, target.path), target.Items)
+		case target.sourceKind() == "collection":
+			if len(target.CollectionItems) == 0 {
+				return []string{fmt.Sprintf("records: %s (%s) lists no `collection_items` — an empty collection (§6.2)", id, target.path)}
+			}
+			return b.listMembers(fmt.Sprintf("records: the %s %s lists in `collection_items` (%s)", countIDs(len(target.CollectionItems)), id, target.path), target.CollectionItems)
+		case target.sourceKind() != "query":
+			return []string{fmt.Sprintf("records: %s (%s) has no query or collection source kind this reader can resolve; do not infer one from `collection_items` or `query_source` (§6.2)", id, target.path)}
 		}
 		if query, stated := b.querySource(target); stated {
-			return []string{fmt.Sprintf("records: every object matching %s's `query_source` (%s) — a set is a live query, and no bundle answers it (§6.2)", id, query)}
+			return []string{fmt.Sprintf("records: every object matching %s's `query_source` (%s) — query results require live evaluation, and no bundle answers it (§6.2)", id, query)}
 		}
 		if target.QuerySource != nil {
-			return []string{fmt.Sprintf("records: %s (%s) states a `query_source` that names nothing — a set with no query (§6.2)", id, target.path)}
+			return []string{fmt.Sprintf("records: %s (%s) states a `query_source` that names nothing — a query with no source targets (§6.2)", id, target.path)}
 		}
-		return []string{fmt.Sprintf("records: %s (%s) states neither `items` nor `query_source`, so nothing here says where they come from", id, target.path)}
+		return []string{fmt.Sprintf("records: %s (%s) states no `query_source` at all — a query with no source declaration (§6.2)", id, target.path)}
 	}
 
 	switch {
 	case blk.IsCollection:
-		if len(host.Items) == 0 {
-			return []string{"records: this document's own `items`, which lists none — an empty collection (§6.2)"}
+		if len(host.CollectionItems) == 0 {
+			return []string{"records: this document's own `collection_items`, which lists none — an empty collection (§6.2)"}
 		}
-		return b.listMembers(fmt.Sprintf("records: the %s this document lists in `items` — a collection is answered from this bundle alone (§6.2)", countIDs(len(host.Items))), host.Items)
+		return b.listMembers(fmt.Sprintf("records: the %s this document lists in `collection_items` — a collection is answered from this bundle alone (§6.2)", countIDs(len(host.CollectionItems))), host.CollectionItems)
 	case len(blk.Source) > 0:
-		return []string{fmt.Sprintf("records: a legacy detached inline set over source [%s] — a live query, and no bundle answers it (§6.2)", strings.Join(blk.Source, ", "))}
+		return []string{fmt.Sprintf("records: a legacy detached inline query over source [%s] — a live query, and no bundle answers it (§6.2)", strings.Join(blk.Source, ", "))}
 	case host.Kind == "object_type":
 		// A type document's own listing, written without the self-reference
 		// that 1,776 of the measured blocks spell out.
 		return []string{fmt.Sprintf("records: every object of type %q — a live query, and no bundle answers it (§6.2)", b.title(host))}
 	}
 	if query, stated := b.querySource(host); stated {
-		return []string{fmt.Sprintf("records: every object matching this document's `query_source` (%s) — a set is a live query, and no bundle answers it (§6.2)", query)}
+		return []string{fmt.Sprintf("records: every object matching this document's `query_source` (%s) — query results require live evaluation, and no bundle answers it (§6.2)", query)}
 	}
 	if host.QuerySource != nil {
-		return []string{"records: this document's `query_source` names nothing — a set that states no query, which is not the same as a query matching nothing (§6.2)"}
+		return []string{"records: this document's `query_source` names nothing — a query that declares no source targets, which is not the same as a query matching nothing (§6.2)"}
 	}
-	return []string{"records: this document states no `query_source` at all — a set is a live query, and no bundle answers it (§6.2)"}
+	return []string{"records: this document states no `query_source` at all — query results require live evaluation, and no bundle answers it (§6.2)"}
 }
 
-// querySource reads the query a set ranges over, and RESOLVES each target
+// sourceKind recognizes the two bundled source types this example can resolve.
+// An exported stored key takes precedence over its display spelling or alias.
+// Derived and legacy aliases name case-sensitive stored keys (§9). Unknown
+// types need the space's type definitions; payload presence is not a type test.
+func (d *document) sourceKind() string {
+	key := d.TypeKey
+	if key == "" {
+		if k, ok := strings.CutPrefix(d.Type, "type-"); ok {
+			key = k
+		} else if k, ok := strings.CutPrefix(d.Type, "ot-"); ok {
+			key = k
+		} else {
+			key = strings.ToLower(d.Type)
+			if key == "query" {
+				key = "set"
+			}
+		}
+	}
+	switch key {
+	case "set":
+		return "query"
+	case "collection":
+		return "collection"
+	}
+	return ""
+}
+
+// querySource reads the source a query ranges over, and RESOLVES each target
 // rather than reprinting it: that is the whole gain of the two lists, and a
 // reader that only echoes the strings has not used them.
 //
@@ -702,8 +732,8 @@ func (b *bundle) querySource(d *document) (string, bool) {
 	return strings.Join(targets, ", "), true
 }
 
-// describeQueryType names a type target: every object OF that type is in the
-// set.
+// describeQueryType names a type target: every object OF that type matches
+// the query.
 func (b *bundle) describeQueryType(id string) string {
 	if target, ok := b.docs[id]; ok {
 		return fmt.Sprintf("objects of type %q (%s)", b.title(target), id)
@@ -712,7 +742,7 @@ func (b *bundle) describeQueryType(id string) string {
 }
 
 // describeQueryProperty names a property target: every object that CARRIES
-// the property is in the set — presence, not a non-empty value, so an object
+// the property matches the query — presence, not a non-empty value, so an object
 // holding it empty belongs.
 func (b *bundle) describeQueryProperty(key string) string {
 	if def, ok := b.byKey[key]; ok {

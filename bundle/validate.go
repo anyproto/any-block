@@ -187,15 +187,16 @@ func Validate(fsys fs.FS) error {
 // `anyblockjson.ValidateAuthoring` — the subset schema and the semantic
 // rules stated on the resolved key — plus the STRICT type-declaration plan.
 //
-// The index and the property dictionary are checked exactly as Validate
-// checks them, and their authoring schemas are deliberately NOT run here.
-// `authoring/index.schema.json` forbids `manifest`, and §2c blesses a
-// manifest in an authored bundle in as many words — "an authored bundle
-// writes `"files": {"logo": "assets/logo.png"}` against its own minted ids
-// and any layout it likes". Running that schema would refuse a bundle the
-// SPEC calls legal, which is the defect this function exists to stop making,
-// not one to commit somewhere else. Whether the schema or the prose gives is
-// its own question; neither answer is this walk's to assume.
+// Known inconsistency: the index and property dictionary use full-format
+// validation here; their authoring schemas are not run. A nil result therefore
+// does not guarantee that those files pass anyblockjson.ValidateAuthoringIndex
+// or anyblockjson.ValidateAuthoringPropertyDictionary. For example, an index
+// with manifest.properties is accepted here but rejected by the standalone
+// authoring validator. An index missing the authoring-required entrypoint or a
+// dictionary containing internal_key can also pass here while failing its
+// standalone authoring validator. Callers requiring all three authoring schemas
+// must additionally run those two validators. Whether to expand the schemas or
+// tighten this function is deferred; the full-format rules remain unchanged.
 //
 // The strict plan is the reason this function exists. An author writes
 // SPELLINGS, so a declaration that takes the bundled key `task`, or the

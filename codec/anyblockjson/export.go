@@ -76,9 +76,13 @@ type OptionResolver interface {
 
 // Options configures Marshal and Unmarshal (§13).
 type Options struct {
-	ResolveFormat     FormatResolver   // optional; nil = bundle-only resolution (§3)
-	ResolveOptions    OptionResolver   // optional; nil = option values pass through as ids
-	ResolveProperties PropertyResolver // optional; nil = type documents keep raw recommended-relation ids (§2a)
+	ResolveFormat  FormatResolver // optional; nil = bundle-only resolution (§3)
+	ResolveOptions OptionResolver // optional; nil = option values pass through as ids
+	// ResolveProperties resolves recommended properties (§2a). Nil keeps
+	// their raw ids. Exporting a type whose envelope id changes additionally
+	// requires this resolver's TypeResolver capability to map its stored id
+	// to its own key, so references change to the same id (§9).
+	ResolveProperties PropertyResolver
 	// ResolveObjectNames is the export-side seam onto the space's object
 	// index. Nothing asks it for a NAME — a reference is an id (§9) — and a
 	// name-only implementation therefore changes no byte of any export. It
@@ -146,10 +150,11 @@ type Options struct {
 	// that edits live objects. Hand the fragment the document's legend and
 	// chain step 1 is back.
 	Legend Legend
-	// OmitIds drops document-local block/table/view/query ids and option_ids.
-	// It preserves the envelope object id and full object references (§9, §9a).
+	// OmitIds drops document-local block/table/sort/filter ids and option_ids.
+	// It preserves envelope and view ids: widgets can address views from
+	// outside this document. Object references also remain full (§9, §9a).
 	OmitIds            bool
-	CompactBlockLabels bool          // export only: relabel doc-local block/row/column/view ids to short suffixes (§9a; lossy, legend-less)
+	CompactBlockLabels bool          // export only: relabel doc-local block/row/column ids to short suffixes; preserve view ids (§9a)
 	GenerateId         func() string // import only: id generator for missing ids; nil = random 24-hex
 	NormalizeIndent    bool          // import only: clamp over-deep indents instead of rejecting (§4)
 	OnWarning          func(Issue)   // optional sink for warning-grade issues, both directions (indent clamps, unrepresentable dates, …)
@@ -310,10 +315,9 @@ func Marshal(sbType model.SmartBlockType, snapshot *model.SmartBlockSnapshotBase
 	if err := e.checkTableGridBounds(); err != nil {
 		return nil, err
 	}
-	// OmitIds writes no document-local id, so a label plan has nothing to label: the
-	// two flags together used to run the census probe — a second full block
-	// emit — and mint a plan for output that carries no ids. Byte-identical
-	// either way; it was simply a whole extra emit for nothing.
+	// OmitIds retains only envelope and view ids, neither of which relabels, so
+	// a label plan has nothing to label. Running the census probe with both
+	// flags would add a second block emit without changing the output.
 	if opts.compactBlockLabels() && !opts.OmitIds {
 		e.buildLabelPlan()
 	}
@@ -364,7 +368,7 @@ type exporter struct {
 	querySourceValue querySource
 	querySourceBuilt bool
 
-	localIds map[string]string // block/row/column/view id -> short label (§9a)
+	localIds map[string]string // local id -> short label; views keep their stored ids (§9a)
 
 	// optionRefs is the second `refs` population: the option id behind every
 	// name export wrote for a select value (optionrefs.go). Recorded against
@@ -1623,6 +1627,9 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 		sbType == model.SmartBlockType_Participant, e.snapshot.Key, kindNames.name(sbType)); msg != "" {
 		return nil, fmt.Errorf("envelope id: %s", msg)
 	}
+	if err := ValidateTypeExportMapping(e.opts, sbType, e.objectId(), e.snapshot.Key); err != nil {
+		return nil, err
+	}
 	doc.setNonEmpty("id", envelopeId)
 	doc.setNonEmpty("type", typeTerm)
 	// the stored key beside the spelling, on EVERY typed document (§2, §3):
@@ -1689,17 +1696,16 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	}
 	doc.setNonEmpty("blocks", blocks)
 
-	// the §6.2 source pair, adjacent because a reader meets them as
-	// alternatives: `query_source` is where a SET's records come from and
-	// `items` is where a COLLECTION's do, and no document states both. The
-	// group is set, never setNonEmpty: an empty one says "a query naming no
-	// source", which is not the same as stating no query (querysource.go)
+	// Preserve both source members when the snapshot carries both (§6.2).
+	// A dataview selects one source; coexistence does not merge their records.
+	// The query group uses set rather than setNonEmpty: an empty group states
+	// a query naming no source, unlike an absent query (querysource.go).
 	if qs := e.buildQuerySource(); qs != nil {
 		doc.set(memberQuerySource, qs)
 	}
 
-	items, store := e.buildStore()
-	doc.setNonEmpty("items", items)
+	collectionItems, store := e.buildStore()
+	doc.setNonEmpty("collection_items", collectionItems)
 	doc.setNonEmpty("store", store)
 	doc.setNonEmpty("root", e.buildRootEscape())
 	return doc, nil
@@ -1710,8 +1716,8 @@ func (e *exporter) buildStore() ([]any, *omap) {
 	if coll == nil || len(coll.Fields) == 0 {
 		return nil, nil
 	}
-	// the objects key lifts into items only when it is a list; any other
-	// shape stays in store so nothing is silently dropped
+	// The objects key lifts into collection_items only when it is a list.
+	// Any other shape stays in store so nothing is silently dropped.
 	var items []any
 	objectsLifted := false
 	if v := coll.Fields[storeKeyItems]; v != nil {
@@ -2656,7 +2662,11 @@ func (e *exporter) textToJSON(m *omap, b *model.Block, t *model.BlockContentText
 	// exportMarks applies the missing-reference rule to mention targets
 	// before the codec renders them (§8, §9); with no existence capability
 	// wired it returns the marks untouched
-	m.setNonEmpty("text", renderInline(t.Text, e.exportMarks("/blocks", t.Marks.GetMarks())))
+	md, err := renderInlineChecked(t.Text, e.exportMarks("/blocks", t.Marks.GetMarks()))
+	if err != nil {
+		return fmt.Errorf("block %s: %w", b.Id, err)
+	}
+	m.setNonEmpty("text", md)
 	return nil
 }
 
@@ -2754,9 +2764,9 @@ func (e *exporter) emittedLocalIds() map[string]bool {
 	return probe.emitted
 }
 
-// buildLabelPlan works out which doc-local block/row/column/view ids may be
+// buildLabelPlan works out which doc-local block/row/column ids may be
 // relabeled to a short suffix (§9a). It walks BOTH id populations to do it:
-// the doc-local ids that are the relabeling candidates, and every OBJECT id
+// the doc-local ids (including preserved view ids), and every OBJECT id
 // the document references — not because an object id is ever compacted (none
 // is, §9a), but because every one of them is spelled verbatim in the output,
 // so a label equal to one would make two different things answer to one name.

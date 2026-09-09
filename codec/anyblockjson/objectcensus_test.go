@@ -186,7 +186,7 @@ func TestExport_TheObjectCensusCoversEveryPosition(t *testing.T) {
 
 	// The collection census is the one position that is not a block or a
 	// property: the items list lives on Collections, and export lifts it into
-	// the envelope's `items`.
+	// the envelope's `collection_items`.
 	t.Run("a collection item", func(t *testing.T) {
 		snap := censusSnapshot(&model.Block{Id: censusBlock,
 			Content: &model.BlockContentOfText{Text: &model.BlockContentText{Text: "x"}}}, nil)

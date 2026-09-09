@@ -476,6 +476,10 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if err := anyblockjson.ValidateTypeExportMapping(c.opts, sbType,
+		base.GetDetails().GetFields()["id"].GetStringValue(), base.GetKey()); err != nil {
+		return fmt.Errorf("observe written document: %w", err)
+	}
 	c.written++
 	// the id the document was WRITTEN under, which for a type or a
 	// participant is the derived id and not the store id (§9). Taken from

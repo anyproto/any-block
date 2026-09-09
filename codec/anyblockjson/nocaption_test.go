@@ -41,14 +41,14 @@ func TestReference_NoShapeWritesACaption(t *testing.T) {
 	for slot, want := range map[string]string{
 		"property value (custom objects format)":  `"bafyreitopic"`,
 		"property value (bundled objects format)": `"bafyreiassigned"`,
-		"items":                    `"bafyreicollected"`,
-		"link block":               `"object_id": "bafyreilinked"`,
-		"file block":               `"object_id": "bafyreipicture"`,
-		"bookmark block":           `"object_id": "bafyreibookmarked"`,
-		"dataview target":          `"object_id": "bafyreitargeted"`,
-		"filter value":             `"bafyreifiltered"`,
-		"sort custom order":        `"bafyreiordered"`,
-		"object_orders object ids": `"bafyreikanban"`,
+		"collection_items":                        `"bafyreicollected"`,
+		"link block":                              `"object_id": "bafyreilinked"`,
+		"file block":                              `"object_id": "bafyreipicture"`,
+		"bookmark block":                          `"object_id": "bafyreibookmarked"`,
+		"dataview target":                         `"object_id": "bafyreitargeted"`,
+		"filter value":                            `"bafyreifiltered"`,
+		"sort custom order":                       `"bafyreiordered"`,
+		"object_orders object ids":                `"bafyreikanban"`,
 	} {
 		assert.Contains(t, doc, want, slot)
 	}

@@ -187,19 +187,19 @@ func TestDocumentationContract_OmitIdsKeepsEnvelopeIdentity(t *testing.T) {
 			data, err := Marshal(model.SmartBlockType_Page, richSnapshot(), opts)
 			require.NoError(t, err)
 			require.NoError(t, Validate(data, Options{}))
-			assert.Equal(t, []string{"bafyreiobject"}, documentScalarIDs(t, data),
-				"the envelope identity is the only scalar id member")
+			assert.ElementsMatch(t, []string{"bafyreiobject", "v1"}, documentScalarIDs(t, data),
+				"envelope and view identities remain addressable outside the document")
 			text := string(data)
-			for _, local := range []string{"b1", "r1", "c1", "v1", "s1", "f1"} {
+			for _, local := range []string{"b1", "r1", "c1", "s1", "f1"} {
 				assert.NotContains(t, text, `"id": "`+local+`"`)
 			}
 		})
 	}
 
 	docs := readFormatDocumentation(t)
-	assert.Contains(t, docs["SPEC.md"], "It **retains the envelope object `id`**")
+	assert.Contains(t, docs["SPEC.md"], "It **retains the envelope object `id`, view ids**")
 	assert.Contains(t, docs["PRINCIPLES.md"], "a provided envelope object id is preserved")
-	assert.Contains(t, docs["README.md"], "it retains the envelope object `id`")
+	assert.Contains(t, docs["README.md"], "Both options preserve envelope and view ids")
 
 	all := strings.ToLower(docs["SPEC.md"] + docs["PRINCIPLES.md"] + docs["README.md"])
 	for _, stale := range []string{
@@ -212,8 +212,7 @@ func TestDocumentationContract_OmitIdsKeepsEnvelopeIdentity(t *testing.T) {
 	}
 
 	source := readCodecSource(t, "export.go", "idcensus_test.go")
-	assert.Contains(t, source, "preserves the envelope object id and full object references")
-	assert.Contains(t, source, "writes no document-local id")
+	assert.Contains(t, source, "preserves envelope and view ids")
 	assert.NotContains(t, source, "export only: drop every id")
 	assert.NotContains(t, source, "OmitIds writes no id at all")
 	assert.NotContains(t, source, "OmitIds writes no id, so")

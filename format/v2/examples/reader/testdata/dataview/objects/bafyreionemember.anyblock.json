@@ -5,7 +5,7 @@
   "type": "Collection",
   "type_internal_key": "collection",
   "properties": { "Name": "A collection of one" },
-  "items": ["bafyreimemberone"],
+  "collection_items": ["bafyreimemberone"],
   "blocks": [
     { "id": "dataview", "type": "dataview", "is_collection": true, "views": [{ "id": "v1", "name": "All" }] }
   ]

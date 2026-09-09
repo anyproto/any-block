@@ -25,7 +25,7 @@ func stripEmphasis(s string) string {
 
 // SPEC §6.2 decides where a dataview's records come from, and its conclusion is
 // the one thing a reader has to get right: a collection is answerable from the
-// bundle and a set is not. READING.md is the walkthrough of that section; the
+// bundle and query results require evaluation. READING.md walks through that section; the
 // two landed 22 seconds apart saying opposite things, and only a test that
 // reads BOTH files can notice.
 func TestReadingGuideAgreesWithTheSpecOnWhereRecordsComeFrom(t *testing.T) {
@@ -33,7 +33,7 @@ func TestReadingGuideAgreesWithTheSpecOnWhereRecordsComeFrom(t *testing.T) {
 	guide := stripEmphasis(readReaderGuide(t, "READING.md"))
 	for _, clause := range []string{
 		"a reader renders a collection from the bundle alone",
-		"cannot render a set from the bundle at all",
+		"cannot render query results from the bundle alone",
 	} {
 		require.Containsf(t, spec, clause, "SPEC.md no longer states the conclusion this test compares against")
 		assert.Containsf(t, guide, clause,

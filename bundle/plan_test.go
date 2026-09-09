@@ -163,11 +163,13 @@ func TestBuildPlan_RefusesABlobWearingTheDocumentExtension(t *testing.T) {
 
 // A type document's filename is its ENVELOPE id too — `type-<internal_key>`
 // under the §9 fold — and the plan derives it from the same input Marshal
-// does: the document's OWN key, which needs no resolver. A key the fold gate
-// refuses keeps the store id, exactly as its envelope does, so a plan never
+// does: the document's OWN key, with a resolver mapping that agrees with it.
+// A key the fold gate refuses keeps the store id, exactly as its envelope does, so a plan never
 // names a file by an id the document inside does not declare.
 func TestBuildPlan_TypeStemIsTheDerivedId(t *testing.T) {
-	plan, err := BuildPlan(anyblockjson.Options{}, []DocMeta{
+	plan, err := BuildPlan(anyblockjson.Options{ResolveProperties: planTypeResolver{
+		keyById: map[string]string{"bafytask": "task"},
+	}}, []DocMeta{
 		{Id: "bafytask", SbType: model.SmartBlockType_STType, Key: "task"},
 		{Id: "bafyodd", SbType: model.SmartBlockType_STType, Key: "my type"},
 		{Id: "bafynokey", SbType: model.SmartBlockType_STType},
@@ -177,7 +179,7 @@ func TestBuildPlan_TypeStemIsTheDerivedId(t *testing.T) {
 
 	got, ok := plan.DocPath("bafytask")
 	require.True(t, ok, "the plan stays keyed by the STORE id the emit loop holds")
-	assert.Equal(t, "types/type-task.anyblock.json", got, "no resolver is consulted: the key is the document's own")
+	assert.Equal(t, "types/type-task.anyblock.json", got, "the snapshot key determines the id; the resolver keeps references in agreement")
 
 	got, _ = plan.DocPath("bafyodd")
 	assert.Equal(t, "types/bafyodd.anyblock.json", got, "a key the fold gate refuses keeps the store id, as its envelope does")
@@ -220,7 +222,9 @@ func (r planTypeResolver) TypeIdByKey(key string) (string, bool) {
 // failure it prevents is an export whose second writer silently overwrites
 // the first's document.
 func TestBuildPlan_RefusesTwoDocumentsPlannedOntoOnePath(t *testing.T) {
-	_, err := BuildPlan(anyblockjson.Options{}, []DocMeta{
+	_, err := BuildPlan(anyblockjson.Options{ResolveProperties: planTypeResolver{
+		keyById: map[string]string{"bafyone": "task", "bafytwo": "task"},
+	}}, []DocMeta{
 		{Id: "bafyone", SbType: model.SmartBlockType_STType, Key: "task"},
 		{Id: "bafytwo", SbType: model.SmartBlockType_STType, Key: "task"},
 	})

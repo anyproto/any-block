@@ -80,9 +80,9 @@ type jsonDoc struct {
 	// OptionIds is the §9a option legend, nested {property spelling: {option
 	// name: option id}}. Unlike the two above its values are HINTS, honoured
 	// only where the id still names a live option of that relation (§3).
-	OptionIds map[string]map[string]string `json:"option_ids"`
-	Blocks    []*jsonBlock                 `json:"blocks"`
-	Items     []string                     `json:"items"`
+	OptionIds       map[string]map[string]string `json:"option_ids"`
+	Blocks          []*jsonBlock                 `json:"blocks"`
+	CollectionItems []string                     `json:"collection_items"`
 	// QuerySource is the §6.2 group. A POINTER, because the member has
 	// three states and only a pointer distinguishes them: absent (this
 	// document states no query), present and empty (a query naming no
@@ -1078,16 +1078,16 @@ func (imp *importer) absorbIntoProperty(details *types.Struct, key, md string) {
 
 func (imp *importer) buildCollections() *types.Struct {
 	doc := imp.doc
-	if len(doc.Items) == 0 && len(doc.Store) == 0 {
+	if len(doc.CollectionItems) == 0 && len(doc.Store) == 0 {
 		return nil
 	}
 	coll := &types.Struct{Fields: map[string]*types.Value{}}
 	for k, v := range doc.Store {
 		coll.Fields[k] = jsonToProtoValue(v)
 	}
-	if len(doc.Items) > 0 {
-		vals := make([]*types.Value, 0, len(doc.Items))
-		for _, id := range doc.Items {
+	if len(doc.CollectionItems) > 0 {
+		vals := make([]*types.Value, 0, len(doc.CollectionItems))
+		for _, id := range doc.CollectionItems {
 			vals = append(vals, &types.Value{Kind: &types.Value_StringValue{StringValue: imp.objectRef(id)}})
 		}
 		coll.Fields[storeKeyItems] = &types.Value{Kind: &types.Value_ListValue{ListValue: &types.ListValue{Values: vals}}}
@@ -1239,12 +1239,12 @@ const dataviewBlockId = "dataview"
 
 // pinPrimaryDataview gives the document's own dataview the editor's fixed id
 // (§7). The primary dataview is the first indent-0 dataview block carrying
-// neither an explicit id nor an objectId — an objectId means the block is an
-// inline view of some *other* set or collection (§6.2) and keeps a generated
-// id, as does any dataview nested below indent 0. A block that already claims
+// no explicit id and either no target or a reference to this document.
+// An inline view of another query or collection keeps a generated id, as
+// does any dataview nested below indent 0. A block that already claims
 // the id anywhere in the document wins, so an explicit "id": "dataview" stays
 // authoritative and no duplicate is minted (§13).
-func (imp *importer) pinPrimaryDataview(raw []*jsonBlock, indents []int) {
+func (imp *importer) pinPrimaryDataview(raw []*jsonBlock, indents []int, objectID string) {
 	// anything already using the id wins, and "anything" means the whole
 	// document: a table row named "dataview" is a block too, and it is not in
 	// this array. Minting the id anyway produced a duplicate *after*
@@ -1257,7 +1257,13 @@ func (imp *importer) pinPrimaryDataview(raw []*jsonBlock, indents []int) {
 		if jb == nil || indents[i] != 0 {
 			continue
 		}
-		if jb.Type != "dataview" || jb.Id != "" || jb.ObjectId != "" {
+		if jb.Type != "dataview" || jb.Id != "" {
+			continue
+		}
+		// Compare in the imported identity namespace: a derived type id and
+		// its stored id may name the same host. An absent envelope id cannot
+		// declare a self-reference, even if its generated id matches a target.
+		if jb.ObjectId != "" && (imp.doc.Id == "" || imp.objectRef(jb.ObjectId) != objectID) {
 			continue
 		}
 		jb.Id = imp.claimId(dataviewBlockId)
@@ -1278,7 +1284,7 @@ func (imp *importer) topLevelBlocks(details *types.Struct) ([]*jsonBlock, []int)
 	// id under OmitIds this way, 0 lose it), and a wrapped title is only
 	// absorbed into `properties.name` once the lift has put it at indent 0.
 	raw, indents = liftTransparentContainers(raw, indents)
-	imp.pinPrimaryDataview(raw, indents)
+	imp.pinPrimaryDataview(raw, indents, details.Fields[detailKeyId].GetStringValue())
 	jbs := make([]*jsonBlock, 0, len(raw))
 	kept := make([]int, 0, len(raw))
 	for i := 0; i < len(raw); i++ {

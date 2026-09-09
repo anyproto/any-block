@@ -7,7 +7,7 @@ package anyblockjson
 // records it shows come from a source it names — and none of the members
 // that name one look like a source: `object_id` reads as a target, and
 // `is_collection` reads as a flag. The schema described neither, nor the
-// collection membership list they point at (`items`), so a reader holding
+// collection membership list they point at (`collection_items`), so a reader holding
 // only an export and the published schemas could not learn the model from
 // them. SPEC §6.2 states the model once; this file pins that the schema
 // states the same one, in the four members that carry it, and that the
@@ -68,10 +68,10 @@ func sourceModelDescriptions(t *testing.T) map[string]string {
 		text, _ := node["description"].(string)
 		out[member] = text
 	}
-	items, ok := schemaAt(t, object, "properties", "items").(map[string]any)
-	require.True(t, ok, "the envelope declares `items`")
+	items, ok := schemaAt(t, object, "properties", "collection_items").(map[string]any)
+	require.True(t, ok, "the envelope declares `collection_items`")
 	text, _ := items["description"].(string)
-	out["items"] = text
+	out["collection_items"] = text
 	query, ok := schemaAt(t, object, "$defs", "querySource").(map[string]any)
 	require.True(t, ok, "the schema defines $defs/querySource")
 	text, _ = query["description"].(string)
@@ -84,11 +84,11 @@ func TestDataviewSource_TheSchemaStatesWhereTheRecordsComeFrom(t *testing.T) {
 
 	t.Run("all five are described at all", func(t *testing.T) {
 		// `object_id`, `is_collection` and `source` were bare type nodes and
-		// `items` was `{"type":"array","items":{"type":"string"}}` — four
+		// `collection_items` was `{"type":"array","items":{"type":"string"}}` — four
 		// members a reader must interpret and could not. `query_source` was
 		// worse than undescribed: it was a value in the open property bag,
 		// where no description could attach to it.
-		for _, member := range []string{"object_id", "is_collection", "source", "items", "query_source"} {
+		for _, member := range []string{"object_id", "is_collection", "source", "collection_items", "query_source"} {
 			assert.NotEmpty(t, strings.TrimSpace(docs[member]),
 				"%s carries no description, so the schema does not state the source model", member)
 		}
@@ -107,14 +107,14 @@ func TestDataviewSource_TheSchemaStatesWhereTheRecordsComeFrom(t *testing.T) {
 			"object_id": {
 				"the objects of that type",
 				"`query_source`",
-				"the target lists in its own `items`",
+				"the target lists in its own `collection_items`",
 				"THIS document is the source",
 				"_missing_object",
 			},
 			// whose ids, never where they live
 			"is_collection": {
 				"curated LIST",
-				"THIS document's `items`",
+				"THIS document's `collection_items`",
 				"`query_source`",
 				"decides nothing",
 			},
@@ -127,14 +127,14 @@ func TestDataviewSource_TheSchemaStatesWhereTheRecordsComeFrom(t *testing.T) {
 			},
 			// legacy, verbatim, output-only
 			"source": {
-				"DETACHED inline set",
+				"DETACHED inline query",
 				"VERBATIM",
 				"§4a",
 			},
 			// the membership list the other three point at
-			"items": {
+			"collection_items": {
 				"the only place its membership is written",
-				"`is_collection`",
+				"`is_collection: true`",
 				"import wiring",
 			},
 		} {
@@ -182,7 +182,7 @@ func TestDataviewSource_TheCodecDoesWhatTheDescriptionsSay(t *testing.T) {
 	})
 
 	t.Run("no object_id plus is_collection means THIS document's items", func(t *testing.T) {
-		doc := []byte(`{"formatVersion":"2.0","id":"o1","items":["bafyreib","bafyreia"],"blocks":[
+		doc := []byte(`{"formatVersion":"2.0","id":"o1","collection_items":["bafyreib","bafyreia"],"blocks":[
 			{"id":"b1","type":"dataview","is_collection":true}]}`)
 		require.NoError(t, Validate(doc, Options{}))
 		_, snap, err := Unmarshal(doc, Options{})
@@ -251,7 +251,7 @@ func TestDataviewSource_TheCodecDoesWhatTheDescriptionsSay(t *testing.T) {
 		}
 		out, err := Marshal(model.SmartBlockType_Page, snap, Options{})
 		require.NoError(t, err)
-		assert.Contains(t, string(out), `"items": [`)
+		assert.Contains(t, string(out), `"collection_items": [`)
 		assert.Less(t, strings.Index(string(out), "bafyreic"), strings.Index(string(out), "bafyreia"),
 			"export must not sort the membership list")
 	})

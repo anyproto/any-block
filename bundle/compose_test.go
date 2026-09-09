@@ -512,7 +512,7 @@ func TestComposer_SurvivesALegacyTypeKeyBesideItsBundledTwin(t *testing.T) {
 	c := newComposer(t, anyblockjson.Options{}, "Chatty")
 	for _, key := range []string{"chat", "chatDerived"} {
 		snap := &model.SmartBlockSnapshotBase{Key: key, Details: detFields(map[string]*types.Value{
-			"id": strVal("bafy" + key), "uniqueKey": strVal("ot-" + key), "name": strVal("Chat"),
+			"id": strVal("type-" + key), "uniqueKey": strVal("ot-" + key), "name": strVal("Chat"),
 		})}
 		omitted, _ := c.Observe(model.SmartBlockType_STType, snap)
 		require.False(t, omitted)

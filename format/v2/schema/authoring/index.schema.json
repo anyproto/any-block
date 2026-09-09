@@ -48,18 +48,18 @@
     },
     "entrypoint": {
       "$ref": "#/$defs/documentId",
-      "description": "The id of the page a new user lands on — usually a welcome page that explains the space. Also list it as the FIRST widget: the installer opens the first widget today."
+      "description": "The declared entry object's bundle-local id. Used as the space homepage when `homepage` is absent, on the first entry through the bundle install path and later entries (SPEC §2c). Declaring it does not insert or reorder sidebar widgets. For compatibility with legacy built-in archives that open the first profile widget once, authors may also list this object first. Required in the authoring profile."
     },
     "homepage": {
       "$ref": "#/$defs/documentId",
-      "description": "What opens on every later visit; omit to reuse the entrypoint. Name a page — a real page reads better than any built-in screen."
+      "description": "What opens on entering the space, including the first entry through the bundle install path (SPEC §2c). An explicit homepage takes precedence over entrypoint. If absent, use entrypoint, then the first widget naming an object, skipping reserved listings; if none exists, the installer supplies its default dashboard. An unresolved explicit id is an error, not a reason to try a fallback. This profile names a page in the bundle."
     },
     "widgets": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/widget"
       },
-      "description": "The sidebar, top to bottom. Put the entrypoint first. The sidebar already lists every type, so give a type a widget only for fast access to its objects (layout \"view\")."
+      "description": "Sidebar widgets in their declared order. Navigation fields do not insert or reorder them. When homepage and entrypoint are both absent, the first widget naming an object supplies the homepage fallback (SPEC §2c); reserved listings are skipped. A type needs a widget only for fast access to its objects (layout \"view\")."
     }
   },
   "$defs": {
@@ -107,7 +107,7 @@
               ]
             }
           ],
-          "description": "What the widget points at: the id of a page, type, set or collection in this bundle, or a built-in listing (_favorite, _recent, _recent_open, _set, _collection, _all_objects, _chat, _bin). Name your own pages and types first; the listings exist in every space already."
+          "description": "What the widget points at: the id of a page, type, query or collection in this bundle, or a built-in listing (_favorite, _recent, _recent_open, _set, _collection, _all_objects, _chat, _bin). Name your own pages and types first; the listings exist in every space already."
         },
         "layout": {
           "enum": [
@@ -117,7 +117,7 @@
             "compact_list",
             "view"
           ],
-          "description": "How it renders: \"link\" one row (the default), \"tree\" expands children, \"list\"/\"compact_list\" show contents, \"view\" renders a type's or set's own view (a `view` widget shows the type's default view — view ids are minted on import, so there is nothing else to name)."
+          "description": "How it renders: \"link\" one row (the default), \"tree\" expands children, \"list\"/\"compact_list\" show contents, \"view\" renders a type's or query's own view (a `view` widget shows the type's default view — view ids are minted on import, so there is nothing else to name)."
         },
         "limit": {
           "type": "integer",

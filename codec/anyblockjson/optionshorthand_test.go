@@ -109,12 +109,12 @@ func TestBareOptionIsCanonicalOnlyWithNoColorNoKeyNoApiKey(t *testing.T) {
 		snap := &model.SmartBlockSnapshotBase{
 			Key: "task",
 			Details: fields(map[string]*types.Value{
-				"id":                   str("typeObjectId"),
+				"id":                   str("type-task"),
 				"name":                 str("Task"),
 				"recommendedRelations": strList("relid-status"),
 			}),
 			Blocks: []*model.Block{{
-				Id:      "typeObjectId",
+				Id:      "type-task",
 				Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
 			}},
 		}

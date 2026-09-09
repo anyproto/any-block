@@ -200,8 +200,8 @@ func TestInline_ParseIsLinearish(t *testing.T) {
 
 // The §8 resource bounds are deterministic local rules.
 func TestInline_ResourceBounds(t *testing.T) {
-	// an over-long link destination is not recognized; the mark drops on
-	// export and the text stays intact
+	// An over-long link destination is not recognized; the compatibility
+	// renderer drops the mark and keeps the text. Checked export refuses it.
 	longDest := "https://x.io/" + strings.Repeat("a", maxLinkDestLen)
 	md := renderInline("ab", []*model.BlockContentTextMark{mark(mLink, 0, 2, longDest)})
 	assert.Equal(t, "ab", md, "over-long link param is dropped")

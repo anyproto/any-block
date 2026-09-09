@@ -2,7 +2,7 @@
   "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
   "formatVersion": "2.0",
   "id": "bafyreinosetof",
-  "type": "Set",
+  "type": "Query",
   "type_internal_key": "set",
   "properties": {
     "Name": "A set that states no `query_source` at all"

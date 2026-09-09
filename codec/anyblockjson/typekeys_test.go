@@ -281,10 +281,10 @@ func TestTypeKeysLegendCoversObjectTypes(t *testing.T) {
 	t.Run("export spells the derived id and records no entry", func(t *testing.T) {
 		vocab := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "task"}}
 		snap := &model.SmartBlockSnapshotBase{
-			Blocks: []*model.Block{{Id: "t1",
+			Blocks: []*model.Block{{Id: "type-k",
 				Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}}},
 			Details: fields(map[string]*types.Value{
-				"id":                   str("t1"),
+				"id":                   str("type-k"),
 				"recommendedRelations": strList("rel-owner"),
 			}),
 			ObjectTypes: []string{"ot-objectType"},
@@ -356,10 +356,10 @@ func TestExportImport_PropertyAndTypeNamespacesShareATerm(t *testing.T) {
 func TestExport_ASharedTypeSpellingIsHarmless(t *testing.T) {
 	vocab := typedSpaceVocabulary{typeSlugOf: map[string]string{customTypeKey: "wiki person"}}
 	snap := &model.SmartBlockSnapshotBase{
-		Blocks: []*model.Block{{Id: "t1",
+		Blocks: []*model.Block{{Id: "type-k",
 			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}}},
 		Details: fields(map[string]*types.Value{
-			"id":                   str("t1"),
+			"id":                   str("type-k"),
 			"recommendedRelations": strList("rel-owner"),
 		}),
 		ObjectTypes: []string{"ot-" + customTypeKey},

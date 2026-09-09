@@ -646,13 +646,20 @@ func collectSchemaLeaves(e *jsonschema.ValidationError, printer *message.Printer
 		out := make([]schemaLeaf, 0, len(props))
 		for _, prop := range props {
 			msg := unknownPropertyMessage(prop)
-			// the legacy relation-definition spellings, at the ROOT only
+			// Legacy envelope spellings get migration hints at the ROOT only
 			// — anywhere else (a view, a sort) the same names are ordinary
 			// unknown members and the hint would mislead. Same reasoning as
 			// `refs` (§10): told only "not allowed", the obvious wrong
 			// repair is to delete the definition rather than regroup it.
 			if at == "" {
 				switch prop {
+				case "items":
+					// Only an object root used this spelling. The same name
+					// on an index or dictionary has no replacement there.
+					schemaURL, _, _ := strings.Cut(e.SchemaURL, "#")
+					if schemaURL == SchemaURL || schemaURL == AuthoringSchemaURL {
+						msg = `property "items" is not allowed — the object-root collection membership field was renamed to "collection_items"; rename the member and keep its ordered object ids`
+					}
 				case "format", "include_time", "object_types":
 					msg = fmt.Sprintf("property %q moved off the root: a property document "+
 						"states its definition in the \"property_settings\" group — "+
@@ -985,7 +992,7 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 }
 
 // unknownPropertyMessage names a member no reading of the schema admits, and
-// carries a migration hint for the four names a document written against an
+// carries a migration hint for names a document written against an
 // older grammar brings. The hints exist because the bare verdict sends the
 // reader the wrong way, and the format's purpose is the generate → validate →
 // feed-back loop (§13):

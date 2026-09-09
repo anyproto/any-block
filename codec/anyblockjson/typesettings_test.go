@@ -22,7 +22,7 @@ func settingsTypeSnapshot() *model.SmartBlockSnapshotBase {
 	return &model.SmartBlockSnapshotBase{
 		Key: "use_case",
 		Details: fields(map[string]*types.Value{
-			"id":                str("t1"),
+			"id":                str("type-use_case"),
 			"name":              str("Use Case"),
 			"recommendedLayout": num(float64(model.ObjectType_basic)),
 			"apiObjectKey":      str("use_case"),
@@ -41,7 +41,7 @@ func settingsTypeSnapshot() *model.SmartBlockSnapshotBase {
 			"setOf":           strList("bafyreinothing"),
 		}),
 		Blocks: []*model.Block{{
-			Id:      "t1",
+			Id:      "type-use_case",
 			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}},
 		}},
 	}

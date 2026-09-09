@@ -107,6 +107,9 @@ func BuildPlan(opts anyblockjson.Options, docs []DocMeta) (*Plan, error) {
 	}
 	claimed := make(map[string]string, len(docs))
 	for _, d := range docs {
+		if err := anyblockjson.ValidateTypeExportMapping(opts, d.SbType, d.Id, d.Key); err != nil {
+			return nil, fmt.Errorf("plan document paths: %w", err)
+		}
 		stem := anyblockjson.FoldDocumentId(opts, d.SbType, d.Id, d.Key)
 		if err := checkIdSafe(stem); err != nil {
 			return nil, fmt.Errorf("plan document paths: %w", err)

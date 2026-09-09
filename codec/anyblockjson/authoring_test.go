@@ -333,12 +333,12 @@ func TestAuthoringSubset_StructuralFixtures(t *testing.T) {
 				{"is_header": true, "cells": ["Name", "Status", "Note"]},
 				{"cells": ["Export", null, "spec"]},
 				{"cells": ["Short row"]}]}]}`,
-		"an inline set on a page": `{"formatVersion": "2.0", "id": "page-b", "blocks": [
+		"an inline collection on a page": `{"formatVersion": "2.0", "id": "page-b", "blocks": [
 			{"type": "dataview", "object_id": "coll-shelf", "is_collection": true,
 			 "properties": [{"property": "name", "format": "text"}],
 			 "views": [{"name": "Shelf"}]}]}`,
 		"a collection": `{"formatVersion": "2.0", "id": "coll-shelf", "type": "collection",
-			"items": ["page-a", "page-b"],
+			"collection_items": ["page-a", "page-b"],
 			"blocks": [{"type": "dataview", "is_collection": true,
 				"views": [{"type": "list", "name": "All"}]}]}`,
 		"a template": `{"formatVersion": "2.0", "kind": "template", "id": "tpl-habit",

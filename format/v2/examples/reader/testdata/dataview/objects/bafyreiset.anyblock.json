@@ -2,7 +2,7 @@
   "$schema": "https://schemas.anytype.io/anyblock/2.0/object.schema.json",
   "formatVersion": "2.0",
   "id": "bafyreiset",
-  "type": "Set",
+  "type": "Query",
   "type_internal_key": "set",
   "properties": {
     "Name": "Every field note there is"
