@@ -220,6 +220,12 @@ Rationale, against the legacy names (core/block/export/export.go, the `TypesDire
   and `options/` were proposed and why their removal is worth stating: not
   one of either is a document any more (SPEC §15 #21, #23) — the
   dictionary states what a bundle carries of both.
+- **Six system type definitions are omitted.** `Composer.Observe` drops type
+  documents keyed `relation`, `relationOption`, `space`, `spaceView`, `date`,
+  or `discussion` (SPEC §2c, §11). Their metadata and page content are outside
+  the bundle scope. The planned names go unused, and the omitted documents
+  contribute no property uses or declarations to the dictionary. Other
+  bundled and custom type definitions remain ordinary files under `types/`.
 - **No `profile` file.** The raw-protobuf `profile` is an install artifact
   of the `ObjectImportExperience` path and is written by `cmd/anyblockconvert`
   when preparing an installable experience (SPEC §2c "How it reaches the

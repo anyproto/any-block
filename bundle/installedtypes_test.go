@@ -20,9 +20,9 @@ func exportedTypeDocument(id, key, name, layout string) *fstest.MapFile {
 	}`)}
 }
 
-// Every real export carries the space's installed bundled types as ordinary
+// Installed bundled types within the export scope travel as ordinary
 // `object_type` documents keyed with the bundled key. Refusing that shape
-// refuses every export there is.
+// would reject exported types such as Task or a renamed Page.
 func TestValidateAdmitsInstalledBundledTypes(t *testing.T) {
 	fsys := fstest.MapFS{
 		"index.json": &fstest.MapFile{Data: []byte(`{

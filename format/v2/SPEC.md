@@ -1023,6 +1023,27 @@ construction (§9). An AUTHORED bundle can still carry a type document under
 a non-derived id, and this check is what tells its author so: the report
 names the id nothing carries, which is the repair.
 
+**System type definitions excluded from bundle export.** Bundle composition
+omits type documents (`kind: "object_type"` or `"bundled_object_type"`) whose
+own `internal_key` is exactly `relation`, `relationOption`, `space`,
+`spaceView`, `date`, or `discussion`. Property definitions and option
+vocabularies travel in `properties.json` (§2f), and preserved space settings
+travel in `index.json`. SpaceView, Date and Discussion are system-managed
+objects whose type definitions are outside the bundle scope. The app does
+not allow widgets to target these six system types.
+
+The omission includes the type definitions' metadata and page content;
+neither is part of the bundle round-trip guarantee (§11). It is determined by
+the stored key and type-document kind, regardless of display name or layout.
+Other bundled and custom type definitions still export, including Page,
+Query, Collection, file types, Participant, Object type, Template, and Chat.
+Ordinary objects are not excluded by this type-definition rule. References
+to these built-in keys in `query_source.types` or property `object_types`
+remain valid without their type files, under the bundled-key exemption above.
+The full reader MUST continue accepting these type documents in existing
+bundles; the standalone codec may still encode them. No schema branch is
+removed by this composition rule.
+
 **One stored type key, one type document: no two type documents in one
 bundle may share an `internal_key`, whether the type carries a display
 `Name` or not.** A type document's address is a pure function of its key —
@@ -6270,6 +6291,15 @@ canon where §2d mirrors presence, because these are settings with defined
 defaults rather than a property's definition; and **a `defaultTemplateId`
 with a second entry keeps only its first**, with a warning — the member is
 the one default template, and 0 of 1,760 corpus documents carry more.
+
+At bundle level, the six system type definitions listed in §2c (`relation`,
+`relationOption`, `space`, `spaceView`, `date`, `discussion`) are deliberately
+omitted, including their metadata and page content. Their omission is a scope
+exclusion, with no reconstruction comparison. Property and option data still
+travels through the dictionary and space settings through the index under
+their respective rules. This exclusion does not change standalone document
+encoding or the full reader's acceptance of existing bundles containing these
+type files.
 
 The §2f dictionary adds three normalizations, and all three are
 COMPOSITION rules rather than document ones — the per-document codec is

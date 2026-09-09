@@ -247,6 +247,13 @@ at first open (they are layout-dependent — a note has no title), and
 normalization is the point rather than an accident. Promising byte-equality
 would have meant carrying every legacy shape forward forever.
 
+Bundle export also omits the system type definitions keyed `relation`,
+`relationOption`, `space`, `spaceView`, `date`, and `discussion`. Property and
+option data travels in `properties.json`, and space settings in `index.json`.
+These six type definitions' metadata and page content are outside the bundle
+round-trip scope; readers still accept their files in older bundles. The rule
+uses the stored type key and applies only to type definitions (SPEC §2c, §11).
+
 ### 8. Validation is discriminator-first, with path-addressed errors
 
 The schema branches on `type` before validating a block, rather than

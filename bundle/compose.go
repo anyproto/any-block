@@ -1,7 +1,8 @@
 // Package bundle is the bundle-level composition of an AnyBlock v2
 // export: everything above one document that a bundle must state —
 // properties.json, index.json with its manifest, and the omission-and-lift
-// of the documents those two files carry INSTEAD of (format/v2/SPEC.md §2c, §2f).
+// of the documents those two files carry INSTEAD of, plus the exclusion of
+// system type definitions outside the bundle scope (format/v2/SPEC.md §2c, §2f).
 //
 // It exists because composition is a bundle-level act the one-document codec
 // deliberately does not own (format/v2/SPEC.md §13 gives it this named home),
@@ -286,11 +287,13 @@ func NewComposer(opts anyblockjson.Options, spaceName string) (*Composer, error)
 	}, nil
 }
 
-// Observe classifies one snapshot for the composition. For an omitted
-// document it also verifies the trip the object takes INSTEAD of a document
+// Observe classifies one snapshot for the composition. For a document
+// represented elsewhere it also verifies the trip the object takes INSTEAD
 // — the index lift, or a bundled key's entry → the reader's bundled table —
 // through the same comparator as every ordinary round trip, so the omission
 // predicate and the reconstruction cannot drift apart silently.
+// System type definitions and deprecated profiles excluded by scope have no
+// reconstruction to verify (§2c, §11).
 //
 // The caller emits the document iff omitted is false; issues are reported
 // either way (an issue on an omitted document means the lift lost
@@ -308,6 +311,20 @@ func (c *Composer) Observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) (bool, []Issue) {
 	if base == nil {
 		return false, nil
+	}
+	// These system type definitions are outside the bundle scope (§2c).
+	// Property/option data lives in the dictionary, space settings in the
+	// index, and SpaceView, Date and Discussion are system-managed objects.
+	// Match the type definition's OWN key: captions, layouts and the type
+	// of an ordinary object do not decide this omission. Other bundled and
+	// custom type definitions still travel, including Chat and Query.
+	if sbType == model.SmartBlockType_STType || sbType == model.SmartBlockType_BundledObjectType {
+		switch domain.TypeKey(base.Key) {
+		case vocabulary.TypeKeyRelation, vocabulary.TypeKeyRelationOption,
+			vocabulary.TypeKeySpace, vocabulary.TypeKeySpaceView,
+			vocabulary.TypeKeyDate, vocabulary.TypeKeyDiscussion:
+			return true, nil
+		}
 	}
 	// the space's own object: index.json states everything it holds (§2c),
 	// so the composer lifts those fields and drops the document. The lift
