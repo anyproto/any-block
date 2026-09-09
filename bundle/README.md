@@ -28,3 +28,34 @@ ids already have the derived form need no extra mapping.
 
 View ids remain intact even with `CompactBlockLabels` or `OmitIds`, so
 `index.widgets[].view_id` still selects the same view after import.
+
+To export files without embedding their bytes, preserve their remote access
+metadata and identify the source network:
+
+```go
+opts := anyblockjson.Options{
+    IncludeFileRemote: !includeFileData,
+    NetworkId:        sourceNetworkID,
+}
+```
+
+Pass those same options to `BuildPlan`, `Marshal`, and `NewComposer`, along
+with the normal resolvers. `IncludeFileRemote` writes a base64-encoded,
+independently versioned `file_remote` payload on each file document. The
+composer carries the optional `network_id` into the index without validating
+its value. Import uses it to determine whether remote recovery is possible.
+Only observe blob bindings for bytes actually included in the bundle.
+A remote-only bundle omits `manifest.files`; `DeclareMetadataOnly`
+still asserts that no bytes were streamed, but does not add an empty map in
+this mode. Legacy metadata-only exports keep their explicit `files: {}`.
+
+Readers prefer embedded bytes. When none are bound, usable `file_remote`
+supplies the remote fallback, and import checks network compatibility using
+`network_id`. A missing or unrecognized network id does not invalidate the
+bundle. Invalid or unsupported payloads are ignored with a codec warning;
+bundle validation reports an
+unresolved file if no embedded bytes remain. It also rejects a declared blob
+that is missing. This package validates the metadata and references; the
+application's file service retrieves bytes on the identified network.
+See [SPEC §2h](../format/v2/SPEC.md#2h-remote-file-metadata-file_remote) and
+the [remote file example](../format/v2/examples/remote_file/).

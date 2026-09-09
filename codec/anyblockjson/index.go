@@ -355,6 +355,7 @@ func (m *Manifest) empty() bool {
 type Index struct {
 	Schema        string `json:"$schema"`
 	FormatVersion string `json:"formatVersion"`
+	NetworkId     string `json:"network_id"`
 	Name          string `json:"name"`
 	Description   string `json:"description"`
 	// Icon is the space's icon in the typed shape every icon in this format
@@ -860,6 +861,7 @@ func MarshalIndex(idx *Index, opts Options) ([]byte, error) {
 	doc := &omap{}
 	doc.set("$schema", IndexSchemaURL)
 	doc.set("formatVersion", FormatVersion)
+	doc.setNonEmpty("network_id", idx.NetworkId)
 	doc.setNonEmpty("name", idx.Name)
 	doc.setNonEmpty("description", idx.Description)
 	doc.setNonEmpty("icon", indexIconOmap(foldedIcon(idx.Icon, opts)))

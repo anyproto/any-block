@@ -80,6 +80,9 @@ const (
 type IssueCode string
 
 const (
+	// IssueCodeFileRemoteIgnored means the optional remote payload could not
+	// be understood. A bundle reader must still account for the file's bytes.
+	IssueCodeFileRemoteIgnored IssueCode = "file_remote_ignored"
 	// IssueCodeFoldedParticipantsWithoutSpace says an import encountered
 	// portable bare participant identities but had no destination space with
 	// which to rebuild participant object IDs.
@@ -270,6 +273,12 @@ func validateToDocInScope(data []byte, lenient bool, warn func(Issue), scope val
 
 	if issues := semanticIssues(doc, lenient, warn, scope); len(issues) > 0 {
 		return nil, &ValidationError{Issues: issues}
+	}
+	if encoded, present := doc["file_remote"].(string); present && warn != nil {
+		if _, err := DecodeFileRemote(encoded); err != nil {
+			warn(Issue{Path: "/file_remote", Code: IssueCodeFileRemoteIgnored,
+				Message: fmt.Sprintf("remote file metadata ignored: %v", err)})
+		}
 	}
 	return doc, nil
 }
@@ -1973,44 +1982,20 @@ var transientProperties = map[string]string{
 	// imported and round-tripped with no warning at all.
 	"featuredRelations": "deprecated: the type's `section: \"featured\"` owns this, and the clients read it from there",
 
-	// A FILE's variant machinery, and the first of them is a SECRET: the
-	// per-variant encryption keys. This package's own API layer already
-	// refuses to emit all seven, in its words "so a future change to either
-	// the bundle or the cache subscription cannot accidentally leak file keys
-	// / CIDs" (core/api/service/property.go) — and the export was shipping
-	// every one of them in a bundle built to be shared.
-	//
-	// Nothing needs them. They are read by `core/files/queries.go` and the
-	// file editor, which run in a space that already HOLDS the file; no
-	// import path reads any of them, and neither does this format or its
-	// tools. A bundle carries the file itself: imported into another space
-	// the content matches an existing file and is reused, and imported into
-	// another ACCOUNT it becomes a new file with a new encryption key and is
-	// uploaded afresh. The old key describes a blob the new account cannot
-	// and should not open.
-	//
-	// They were also 93% of the format's entire warning channel — 71,736
-	// warnings, six keys declared `text` and one `number` while every stored
-	// value is a list. Not travelling is a better answer than not warning.
-	"fileVariantKeys":      "a secret: the per-variant file ENCRYPTION keys, which a shared bundle must not carry",
-	"fileVariantIds":       "file variant machinery: regenerated when the file is indexed, and never read on import",
-	"fileVariantChecksums": "file variant machinery: regenerated when the file is indexed, and never read on import",
-	"fileVariantMills":     "file variant machinery: regenerated when the file is indexed, and never read on import",
-	"fileVariantOptions":   "file variant machinery: regenerated when the file is indexed, and never read on import",
-	"fileVariantPaths":     "file variant machinery: regenerated when the file is indexed, and never read on import",
-	"fileVariantWidths":    "file variant machinery: regenerated when the file is indexed, and never read on import",
-
-	// the file's own content addresses, and the last two members of the API's
-	// refusal list. `fileId` is the cid of the file's content and
-	// `fileSourceChecksum` its source hash; neither is read from an incoming
-	// document by any import path, and fileobject/service.go SETS fileId
-	// itself when it creates the object — so a restored file gets its own.
-	//
-	// `fileExt` and `fileMimeType` deliberately stay: they describe the file
-	// to a reader rather than address it in a store, and the API does not
-	// refuse them.
-	"fileId":             "the file's content address: the importing space mints its own when it creates the file object",
-	"fileSourceChecksum": "the file's source hash: recomputed on the way in, and part of the API's file keys / CIDs refusal",
+	// Persistent remote-file metadata belongs in the independently versioned
+	// file_remote payload (SPEC §2h), never in the property namespace. Export
+	// includes it only with IncludeFileRemote; import restores it from that
+	// payload. An export carrying only embedded bytes can regenerate it.
+	// fileExt and fileMimeType remain ordinary, reader-facing properties.
+	"fileVariantKeys":      "internal encryption keys: use file_remote.encryption_keys, not properties",
+	"fileVariantIds":       "internal variant metadata: use file_remote.variants, not properties",
+	"fileVariantChecksums": "internal variant metadata: use file_remote.variants, not properties",
+	"fileVariantMills":     "internal variant metadata: use file_remote.variants, not properties",
+	"fileVariantOptions":   "internal variant metadata: use file_remote.variants, not properties",
+	"fileVariantPaths":     "internal variant metadata: use file_remote.variants, not properties",
+	"fileVariantWidths":    "internal variant metadata: use file_remote.variants, not properties",
+	"fileId":               "internal content address: use file_remote.cid, not properties",
+	"fileSourceChecksum":   "internal source hash: use file_remote.source_checksum, not properties",
 
 	// THE FILE MACHINERY'S per-device answers, stamped on every file object
 	// and meaning nothing off the device that stamped them. Their sibling

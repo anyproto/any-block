@@ -142,6 +142,10 @@
       },
       "additionalProperties": false
     },
+    "file_remote": {
+      "type": "string",
+      "description": "File and file_object documents only: standard padded base64 of UTF-8 JSON describing remote file access. The decoded payload has its own integer version, independent of formatVersion (version 1 schema: https://schemas.anytype.io/anyblock/file-remote/1.schema.json). Invalid or unsupported payloads are ignored with a warning; they do not invalidate the object. Bundles must report an unresolved file when no usable remote metadata or embedded bytes remain."
+    },
     "property_internal_keys": {
       "type": "object",
       "description": "Legend: the stored property key each SPELLING in this document names (§3) — a spelling is a display name, so this is the map from \"Cooking time\" to the key the space stores it under. Present only for keys the bundled table cannot invert; a reader consults it before its own vocabulary. A value is a stored key and obeys the same writable-key rule as a property name (§3).",
@@ -220,6 +224,13 @@
   ],
   "additionalProperties": false,
   "allOf": [
+    {
+      "if": {
+        "properties": {"kind": {"enum": ["file", "file_object"]}},
+        "required": ["kind"]
+      },
+      "else": {"properties": {"file_remote": false}}
+    },
     {
       "if": {
         "properties": {

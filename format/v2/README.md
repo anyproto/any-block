@@ -254,6 +254,19 @@ These six type definitions' metadata and page content are outside the bundle
 round-trip scope; readers still accept their files in older bundles. The rule
 uses the stored type key and applies only to type definitions (SPEC §2c, §11).
 
+Files can optionally preserve their remote access information in the root
+`file_remote` field: base64-encoded JSON with its own `version: 1` and
+[separate schema](schema/file-remote.v1.schema.json), independent of AnyBlock
+`2.0`. It carries the CID, encryption keys by exact DAG path, and optional
+indexed variants. Remote-only bundles identify the source with
+the optional `index.json.network_id` and omit `manifest.files`, which lists
+embedded bytes only. The network id is opaque metadata used by import to
+assess remote recovery; export and bundle validation do not validate its
+value. Readers prefer embedded bytes and ignore unsupported or
+malformed payloads with a diagnostic; a file relying on an ignored payload
+without embedded bytes is unresolved. See [SPEC §2h](SPEC.md#2h-remote-file-metadata-file_remote)
+and the [remote file example](examples/remote_file/).
+
 ### 8. Validation is discriminator-first, with path-addressed errors
 
 The schema branches on `type` before validating a block, rather than

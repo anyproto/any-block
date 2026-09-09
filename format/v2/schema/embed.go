@@ -18,6 +18,9 @@ var (
 	//go:embed properties.schema.json
 	properties []byte
 
+	//go:embed file-remote.v1.schema.json
+	fileRemoteV1 []byte
+
 	//go:embed authoring/object.schema.json
 	authoringObject []byte
 
@@ -38,6 +41,9 @@ func Index() []byte { return clone(index) }
 
 // Properties returns the full property-dictionary schema (§2f).
 func Properties() []byte { return clone(properties) }
+
+// FileRemoteV1 returns the independently versioned decoded file_remote schema.
+func FileRemoteV1() []byte { return clone(fileRemoteV1) }
 
 // AuthoringObject returns the authoring subset of the object schema (§2g).
 func AuthoringObject() []byte { return clone(authoringObject) }

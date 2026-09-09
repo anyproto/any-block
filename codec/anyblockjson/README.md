@@ -15,6 +15,20 @@ Some implementation comments retain `storeresolver` as the name of Anytype's
 store-backed implementation of the codec's resolver interfaces. Those are
 integration references, not a package dependency.
 
+`Options.IncludeFileRemote` opts file objects into preserving their remote
+CID and encryption keys, plus optional indexed variant metadata. The root
+`file_remote` string is base64-encoded JSON with its own `version: 1`;
+the outer format remains `2.0`. `FileRemoteFromSnapshot`, `EncodeFileRemote`,
+and `DecodeFileRemote` expose the same extraction and validation used by
+the codec. `FileRemoteSchemaJSON` returns its separate decoded-payload schema.
+Import restores `FileInfo` and the corresponding internal details; a
+malformed or unsupported payload is ignored with `file_remote_ignored`.
+Remote metadata never enters `properties`. Standalone conversion needs no
+network context; bundles use `Options.NetworkId` to write `network_id` to
+their index. Network retrieval belongs to the caller's file service.
+The identifier is opaque and optional; import determines whether recovery is
+possible, while export and bundle validation impose no value constraints.
+
 The generated v1 Go models live in `format/v1/model`, beside the protobuf
 sources they come from — `format/v1` owns the v1 artifacts, the way
 `format/v2` owns the v2 schema. The proto files remain the authority; the

@@ -483,6 +483,20 @@ func (c *Composer) observeRelation(sbType model.SmartBlockType, base *model.Smar
 // Close, so whatever the composition needs to know about a document it has
 // to take from the bytes it is about to write (design §1.1).
 func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase, doc []byte) error {
+	if sbType == model.SmartBlockType_FileObject || sbType == model.SmartBlockType_File {
+		var envelope bundleDocumentEnvelope
+		if err := json.Unmarshal(doc, &envelope); err != nil {
+			return fmt.Errorf("read file envelope: %w", err)
+		}
+		if c.opts.IncludeFileRemote && envelope.FileRemote == nil {
+			return fmt.Errorf("observe written file: IncludeFileRemote requires file_remote; use the same Options for Marshal and NewComposer")
+		}
+		if envelope.FileRemote != nil {
+			if _, err := anyblockjson.DecodeFileRemote(*envelope.FileRemote); err != nil {
+				return fmt.Errorf("observe written file: invalid file_remote: %w", err)
+			}
+		}
+	}
 	used, err := UsedPropertyKeysFromBytes(doc)
 	if err != nil {
 		return fmt.Errorf("scan used property keys: %w", err)
@@ -683,7 +697,9 @@ func (c *Composer) ObserveFileBlob(objectId, path string) {
 
 // DeclareMetadataOnly states that this export carries no blob bytes at all
 // — the metadata-only mode SPEC §2c tolerates — so index.json writes
-// `"files": {}` rather than omitting the member.
+// `"files": {}`. With IncludeFileRemote, it instead omits the map: each
+// file_remote payload identifies its remote file. The optional network_id is
+// passed through for import to determine whether recovery is possible.
 //
 // It is a DECLARATION and not an observation, because the composer cannot
 // observe it. A composition that wrote file documents and saw no blob is in
@@ -1007,6 +1023,7 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// IndexFromSpaceSettings result, keeping extraction in the codec while the
 	// explicit candidate sets keep Composer's conflict policy visible.
 	idx := c.index
+	idx.NetworkId = c.opts.NetworkId
 	idx.Name = spaceSettings.Name
 	idx.Description = spaceSettings.Description
 	idx.Icon = spaceSettings.Icon
@@ -1032,9 +1049,11 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 					"an export either carries bytes or states that it carries none",
 				len(observed), strings.Join(observed, ", "))
 		}
-		// non-nil and empty: the mode STATED. MarshalIndex writes `{}` for
-		// this and omits the member for nil (Manifest.Files).
-		files = map[string]string{}
+		// Legacy metadata-only exports state the mode with `{}`. Remote
+		// exports state it through file_remote and omit files.
+		if !c.opts.IncludeFileRemote {
+			files = map[string]string{}
+		}
 	}
 	idx.Manifest = &anyblockjson.Manifest{
 		Properties: anyblockjson.PropertiesFileName,

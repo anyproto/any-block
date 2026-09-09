@@ -320,6 +320,7 @@ Fields, in **canonical order** (§4):
 | `cover` | object | no | The object's cover — same shape, three variants (§2b). Stands for the stored `coverId` / `coverType` / `coverScale` / `coverX` / `coverY` keys, which `properties` refuses. |
 | `properties` | object | no | The object's properties, §3. |
 | `type_settings` | object | no | Only for type documents (`kind: "object_type"`, `"bundled_object_type"`): everything that defines the TYPE, in one gated subtree — `layout`, `api_key`, `plural_name`, `default_template`, `default_view`, and `property_definitions` (§2a). Present on any other kind → validation error. The root spelling `type_properties` is refused with the repair named. |
+| `file_remote` | string | no | Only for `kind: "file_object"` or legacy `"file"`: standard base64 encoding of independently versioned JSON containing the remote CID, encryption keys, and optional indexed variant metadata (§2h). |
 | `property_internal_keys` | object | no | Legend: the stored property key each spelling in this document names (§3). Written for every spelling the **bundled table does not bind to the key being written** — a spelling the table cannot invert (a space's own key) *and* the **identity entry**, which is the ordinary case: a custom key written verbatim names itself, because nothing else in the document says the term is a stored key rather than somebody's display-name spelling. A reader consults it **before** its own vocabulary and takes the value as **authoritative**: it is not liveness-checked, deliberately (§3). Absent only from a document whose every spelling is bundled. |
 | `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. (In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode those two slots spell the vocabulary rather than the derived id; the type namespace carries no legend either way, and a bundle refuses that mode — §9.) A document carrying the map is refused with the repair named (§10). |
 | `option_ids` | object | no | Legend: the id of the option each select/multi_select **name** in this document stands for — nested, `{property spelling: {option name: option id}}` (§3, §9a). Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the name resolves exactly as it did before the legend existed. |
@@ -337,10 +338,12 @@ the indent-0 blocks).
 cover are envelope fields of their own (§2b).** There is no title block in a
 document (§7), and no icon block.
 
-Snapshot fields **excluded** from the format:
+Snapshot fields handled outside ordinary document content:
 
-- `fileInfo` — only present on old-format (deprecated) file objects; export
-  drops it, import leaves it empty.
+- `fileInfo` — on modern and legacy file objects, its CID and encryption
+  keys travel through `file_remote` when that export option is enabled
+  (§2h). Otherwise export drops it; import leaves it empty when no usable
+  `file_remote` is present.
 - `relationLinks` — deprecated protocol-wide, scheduled for removal; not
   represented. Property formats are handled via resolvers (§3).
 - `removedCollectionKeys` — dropped (meaningful only for change replay, not
@@ -785,6 +788,7 @@ object. That is `index.json`, one file at the bundle root, validated against
 | `name` · `description` | the space's own identity, applied on install |
 | `icon` | the space's icon, in exactly the shape an object's icon has (§2b), restricted to the two variants a bundle can hold: `{"format": "emoji", "emoji": "📚"}`, or `{"format": "file", "file": "<object id of an image in the bundle>"}`. The image variant needs the image object *and* its file in the archive, so a generated bundle uses an emoji. It is one `$ref` into the object schema, not a copy — an index and an object cannot disagree about what an icon is. |
 | `entrypoint` | the declared entry object; used when `homepage` is absent. Must name an object in the bundle. The legacy one-time opening behavior is described below |
+| `network_id` | optional opaque source network identifier, separate from the space id. Export carries it through without validating its value. Import uses it to determine whether remote files can be recovered; an absent, empty, or unrecognized identifier does not invalidate the bundle (§2h) |
 | `homepage` | what opens on entering the space: an object id, or `_widgets` (the sidebar dashboard) or `_graph`. Takes precedence over `entrypoint`, including on the first entry through the bundle install path |
 | `widgets` | sidebar widgets, in order. When both `homepage` and `entrypoint` are absent, the first widget naming an object supplies the compatibility fallback. Reserved listing targets are skipped |
 | `unresolved` | what this bundle NAMES and cannot answer for — the property keys nothing could define, and the ids this file points at that no document here carries (below). Optional, and its absence is not a completeness claim |
@@ -954,7 +958,8 @@ document (the dictionary) and the bytes a file document stands for.
   the lesson of the legacy `source`-clobber, which overwrote a real,
   editable `url` relation that bookmarks legitimately hold, and whose
   destruction round-tripped through import. Every importer holding a file
-  document must find its bytes and every export tool must enumerate them —
+  document must resolve embedded bytes or its §2h remote metadata, and every
+  export tool carrying bytes must enumerate them —
   and the map has that reader wired: `cmd/anyblockconvert` copies each
   binding into the installable archive and writes the archive-side
   `source` detail from it (the pb importer's own contract, resolved by
@@ -988,9 +993,11 @@ document (the dictionary) and the bytes a file document stands for.
   difference between "no bytes were meant to travel" and "every stream
   failed"), a reader must not infer intent from the absence, and it must not
   read `{}` as an error.
-  The bundle is FAT (§15 #20): the bytes travel, nothing
-  else — no variant keys, no encryption keys, and the thin bundle's future
-  marker slot stays untouched.
+  Remote files add an explicit alternative (§2h, §15 #20): `file_remote`
+  on each file document carries its remote access information, and
+  `network_id` identifies the source network. A remote-only export omits
+  `manifest.files`; the map lists embedded bytes only. Its absence still
+  says nothing about embedded bytes and is not itself a remote-file marker.
 
 Paths are relative to the index file. The reader flow, with no table and
 no name matching: object → `type_internal_key: "task"` → the document whose
@@ -2291,8 +2298,129 @@ Each of the three subset schemas is materially smaller than the full one
 beside it, with every remaining `description` rewritten for an author: short,
 concrete, saying what to write. Size is the least of it; the narrowing that
 matters to a generator is structural: 3 authorable kinds where the full enum
-offers 31, 23 block types of 39, 13 envelope members of 19, and no
+offers 31, 23 block types of 39, 14 envelope members of 21, and no
 output-only member anywhere — the test asserts that literally.
+
+## 2h. Remote file metadata (`file_remote`)
+
+A file document may carry an opaque `file_remote` string at the root, only
+on `kind: "file_object"` or legacy `kind: "file"`. This lets an export omit
+the file bytes while preserving the information needed to retrieve them
+from the source network. It does not change the file's ordinary properties,
+object identity, or references from other documents.
+
+The string is **standard padded base64 of UTF-8 JSON**. The decoded payload
+has its own integer `version`, initially **1**. Its schema is
+[`schema/file-remote.v1.schema.json`](schema/file-remote.v1.schema.json),
+published as `https://schemas.anytype.io/anyblock/file-remote/1.schema.json`.
+Payload versioning is independent of the containing document's
+`formatVersion: "2.0"`: a future payload version need not change the outer
+grammar, which continues to carry an opaque string. Base64 is an encoding,
+not encryption; its decoded keys grant access to the referenced file.
+
+Decoded version 1, using synthetic values:
+
+```json
+{
+  "version": 1,
+  "cid": "bafybeiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "encryption_keys": {"/0/": "SYNTHETIC_FILE_KEY"},
+  "source_checksum": "synthetic-source-checksum",
+  "variants": [{
+    "cid": "bafybeiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path": "/0/",
+    "checksum": "synthetic-variant-checksum",
+    "mill": "/blob",
+    "options": "",
+    "width": 0
+  }]
+}
+```
+
+| Decoded field | Required | Meaning |
+|---|---|---|
+| `version` | yes | Payload schema version, exactly `1` for this schema |
+| `cid` | yes | Valid CID of the remote file's root DAG, not the file object's id |
+| `encryption_keys` | yes | Map from exact DAG path to encryption-key string. Preserve every entry; `{}` is allowed for files with no supplied keys. An empty key string is allowed for unencrypted content |
+| `source_checksum` | no | Original source checksum; omitted when empty |
+| `variants` | no | Indexed variant records in stored order; omitted when empty. Each record requires all six members shown above, even when its strings are empty or `width` is zero |
+
+Variant CIDs must be valid, paths must be unique within `variants`, and
+`width` is an integer from 0 through 2147483647. Paths in either location
+start with `/` and contain no control characters. They are exact keys into
+the remote DAG, such as `/0/` or `/0/thumbnail/`; they are neither local
+filesystem paths nor archive paths and must not be normalized. A variant's
+encryption key is the map entry at its path; an absent entry means no key
+was supplied. Unknown members and duplicate JSON members are invalid in
+version 1. Canonical encoding uses compact JSON, sorted map keys, and
+preserved variant-array order.
+
+**Source and reconstruction.** A snapshot's populated `fileInfo` is
+authoritative for the root CID and the complete encryption-key map. Modern
+files can have that information before indexing has populated any
+`file*` properties. Only when `fileInfo.fileId` is absent does export fall
+back to `fileId` and paired `fileVariantPaths`/`fileVariantKeys` arrays.
+Optional indexed metadata comes from details. Inconsistent non-empty
+variant arrays when `fileVariantIds` is non-empty, duplicate paths, or an
+unusable CID make an explicitly requested remote export fail before it
+writes a document.
+
+| Stored field | Decoded representation |
+|---|---|
+| `fileId` | `cid` |
+| `fileSourceChecksum` | `source_checksum` |
+| `fileVariantKeys` | `encryption_keys`, keyed by the corresponding path |
+| `fileVariantIds` | `variants[].cid` |
+| `fileVariantPaths` | `variants[].path` |
+| `fileVariantChecksums` | `variants[].checksum` |
+| `fileVariantMills` | `variants[].mill` |
+| `fileVariantOptions` | `variants[].options` |
+| `fileVariantWidths` | `variants[].width` |
+
+Import reconstructs `fileInfo` and `fileId`, plus the optional checksum and
+aligned variant arrays when supplied. Keys in `fileInfo` are ordered by
+path; cached `fileVariantKeys` are rebuilt from the authoritative map. These
+nine internal fields remain forbidden in `properties` and do not enter the
+property dictionary. `fileAvailableOffline`, `fileBackupStatus`,
+`fileIndexingStatus`, and `fileSyncStatus` remain omitted device state.
+`fileExt` and `fileMimeType` remain ordinary properties. Object-id folding,
+block compaction, and id omission do not touch the payload.
+
+**Export option and resolution.** The codec's `Options.IncludeFileRemote`
+defaults to false. Export wiring should enable it when the user's
+`include_file_data` option is false and pass the source network through
+`Options.NetworkId`. Use the same options for planning, document encoding,
+and composition. The network id is optional opaque metadata: export and
+bundle validation impose no value constraints on the string and do not
+require its presence. Import uses it to determine whether remote recovery
+is possible. The codec preserves metadata; the application's file service
+performs network retrieval.
+
+`index.json.network_id` identifies the source network. A reader resolves a
+file using its valid `manifest.files` binding first, then usable
+`file_remote` when no embedded bytes are supplied and import determines
+that recovery is possible on the source network. The manifest lists only
+embedded blobs; remote-only bundles omit its `files` member and need no
+separate inventory of remote files. A declared blob that is missing still
+makes the bundle invalid. An absent, empty, or unrecognized `network_id`
+does not invalidate the bundle. Network compatibility, availability, and
+successful decryption are import concerns, beyond structural validation.
+
+**Reader compatibility.** A reader that understands this field must try
+base64 decoding, JSON parsing, and validation against the indicated payload
+version. Invalid encoding, invalid JSON or payload shape, an invalid CID,
+or an unsupported payload version causes it to ignore the entire payload
+and report `file_remote_ignored`; ordinary object content remains readable.
+The outer object schema deliberately accepts these strings. At bundle
+level, if a file supplied `file_remote` but has neither usable remote
+metadata nor embedded bytes, validation reports an unresolved file. Usable
+remote metadata is admitted regardless of `network_id`; recovery is checked
+on import. Legacy metadata-only documents that never supplied this field
+keep their existing validation behavior. File kinds remain outside the
+authoring subset (§2g).
+
+The complete synthetic example is in
+[`examples/remote_file/`](examples/remote_file/).
 
 ## 3. Properties
 
@@ -3756,6 +3884,7 @@ rules take precedence over the omission rule. In particular:
 | `query_source` (§6.2) | `{}` declares a query with no source and must remain distinct from no declaration. Empty `types` and `properties` lists inside it may be omitted, but the enclosing group remains |
 | `index.manifest.files` (§2c) | `{}` explicitly declares that no file bytes were carried. Absent states no such intent. Preserve the containing `manifest` even when this is its only member |
 | `type_settings.property_definitions` (§2a) | `[]` tells import to rebuild all four recommended-property lists as empty. Absence does not request that rebuild; preserve the containing `type_settings` |
+| Decoded `file_remote` (§2h) | Keep the required `encryption_keys` map even when `{}`, and every variant member even when its string is empty or its `width` is `0`. Only empty optional `source_checksum` and `variants` are omitted |
 | `property_settings` (§2d) | Stored presence of `include_time` and `object_types`, including `false`, `[]` and `null` where their schemas admit them |
 | Date definitions in type declarations and the dictionary (§2a, §2f) | `include_time: false` and `include_time: null` are declarations, distinct from an absent member |
 | Required members and positional values | Required arrays such as the dictionary's `properties: []` remain. A table cell's `null` placeholder retains its column position; only the table's explicit trailing-cell normalization applies (§6.1) |
@@ -6292,6 +6421,14 @@ defaults rather than a property's definition; and **a `defaultTemplateId`
 with a second entry keeps only its first**, with a warning — the member is
 the one default template, and 0 of 1,760 corpus documents carry more.
 
+With `IncludeFileRemote`, §2h preserves file CID and encryption keys from
+`fileInfo` (falling back to details), plus optional indexed variant metadata.
+Import also reconstructs `fileInfo` for a details-only source. Its key order
+is canonicalized and stale cached keys are replaced by the authoritative
+map. Empty optional checksum/variant metadata is omitted; device status is
+not restored. The snapshot comparator checks this metadata when the option
+is enabled. Without it, the existing file-metadata exclusion still applies.
+
 At bundle level, the six system type definitions listed in §2c (`relation`,
 `relationOption`, `space`, `spaceView`, `date`, `discussion`) are deliberately
 omitted, including their metadata and page content. Their omission is a scope
@@ -6822,6 +6959,8 @@ codec/anyblockjson/
                                the subset schema
   export.go                  — snapshot → JSON
   import.go                  — JSON → snapshot
+  fileremote.go              — independently versioned file_remote payload:
+                               snapshot metadata ↔ base64 JSON (§2h)
   inline.go                  — marks ↔ inline markup codec (§8)
   table.go                   — table subtree ↔ columns/rows
   dataview.go                — dataview content mapping (§6.2)
@@ -7114,6 +7253,10 @@ type Options struct {
                                        // participant fold in BOTH directions — empty disables it (§9).
                                        // Supplied by the wiring exactly as resolvers are; the format
                                        // itself carries no space id.
+    IncludeFileRemote bool             // export only: preserve CID/keys and optional variant metadata
+                                       // in independently versioned file_remote; default off (§2h).
+    NetworkId         string           // optional opaque source network for index.json; used only by import
+                                       // to assess remote recovery, unused by standalone document encoding.
     TableColumnHeaders bool            // export only: annotate each table column with the header row's
                                        // rendered cell text (§6.1). Default off — the backup shape stays
                                        // minimal; a read surface turns it on to link a human header name
@@ -7238,6 +7381,8 @@ correctly and cannot be applied.
 
 Other exported helpers, in service of the same wiring: `SchemaJSON` (the
 embedded schema bytes), `InternalPropertyKeys` (what §3 strips),
+`FileRemoteSchemaJSON`, `FileRemoteFromSnapshot`, `EncodeFileRemote` and
+`DecodeFileRemote` (the independently versioned §2h payload),
 `IsCompactLabelShaped`,
 `LeafBlockType` / `TextBlockType`, `FormatName` / `FormatByName`, the
 vocabulary listers, and the `index.json` namespace helpers (§1, §2c):
@@ -8146,16 +8291,25 @@ being true.
   once the property leaves documents, sparing a bundled-relation `revision`
   bump and a space-by-space reviser pass.
 
+- **#20 Files by reference** — settled in §2h. Optional `file_remote` on
+  each file document carries a base64-encoded JSON payload with independent
+  version 1, the root CID, encryption keys, and optional indexed variants.
+  Optional `index.json.network_id` carries the source network identity for
+  import to assess remote recovery; export does not validate it. `manifest.files`
+  binds embedded bytes only and is omitted for remote-only bundles.
+  Unsupported or malformed payloads are ignored with a diagnostic; a file
+  depending on one without embedded bytes is unresolved. This is an opt-in
+  export profile, including when the user chooses to exclude file bytes.
+
 ### Deferred past 2.0
 
 - **#14, the emptiness half** — deliberately not taken with the spelling:
   `include_time` is still present-and-false on 8,375 documents and
   `object_types` present-and-empty on 8,903, now on the envelope, because
   presence mirrors the store (§2d); collapsing it is a separate decision
-  with its own snapshot-comparator cost. `file_variant_*` (7 parallel
-  arrays on every file object, 8.35% of corpus bytes), `space_invite_*`
-  and `widget_*` remain deferred with less at stake — machine-written,
-  never authored.
+  with its own snapshot-comparator cost. `space_invite_*` and `widget_*`
+  remain deferred — machine-written, never authored. File variant metadata
+  now has the separate optional representation in §2h.
 
 - **#16 Reusing a key across spaces** — follow-up, and NOT a format
   change. Measured: 39 spellings in a 77-space account already bind to
@@ -8205,20 +8359,6 @@ being true.
   absent: a question about the bundle, not one document.
   `type_settings.layout` is untouched either way — the declaration, not
   the cache.
-
-- **#20 A bundle that carries files BY REFERENCE** — follow-up,
-  deliberately not in 2.0. Today's bundle is FAT: the bytes travel, the
-  importing account uploads them under keys of its own, and §3 refuses to
-  carry `fileVariantKeys` and its siblings because a shared bundle
-  carrying the source's keys would hand its recipient the keys to every
-  file in that space, for no benefit. The thin bundle — each file named by
-  cid with the key that opens it, the importing account DOWNLOADS instead
-  of uploading — is worth having and is not being built now. It needs its
-  own bundle-level marker, so a reader knows an absent blob is intended
-  rather than missing; that marker is what makes carrying a key defensible
-  in that mode and only that mode. The keys are absent because today's
-  bundle is the FAT kind, not because a key can never appear in this
-  format.
 
 ### Open
 

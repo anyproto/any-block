@@ -72,6 +72,7 @@ type jsonDoc struct {
 	// TypeSettings is a kind:object_type document's definition group (§2a):
 	// the five lifted settings plus property_definitions.
 	TypeSettings *jsonTypeSettings `json:"type_settings"`
+	FileRemote   *string           `json:"file_remote"`
 	// PropertyKeys is the §3 spelling→stored-key legend: what this document says
 	// its own key spellings mean, consulted before any vocabulary so a reader
 	// without the space still lands on the right relation. Its values are
@@ -1056,6 +1057,14 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		ObjectTypes: objectTypes,
 		Collections: imp.buildCollections(),
 		Key:         doc.InternalKey,
+	}
+	if doc.FileRemote != nil {
+		// Validation already reported any ignored payload. Reconstruct only
+		// understood metadata, without treating payload versions as document
+		// format versions or importing stale device status fields.
+		if remote, err := DecodeFileRemote(*doc.FileRemote); err == nil {
+			remote.apply(snapshot)
+		}
 	}
 	return sbType, snapshot, nil
 }

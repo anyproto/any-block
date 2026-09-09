@@ -21,9 +21,10 @@ import (
 var ErrIndexNotFound = errors.New("bundle index.json not found")
 
 type bundleDocumentEnvelope struct {
-	ID          string `json:"id"`
-	Kind        string `json:"kind"`
-	InternalKey string `json:"internal_key"`
+	ID          string  `json:"id"`
+	Kind        string  `json:"kind"`
+	InternalKey string  `json:"internal_key"`
+	FileRemote  *string `json:"file_remote"`
 	// The slots that name a TYPE by key (SPEC §9). Each is checked against
 	// the bundle's document ids the way the index's own references are:
 	// deleting manifest.types (§15 #26) made `type-<internal_key>` the only
@@ -298,6 +299,7 @@ func validate(fsys fs.FS, surface bundleSurface) error {
 	documentPaths := map[string]string{}
 	documentKinds := map[string]string{}
 	var typeUses []derivedTypeUse
+	var remoteFiles []struct{ source, id, encoded string }
 	// Keep every admitted object document for the deterministic authoring
 	// namespace pass below. Type declarations must be planned as one set before
 	// any dependent /type, /template_for or object_types slot is imported.
@@ -448,6 +450,9 @@ func validate(fsys fs.FS, surface bundleSurface) error {
 			return nil
 		}
 		recordDocument(name, envelope)
+		if envelope.FileRemote != nil {
+			remoteFiles = append(remoteFiles, struct{ source, id, encoded string }{name, envelope.ID, *envelope.FileRemote})
+		}
 		recordStoredTypeKey(name, envelope)
 		typeUses = append(typeUses, derivedTypeUses(name, envelope)...)
 		return nil
@@ -557,6 +562,18 @@ func validate(fsys fs.FS, surface bundleSurface) error {
 			if kind, exists := documentKinds[id]; exists && kind != "file_object" {
 				issues = append(issues, fmt.Sprintf("manifest.files[%s] names a %q document, not a file_object", id, kind))
 			}
+		}
+	}
+	for _, file := range remoteFiles {
+		// A manifest binding promises embedded bytes; its existence and exact
+		// path were checked above. Optional remote metadata need not work when
+		// that source is available. A legacy metadata-only document carrying
+		// no file_remote keeps its existing admission behavior.
+		if idx.Manifest != nil && idx.Manifest.Files[file.id] != "" {
+			continue
+		}
+		if _, err := anyblockjson.DecodeFileRemote(file.encoded); err != nil {
+			issues = append(issues, fmt.Sprintf("%s: file unresolved: no embedded bytes and file_remote was ignored (%v)", file.source, err))
 		}
 	}
 	if !dictionaryDeclared || dictionaryDecoded {

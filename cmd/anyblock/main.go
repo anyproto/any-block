@@ -217,6 +217,7 @@ func runToV2(args []string) error {
 	out := flags.String("out", "", "AnyBlock v2 object document")
 	encoding := flags.String("encoding", "auto", "input encoding: auto, pb, or json")
 	spaceID := flags.String("space-id", "", "space containing the v1 snapshot (enables participant reference folding)")
+	includeFileRemote := flags.Bool("include-file-remote", false, "include versioned CID/key metadata on file objects")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -257,7 +258,8 @@ func runToV2(args []string) error {
 		return fmt.Errorf("v1 envelope has no snapshot data")
 	}
 	output, err := anyblockjson.Marshal(envelope.SbType, envelope.Snapshot.Data, anyblockjson.Options{
-		SpaceId: *spaceID,
+		SpaceId:           *spaceID,
+		IncludeFileRemote: *includeFileRemote,
 		OnWarning: func(issue anyblockjson.Issue) {
 			fmt.Fprintf(cliWarningOutput, "warning: %s\n", issue)
 		},

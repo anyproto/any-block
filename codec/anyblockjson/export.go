@@ -102,6 +102,15 @@ type Options struct {
 	// slot where a composite belongs — silent corruption of exactly the slot
 	// the fold exists to fix.
 	SpaceId string
+	// IncludeFileRemote writes independently versioned remote file metadata
+	// on file objects. Export wiring enables it when include_file_data is
+	// false. Off by default; it does not control blob streaming itself.
+	IncludeFileRemote bool
+	// NetworkId identifies the source network in a composed bundle's index.
+	// It is optional, opaque metadata for import to determine whether remote
+	// files can be recovered. Export and bundle validation do not validate its
+	// value; single-document encoding ignores it.
+	NetworkId string
 	// NoDerivedTypeIds turns off the TYPE half of the derived-id fold (§9)
 	// on export. Off by default, so the fold stands wherever nothing asks
 	// otherwise; the participant half is gated on SpaceId alone and is not
@@ -1685,6 +1694,17 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	// property_definitions member is present even when empty, because that
 	// presence is what tells import to rebuild the four lists (§2a)
 	doc.setNonEmpty("type_settings", typeSettings)
+	if e.opts.IncludeFileRemote && isFileSmartBlock(sbType) {
+		remote, err := FileRemoteFromSnapshot(e.snapshot)
+		if err != nil {
+			return nil, fmt.Errorf("file_remote: %w", err)
+		}
+		encoded, err := EncodeFileRemote(remote)
+		if err != nil {
+			return nil, fmt.Errorf("file_remote: %w", err)
+		}
+		doc.set("file_remote", encoded)
+	}
 
 	doc.setNonEmpty(memberPropertyInternalKeys, e.buildPropertyKeys())
 	// option_ids last of the three legends: its outer keys are property

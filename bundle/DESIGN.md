@@ -403,17 +403,20 @@ the corpus's very first sampled bookmark carries a real URL there — and the
 pb importer reads the path back out of the same key
 (core/block/import/pb/converter.go, `Pb.normalizeFilePath`). A document member may not be a slot for
 archive bookkeeping; that is the lesson, and neither alternative below puts
-a path into the document.
+an archive path into the document. The optional `file_remote` payload carries
+exact remote DAG paths, which are a separate namespace (SPEC §2h).
 
 Facts that shape the design: 10,254 file objects (36% of all corpus
 documents; median 25 per space, p90 505, max 2,242). Every one carries
 `name`, `file_ext`, `file_mime_type`, `size_in_bytes` in `properties` —
 but `file_ext` is dirty as a path component: 431 empty, 9 longer than 10
 chars, dozens non-alphanumeric (`0-rc01`, `9-alpha` — shrapnel of versioned
-library filenames), and 12 literally `json`. SPEC §15 #20
-fixes the bundle as FAT — the bytes travel, no `fileVariantKeys`, no
-encryption keys — and this design carries bytes and nothing else; the thin
-bundle's future marker slot is left untouched.
+library filenames), and 12 literally `json`. The embedded-byte layout below
+uses `manifest.files` only for bytes that travel. SPEC §2h and §15 #20 also
+define a remote profile: each file document carries an independently
+versioned base64 `file_remote` payload, and `index.json.network_id` identifies
+the source network. Remote-only files need no manifest entry. A reader
+prefers embedded bytes and otherwise resolves the remote metadata.
 
 **Alternative A — adjacency convention.** The blob sits beside its document
 in `files/`, same stem, real extension:

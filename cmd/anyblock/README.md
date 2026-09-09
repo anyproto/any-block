@@ -23,6 +23,15 @@ a bundled key is exempt, since every reader carries the shipped table), and
 file bindings. A directory without `index.json` is treated as a collection of
 independent documents.
 
+`to-v2 -include-file-remote` preserves a file object's remote CID, encryption
+keys, and optional indexed variant metadata in the base64 `file_remote`
+field. It defaults to false. `to-v1` restores a supported payload
+automatically and warns when it ignores a malformed or future version.
+These commands convert one document; a bundle can carry its source
+`network_id` in `index.json` for import to assess remote recovery (SPEC §2h).
+The identifier's value is not validated during export or bundle validation.
+Neither conversion command downloads file bytes.
+
 ## What a round trip does not carry
 
 `to-v1` mints a fresh id for every container the format does not name — table

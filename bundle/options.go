@@ -1,11 +1,8 @@
 package bundle
 
-// options.go — the Options a bundle refuses, and the one reason it has to.
+// options.go — the Options a bundle refuses before publishing any documents.
 //
-// Every other Options member this package meets is a fact about HOW documents
-// are written that composition passes through unread. `NoDerivedTypeIds` is
-// the exception: it changes what a type document is ADDRESSED by, and a
-// bundle is the one context in which that address is load-bearing.
+// Derived type references must resolve within the bundle.
 
 import (
 	"fmt"

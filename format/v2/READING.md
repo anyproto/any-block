@@ -54,6 +54,12 @@ Four things to take from it and one to be careful about.
   all**, and 666 `file_object` documents; opening one leads to metadata, not
   to pixels. Step 6 walks the whole path from an image block to bytes, and
   what a reader does when the last hop is missing.
+- **`network_id`** identifies the source network for optional remote files
+  (SPEC §2h). It is optional opaque metadata; import uses it to determine
+  whether remote recovery is possible. Export and bundle validation do not
+  validate its value. A file document's `file_remote` payload supplies its CID
+  and encryption keys. Remote-only exports omit `manifest.files`; the per-file
+  payload, rather than the map's absence, identifies the remote fallback.
 - **`homepage`, `entrypoint`, `widgets[].target` and `auto_widget_targets`**
   are object ids, and they are the ids most likely to point at nothing. In this
   export, of the homepage plus 23 widget targets: 5 resolve to a document in
@@ -402,6 +408,17 @@ a **file document** (`kind: "file_object"`) holding the metadata — name, mime
 type, size — and still no bytes. The bytes, if this export carried any, are
 bound in `index.json`'s `manifest.files` under that *same* id.
 
+When no embedded bytes are bound, check the file document's optional
+`file_remote` string. Decode standard base64, parse JSON, and validate its
+independent payload `version` against the supported schema. Version 1 has a
+root `cid`, an `encryption_keys` map keyed by exact DAG path, and optional
+indexed variants. Import uses the optional `index.json.network_id` to check
+whether recovery is possible through its file service. A missing or
+unrecognized identifier does not invalidate the bundle. Embedded bytes take
+precedence. Ignore malformed or unsupported payloads with a diagnostic; if no embedded bytes
+remain, report an unresolved file. The
+[remote file example](examples/remote_file/) shows the decoded payload.
+
 The whole path, over [`examples/exported_space`](examples/exported_space),
 which ships one of each so you can run it:
 
@@ -421,13 +438,15 @@ Three things bite on real exports:
 - **A file document's `icon.file` points at the file document itself.** It is
   its own thumbnail, so following it lands you back where you started — 608 of
   Community's 666 file documents are shaped that way, and so is the one in the
-  example. Nothing is missing; stop, and go to `manifest.files` instead.
+  example. Stop following the self-reference and resolve the file's embedded
+  bytes or remote metadata.
 - **The bytes are usually not there.** Community carries 666 file documents
   and no `manifest.files` member at all, so **not one** of them leads to a
   blob. Across the corpus that is universal, not a quirk of one export: 68 of
   the 79 bundles carry file documents, 10,303 between them, and no bundle
-  carries a `files` map at all. A metadata-only export is the normal case —
-  say "no bytes in this export" and render the name.
+  carries a `files` map at all. Those older exports also lack `file_remote`;
+  say "no bytes in this export" and render the name. New remote exports
+  supply the metadata needed for the network fallback described above.
 - **A media block may name a document the bundle does not carry.** Of
   Community's 793 media blocks (717 `image`, 43 `video`, 32 `file`, 1 `pdf`),
   745 reach a file document and **48 reach nothing** — which is this step's

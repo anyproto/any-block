@@ -122,6 +122,9 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 	var out []string
 
 	out = append(out, compareObjectTypes(orig, got, sbType)...)
+	if opts.IncludeFileRemote && (sbType == model.SmartBlockType_FileObject || sbType == model.SmartBlockType_File) {
+		out = append(out, compareFileRemote(orig, got)...)
+	}
 
 	// the §2f omission: a bundled-identical relation document is not written
 	// at all — it travels as a dictionary entry stating its definition,

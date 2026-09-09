@@ -16,6 +16,10 @@
     "formatVersion": {
       "const": "2.0"
     },
+    "network_id": {
+      "type": "string",
+      "description": "Optional opaque source network identifier from the exporting node's active configuration. Its value is not validated by export or bundle validation. Import uses it to determine whether remote files can be recovered. An absent, empty, or unrecognized identifier does not invalidate the bundle."
+    },
     "name": {
       "type": "string",
       "minLength": 1,

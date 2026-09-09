@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.anytype.io/anyblock/file-remote/1.schema.json",
+  "title": "AnyBlock file_remote payload, version 1",
+  "description": "The decoded JSON inside a file object's base64 file_remote string. This payload version is independent of the enclosing AnyBlock formatVersion.",
+  "type": "object",
+  "required": ["version", "cid", "encryption_keys"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "cid": {"type": "string", "minLength": 1, "description": "Root file DAG CID; readers additionally check CID syntax."},
+    "encryption_keys": {
+      "type": "object",
+      "propertyNames": {"pattern": "^/[^\u0000-\u001f\u007f]*$"},
+      "additionalProperties": {"type": "string"},
+      "description": "Stored encryption keys by exact DAG path, such as /0/ or /0/original/. These are not filesystem or archive paths. An empty map supplies no keys; an empty key denotes an unencrypted variant."
+    },
+    "source_checksum": {"type": "string"},
+    "variants": {
+      "type": "array",
+      "description": "Optional indexed variant metadata, in stored order. Paths must be unique and variant CIDs must be valid.",
+      "items": {
+        "type": "object",
+        "required": ["cid", "path", "checksum", "mill", "options", "width"],
+        "additionalProperties": false,
+        "properties": {
+          "cid": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "pattern": "^/[^\u0000-\u001f\u007f]*$"},
+          "checksum": {"type": "string"},
+          "mill": {"type": "string"},
+          "options": {"type": "string"},
+          "width": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+        }
+      }
+    }
+  }
+}
