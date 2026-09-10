@@ -162,11 +162,15 @@ type Options struct {
 	// OmitIds drops document-local block/table/sort/filter ids and option_ids.
 	// It preserves envelope and view ids: widgets can address views from
 	// outside this document. Object references also remain full (§9, §9a).
-	OmitIds            bool
-	CompactBlockLabels bool          // export only: relabel doc-local block/row/column ids to short suffixes; preserve view ids (§9a)
-	GenerateId         func() string // import only: id generator for missing ids; nil = random 24-hex
-	NormalizeIndent    bool          // import only: clamp over-deep indents instead of rejecting (§4)
-	OnWarning          func(Issue)   // optional sink for warning-grade issues, both directions (indent clamps, unrepresentable dates, …)
+	OmitIds bool
+	// ResolveWidgetViewID supplies a target object's exported view label when
+	// rendering a standalone widget document. Bundle index widgets are remapped
+	// automatically by Composer. The callback must use the target's label plan.
+	ResolveWidgetViewID func(objectID, viewID string) (string, bool)
+	CompactBlockLabels  bool          // export only: relabel doc-local block/row/column/view ids to short suffixes (§9a)
+	GenerateId          func() string // import only: id generator for missing ids; nil = random 24-hex
+	NormalizeIndent     bool          // import only: clamp over-deep indents instead of rejecting (§4)
+	OnWarning           func(Issue)   // optional sink for warning-grade issues, both directions (indent clamps, unrepresentable dates, …)
 }
 
 // Legend carries the two legends of the document a fragment was cut out
@@ -324,9 +328,8 @@ func Marshal(sbType model.SmartBlockType, snapshot *model.SmartBlockSnapshotBase
 	if err := e.checkTableGridBounds(); err != nil {
 		return nil, err
 	}
-	// OmitIds retains only envelope and view ids, neither of which relabels, so
-	// a label plan has nothing to label. Running the census probe with both
-	// flags would add a second block emit without changing the output.
+	// OmitIds takes precedence over compaction; preserved view selectors remain
+	// full in that mode, while ordinary short-ID exports relabel views too.
 	if opts.compactBlockLabels() && !opts.OmitIds {
 		e.buildLabelPlan()
 	}
@@ -378,7 +381,7 @@ type exporter struct {
 	querySourceValue querySource
 	querySourceBuilt bool
 
-	localIds map[string]string // local id -> short label; views keep their stored ids (§9a)
+	localIds map[string]string // local id -> short label, including views (§9a)
 
 	// optionRefs is the second `refs` population: the option id behind every
 	// name export wrote for a select value (optionrefs.go). Recorded against
@@ -2566,7 +2569,11 @@ func (e *exporter) blockToJSON(b *model.Block, depth int) (*omap, bool, error) {
 			m.setNonEmpty("layout", widgetLayoutNames.name(w.Layout))
 		}
 		m.setNonEmpty("limit", w.Limit)
-		m.setNonEmpty("view_id", w.ViewId)
+		viewID, err := e.widgetViewID(b, w.ViewId)
+		if err != nil {
+			return nil, false, err
+		}
+		m.setNonEmpty("view_id", viewID)
 		m.setNonEmpty("auto_added", w.AutoAdded)
 	case *model.BlockContentOfChat:
 		m.set("type", "chat")
@@ -2788,9 +2795,9 @@ func (e *exporter) emittedLocalIds() map[string]bool {
 	return probe.emitted
 }
 
-// buildLabelPlan works out which doc-local block/row/column ids may be
+// buildLabelPlan works out which doc-local block/row/column/view ids may be
 // relabeled to a short suffix (§9a). It walks BOTH id populations to do it:
-// the doc-local ids (including preserved view ids), and every OBJECT id
+// the doc-local ids (including view ids), and every OBJECT id
 // the document references — not because an object id is ever compacted (none
 // is, §9a), but because every one of them is spelled verbatim in the output,
 // so a label equal to one would make two different things answer to one name.

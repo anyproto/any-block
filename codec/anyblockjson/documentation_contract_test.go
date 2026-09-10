@@ -199,7 +199,7 @@ func TestDocumentationContract_OmitIdsKeepsEnvelopeIdentity(t *testing.T) {
 	docs := readFormatDocumentation(t)
 	assert.Contains(t, docs["SPEC.md"], "It **retains the envelope object `id`, view ids**")
 	assert.Contains(t, docs["PRINCIPLES.md"], "a provided envelope object id is preserved")
-	assert.Contains(t, docs["README.md"], "Both options preserve envelope and view ids")
+	assert.Contains(t, docs["README.md"], "Both options preserve envelope ids")
 
 	all := strings.ToLower(docs["SPEC.md"] + docs["PRINCIPLES.md"] + docs["README.md"])
 	for _, stale := range []string{

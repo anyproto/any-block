@@ -202,13 +202,15 @@ carried verbatim, no rename's business.
 Full object ids are ~59-character CIDs — a single mention can cost more
 tokens than the sentence containing it. There used to be two compactions:
 one that shortened object references behind a `refs` legend, and one that
-relabels document-local block/row/column ids to short suffixes. The
+relabels document-local block/row/column/view ids to short suffixes. The
 first is deleted; only the second is left.
 
-- **`CompactBlockLabels`** relabels doc-local block/row/column ids to
+- **`CompactBlockLabels`** relabels doc-local block/row/column/view ids to
   their last 5 characters. **Legend-less and lossy.**
 - `OmitIds` drops block/table/sort/filter ids and `option_ids`, for generation.
-  Both options preserve envelope and view ids: a widget outside the document
+  Both options preserve envelope ids. `OmitIds` preserves view ids; short-ID
+  exports shorten views and update index widget selectors using the target's
+  collision-checked mapping. A widget outside the document
   can select a view by its `view_id`.
 - **The envelope object id and object references are written in full, on
   every shape.**

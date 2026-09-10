@@ -170,7 +170,7 @@ func TestExport_MintedShapeRelabeling(t *testing.T) {
 	assert.Contains(t, served, shortHex, "a short id serves as itself")
 	assert.Contains(t, served, aliasMint,
 		"a minted id whose suffix spells another block's id must stay full, not alias it")
-	assert.Equal(t, []string{viewUuid}, viewIds, "view ids remain stable for external widget selectors")
+	assert.Equal(t, []string{"5ed67"}, viewIds, "view ids follow the same short-ID rule as blocks")
 
 	// the invariant behind the relabeling rules above, pinned independently
 	// of the rule that produces it: no two blocks/views ever share a served id

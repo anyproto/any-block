@@ -121,7 +121,20 @@ func TestExportPreservesWidgetViewSelectors(t *testing.T) {
 					data, err := Marshal(host.sbType, snapshot, opts)
 					require.NoError(t, err)
 					require.NoError(t, Validate(data, Options{}))
+					labels := WidgetViewIDs(host.sbType, snapshot, opts)
+					opts.ResolveWidgetViewID = func(objectID, viewID string) (string, bool) {
+						if objectID != host.id {
+							return "", false
+						}
+						label, ok := labels[viewID]
+						return label, ok
+					}
 					indexData, err := MarshalIndex(&Index{Widgets: []Widget{{Target: host.id, Layout: "view", ViewId: selected}}}, opts)
+					if opts.CompactBlockLabels && !opts.OmitIds {
+						assert.Equal(t, "5ed67", labels[selected])
+					} else {
+						assert.Equal(t, selected, labels[selected])
+					}
 					require.NoError(t, err)
 					for _, readOpts := range []Options{{}, {ResolveProperties: opts.ResolveProperties}} {
 						index, err := UnmarshalIndex(indexData, readOpts)
