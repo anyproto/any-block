@@ -331,8 +331,6 @@ func iconOf(detail func(string) *types.Value, warn func(path, format string, arg
 			// supplies it is not choosing an icon.
 			if emoji := detail(detailKeyIconEmoji).GetStringValue(); emoji != "" {
 				ic.Emoji = emoji
-				warn("/icon", "this object holds both a named icon (%q) and an emoji (%q); "+
-					"the name wins and the emoji is carried as output-only baggage", name, emoji)
 			}
 			return ic
 		}

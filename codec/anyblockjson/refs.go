@@ -477,7 +477,7 @@ func (e *exporter) objectRef(id string) string {
 // fixpoint: the sentinel is kept as-is, so re-exports are byte-stable.
 func (e *exporter) singularObjectRef(path, slot, id string) string {
 	if missingFromSpace(e.opts, id) {
-		e.warn(path, "%s %q names no object in this space and is written as %q — "+
+		e.warnReference(path, "%s %q names no object in this space and is written as %q — "+
 			"the slot cannot say \"no target\" without deleting the block, and the sentinel "+
 			"keeps the fact that a reference existed", slot, id, missingObjectId)
 		return e.objectRef(missingObjectId)
@@ -500,7 +500,7 @@ func (e *exporter) droppedMissingListEntry(path, id string) bool {
 		return false
 	}
 	if id != missingObjectId {
-		e.warn(path, "%q names no object in this space and is dropped — "+
+		e.warnReference(path, "%q names no object in this space and is dropped — "+
 			"a list expresses absence by being shorter", id)
 	}
 	return true
@@ -536,7 +536,7 @@ func (e *exporter) exportMarks(path string, marks []*model.BlockContentTextMark)
 		switch m.Type {
 		case model.BlockContentTextMark_Mention:
 			if missingFromSpace(e.opts, m.Param) {
-				e.warn(path, "mention target %q names no object in this space and is written as %q — "+
+				e.warnReference(fmt.Sprintf("%s/text/marks/%d/param", path, i), "mention target %q names no object in this space and is written as %q — "+
 					"the mention's own text stays; only its address is gone", m.Param, missingObjectId)
 				replace(i, m, missingObjectId)
 				continue
@@ -690,9 +690,23 @@ func ValidateTypeExportMapping(opts Options, sbType model.SmartBlockType, id, in
 	if documentID == referenceID {
 		return nil
 	}
-	return fmt.Errorf("type document %q exports as %q, but references export as %q: "+
+	return &TypeIdentityMismatchError{ObjectID: id, InternalKey: internalKey, DocumentID: documentID, ReferenceID: referenceID}
+}
+
+// TypeIdentityMismatchError identifies a type whose document and references
+// would export under different identities. Callers can use errors.As through
+// export wrappers to report the affected object without parsing diagnostics.
+type TypeIdentityMismatchError struct {
+	ObjectID    string
+	InternalKey string
+	DocumentID  string
+	ReferenceID string
+}
+
+func (e *TypeIdentityMismatchError) Error() string {
+	return fmt.Sprintf("type document %q exports as %q, but references export as %q: "+
 		"ResolveProperties must provide a TypeResolver mapping this id to stored key %q (SPEC §9)",
-		id, documentID, referenceID, internalKey)
+		e.ObjectID, e.DocumentID, e.ReferenceID, e.InternalKey)
 }
 
 // reservedIdViolation states the derived-id reservation (§9) once, for the
@@ -872,4 +886,21 @@ func (imp *importer) envelopeId(ref string, sbType model.SmartBlockType) string 
 		return imp.opts.unfoldTypeRef(id)
 	}
 	return id
+}
+
+// warnReference records the source location before an absent target is rewritten
+// or dropped. Block paths use stored IDs, property paths use stored keys, and
+// list positions refer to the original snapshot. The caller supplies objectId.
+func (e *exporter) warnReference(path, format string, args ...any) {
+	if e.opts.OnWarning == nil {
+		return
+	}
+	if e.warningBlockID != "" && strings.HasPrefix(path, "/blocks/") {
+		path = "/blocks/" + escapeSourcePathKey(e.warningBlockID) + strings.TrimPrefix(path, "/blocks")
+	}
+	e.opts.OnWarning(Issue{Code: IssueCodeUnresolvedTarget, Path: path, Message: fmt.Sprintf(format, args...)})
+}
+
+func escapeSourcePathKey(key string) string {
+	return strings.NewReplacer("~", "~0", "/", "~1").Replace(key)
 }

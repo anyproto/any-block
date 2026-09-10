@@ -496,6 +496,15 @@ func (i *Index) EffectiveEntryPoint() string {
 	return ""
 }
 
+// ObjectReference identifies one index reference and its original source when
+// the index was lifted from a stored snapshot. Path is a JSON pointer in index.json.
+type ObjectReference struct {
+	TargetObjectID string
+	ObjectID       string
+	SourcePath     string // location in the original object, when lifted
+	Path           string
+}
+
 // ReferencedObjectIds returns every OBJECT this index names, sorted and
 // without repeats, in the spelling MarshalIndex writes — the derived-id fold
 // included (§9), which is why it takes the same opts. These are the ids a
@@ -519,29 +528,35 @@ func (i *Index) EffectiveEntryPoint() string {
 // write time — ask one list of slots rather than each keeping its own. A
 // second list is how a slot gets checked in one place and not the other.
 func (i *Index) ReferencedObjectIds(opts Options) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, ref := range i.ObjectReferences(opts) {
+		if !seen[ref.TargetObjectID] {
+			seen[ref.TargetObjectID] = true
+			out = append(out, ref.TargetObjectID)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ObjectReferences keeps repeated targets at different locations distinct.
+func (i *Index) ObjectReferences(opts Options) []ObjectReference {
 	if i == nil {
 		return nil
 	}
-	seen := map[string]bool{}
-	var out []string
-	add := func(id string) {
-		if id == "" || IsPlatformId(id) {
-			return
+	var out []ObjectReference
+	add := func(path, id string) {
+		if id != "" && !IsPlatformId(id) {
+			out = append(out, ObjectReference{TargetObjectID: opts.foldRef(id), Path: path})
 		}
-		ref := opts.foldRef(id)
-		if seen[ref] {
-			return
-		}
-		seen[ref] = true
-		out = append(out, ref)
 	}
-	add(i.Entrypoint)
-	add(i.Homepage)
-	for _, w := range i.Widgets {
-		add(w.Target)
+	add("/entrypoint", i.Entrypoint)
+	add("/homepage", i.Homepage)
+	for n, w := range i.Widgets {
+		add(fmt.Sprintf("/widgets/%d/target", n), w.Target)
 	}
-	add(i.IconImageId())
-	sort.Strings(out)
+	add("/icon/file", i.IconImageId())
 	return out
 }
 

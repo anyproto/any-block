@@ -338,12 +338,13 @@ func Marshal(sbType model.SmartBlockType, snapshot *model.SmartBlockSnapshotBase
 }
 
 type exporter struct {
-	opts     Options
-	snapshot *model.SmartBlockSnapshotBase
-	sbType   model.SmartBlockType
-	blocks   map[string]*model.Block
-	rootId   string
-	visited  map[string]bool // emitted block ids: breaks ChildrenIds cycles, dedupes shared children
+	warningBlockID string
+	opts           Options
+	snapshot       *model.SmartBlockSnapshotBase
+	sbType         model.SmartBlockType
+	blocks         map[string]*model.Block
+	rootId         string
+	visited        map[string]bool // emitted block ids: breaks ChildrenIds cycles, dedupes shared children
 	// fragmentRoot says rootId itself is the addressed fragment block. Whole
 	// documents instead start at the smartblock root's children.
 	fragmentRoot bool
@@ -2215,8 +2216,8 @@ func (e *exporter) propertyValue(key, servedKey string, v *types.Value) any {
 		// dropping dangling entries must not erase the fact that the
 		// property was set.
 		var out []any
-		for _, id := range valueStringList(v) {
-			if e.droppedMissingListEntry("/properties/"+servedKey, id) {
+		for n, id := range valueStringList(v) {
+			if e.droppedMissingListEntry(fmt.Sprintf("/properties/%s/%d", escapeSourcePathKey(key), n), id) {
 				continue
 			}
 			out = append(out, e.objectRef(id))
@@ -2419,6 +2420,9 @@ func (e *exporter) localId(id string) string {
 // first per the §4 canonical key order). The returned bool reports whether
 // the caller should descend into the block's children.
 func (e *exporter) blockToJSON(b *model.Block, depth int) (*omap, bool, error) {
+	previous := e.warningBlockID
+	e.warningBlockID = b.Id
+	defer func() { e.warningBlockID = previous }()
 	// a snapshot's block graph is untrusted: without this, a ChildrenIds
 	// cycle recurses to an unrecoverable stack overflow, and a block shared
 	// by two parents is emitted twice (duplicate ids fail validation)
@@ -2468,12 +2472,12 @@ func (e *exporter) blockToJSON(b *model.Block, depth int) (*omap, bool, error) {
 		m.setNonEmpty("url", bm.Url)
 		// a singular reference slot: a target the space does not hold is
 		// written as the sentinel, never as if it existed (§9)
-		m.setNonEmpty("object_id", e.singularObjectRef("/blocks", "bookmark object_id", bm.TargetObjectId))
+		m.setNonEmpty("object_id", e.singularObjectRef("/blocks/object_id", "bookmark object_id", bm.TargetObjectId))
 		withChildren = false
 	case *model.BlockContentOfLink:
 		l := orEmpty(c.Link)
 		m.set("type", "link")
-		m.setNonEmpty("object_id", e.singularObjectRef("/blocks", "link object_id", l.TargetBlockId))
+		m.setNonEmpty("object_id", e.singularObjectRef("/blocks/object_id", "link object_id", l.TargetBlockId))
 		if l.CardStyle != model.BlockContentLink_Text {
 			m.setNonEmpty("card_style", cardStyleNames.name(l.CardStyle))
 		}
@@ -2706,7 +2710,7 @@ func (e *exporter) fileToJSON(m *omap, f *model.BlockContentFile) {
 	// as the sentinel, never as if it existed (§9) — the legacy hash arm
 	// included, because in the un-migrated spaces that still store one the
 	// hash IS the file object's index row id
-	m.setNonEmpty("object_id", e.singularObjectRef("/blocks", typ+" object_id", objectId))
+	m.setNonEmpty("object_id", e.singularObjectRef("/blocks/object_id", typ+" object_id", objectId))
 	m.setNonEmpty("name", f.Name)
 	m.setNonEmpty("mime_type", f.Mime)
 	m.setNonEmpty("size", f.Size_)

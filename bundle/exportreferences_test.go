@@ -29,7 +29,16 @@ func TestBuildPlanRequiresTypeReferenceMappings(t *testing.T) {
 			plan, err := BuildPlan(opts, docs)
 			require.Error(t, err, "unsafe mappings must be refused before paths are committed")
 			assert.Nil(t, plan)
-			assert.ErrorContains(t, err, "typeid-wine")
+			var mismatch *anyblockjson.TypeIdentityMismatchError
+			require.ErrorAs(t, err, &mismatch)
+			assert.Equal(t, "typeid-wine", mismatch.ObjectID)
+			assert.Equal(t, "wine", mismatch.InternalKey)
+			assert.Equal(t, "type-wine", mismatch.DocumentID)
+			if tc.keys["typeid-wine"] == "page" {
+				assert.Equal(t, "type-page", mismatch.ReferenceID)
+			} else {
+				assert.Equal(t, "typeid-wine", mismatch.ReferenceID)
+			}
 		})
 	}
 	plan, err := BuildPlan(anyblockjson.Options{ResolveProperties: planTypeResolver{
@@ -54,6 +63,9 @@ func TestComposerRequiresTheSameTypeMappingAsTheDocumentExporter(t *testing.T) {
 		c := newComposer(t, anyblockjson.Options{ResolveProperties: planTypeResolver{keyById: keys}}, "Wine")
 		err := c.ObserveWritten(model.SmartBlockType_STType, snapshot, data)
 		require.ErrorContains(t, err, "TypeResolver")
+		var mismatch *anyblockjson.TypeIdentityMismatchError
+		require.ErrorAs(t, err, &mismatch)
+		assert.Equal(t, "typeid-wine", mismatch.ObjectID)
 	}
 	c := newComposer(t, opts, "Wine")
 	require.NoError(t, c.ObserveWritten(model.SmartBlockType_STType, snapshot, data))

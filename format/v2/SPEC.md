@@ -630,8 +630,8 @@ object**, whose `format` member says which kind it is:
   Exactly 200 production objects hold both an `iconName` and an `iconEmoji` —
   every one a bundled type mid-migration (`Space` 🌎/`folder` ×18, `Type`
   🥚/`extension-puzzle` ×12) — and `format` has already answered which one
-  wins, so the emoji is baggage rather than ambiguity. Export writes it with
-  a warning; a document that supplies it is not choosing an icon.
+  wins, so the emoji is baggage rather than ambiguity. Export preserves both
+  values without a warning; a document that supplies the emoji is not choosing an icon.
 
 **Precedence, when the store holds more than one source:** `iconName` →
 `iconEmoji` → `iconImage`. That is `core/api/service/icon.go`'s rule, the
@@ -7217,14 +7217,18 @@ type Legend struct {
 // Path and Message are presentation: they are free to improve. Code is the
 // stable semantic discriminator, and the only member a caller may branch on.
 // Most issues are presentation-only and leave it empty.
+// unresolved_target export paths address the original snapshot: /blocks/<id>/object_id,
+// /blocks/<id>/text/marks/<index>/param, or /properties/<stored-key>/<index>.
+// IDs and keys use JSON Pointer escaping; indices precede any export-time drops.
+// The export caller prefixes its source object ID for a self-contained report path.
 type Issue struct {
-    Path    string // JSON pointer into the document, "" for the root
+    Path    string // document pointer, or source path for unresolved export references
     Message string
     Code    IssueCode
 }
 
-// IssueCode names an Issue's semantic meaning. Two codes exist, one per
-// derived-id namespace (§9, §11): a reader wired without a SpaceId leaves
+// IssueCode names an Issue's semantic meaning. The two import codes below
+// cover the derived-id namespaces (§9, §11): a reader without a SpaceId leaves
 // this document's folded participant identities bare, addressing no object,
 // and a reader that DOES name a space but carries no TypeResolver leaves its
 // `type-<internal_key>` references folded, addressing no object in that
@@ -7237,6 +7241,8 @@ type IssueCode string
 const (
     IssueCodeFoldedParticipantsWithoutSpace IssueCode = "folded_participants_without_space"
     IssueCodeFoldedTypesWithoutResolver     IssueCode = "folded_types_without_resolver"
+    IssueCodeTypeIdentityMismatch           IssueCode = "type_identity_mismatch"
+    IssueCodeUnresolvedTarget               IssueCode = "unresolved_target"
 )
 
 type Options struct {
@@ -7443,7 +7449,13 @@ document inside it. The bundle path plan never reaches that branch:
 func ValidateTypeExportMapping(opts Options, sbType model.SmartBlockType, id, internalKey string) error
 ```
 
-checks the other half of that agreement: a type document's stored id must
+A mismatch returns `*TypeIdentityMismatchError`, with `ObjectID`,
+`InternalKey`, `DocumentID`, and `ReferenceID` fields. It remains discoverable
+with `errors.As` through export wrappers. Integrations report it with
+`IssueCodeTypeIdentityMismatch` and the affected `ObjectID`; `Error()` is a
+technical diagnostic, not user-facing copy.
+
+The check verifies the other half of that agreement: a type document's stored id must
 export to the same id in references as on its envelope. `Marshal`,
 `bundle.BuildPlan`, and `Composer.ObserveWritten` run this check and refuse
 missing or conflicting type mappings. `FoldDocumentId` remains the pure

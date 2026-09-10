@@ -266,16 +266,13 @@ func TestExport_AValueTheFormatCannotWriteIsDropped(t *testing.T) {
 	})
 }
 
-// The conflict carry-over is the only emitted shape with two icon sources, and
-// it is warned about rather than silent — 200 corpus objects, every one a
-// bundled type mid-migration from an emoji to a named icon.
-func TestExport_TheConflictCarryOverIsWarned(t *testing.T) {
+// Both icon sources survive export, so this migration state needs no warning.
+func TestExport_TheConflictCarryOverIsPreservedWithoutWarning(t *testing.T) {
 	icon, _, _, warnings := exportedIconCover(t, map[string]*types.Value{
 		"iconName": str("extension-puzzle"), "iconEmoji": str("🥚"), "iconOption": num(6)})
 	assert.Equal(t, `{"format":"icon","name":"extension-puzzle","color":"purple","emoji":"🥚"}`,
 		compactJSON(t, icon))
-	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0].Message, "the name wins")
+	assert.Empty(t, warnings, "both stored icon values are preserved")
 }
 
 // Every emitted shape inverts to exactly the details that produced it, which

@@ -31,7 +31,7 @@ func (e *exporter) dataviewToJSON(m *omap, dv *model.BlockContentDataview) error
 	target, isCollection, source := e.dataviewSourceForExport(dv)
 	// a singular reference slot: a target the space does not hold is
 	// written as the sentinel, never as if it existed (§9)
-	m.setNonEmpty("object_id", e.singularObjectRef("/blocks", "dataview object_id", target))
+	m.setNonEmpty("object_id", e.singularObjectRef("/blocks/object_id", "dataview object_id", target))
 	m.setNonEmpty("is_collection", isCollection)
 	m.setNonEmpty("source", stringsToAny(source))
 

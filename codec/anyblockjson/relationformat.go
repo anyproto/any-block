@@ -278,14 +278,14 @@ func (e *exporter) relationTargetKeys() []string {
 	entries := valueStringList(e.detail(detailKeyRelationFormatObjectTypes))
 	tr, _ := e.opts.ResolveProperties.(TypeResolver)
 	out := make([]string, 0, len(entries))
-	for _, entry := range entries {
+	for n, entry := range entries {
 		if tr != nil {
 			if key, ok := tr.TypeKeyById(entry); ok && key != "" {
 				out = append(out, key)
 				continue
 			}
 		}
-		if e.droppedMissingListEntry("/property_settings/object_types", entry) {
+		if e.droppedMissingListEntry(fmt.Sprintf("/properties/%s/%d", detailKeyRelationFormatObjectTypes, n), entry) {
 			continue
 		}
 		out = append(out, entry)

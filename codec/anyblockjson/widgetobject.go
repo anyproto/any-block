@@ -152,15 +152,20 @@ func liftableWidgetTarget(stored string) bool {
 // cannot spell, or any block that is not the root, the header scaffolding,
 // or half of a pair.
 func widgetObjectWidgets(base *model.SmartBlockSnapshotBase) (widgets []Widget, ok bool) {
+	widgets, _, ok = widgetObjectWidgetsWithSources(base)
+	return
+}
+
+func widgetObjectWidgetsWithSources(base *model.SmartBlockSnapshotBase) (widgets []Widget, links []string, ok bool) {
 	blocks := base.GetBlocks()
 	if len(blocks) == 0 {
-		return nil, true
+		return nil, nil, true
 	}
 	byId := make(map[string]*model.Block, len(blocks))
 	isChild := map[string]bool{}
 	for _, b := range blocks {
 		if b == nil || b.Id == "" || byId[b.Id] != nil {
-			return nil, false
+			return nil, nil, false
 		}
 		byId[b.Id] = b
 		for _, c := range b.ChildrenIds {
@@ -173,24 +178,24 @@ func widgetObjectWidgets(base *model.SmartBlockSnapshotBase) (widgets []Widget, 
 			continue
 		}
 		if root != nil {
-			return nil, false // two roots: not the shape this rule measured
+			return nil, nil, false // two roots: not the shape this rule measured
 		}
 		root = b
 	}
 	if root == nil {
-		return nil, false // a cycle; nothing to walk
+		return nil, nil, false // a cycle; nothing to walk
 	}
 	if _, isRoot := root.Content.(*model.BlockContentOfSmartblock); !isRoot {
-		return nil, false
+		return nil, nil, false
 	}
 	if !plainBlock(root) {
-		return nil, false
+		return nil, nil, false
 	}
 	accounted := map[string]bool{root.Id: true}
 	for _, id := range root.ChildrenIds {
 		b := byId[id]
 		if b == nil {
-			return nil, false
+			return nil, nil, false
 		}
 		switch c := b.Content.(type) {
 		case *model.BlockContentOfLayout:
@@ -199,7 +204,7 @@ func widgetObjectWidgets(base *model.SmartBlockSnapshotBase) (widgets []Widget, 
 			// Export drops it from every document, so the omission loses
 			// nothing by accepting it — and accepts nothing more.
 			if c.Layout.GetStyle() != model.BlockContentLayout_Header || !plainBlock(b) {
-				return nil, false
+				return nil, nil, false
 			}
 			accounted[b.Id] = true
 			for _, cid := range b.ChildrenIds {
@@ -210,28 +215,29 @@ func widgetObjectWidgets(base *model.SmartBlockSnapshotBase) (widgets []Widget, 
 				// 11 of 11 in the corpus — and §7 drops the block, binding
 				// and all, so the binding is not content to fail closed on.
 				if t == nil || !emptyStructuralText(t) || len(t.ChildrenIds) > 0 {
-					return nil, false
+					return nil, nil, false
 				}
 				accounted[t.Id] = true
 			}
 		case *model.BlockContentOfWidget:
 			w, link, admitted := widgetPair(b, byId)
 			if !admitted {
-				return nil, false
+				return nil, nil, false
 			}
 			accounted[b.Id] = true
 			accounted[link] = true
 			widgets = append(widgets, w)
+			links = append(links, link)
 		default:
-			return nil, false
+			return nil, nil, false
 		}
 	}
 	for id := range byId {
 		if !accounted[id] {
-			return nil, false // unreachable from the root: real content, kept
+			return nil, nil, false // unreachable from the root: real content, kept
 		}
 	}
-	return widgets, true
+	return widgets, links, true
 }
 
 // widgetPair reads one wrapper-and-link pair into the flat index widget, or

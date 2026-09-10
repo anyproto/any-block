@@ -80,6 +80,11 @@ const (
 type IssueCode string
 
 const (
+	// IssueCodeUnresolvedTarget identifies a reference to a missing object.
+	IssueCodeUnresolvedTarget IssueCode = "unresolved_target"
+	// IssueCodeTypeIdentityMismatch identifies an export rejected because a
+	// type document and its references would use different identities.
+	IssueCodeTypeIdentityMismatch IssueCode = "type_identity_mismatch"
 	// IssueCodeFileRemoteIgnored means the optional remote payload could not
 	// be understood. A bundle reader must still account for the file's bytes.
 	IssueCodeFileRemoteIgnored IssueCode = "file_remote_ignored"
@@ -97,7 +102,7 @@ const (
 
 // Issue is a single path-addressed validation problem or warning.
 type Issue struct {
-	Path    string // JSON pointer into the document, "" for the root
+	Path    string // document pointer, or source path for unresolved export references
 	Message string
 	Code    IssueCode // stable semantic meaning; Path and Message are presentation
 }
