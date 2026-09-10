@@ -101,10 +101,9 @@ func (e *exporter) dataviewSourceForExport(dv *model.BlockContentDataview) (targ
 func (e *exporter) viewToJSON(v *model.BlockContentDataviewView, dv *model.BlockContentDataview) (*omap, error) {
 	vm := &omap{}
 	e.recordEmitted(v.Id)
-	// A widget in another document or index.json can select this view by id.
-	// Neither compaction nor OmitIds may disconnect that selector. Keep views
-	// in the local-id census as reservations against block-label collisions.
-	vm.setNonEmpty("id", v.Id)
+	// Views share the target object's collision-checked label plan. The bundle
+	// composer applies the same labels to selectors in index.widgets.
+	vm.setNonEmpty("id", e.localId(v.Id))
 	if v.Type != model.BlockContentDataviewView_Table {
 		// an out-of-range view type is omitted rather than emitted as an
 		// empty string, which the schema would reject; it therefore reads

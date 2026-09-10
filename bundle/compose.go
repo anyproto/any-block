@@ -246,6 +246,7 @@ type Composer struct {
 	// no document can: whether an id this index names is carried here.
 	documentIds           map[string]bool
 	indexReferenceSources map[anyblockjson.ObjectReference]struct{}
+	widgetViewLabels      map[string]map[string]string
 
 	written int
 	omitted int
@@ -524,6 +525,16 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 	if err := anyblockjson.ValidateTypeExportMapping(c.opts, sbType,
 		base.GetDetails().GetFields()["id"].GetStringValue(), base.GetKey()); err != nil {
 		return fmt.Errorf("observe written document: %w", err)
+	}
+	if c.opts.CompactBlockLabels && !c.opts.OmitIds {
+		if labels := anyblockjson.WidgetViewIDs(sbType, base, c.opts); len(labels) > 0 {
+			if c.widgetViewLabels == nil {
+				c.widgetViewLabels = map[string]map[string]string{}
+			}
+			id := base.GetDetails().GetFields()["id"].GetStringValue()
+			c.widgetViewLabels[id] = labels
+			c.widgetViewLabels[anyblockjson.FoldDocumentId(c.opts, sbType, id, base.GetKey())] = labels
+		}
 	}
 	c.written++
 	// the id the document was WRITTEN under, which for a type or a
@@ -1041,6 +1052,12 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// IndexFromSpaceSettings result, keeping extraction in the codec while the
 	// explicit candidate sets keep Composer's conflict policy visible.
 	idx := c.index
+	idx.Widgets = append([]anyblockjson.Widget(nil), c.index.Widgets...)
+	for n, widget := range idx.Widgets {
+		if label, ok := c.widgetViewLabels[widget.Target][widget.ViewId]; ok {
+			idx.Widgets[n].ViewId = label
+		}
+	}
 	idx.NetworkId = c.opts.NetworkId
 	idx.Name = spaceSettings.Name
 	idx.Description = spaceSettings.Description

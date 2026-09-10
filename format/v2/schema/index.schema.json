@@ -177,7 +177,7 @@
         "view_id": {
           "type": "string",
           "minLength": 1,
-          "description": "Which of the target's views a `view` widget shows — a view id inside the target's dataview. Omit for the target's default view, which is also all an author can name: view ids are minted on import."
+          "description": "Which view in the target's primary dataview this widget shows. Must match the exported view id, including its target-local short label when compaction is enabled. Omit for the target's default view."
         },
         "auto_added": {
           "type": "boolean",

@@ -40,8 +40,16 @@ applies only to relation options; property and other object omissions keep
 their existing severity. An option missing its name or owning property still
 raises `IssueOmittedReconstruction`.
 
-View ids remain intact even with `CompactBlockLabels` or `OmitIds`, so
-`index.widgets[].view_id` still selects the same view after import.
+With `CompactBlockLabels`, generated block and view ids use the target
+object's collision-checked short labels. `Composer` applies that object's
+view mapping to `index.widgets[].view_id`, regardless of observation order.
+The primary block stays `dataview`; widgets imply it rather than storing a
+separate block id. Full-ID mode and `OmitIds` retain supplied view ids.
+
+Callers rendering an index separately can use `WidgetViewIDs` for each target
+and supply `Options.ResolveWidgetViewID`. A standalone widget document with a
+minted view selector requires that resolver when shortening IDs; without the
+target's mapping the codec refuses to guess a possibly colliding suffix.
 
 Heart's snapshot export collection includes both chat kinds: `chat`
 (`ChatDerivedObject`) and the legacy `chat_object`. Their object metadata and

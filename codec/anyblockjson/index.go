@@ -910,7 +910,13 @@ func MarshalIndex(idx *Index, opts Options) ([]byte, error) {
 			wm.set("layout", w.Layout)
 		}
 		wm.setNonEmpty("limit", w.Limit)
-		wm.setNonEmpty("view_id", w.ViewId)
+		viewID := w.ViewId
+		if opts.compactBlockLabels() && !opts.OmitIds && opts.ResolveWidgetViewID != nil {
+			if label, ok := opts.ResolveWidgetViewID(w.Target, viewID); ok && label != "" {
+				viewID = label
+			}
+		}
+		wm.setNonEmpty("view_id", viewID)
 		wm.setNonEmpty("auto_added", w.AutoAdded)
 		if w.CardStyle != "" && w.CardStyle != "text" {
 			wm.set("card_style", w.CardStyle)

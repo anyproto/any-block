@@ -5972,7 +5972,8 @@ measurements, one verdict.
 **The compaction that survives is the legend-less one**, and that is the rule
 this section has left. `CompactBlockLabels` relabels ids the document itself
 defines, so a short label needs no table to invert: it is a placeholder
-within its containing document, never an address outside it, and a write
+within its containing document, addressed with its object when referenced
+from outside it, and a write
 endpoint resolves one against the live object by unique suffix. There is
 nothing to carry, nothing to keep in sync, and nothing to read back. An
 indirection table has all three obligations, and the object legend failed all
@@ -5980,7 +5981,7 @@ three at once — which is why the half sold as "lossless, because the legend
 inverts it" is gone and the half documented as *lossy* stayed.
 
 With `CompactBlockLabels`,
-block/row/column ids are relabeled to their last 5 characters. Only
+block/row/column/view ids are relabeled to their last 5 characters. Only
 machine-minted opaque ids relabel: `dataview` is a documented constant,
 `title`/`header` are structural, and an imported document's human-readable
 ids carry meaning that relabeling would destroy for no benefit. Labels are
@@ -5992,13 +5993,26 @@ label stays uncompacted (implementation decision — fixed-width suffixes with
 a full-id fallback, chosen over shortest-unique lengthening for simplicity; 5
 characters over CID/hex alphabets make collisions birthday-rare).
 
-**View ids remain full under both `CompactBlockLabels` and `OmitIds`.**
-They are addressed outside their document by widget `view_id` selectors,
-including those lifted into `index.widgets` (§2c). A one-document exporter
-cannot know which views another document references, so it preserves every
-supplied view id. Missing view ids remain valid input and are generated on
-import. Preserved view ids still participate in the collision census, so
-shortening a block id cannot make it alias a view or share its suffix.
+**View ids shorten under `CompactBlockLabels`, using the target object's
+label plan.** Block and view labels share its collision checks; ambiguous
+suffixes keep their full ids. `Composer` rewrites `index.widgets[].view_id`
+with the matching target-local label, so the selector still addresses the
+same view. Widgets imply the primary `dataview` block, whose structural id
+stays unchanged; no global uniqueness or additional index legend is needed.
+
+Full-ID mode retains supplied ids; compact mode can also retain full ids
+when shortening would collide. Neither index nor object documents carry a
+mode flag: readers match the ids actually written, scoped to the target
+object, without inferring export mode from their length.
+
+`WidgetViewIDs` exposes the target's stored-to-exported view mapping for
+callers rendering indexes separately. `Options.ResolveWidgetViewID` lets an
+index or standalone widget renderer use that mapping. A standalone widget
+with a minted selector refuses short-ID export without the resolver, since
+it cannot infer collision fallback from the view id alone.
+
+`OmitIds` takes precedence over compaction and retains supplied view ids.
+Missing view ids remain valid input and are generated on import.
 
 The collision rule counts BOTH id populations, and that is not an accident of
 implementation: the labeller's own census sees only the doc-local ids it may
@@ -7281,7 +7295,8 @@ type Options struct {
     Legend            Legend           // fragment entry points only: the enclosing document's legends (§3)
     OmitIds            bool            // export only: drop block/table/sort/filter ids and option_ids;
                                       // preserve envelope and view ids and full object references (§9, §9a)
-    CompactBlockLabels bool            // export only: relabel block/row/column ids; preserve view ids (§9a)
+    CompactBlockLabels bool            // export only: relabel block/row/column/view ids (§9a)
+    ResolveWidgetViewID func(objectID, viewID string) (string, bool) // target-local selector mapping
     GenerateId        func() string    // import only: id generator for missing ids;
                                       // nil = random 24-hex (editor-shaped). The wiring
                                       // passes the editor's generator.
