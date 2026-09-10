@@ -56,6 +56,15 @@ type IssueCategory string
 // inference rather than a stored document.
 const IssueOmittedReconstruction IssueCategory = "omitted_reconstruction"
 
+// IssueOptionDescriptionOmitted is a non-blocking format limitation: the option
+// travels in the dictionary, but its description has no dictionary field.
+const IssueOptionDescriptionOmitted IssueCategory = "option_description_omitted"
+
+// IssueOptionContentOmitted means an exported option has additional details or
+// page blocks that its dictionary entry cannot carry. Report it as a warning;
+// failures to carry the option itself remain omitted reconstruction errors.
+const IssueOptionContentOmitted IssueCategory = "option_content_omitted"
+
 // Stats is what Finish can say about the composed bundle, for summaries.
 type Stats struct {
 	// DictionaryUninstalled counts the entries carrying `uninstalled` —
@@ -128,6 +137,8 @@ type Stats struct {
 	// its normal state. The slots are the ones bundle.Validate refuses on,
 	// so an export states exactly what a later validation would find.
 	UnresolvedTargets []string
+	// UnresolvedReferences retains each missing index target with source location.
+	UnresolvedReferences []anyblockjson.ObjectReference
 	// RefusedOptions names the vocabularies the dictionary cannot state and
 	// why — one `key: reason` line each, sorted. The writer refuses a
 	// vocabulary on a property whose format does not admit one (§2a), and
@@ -233,7 +244,8 @@ type Composer struct {
 	// function Marshal used to write them, rather than a second opinion that
 	// could disagree about a type's derived id. They answer the one question
 	// no document can: whether an id this index names is carried here.
-	documentIds map[string]bool
+	documentIds           map[string]bool
+	indexReferenceSources map[anyblockjson.ObjectReference]struct{}
 
 	written int
 	omitted int
@@ -331,6 +343,7 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 	// runs BEFORE the omission is recorded, so a bundle can never drop the
 	// document without having written what it carried.
 	if anyblockjson.OmittedSpaceSettings(sbType, base) {
+		c.recordIndexReferenceSources(sbType, base)
 		c.observedSpaceSettings = true
 		var observed anyblockjson.Index
 		anyblockjson.IndexFromSpaceSettings(&observed, base)
@@ -367,6 +380,7 @@ func (c *Composer) observe(sbType model.SmartBlockType, base *model.SmartBlockSn
 	// apart silently. A nil snapshot means the index carries no sidebar
 	// state because the object held none — the predicate is the proof.
 	if anyblockjson.OmittedWidgetObject(sbType, base) {
+		c.recordIndexReferenceSources(sbType, base)
 		anyblockjson.IndexFromWidgetObject(&c.index, base)
 		rebuilt, err := anyblockjson.WidgetsSnapshot(&c.index)
 		if err != nil {
@@ -641,7 +655,11 @@ func (c *Composer) observeRelationOption(base *model.SmartBlockSnapshotBase) []I
 		// the option is omitted anyway — a kept one would need a home, and
 		// giving it one puts `options/` back in the layout — but what the
 		// entry cannot carry is named rather than dropped in silence (§1.7)
-		issues = append(issues, Issue{Category: IssueOmittedReconstruction,
+		category := IssueOptionContentOmitted
+		if len(extra) == 1 && extra[0] == "description" {
+			category = IssueOptionDescriptionOmitted
+		}
+		issues = append(issues, Issue{Category: category,
 			Detail: fmt.Sprintf("relation option %q of property %q carries %s, which its dictionary entry does not state",
 				ident.id, key, strings.Join(extra, ", "))})
 	}
@@ -1095,6 +1113,7 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	}
 	stats.RefusedOptions = refusedOptions
 	stats.UnresolvedTargets = unresolvedTargets
+	stats.UnresolvedReferences = c.unresolvedIndexReferences(&idx)
 	return idxData, dictData, stats, nil
 }
 
@@ -1498,5 +1517,47 @@ func copyNonEmpty(m map[string]string) map[string]string {
 	for k, v := range m {
 		out[k] = v
 	}
+	return out
+}
+
+func (c *Composer) recordIndexReferenceSources(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase) {
+	if c.indexReferenceSources == nil {
+		c.indexReferenceSources = map[anyblockjson.ObjectReference]struct{}{}
+	}
+	for _, ref := range anyblockjson.IndexReferencesFromSnapshot(sbType, base, c.opts) {
+		c.indexReferenceSources[ref] = struct{}{}
+	}
+}
+
+func (c *Composer) unresolvedIndexReferences(idx *anyblockjson.Index) []anyblockjson.ObjectReference {
+	var out []anyblockjson.ObjectReference
+	for _, ref := range idx.ObjectReferences(c.opts) {
+		if c.documentIds[ref.TargetObjectID] {
+			continue
+		}
+		found := false
+		for source := range c.indexReferenceSources {
+			if source.Path == ref.Path && source.TargetObjectID == ref.TargetObjectID {
+				out = append(out, source)
+				found = true
+			}
+		}
+		if !found {
+			out = append(out, ref)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.TargetObjectID != b.TargetObjectID {
+			return a.TargetObjectID < b.TargetObjectID
+		}
+		if a.Path != b.Path {
+			return a.Path < b.Path
+		}
+		if a.ObjectID != b.ObjectID {
+			return a.ObjectID < b.ObjectID
+		}
+		return a.SourcePath < b.SourcePath
+	})
 	return out
 }

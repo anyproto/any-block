@@ -65,3 +65,32 @@ func TestComposerCarriesAnOptionsApiKey(t *testing.T) {
 		"a stored api key does not follow a rename, so nothing downstream can rebuild it")
 	assert.Empty(t, byName["Done"].ApiKey, "an option the store holds none for states none")
 }
+
+func TestOptionDescriptionNoteDoesNotHideOtherOmissions(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		content  bool
+		category IssueCategory
+	}{
+		{"description only", false, IssueOptionDescriptionOmitted},
+		{"description and page content", true, IssueOptionContentOmitted},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newComposer(t, anyblockjson.Options{}, "Synthetic")
+			option := optionSnapshot("option-test", "tag", "Test option", "red", "test-option")
+			option.Details.Fields["description"] = strVal("An optional description")
+			if tc.content {
+				option.Blocks = append(option.Blocks, &model.Block{Id: "note", Content: &model.BlockContentOfText{Text: &model.BlockContentText{Text: "Keep this content"}}})
+			}
+			omitted, issues := c.Observe(model.SmartBlockType_STRelationOption, option)
+			require.True(t, omitted)
+			require.Len(t, issues, 1)
+			assert.Equal(t, tc.category, issues[0].Category)
+			require.NoError(t, c.ObserveWritten(model.SmartBlockType_Page, &model.SmartBlockSnapshotBase{}, []byte(`{"formatVersion":"2.0","properties":{"tag":["Test option"]}}`)))
+			_, dictionary, stats, err := c.Finish()
+			require.NoError(t, err)
+			assert.Equal(t, 1, stats.OptionsLifted)
+			assert.Contains(t, string(dictionary), "Test option")
+		})
+	}
+}

@@ -161,3 +161,45 @@ func (composerTypeVocabulary) TypeIdByKey(key string) (string, bool) {
 	}
 	return "", false
 }
+
+func TestUnresolvedIndexReferencesRetainSnapshotSources(t *testing.T) {
+	c := newComposer(t, anyblockjson.Options{}, "Synthetic")
+	space := testSpaceSnapshot()
+	space.Details.Fields["id"] = strVal("space-source")
+	space.Details.Fields["homepage"] = strVal(testfixtures.ObjectID)
+	space.Details.Fields["iconImage"] = strVal(testfixtures.ObjectID)
+	omitted, issues := c.Observe(model.SmartBlockType_Workspace, space)
+	require.True(t, omitted)
+	require.Empty(t, issues)
+	widgets, err := anyblockjson.WidgetsSnapshot(&anyblockjson.Index{Widgets: []anyblockjson.Widget{{Target: testfixtures.ObjectID}, {Target: testfixtures.ObjectIDAlt}}})
+	require.NoError(t, err)
+	widgets.Details.Fields["id"] = strVal("widget-source")
+	var linkIDs []string
+	for _, b := range widgets.Blocks {
+		if b.GetLink() != nil {
+			b.GetLink().TargetBlockId = testfixtures.ObjectID
+			linkIDs = append(linkIDs, b.Id)
+		}
+	}
+	require.Len(t, linkIDs, 2)
+	omitted, issues = c.Observe(model.SmartBlockType_Widget, widgets)
+	require.True(t, omitted)
+	require.Empty(t, issues)
+	// A repeat must not duplicate the same source occurrence.
+	_, _ = c.Observe(model.SmartBlockType_Workspace, space)
+	_, _, stats, err := c.Finish()
+	require.NoError(t, err)
+	assert.Equal(t, []string{testfixtures.ObjectID}, stats.UnresolvedTargets)
+	require.Len(t, stats.UnresolvedReferences, 4)
+	assert.Equal(t, anyblockjson.ObjectReference{ObjectID: "space-source", SourcePath: "/properties/homepage", TargetObjectID: testfixtures.ObjectID, Path: "/homepage"}, stats.UnresolvedReferences[0])
+	assert.Equal(t, anyblockjson.ObjectReference{ObjectID: "space-source", SourcePath: "/properties/iconImage", TargetObjectID: testfixtures.ObjectID, Path: "/icon/file"}, stats.UnresolvedReferences[1])
+	var reportedBlocks []string
+	for _, ref := range stats.UnresolvedReferences[2:] {
+		assert.Equal(t, "widget-source", ref.ObjectID)
+		assert.Equal(t, testfixtures.ObjectID, ref.TargetObjectID)
+		reportedBlocks = append(reportedBlocks, ref.SourcePath)
+	}
+	assert.ElementsMatch(t, []string{"/blocks/" + linkIDs[0] + "/object_id", "/blocks/" + linkIDs[1] + "/object_id"}, reportedBlocks)
+	assert.Equal(t, "/widgets/0/target", stats.UnresolvedReferences[2].Path)
+	assert.Equal(t, "/widgets/1/target", stats.UnresolvedReferences[3].Path)
+}

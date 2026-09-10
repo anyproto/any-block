@@ -482,6 +482,9 @@ func TestDerivedIds_TypeDocumentIdComesFromItsOwnKey(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			data, err := Marshal(model.SmartBlockType_STType, typeDoc(), opts)
 			require.ErrorContains(t, err, "TypeResolver")
+			var mismatch *TypeIdentityMismatchError
+			require.ErrorAs(t, err, &mismatch)
+			assert.Equal(t, &TypeIdentityMismatchError{ObjectID: "typeid-corpse", InternalKey: "corpse", DocumentID: "type-corpse", ReferenceID: "typeid-corpse"}, mismatch)
 			assert.Nil(t, data, "missing reference mappings must not produce a disconnected type document")
 			assert.Equal(t, "type-corpse", FoldDocumentId(opts, model.SmartBlockType_STType, "typeid-corpse", "corpse"))
 

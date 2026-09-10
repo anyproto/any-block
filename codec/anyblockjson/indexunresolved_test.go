@@ -146,3 +146,14 @@ func TestIndexReferencedObjectIds_TheSlotsThatNameAnObject(t *testing.T) {
 		ReferencedObjectIds(Options{ResolveProperties: newTypeIdVocabulary()})
 	assert.Equal(t, []string{"type-wine"}, folded)
 }
+
+func TestIndexObjectReferencesKeepEachLocation(t *testing.T) {
+	idx := &Index{Homepage: "same-target", Entrypoint: "same-target", Icon: &Icon{Format: "file", File: "same-target"},
+		Widgets: []Widget{{Target: "same-target"}, {Target: "_set"}, {Target: "same-target"}}, AutoWidgetTargets: []string{"ledger-only"}}
+	assert.Equal(t, []ObjectReference{
+		{TargetObjectID: "same-target", Path: "/entrypoint"}, {TargetObjectID: "same-target", Path: "/homepage"},
+		{TargetObjectID: "same-target", Path: "/widgets/0/target"}, {TargetObjectID: "same-target", Path: "/widgets/2/target"},
+		{TargetObjectID: "same-target", Path: "/icon/file"},
+	}, idx.ObjectReferences(Options{}))
+	assert.Equal(t, []string{"same-target"}, idx.ReferencedObjectIds(Options{}))
+}

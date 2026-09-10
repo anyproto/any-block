@@ -142,6 +142,8 @@ func TestMissingReference_SingularBlockSlots(t *testing.T) {
 			assert.NotContains(t, string(data), deadCid, "the dead id must not be written as if it existed")
 			require.Len(t, warnings, 1, "a rewrite destroys the stored id; the warning is its last appearance")
 			assert.Contains(t, warnings[0].Message, deadCid)
+			assert.Equal(t, IssueCodeUnresolvedTarget, warnings[0].Code)
+			assert.Equal(t, "/blocks/b1/object_id", warnings[0].Path)
 		})
 	}
 
@@ -245,6 +247,7 @@ func TestMissingReference_MentionTargets(t *testing.T) {
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0].Message, deadCid)
 		// the snapshot is caller-owned: the rewrite must be copy-on-write
+		assert.Equal(t, "/blocks/b1/text/marks/0/param", warnings[0].Path)
 		assert.Equal(t, deadCid, snap.Blocks[1].GetText().Marks.Marks[0].Param,
 			"exportMarks mutated the caller's snapshot")
 	})
@@ -310,6 +313,7 @@ func TestMissingReference_MentionTargets(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, string(data), `<mention object_id=\"_missing_object\">Alice</mention>`)
 		require.Len(t, warnings, 1)
+		assert.Equal(t, "/blocks/r1-c1/text/marks/0/param", warnings[0].Path)
 	})
 }
 
@@ -339,6 +343,8 @@ func TestMissingReference_PropertyValueLists(t *testing.T) {
 		require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (I1)")
 		assert.Contains(t, compactDoc(data), `"related":["`+liveCid+`"]`)
 		require.Len(t, warnings, 1, "the real id warns; the sentinel — which carries nothing — drops silently")
+		assert.Equal(t, IssueCodeUnresolvedTarget, warnings[0].Code)
+		assert.Equal(t, "/properties/related/1", warnings[0].Path)
 		assert.Contains(t, warnings[0].Message, deadCid)
 	})
 
@@ -425,7 +431,7 @@ func TestMissingReference_PropertySettingsObjectTypes(t *testing.T) {
 		assert.Contains(t, compactDoc(data), `"object_types":["type-page","type-wine"]`)
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0].Message, deadCid)
-		assert.Equal(t, "/property_settings/object_types", warnings[0].Path)
+		assert.Equal(t, "/properties/relationFormatObjectTypes/1", warnings[0].Path)
 	})
 
 	t.Run("a list emptied by the drop stays [], a cleared target set", func(t *testing.T) {
@@ -688,4 +694,29 @@ func TestMissingRef_ADeletedIconImageIsDropped(t *testing.T) {
 		assert.Contains(t, string(data), tombstoneCid,
 			"a failure to ask is not evidence of deletion")
 	})
+}
+
+func TestMissingReferencePathsUseStoredLocations(t *testing.T) {
+	var warnings []Issue
+	opts := missingRefOptions(&warnings)
+	opts.ResolveFormat = func(key domain.RelationKey) (model.RelationFormat, bool) {
+		return model.RelationFormat_object, key == "related/projects~"
+	}
+	link := func(id string) *model.Block {
+		return &model.Block{Id: id, Content: &model.BlockContentOfLink{Link: &model.BlockContentLink{TargetBlockId: deadCid}}}
+	}
+	snap := blockSnapshot(link("first/link~"), link("second-link"))
+	snap.Details.Fields["related/projects~"] = strList(liveCid, deadCid, deadCid)
+	_, err := Marshal(model.SmartBlockType_Page, snap, opts)
+	require.NoError(t, err)
+	var paths []string
+	for _, issue := range warnings {
+		if issue.Code == IssueCodeUnresolvedTarget {
+			paths = append(paths, issue.Path)
+		}
+	}
+	assert.ElementsMatch(t, []string{
+		"/blocks/first~1link~0/object_id", "/blocks/second-link/object_id",
+		"/properties/related~1projects~0/1", "/properties/related~1projects~0/2",
+	}, paths)
 }
