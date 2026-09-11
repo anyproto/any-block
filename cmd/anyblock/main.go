@@ -153,9 +153,11 @@ func validateFile(path string) error {
 func runToV1(args []string) error {
 	flags := flag.NewFlagSet("to-v1", flag.ContinueOnError)
 	flags.SetOutput(os.Stdout)
-	in := flags.String("in", "", "AnyBlock v2 object document")
-	out := flags.String("out", "", "AnyBlock v1 snapshot envelope")
+	in := flags.String("in", "", "AnyBlock v2 object document or authoring bundle directory")
+	out := flags.String("out", "", "AnyBlock v1 snapshot, bundle directory, or ZIP with -zip")
 	encoding := flags.String("encoding", "pb", "output encoding: pb or json")
+	full := flags.Bool("full", false, "convert full space exports, including attachments and stored definitions")
+	zipOutput := flags.Bool("zip", false, "write a bundle as a ZIP archive (directory input only)")
 	spaceID := flags.String("space-id", "", "space receiving the v1 snapshot (required to rebuild folded participant references)")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -168,6 +170,22 @@ func runToV1(args []string) error {
 	}
 	if err := validateOptionalSpaceID(*spaceID); err != nil {
 		return err
+	}
+	info, err := os.Stat(*in)
+	if err != nil {
+		return fmt.Errorf("read input: %w", err)
+	}
+	if info.IsDir() {
+		if *full {
+			return runToV1FullBundle(*in, *out, *encoding, *spaceID, *zipOutput)
+		}
+		return runToV1Bundle(*in, *out, *encoding, *spaceID, *zipOutput)
+	}
+	if *full {
+		return fmt.Errorf("-full requires a bundle directory as -in")
+	}
+	if *zipOutput {
+		return fmt.Errorf("-zip requires a bundle directory as -in")
 	}
 	data, err := os.ReadFile(*in)
 	if err != nil {
@@ -188,12 +206,21 @@ func runToV1(args []string) error {
 	if err := outcome.preWriteError(); err != nil {
 		return err
 	}
+	output, err := encodeV1Snapshot(sbType, snapshot, *encoding)
+	if err != nil {
+		return err
+	}
+	return writeOutput(*out, output)
+}
+
+func encodeV1Snapshot(sbType model.SmartBlockType, snapshot *model.SmartBlockSnapshotBase, encoding string) ([]byte, error) {
 	envelope := &envelopepb.SnapshotWithType{
 		SbType:   sbType,
 		Snapshot: &envelopepb.ChangeSnapshot{Data: snapshot},
 	}
 	var output []byte
-	switch *encoding {
+	var err error
+	switch encoding {
 	case "pb":
 		output, err = proto.Marshal(envelope)
 	case "json":
@@ -202,12 +229,12 @@ func runToV1(args []string) error {
 		text, err = (&jsonpb.Marshaler{Indent: "  "}).MarshalToString(envelope)
 		output = []byte(text)
 	default:
-		return fmt.Errorf("unknown encoding %q: use pb or json", *encoding)
+		return nil, fmt.Errorf("unknown encoding %q: use pb or json", encoding)
 	}
 	if err != nil {
-		return fmt.Errorf("encode v1: %w", err)
+		return nil, fmt.Errorf("encode v1: %w", err)
 	}
-	return writeOutput(*out, output)
+	return output, nil
 }
 
 func runToV2(args []string) error {

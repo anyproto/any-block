@@ -10,7 +10,8 @@ Every path above exists in this repository, so the three commands run as
 written. `validate` finds documents by their `.json` extension and reports a
 path that yields none, so a mistyped path fails rather than passing silently.
 
-The conversion commands operate on one snapshot/document. `validate` runs the
+With a file input, the conversion commands operate on one snapshot/document.
+`to-v1` also accepts an authoring bundle directory (see below). `validate` runs the
 one-document codec over every `.json` document either way, so the derived-id
 reservation (`type-<key>` and `participant-<identity>` ids belong to the
 matching documents, SPEC §9) is checked on a lone document as well as inside a
@@ -27,26 +28,77 @@ independent documents.
 keys, and optional indexed variant metadata in the base64 `file_remote`
 field. It defaults to false. `to-v1` restores a supported payload
 automatically and warns when it ignores a malformed or future version.
-These commands convert one document; a bundle can carry its source
-`network_id` in `index.json` for import to assess remote recovery (SPEC §2h).
+Single-document conversion handles the snapshot only; a bundle can carry its
+source `network_id` in `index.json` for import to assess remote recovery (SPEC §2h).
 The identifier's value is not validated during export or bundle validation.
 Neither conversion command downloads file bytes.
 
-## What a round trip does not carry
+## Convert an authoring bundle to v1
+
+```sh
+go run ./cmd/anyblock to-v1 -in ./format/v2/examples/habit_tracker -out /tmp/habit-tracker-v1
+go run ./cmd/anyblock to-v1 -in ./format/v2/examples/habit_tracker -out /tmp/habit-tracker-v1.zip -zip
+```
+
+A directory input selects bundle conversion. It must contain `index.json`,
+object JSON documents, and `properties.json` when custom properties are used.
+All three document kinds must satisfy the **v2 authoring subset**. Full space
+exports, file objects, participant documents, and stored identity legends are
+outside this mode and are rejected. Input ZIP archives are not supported;
+unpack them first. The source bundle is never modified.
+
+The command validates the complete bundle, plans its type vocabulary, mints
+one stored key for each custom property, and converts documents using shared
+format, property, type, and option resolvers. Dates become native timestamps;
+select values and filters refer to option objects. Declared options retain
+colors and order, including unused choices. Additional choices found in
+values are created after the declared vocabulary. Equal option names on
+different properties remain distinct.
+
+V2 permits hyphens in custom type keys; Heart's native `ot-<key>` identity
+parser does not. Bundle conversion maps those keys to stable 24-hex native
+keys and updates every object's type membership. It reports each mapping on
+stderr. Type document IDs and links retain their source values. Compatible
+type keys are preserved, and every custom type receives a matching native
+`uniqueKey` in its details. Import paths that read this field can match by
+identity; paths that rebuild it from the snapshot key derive the same value.
+
+Output contains `objects/`, `types/`, `templates/`, `relations/`, and
+`relationsOptions/` snapshots as needed, plus the binary root `profile`.
+Templates, default templates, query sources, object relationships, and sidebar
+widgets are wired to the bundle's objects. The sidebar is also represented by
+a native widget snapshot. Object blocks, icons, covers, and views pass through
+the same codec used for single-document conversion. The v1 profile has no
+space emoji or description fields; their omission is reported as a warning.
+
+`-encoding pb` (the default) writes `.pb` snapshots; `-encoding json` writes
+protobuf-envelope `.json` snapshots. The `profile` stays binary in both cases.
+`-zip` packages the same layout directly at the archive root. The output
+extension does not enable ZIP output; use the flag. Custom property and block
+IDs are minted on each conversion, so repeated conversions are not byte-identical.
+
+Bundle output must be a **new path outside the input directory**. Existing
+files, directories, and symlinks are refused. Validation and conversion finish
+before output writing begins; a failed write removes the new partial output.
+`-space-id` remains optional and follows the participant-reference rules below.
+For bundles it supplies no live-space lookup: declared types use their bundle
+IDs, while built-in types use their bundled addresses.
+
+## What a single-document round trip does not carry
 
 `to-v1` mints a fresh id for every container the format does not name — table
 rows, columns and their cells. Converting the same document twice therefore
 produces different bytes, by design: `Options.GenerateId` defaults to a random
 24-hex id. The v2 side is byte-stable; only this direction varies.
 
-The CLI converts with the bundled vocabulary and no option resolver, so an
-`option_ids` legend is dropped on the way to v1 and cannot be rebuilt on the
+Single-document conversion uses the bundled vocabulary and no option resolver,
+so an `option_ids` legend is dropped on the way to v1 and cannot be rebuilt on the
 way back. Property values survive; the legend binding a value's spelling to a
 stored option id does not. A caller that needs the legend preserved should use
 the Go API and supply `Options.ResolveOptions`.
 
-It wires no `TypeResolver` either, so it cannot turn a `type-<internal_key>`
-reference (SPEC §9) into a space's type object id. With `-space-id` — which
+Single-document conversion wires no `TypeResolver` either, so it cannot turn
+a `type-<internal_key>` reference (SPEC §9) into a space's type object id. With `-space-id` — which
 says the document is being read into that space — `to-v1` refuses rather than
 writing the folded string where an address belongs, the same pre-write
 refusal folded participant references get. Without `-space-id` the conversion
@@ -109,11 +161,19 @@ non-empty `-space-id` is rejected by either direction before the input is read
 and before an output file or its parent directories are created. These
 pre-write failures leave an already-existing output file unchanged.
 
-On success, missing output parent directories are created and the output file
-is created or replaced. The final filesystem write is not atomic: an error
+For single-document conversion, on success, missing output parent directories
+are created and the output file is created or replaced. The final filesystem write is not atomic: an error
 while creating the parent directory or writing the file is outside the
 pre-write preservation guarantee.
 
-Bundle composition and application-specific property/option resolution live
-in the root `bundle` package rather than being hidden inside single-document
-conversion.
+The root `bundle` package provides bundle validation and v2 export composition.
+The `bundle/convert` package supplies the authoring-to-v1 adapter, offline
+resolvers, and native archive metadata described above. The CLI calls the same
+package as Heart's importer; single-document conversion remains unchanged.
+
+Full space exports can also be converted with `to-v1 -full -in SPACE_EXPORT
+-out NATIVE_OUTPUT [-zip] -space-id DESTINATION_SPACE`. This uses
+`bundle/convert.Bundle`, including stored definitions, participants, manifest
+attachments, remote file metadata, and space settings. Without `-full`, bundle
+conversion retains the strict authoring subset. Attachments are streamed to the
+output; bytes omitted from the export still need source-network access.
