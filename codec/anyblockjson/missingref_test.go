@@ -1,13 +1,17 @@
 package anyblockjson
 
 // missingref_test.go — the missing-reference rule (§9): a reference to an
-// object that does not exist in the SPACE is not written as if it did — a
-// SINGULAR slot (block object_id, mention target) rewrites to the
-// `_missing_object` sentinel, a LIST slot (objects/files property values,
-// `object_types`) drops the entry. And the distinction that makes or breaks
-// the rule: "missing from this EXPORT" is not "missing from the space" —
-// only the store's own testimony, through the ObjectExistenceResolver
-// capability, may move anything. No capability, no change, sentinel included.
+// object the SPACE holds no row for is KEPT VERBATIM and warned, in every
+// slot — a singular slot (block object_id, mention target) and a list slot
+// (objects/files property values, `object_types`) alike. The `_missing_object`
+// sentinel is the importer's answer, never the exporter's: a stored sentinel
+// is kept as-is in a singular slot and dropped silently from a list, and
+// export never manufactures one — a backup taken during a sync gap keeps the
+// id for the day the object arrives. And the distinction that makes or
+// breaks the warning: "missing from this EXPORT" is not "missing from the
+// space" — only the store's own testimony, through the
+// ObjectExistenceResolver capability, may say anything. No capability, no
+// warning and no change, sentinel included.
 
 import (
 	"strings"
@@ -138,9 +142,9 @@ func TestMissingReference_SingularBlockSlots(t *testing.T) {
 			// then
 			require.NoError(t, err)
 			require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (I1)")
-			assert.Contains(t, string(data), `"object_id": "_missing_object"`)
-			assert.NotContains(t, string(data), deadCid, "the dead id must not be written as if it existed")
-			require.Len(t, warnings, 1, "a rewrite destroys the stored id; the warning is its last appearance")
+			assert.Contains(t, string(data), `"object_id": "`+deadCid+`"`, "the id is kept: the space may simply not have synced it yet")
+			assert.NotContains(t, string(data), missingObjectId, "the sentinel is the importer's answer, never the exporter's")
+			require.Len(t, warnings, 1, "the loss is stated, not enacted")
 			assert.Contains(t, warnings[0].Message, deadCid)
 			assert.Equal(t, IssueCodeUnresolvedTarget, warnings[0].Code)
 			assert.Equal(t, "/blocks/b1/object_id", warnings[0].Path)
@@ -181,7 +185,7 @@ func TestMissingReference_SingularBlockSlots(t *testing.T) {
 		assert.Empty(t, warnings)
 	})
 
-	t.Run("no capability wired: nothing is rewritten", func(t *testing.T) {
+	t.Run("no capability wired: nothing is warned or rewritten", func(t *testing.T) {
 		// given — a package-only export has no store to ask, and the absence
 		// of an answer is not evidence of absence; a name-only resolver
 		// (the pre-capability shape) must not arm the rule either
@@ -218,9 +222,9 @@ func TestMissingReference_SingularBlockSlots(t *testing.T) {
 	})
 }
 
-// A mention is a singular slot inside inline markup: the target rewrites to
-// the sentinel, the mention's own text stays, and the snapshot's marks —
-// caller-owned state — are never mutated.
+// A mention is a singular slot inside inline markup: an absent target is
+// kept and warned, the mention's own text stays, and the snapshot's marks —
+// caller-owned state — are never mutated by the fold that still runs.
 func TestMissingReference_MentionTargets(t *testing.T) {
 	mention := func(param string) *model.Block {
 		return textBlock("b1", model.BlockContentText_Paragraph, "Ping Alice",
@@ -231,7 +235,7 @@ func TestMissingReference_MentionTargets(t *testing.T) {
 			})
 	}
 
-	t.Run("a missing mention target rewrites to the sentinel", func(t *testing.T) {
+	t.Run("a missing mention target is kept and warned", func(t *testing.T) {
 		// given
 		var warnings []Issue
 		opts := missingRefOptions(&warnings)
@@ -243,10 +247,11 @@ func TestMissingReference_MentionTargets(t *testing.T) {
 		// then
 		require.NoError(t, err)
 		require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (I1)")
-		assert.Contains(t, string(data), `<mention object_id=\"_missing_object\">Alice</mention>`)
+		assert.Contains(t, string(data), `<mention object_id=\"`+deadCid+`\">Alice</mention>`)
+		assert.NotContains(t, string(data), missingObjectId)
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0].Message, deadCid)
-		// the snapshot is caller-owned: the rewrite must be copy-on-write
+		assert.Equal(t, IssueCodeUnresolvedTarget, warnings[0].Code)
 		assert.Equal(t, "/blocks/b1/text/marks/0/param", warnings[0].Path)
 		assert.Equal(t, deadCid, snap.Blocks[1].GetText().Marks.Marks[0].Param,
 			"exportMarks mutated the caller's snapshot")
@@ -311,17 +316,16 @@ func TestMissingReference_MentionTargets(t *testing.T) {
 
 		// then
 		require.NoError(t, err)
-		assert.Contains(t, string(data), `<mention object_id=\"_missing_object\">Alice</mention>`)
+		assert.Contains(t, string(data), `<mention object_id=\"`+deadCid+`\">Alice</mention>`)
 		require.Len(t, warnings, 1)
 		assert.Equal(t, "/blocks/r1-c1/text/marks/0/param", warnings[0].Path)
 	})
 }
 
-// An objects/files property value is a LIST slot: a missing entry drops —
-// the sentinel silently, a real id with a warning that is the id's last
-// appearance — and the emptied list stays `[]`, because the key's presence
-// is meaningful (§3) and dropping dangling entries must not erase the fact
-// that the property was set.
+// An objects/files property value is a LIST slot: an absent real id is
+// KEPT and warned, a stored sentinel drops silently (it carries nothing —
+// which object it was is already gone), and a list emptied by that drop
+// stays `[]`, because the key's presence is meaningful (§3).
 func TestMissingReference_PropertyValueLists(t *testing.T) {
 	withRelated := func(v *types.Value) *model.SmartBlockSnapshotBase {
 		snap := blockSnapshot()
@@ -329,7 +333,7 @@ func TestMissingReference_PropertyValueLists(t *testing.T) {
 		return snap
 	}
 
-	t.Run("missing entries drop, live entries close ranks", func(t *testing.T) {
+	t.Run("an absent entry is kept and warned; the sentinel drops silently", func(t *testing.T) {
 		// given
 		var warnings []Issue
 		opts := missingRefOptions(&warnings)
@@ -341,7 +345,7 @@ func TestMissingReference_PropertyValueLists(t *testing.T) {
 		// then
 		require.NoError(t, err)
 		require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (I1)")
-		assert.Contains(t, compactDoc(data), `"related":["`+liveCid+`"]`)
+		assert.Contains(t, compactDoc(data), `"related":["`+liveCid+`","`+deadCid+`"]`)
 		require.Len(t, warnings, 1, "the real id warns; the sentinel — which carries nothing — drops silently")
 		assert.Equal(t, IssueCodeUnresolvedTarget, warnings[0].Code)
 		assert.Equal(t, "/properties/related/1", warnings[0].Path)
@@ -398,9 +402,9 @@ func TestMissingReference_PropertyValueLists(t *testing.T) {
 
 // A property document's `object_types` is the same list slot in the type
 // namespace (§2d): a resolvable type id becomes its derived id, a bare key
-// spells its derived id too — vocabulary, not a reference — and only what
-// the store disowns drops. An id nothing could translate stays an id: `type-`
-// is never put in front of a CID.
+// spells its derived id too — vocabulary, not a reference — an absent id is
+// kept and warned, and only the stored sentinel drops. An id nothing could
+// translate stays an id: `type-` is never put in front of a CID.
 func TestMissingReference_PropertySettingsObjectTypes(t *testing.T) {
 	relSnap := func(targets *types.Value) *model.SmartBlockSnapshotBase {
 		return relationSnapshot(map[string]*types.Value{
@@ -414,7 +418,7 @@ func TestMissingReference_PropertySettingsObjectTypes(t *testing.T) {
 		return o
 	}
 
-	t.Run("dead id and sentinel drop; live id and bare key survive", func(t *testing.T) {
+	t.Run("the sentinel drops; dead id, live id and bare key survive", func(t *testing.T) {
 		// given — the corpus shape: 56 properties carry an object id naming
 		// nothing, type ids from the account where a shipped use case was
 		// AUTHORED (an object id differs in every space; a type key does not)
@@ -428,9 +432,10 @@ func TestMissingReference_PropertySettingsObjectTypes(t *testing.T) {
 		// then
 		require.NoError(t, err)
 		require.NoError(t, Validate(data, Options{}), "Marshal never emits what Validate rejects (I1)")
-		assert.Contains(t, compactDoc(data), `"object_types":["type-page","type-wine"]`)
+		assert.Contains(t, compactDoc(data), `"object_types":["type-page","`+deadCid+`","type-wine"]`)
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0].Message, deadCid)
+		assert.Equal(t, IssueCodeUnresolvedTarget, warnings[0].Code)
 		assert.Equal(t, "/properties/relationFormatObjectTypes/1", warnings[0].Path)
 	})
 
@@ -465,9 +470,9 @@ func TestMissingReference_PropertySettingsObjectTypes(t *testing.T) {
 	})
 }
 
-// The round trip is a fixpoint after one generation: the first export
-// rewrites and drops, import stores what was written, and every export
-// after that is byte-identical — §11 guarantee 3 under the new rule.
+// The round trip is a fixpoint from the first generation: the absent id is
+// kept, import stores it, and every export after that is byte-identical —
+// §11 guarantee 3 under the rule, with nothing lost on the way.
 func TestMissingReference_RoundTripStable(t *testing.T) {
 	// given — a dead singular target AND a dead list entry in one snapshot
 	snap := blockSnapshot(
@@ -486,7 +491,9 @@ func TestMissingReference_RoundTripStable(t *testing.T) {
 
 	// then
 	assert.Equal(t, string(first), string(second),
-		"Export(Import(Export(S))) must equal Export(S): the rewrite converges in one generation")
+		"Export(Import(Export(S))) must equal Export(S)")
+	assert.Contains(t, string(first), deadCid, "the absent id survives the round trip")
+	assert.NotContains(t, string(first), missingObjectId)
 }
 
 // Over the hostile corpus a resolver that declares EVERYTHING missing
@@ -510,7 +517,9 @@ func TestMissingReference_HostileIdsAreUntouchable(t *testing.T) {
 }
 
 // The predicate snapshotdiff consults is the export's own; pin its verdicts
-// at the seam so the comparator and the codec cannot drift apart.
+// at the seam so the comparator and the codec cannot drift apart. Only the
+// stored sentinel ever drops, and only when the capability is wired: a real
+// id — absent or not — is kept.
 func TestDroppedMissingObjectRef(t *testing.T) {
 	armed := Options{ResolveObjectNames: missingRefStore()}
 	for name, tc := range map[string]struct {
@@ -518,7 +527,7 @@ func TestDroppedMissingObjectRef(t *testing.T) {
 		entry string
 		want  bool
 	}{
-		"dead cid, capability wired":  {armed, deadCid, true},
+		"dead cid, capability wired":  {armed, deadCid, false},
 		"sentinel, capability wired":  {armed, missingObjectId, true},
 		"live cid":                    {armed, liveCid, false},
 		"untitled but existing":       {armed, untitledCid, false},

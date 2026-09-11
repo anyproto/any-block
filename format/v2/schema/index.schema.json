@@ -31,7 +31,7 @@
     },
     "icon": {
       "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/icon",
-      "description": "The space's icon — exactly the shape `icon` has on any object (§2b), so an author never has to remember a second convention: an emoji, the **object id** of an image in the bundle, a built-in icon name, or a bare colour. Two flat keys used to stand here with no rule for which one wins, and they disagreed with the object surface about whether an image is a scalar or a list. This field was then narrowed to emoji-or-image, which silently dropped the icon of a space whose icon is a bare colour — 20 of 77 real spaces, the letter avatars the client draws when no image was ever set. An image needs the image object AND its file in the archive, which is why a generated bundle uses an emoji. (The installer resolves the space icon by image *name*, not id — the wiring does that lookup, so this field stays consistent with every other id in the format; an emoji or colour icon reaches no installer field at all, and is carried so a round trip does not lose it.)"
+      "description": "The space's icon — exactly the shape `icon` has on any object (§2b), so an author never has to remember a second convention: an emoji, the **object id** of an image in the bundle, the raw content cid of an image no file object holds (a 1-to-1 space's icon, output-only), a built-in icon name, or a bare colour. Two flat keys used to stand here with no rule for which one wins, and they disagreed with the object surface about whether an image is a scalar or a list. This field was then narrowed to emoji-or-image, which silently dropped the icon of a space whose icon is a bare colour — 20 of 77 real spaces, the letter avatars the client draws when no image was ever set. An image needs the image object AND its file in the archive, which is why a generated bundle uses an emoji. (The installer resolves the space icon by image *name*, not id — the wiring does that lookup, so this field stays consistent with every other id in the format; an emoji or colour icon reaches no installer field at all, and is carried so a round trip does not lose it.)"
     },
     "entrypoint": {
       "type": "string",
@@ -129,6 +129,26 @@
             "pattern": "^[^_]"
           },
           "description": "The ids this index names that no document in the bundle carries — an `entrypoint`, a `homepage`, a widget `target`, an image icon. Spelled like every other reference in this file, the derived-id fold included (§9), so the report and the slot it reports on name the same thing. A reserved listing (`_set`, `_widgets`) never appears: those name built-in screens, resolve everywhere, and are not the bundle's to carry. Neither does the auto-widget ledger's content — an entry there usually names a widget the user deleted, which is what the ledger is FOR, so a missing document is its normal state rather than a loss."
+        },
+        "deleted": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^_]"
+          },
+          "description": "The subset of `targets` the space DELETED: each names a tombstone in the source store. A reference to a deleted object is ordinary Anytype state — the app does not rewrite every object that mentions a deleted one — so a reader treats these as known, by design, and a restore keeps the id and writes a tombstone rather than a dangling reference. Every entry must also appear in `targets`, and none may appear in `omitted`."
+        },
+        "omitted": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^_]"
+          },
+          "description": "The subset of `targets` the space still HOLDS and this export did not write: an archived object under an export without archived objects, or an object outside a partial export's scope. Not a loss in the space, only in this bundle. Every entry must also appear in `targets`, and none may appear in `deleted`. A target in neither subset is ABSENT — the space had no row for it, typically because it had not synced — and that is the one class a reader should warn about."
         }
       }
     },

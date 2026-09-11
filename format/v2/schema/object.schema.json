@@ -423,7 +423,7 @@
       "minLength": 1,
       "maxLength": 255,
       "pattern": "^[^/]+$",
-      "description": "The id of an object in this space, a bundle-local slug, or a raw content CID — the WHOLE string, and nothing else. A reference carries no caption, display hint or name: there is no separator inside it and no half of it to discard, so `bafyrei\u2026#alice` is one id, one that no space mints, and it names nothing. (Earlier drafts of this format spelled a reference `<id>#<name>` and asked readers to split at the first `#`. That form is gone; `#` is now an ordinary character, kept legal here only because a reference is written through verbatim from whatever a space stores.) To show a human-readable name for a reference, look the id up: index the bundle's documents by their envelope `id` and read the target's `Name`. Never a URL and never a filesystem path — this format does no I/O, so it can only name an object or content the reader can resolve. To supply an image by URL, use a layer that can fetch it: it uploads the image, mints the file object and writes that object's id here. An object id uses the dag-cbor CID codec (normally beginning `bafyrei`); a raw or dag-pb content CID normally begins `bafybei` and resolves against content storage rather than the bundle's object documents."
+      "description": "The id of an object in this space, a bundle-local slug, or a raw content CID — the WHOLE string, and nothing else. A reference carries no caption, display hint or name: there is no separator inside it and no half of it to discard, so `bafyrei\u2026#alice` is one id, one that no space mints, and it names nothing. (Earlier drafts of this format spelled a reference `<id>#<name>` and asked readers to split at the first `#`. That form is gone; `#` is now an ordinary character, kept legal here only because a reference is written through verbatim from whatever a space stores.) To show a human-readable name for a reference, look the id up: index the bundle's documents by their envelope `id` and read the target's `Name`. Never a URL and never a filesystem path — this format does no I/O, so it can only name an object or content the reader can resolve. To supply an image by URL, use a layer that can fetch it: it uploads the image, mints the file object and writes that object's id here. An object id uses the dag-cbor CID codec (normally beginning `bafyrei`). A raw or dag-pb content CID (normally beginning `bafybei`) is content, not an object: it resolves against content storage, an icon carries one in its `cid` variant (§2b), and no reference slot should hold one."
     },
     "iconColor": {
       "description": "One of the ten palette colours — the same palette select options use (§2a) — or, for a stored value the palette has no name for, its raw number. That escape is bounded at 9007199254740991 (2^53-1), the same bound `size` carries: it is the largest integer this format moves through a v1 float value and writes back out denoting the same number, and the reference exporter drops a stored value above it with a warning rather than emitting one this schema refuses.",
@@ -457,7 +457,7 @@
       ],
       "properties": {
         "format": {
-          "description": "Which kind of icon this is: an emoji, an image object in this space, a built-in named icon, or a bare colour."
+          "description": "Which kind of icon this is: an emoji, an image object in this space, an image by raw content cid (no object behind it), a built-in named icon, or a bare colour."
         }
       },
       "allOf": [
@@ -511,7 +511,39 @@
               "format": {},
               "file": {
                 "$ref": "#/$defs/objectRef",
-                "description": "The image. Normally the id of a file object in this bundle; for a participant avatar or an invite icon it is the raw content cid of the image instead — see $defs/objectRef for how the two are told apart."
+                "description": "The image: the id of a file object in this bundle. A raw content cid — a participant avatar, an invite or 1-to-1 space icon — is not a file object and travels in the `cid` variant instead; a `file` holding one is read as that variant for compatibility with documents written before it existed, and is never written."
+              },
+              "color": {
+                "$ref": "#/$defs/iconColor"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "cid"
+              }
+            },
+            "required": [
+              "format"
+            ]
+          },
+          "then": {
+            "required": [
+              "format",
+              "cid"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "format": {},
+              "cid": {
+                "type": "string",
+                "minLength": 46,
+                "maxLength": 255,
+                "pattern": "^[^/]+$",
+                "description": "The image's raw content cid (dag-pb or raw codec, normally beginning `bafybei`): an image no file object in this bundle holds — a participant's avatar, a 1-to-1 space's icon — which a client fetches by content id through the gateway or the identity repo. Never an object reference: nothing in the bundle resolves it, nothing declares it unresolved, and a reader that cannot reach content storage shows no icon. Output-only: an author cannot mint a content address, and supplies an image as a file object instead."
               },
               "color": {
                 "$ref": "#/$defs/iconColor"
@@ -592,10 +624,11 @@
           "enum": [
             "emoji",
             "file",
+            "cid",
             "icon",
             "color"
           ],
-          "description": "Which kind of icon this is: an emoji, an image object in this space, a built-in named icon, or a bare colour."
+          "description": "Which kind of icon this is: an emoji, an image object in this space, an image by raw content cid (no object behind it), a built-in named icon, or a bare colour."
         }
       }
     },
@@ -610,7 +643,8 @@
         "format": {
           "enum": [
             "emoji",
-            "file"
+            "file",
+            "cid"
           ]
         }
       }

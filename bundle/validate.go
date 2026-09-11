@@ -180,7 +180,22 @@ func bundlePathAliasKey(name string) string {
 // pass the resulting root.FS(), rather than use os.DirFS, when validating
 // untrusted bundle contents.
 func Validate(fsys fs.FS) error {
-	return validate(fsys, fullFormatSurface)
+	report, err := inspect(fsys, fullFormatSurface)
+	if err != nil {
+		return err
+	}
+	return report.Err()
+}
+
+// Inspect is Validate with the whole verdict kept: every error Validate
+// would refuse on, plus the warnings and info a valid bundle states about
+// itself — chiefly the index targets it declares it cannot carry, graded by
+// the class the writer gave them (§2c: a tombstone is info, an omitted or
+// absent object a warning). The error return is reserved for a walk that
+// could not run at all — no index, an unreadable one — and is the same
+// error Validate returns for it.
+func Inspect(fsys fs.FS) (*Report, error) {
+	return inspect(fsys, fullFormatSurface)
 }
 
 // ValidateAuthoring is Validate for a bundle an author WROTE (§2g): every
@@ -213,7 +228,19 @@ func Validate(fsys fs.FS) error {
 // calling one function or the other, exactly as `NoDerivedTypeIds` is a fact
 // about the writer (§9).
 func ValidateAuthoring(fsys fs.FS) error {
-	return validate(fsys, authoringSurface)
+	report, err := inspect(fsys, authoringSurface)
+	if err != nil {
+		return err
+	}
+	return report.Err()
+}
+
+// InspectAuthoring is Inspect on the authoring surface: the same report,
+// with every dangling index target an error whatever the index declares —
+// an author's dangling reference is an authoring error, and the authoring
+// index schema has no `unresolved` member to declare one in.
+func InspectAuthoring(fsys fs.FS) (*Report, error) {
+	return inspect(fsys, authoringSurface)
 }
 
 // bundleSurface says which of the two questions of §2g a walk is asking. It
@@ -225,35 +252,36 @@ const (
 	authoringSurface
 )
 
-func validate(fsys fs.FS, surface bundleSurface) error {
+func inspect(fsys fs.FS, surface bundleSurface) (*Report, error) {
 	authoring := surface == authoringSurface
+	report := &Report{}
 	authoritativePaths := newAuthoritativeBundlePaths()
 	indexStatus, inspectErr := inspectExactBundleFile(fsys, anyblockjson.IndexFileName, authoritativePaths)
 	switch indexStatus {
 	case exactBundleFileAlias:
-		return fmt.Errorf("%s does not use exact directory-entry spelling", anyblockjson.IndexFileName)
+		return nil, fmt.Errorf("%s does not use exact directory-entry spelling", anyblockjson.IndexFileName)
 	case exactBundleFileMissing:
-		return ErrIndexNotFound
+		return nil, ErrIndexNotFound
 	case exactBundleFileNotRegular:
-		return fmt.Errorf("%s is not a regular file", anyblockjson.IndexFileName)
+		return nil, fmt.Errorf("%s is not a regular file", anyblockjson.IndexFileName)
 	case exactBundleFileInspectionError:
-		return fmt.Errorf("cannot inspect %s: %w", anyblockjson.IndexFileName, inspectErr)
+		return nil, fmt.Errorf("cannot inspect %s: %w", anyblockjson.IndexFileName, inspectErr)
 	case exactBundleFileReadable:
 		// The authoritative index is admitted before its first content read.
 	default:
-		return fmt.Errorf("cannot inspect %s: unknown admission status", anyblockjson.IndexFileName)
+		return nil, fmt.Errorf("cannot inspect %s: unknown admission status", anyblockjson.IndexFileName)
 	}
 
 	indexData, err := fs.ReadFile(fsys, anyblockjson.IndexFileName)
 	if errors.Is(err, fs.ErrNotExist) {
-		return ErrIndexNotFound
+		return nil, ErrIndexNotFound
 	}
 	if err != nil {
-		return fmt.Errorf("read %s: %w", anyblockjson.IndexFileName, err)
+		return nil, fmt.Errorf("read %s: %w", anyblockjson.IndexFileName, err)
 	}
 	idx, err := anyblockjson.UnmarshalIndex(indexData, anyblockjson.Options{})
 	if err != nil {
-		return fmt.Errorf("validate %s: %w", anyblockjson.IndexFileName, err)
+		return nil, fmt.Errorf("validate %s: %w", anyblockjson.IndexFileName, err)
 	}
 
 	var issues []string
@@ -458,7 +486,7 @@ func validate(fsys fs.FS, surface bundleSurface) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("walk bundle: %w", err)
+		return nil, fmt.Errorf("walk bundle: %w", err)
 	}
 
 	// Reported after the walk, over sorted keys, so the diagnostic is the
@@ -520,13 +548,48 @@ func validate(fsys fs.FS, surface bundleSurface) error {
 		}
 	}
 
+	// What the index DECLARES it cannot carry, and why (§2c). On the full
+	// surface the declaration is the exemption: the loss is stated at the
+	// severity its class earns instead of refused. On the authoring surface
+	// it buys nothing — an author's dangling reference is an authoring
+	// error, and the authoring index schema has no member to declare one in.
+	declaredTargets := map[string]struct{}{}
+	declaredDeleted := map[string]struct{}{}
+	declaredOmitted := map[string]struct{}{}
+	if idx.Unresolved != nil {
+		for _, id := range idx.Unresolved.Targets {
+			declaredTargets[id] = struct{}{}
+		}
+		for _, id := range idx.Unresolved.Deleted {
+			declaredDeleted[id] = struct{}{}
+		}
+		for _, id := range idx.Unresolved.Omitted {
+			declaredOmitted[id] = struct{}{}
+		}
+	}
 	requireObject := func(field, id string) {
 		if id == "" || anyblockjson.IsReservedWidgetTarget(id) || anyblockjson.IsReservedHomepage(id) {
 			return
 		}
-		if _, exists := documentPaths[id]; !exists {
-			issues = append(issues, fmt.Sprintf("%s references object %q, but the bundle contains no document with that id", field, id))
+		if _, exists := documentPaths[id]; exists {
+			return
 		}
+		if _, declared := declaredTargets[id]; declared && !authoring {
+			switch {
+			case has(declaredDeleted, id):
+				report.add(ReportIssue{Severity: SeverityInfo, Code: anyblockjson.IssueCodeDeletedTarget, Path: field,
+					Message: fmt.Sprintf("%s references object %q, which the space deleted; the index declares it (unresolved.deleted), and a restore keeps the id with a tombstone", field, id)})
+			case has(declaredOmitted, id):
+				report.add(ReportIssue{Severity: SeverityWarning, Code: anyblockjson.IssueCodeOmittedTarget, Path: field,
+					Message: fmt.Sprintf("%s references object %q, which the space holds and this export did not write; the index declares it (unresolved.omitted)", field, id)})
+			default:
+				report.add(ReportIssue{Severity: SeverityWarning, Code: anyblockjson.IssueCodeUnresolvedTarget, Path: field,
+					Message: fmt.Sprintf("%s references object %q, which the bundle does not carry and the space had no row for at export time — not synced, or never in this space; the index declares it (unresolved.targets)", field, id)})
+			}
+			return
+		}
+		report.add(ReportIssue{Severity: SeverityError, Path: field,
+			Message: fmt.Sprintf("%s references object %q, but the bundle contains no document with that id", field, id)})
 	}
 	// The type namespace's cross-document check. A derived type id is an
 	// address and the bundle is the only place one can be checked: a single
@@ -598,11 +661,16 @@ func validate(fsys fs.FS, surface bundleSurface) error {
 			}
 		}
 	}
-	if len(issues) == 0 {
-		return nil
+	for _, message := range issues {
+		report.add(ReportIssue{Severity: SeverityError, Message: message})
 	}
-	sort.Strings(issues)
-	return fmt.Errorf("bundle validation failed:\n- %s", strings.Join(issues, "\n- "))
+	report.sorted()
+	return report, nil
+}
+
+func has(set map[string]struct{}, id string) bool {
+	_, ok := set[id]
+	return ok
 }
 
 func appendManifestRoleIssues(bindings map[string]map[string][]string, issues *[]string) {

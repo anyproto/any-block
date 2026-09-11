@@ -357,6 +357,13 @@ func iconOf(detail func(string) *types.Value, warn func(path, format string, arg
 			// emit what its own Validate rejects (§11, I1)
 			warn("/icon", "icon image %q is not an object id and is dropped — "+
 				"this format holds a reference to an image object, never a URL or a path", images[0])
+		} else if isContentCid(images[0]) {
+			// a content address, not an object: no file object stands behind
+			// it and none can be asked for, so it gets the variant that says
+			// so rather than a `file` a reader would try to resolve (§2b)
+			ic.Format = "cid"
+			ic.Cid = images[0]
+			return ic
 		} else {
 			ic.Format = "file"
 			ic.File = images[0]
@@ -394,6 +401,8 @@ func iconOmap(ic *Icon) *omap {
 			format = "emoji"
 		case ic.File != "":
 			format = "file"
+		case ic.Cid != "":
+			format = "cid"
 		case ic.Color != nil:
 			format = "color"
 		default:
@@ -409,6 +418,8 @@ func iconOmap(ic *Icon) *omap {
 		m.set("emoji", ic.Emoji)
 	case "file":
 		m.set("file", ic.File)
+	case "cid":
+		m.set("cid", ic.Cid)
 	}
 	if ic.Color != nil {
 		m.set("color", ic.Color)
@@ -518,6 +529,11 @@ func (e *exporter) calloutIcon(t *model.BlockContentText) *omap {
 			"a reference to an image object, never a URL or a path", t.IconImage)
 		return nil
 	}
+	if isContentCid(t.IconImage) {
+		m.set("format", "cid")
+		m.set("cid", t.IconImage)
+		return m
+	}
 	m.set("format", "file")
 	m.set("file", e.opts.foldRef(t.IconImage))
 	return m
@@ -533,6 +549,8 @@ func calloutIconFrom(ic *Icon, t *model.BlockContentText) {
 		t.IconEmoji = ic.Emoji
 	case "file":
 		t.IconImage = ic.File
+	case "cid":
+		t.IconImage = ic.Cid
 	}
 }
 
@@ -585,8 +603,13 @@ type Icon struct {
 	Format string `json:"format"`
 	Emoji  string `json:"emoji"`
 	File   string `json:"file"`
-	Name   string `json:"name"`
-	Color  any    `json:"color"`
+	// Cid is the `cid` variant's content address (§2b): an image no file
+	// object holds — a participant avatar, a 1-to-1 space icon — fetched by
+	// content id through the gateway or the identity repo. Never an object
+	// reference, so nothing folds, declares or resolves it.
+	Cid   string `json:"cid"`
+	Name  string `json:"name"`
+	Color any    `json:"color"`
 }
 
 // Cover is the other typed field (§2b), Icon's counterpart: the banner an
@@ -630,13 +653,19 @@ func (imp *importer) applyIcon(details *types.Struct) {
 	switch ic.Format {
 	case "emoji":
 		setStr(detailKeyIconEmoji, ic.Emoji)
-	case "file":
+	case "file", "cid":
 		// `iconImage` is a `file` relation, so its stored shape is a list —
 		// the same shape the ordinary property path writes (wrapToList), and
-		// the shape all 12 011 populated cases in the corpus hold
+		// the shape all 12 011 populated cases in the corpus hold. A content
+		// cid lands on the same slot: the store never told the two apart,
+		// only the wire does (§2b), and a content address is never folded.
+		image := ic.Cid
+		if ic.Format == "file" {
+			image = imp.unfoldRef(ic.File)
+		}
 		details.Fields[detailKeyIconImage] = &types.Value{Kind: &types.Value_ListValue{
 			ListValue: &types.ListValue{Values: []*types.Value{
-				{Kind: &types.Value_StringValue{StringValue: imp.unfoldRef(ic.File)}},
+				{Kind: &types.Value_StringValue{StringValue: image}},
 			}},
 		}}
 	case "icon":

@@ -15,8 +15,8 @@ import (
 // BOTH enums failed both and the reader got two contradictory verdicts, the
 // WIDER one first:
 //
-//	/blocks/0/icon/format: value must be one of 'emoji', 'file', 'icon', 'color'
-//	/blocks/0/icon/format: value must be one of 'emoji', 'file'
+//	/blocks/0/icon/format: value must be one of 'emoji', 'file', 'cid', 'icon', 'color'
+//	/blocks/0/icon/format: value must be one of 'emoji', 'file', 'cid'
 //
 // A greedy repairer reads line 1, writes `format: "icon"`, and gets a fresh
 // error — two round trips where one would do. That is the disease this whole
@@ -56,12 +56,12 @@ func TestValidate_ARestrictedIconSlotNamesOneUnion(t *testing.T) {
 		})
 	}
 
-	// the control: the OBJECT slot still names all four, so the fix cannot pass
+	// the control: the OBJECT slot still names all five, so the fix cannot pass
 	// by narrowing every slot to the callout's set
 	t.Run("the object slot still names all four", func(t *testing.T) {
 		issues := firstIssues(t, `{"formatVersion": "2.0", "type": "page", "icon": {"format": "url", "url": "http://x"}}`)
 		require.Len(t, issues, 1)
-		assert.Contains(t, issues[0].Message, "'emoji', 'file', 'icon', 'color'")
+		assert.Contains(t, issues[0].Message, "'emoji', 'file', 'cid', 'icon', 'color'")
 	})
 
 	// and both slots still accept what they should

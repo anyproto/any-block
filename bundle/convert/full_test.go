@@ -117,6 +117,14 @@ func TestFullStoredOptionsAndTemplateTarget(t *testing.T) {
 	assert.Equal(t, testfixtures.ContentID, targets[0].GetStringValue())
 }
 
+func TestFullSpaceIconByContentCidReachesTheSpace(t *testing.T) {
+	fixture := fstest.MapFS{"index.json": {Data: []byte(`{"formatVersion":"2.0","icon":{"format":"cid","cid":"` + testfixtures.ContentID + `"}}`)}}
+	result, err := Bundle(fixture, Options{})
+	require.NoError(t, err, "a content cid names no object and is not a dangling target")
+	details := decodeEntries(t, result)["_anyblock_space"].Snapshot.Data.Details.Fields
+	require.Equal(t, testfixtures.ContentID, details["iconImage"].GetListValue().GetValues()[0].GetStringValue())
+}
+
 func TestFullSpaceIconVariants(t *testing.T) {
 	for _, icon := range []string{`{"format":"icon","name":"star","color":"red"}`, `{"format":"color","color":"blue"}`} {
 		fixture := fstest.MapFS{"index.json": {Data: []byte(`{"formatVersion":"2.0","icon":` + icon + `}`)}}

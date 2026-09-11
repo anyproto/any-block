@@ -59,13 +59,22 @@ func run(args []string) error {
 	}
 }
 
-func runValidate(paths []string) error {
-	if len(paths) == 1 && (paths[0] == "-h" || paths[0] == "--help") {
-		fmt.Fprintln(os.Stdout, "usage: anyblock validate <file-or-directory>...")
+func runValidate(args []string) error {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		fmt.Fprintln(os.Stdout, "usage: anyblock validate [-strict] <file-or-directory>...")
 		return nil
 	}
+	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
+	strict := flags.Bool("strict", false, "fail on warnings too (a declared omitted or absent target); info never fails")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	paths := flags.Args()
 	if len(paths) == 0 {
-		return fmt.Errorf("usage: anyblock validate <file-or-directory>...")
+		return fmt.Errorf("usage: anyblock validate [-strict] <file-or-directory>...")
 	}
 	failures := 0
 	for _, root := range paths {
@@ -79,9 +88,29 @@ func runValidate(paths []string) error {
 			return err
 		}
 		if info.IsDir() {
-			err = validateBundleDirectory(root)
+			var report *anyblockbundle.Report
+			report, err = validateBundleDirectory(root)
 			switch {
 			case err == nil:
+				// what a valid bundle states about itself (§2c): printed at
+				// the severity its class earns, and failing only under -strict
+				// and only for warnings — info is a tombstone the space still
+				// names, which is by design
+				warned := false
+				for _, issue := range report.Issues {
+					if issue.Severity == anyblockbundle.SeverityError {
+						continue
+					}
+					if issue.Severity == anyblockbundle.SeverityWarning {
+						warned = true
+					}
+					fmt.Fprintf(cliWarningOutput, "%s: %s\n", issue.Severity, issue.Message)
+				}
+				if *strict && warned {
+					failures++
+					fmt.Fprintf(os.Stderr, "invalid bundle %s: warnings are errors under -strict\n", root)
+					continue
+				}
 				fmt.Printf("ok bundle %s\n", root)
 				continue
 			case !errors.Is(err, anyblockbundle.ErrIndexNotFound):
@@ -121,17 +150,28 @@ func runValidate(paths []string) error {
 	return nil
 }
 
-func validateBundleDirectory(name string) (err error) {
+// validateBundleDirectory inspects a bundle rooted at name. A nil error
+// with a report means the bundle is valid and the report carries what it
+// states about itself; an error is either a refusal (report.Err) or a walk
+// that could not run.
+func validateBundleDirectory(name string) (report *anyblockbundle.Report, err error) {
 	root, err := os.OpenRoot(name)
 	if err != nil {
-		return fmt.Errorf("open bundle root %s: %w", name, err)
+		return nil, fmt.Errorf("open bundle root %s: %w", name, err)
 	}
 	defer func() {
 		if closeErr := root.Close(); err == nil && closeErr != nil {
 			err = fmt.Errorf("close bundle root %s: %w", name, closeErr)
 		}
 	}()
-	return anyblockbundle.Validate(root.FS())
+	report, err = anyblockbundle.Inspect(root.FS())
+	if err != nil {
+		return nil, err
+	}
+	if err := report.Err(); err != nil {
+		return nil, err
+	}
+	return report, nil
 }
 
 func validateFile(path string) error {

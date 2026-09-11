@@ -171,7 +171,7 @@ func TestEveryLiftedFieldConflictIsOrderIndependentAndAtomic(t *testing.T) {
 		{"name", map[string]*types.Value{"name": strVal("Zulu")}, map[string]*types.Value{"name": strVal("Alpha")}, `name=["Alpha", "Zulu"]`},
 		{"description", map[string]*types.Value{"description": strVal("Zulu")}, map[string]*types.Value{"description": strVal("Alpha")}, `description=["Alpha", "Zulu"]`},
 		{"homepage", map[string]*types.Value{"homepage": strVal("widgets")}, map[string]*types.Value{"homepage": strVal("graph")}, `homepage=["_graph", "_widgets"]`},
-		{"icon", map[string]*types.Value{"iconEmoji": strVal("🧭")}, map[string]*types.Value{"iconEmoji": strVal("🔥")}, `icon=[{"format":"emoji","emoji":"🔥","file":"","name":"","color":null}, {"format":"emoji","emoji":"🧭","file":"","name":"","color":null}]`},
+		{"icon", map[string]*types.Value{"iconEmoji": strVal("🧭")}, map[string]*types.Value{"iconEmoji": strVal("🔥")}, `icon=[{"format":"emoji","emoji":"🔥","file":"","cid":"","name":"","color":null}, {"format":"emoji","emoji":"🧭","file":"","cid":"","name":"","color":null}]`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -206,7 +206,7 @@ func TestMultiFieldConflictErrorAndNilArtifactsAreDeterministic(t *testing.T) {
 		"name": strVal("Alpha"), "description": strVal("Alpha"),
 		"homepage": strVal("graph"), "iconEmoji": strVal("🔥"),
 	})
-	want := `conflicting observed space settings: description=["Alpha", "Zulu"]; homepage=["_graph", "_widgets"]; icon=[{"format":"emoji","emoji":"🔥","file":"","name":"","color":null}, {"format":"emoji","emoji":"🧭","file":"","name":"","color":null}]; name=["Alpha", "Zulu"]`
+	want := `conflicting observed space settings: description=["Alpha", "Zulu"]; homepage=["_graph", "_widgets"]; icon=[{"format":"emoji","emoji":"🔥","file":"","cid":"","name":"","color":null}, {"format":"emoji","emoji":"🧭","file":"","cid":"","name":"","color":null}]; name=["Alpha", "Zulu"]`
 	for i, observations := range [][]*model.SmartBlockSnapshotBase{{one, two}, {two, one}} {
 		result := composeSpaceObservations(t, "Alpha", false, observations...)
 		require.EqualError(t, result.err, want, "permutation %d", i)

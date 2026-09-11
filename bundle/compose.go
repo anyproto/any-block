@@ -137,6 +137,14 @@ type Stats struct {
 	// its normal state. The slots are the ones bundle.Validate refuses on,
 	// so an export states exactly what a later validation would find.
 	UnresolvedTargets []string
+	// UnresolvedDeleted and UnresolvedOmitted are the subsets of
+	// UnresolvedTargets the wired store could classify (§2c,
+	// anyblockjson.ClassifyUnresolvedTarget): tombstones, and rows the space
+	// still holds that this export did not write. What is in neither is
+	// absent — the one class that is a loss. Sorted. index.json states the
+	// same subsets (Index.Unresolved.Deleted / Omitted).
+	UnresolvedDeleted []string
+	UnresolvedOmitted []string
 	// UnresolvedReferences retains each missing index target with source location.
 	UnresolvedReferences []anyblockjson.ObjectReference
 	// RefusedOptions names the vocabularies the dictionary cannot state and
@@ -1062,6 +1070,18 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	idx.Name = spaceSettings.Name
 	idx.Description = spaceSettings.Description
 	idx.Icon = spaceSettings.Icon
+	// the space icon follows the document-level icon rule (§2b, §9): an
+	// icon is optional, so one whose image object the space DELETED is
+	// dropped and warned rather than carried as a declared target, and the
+	// index falls through to whatever icon channel is left
+	if iconID := idx.IconImageId(); iconID != "" && anyblockjson.DroppedDeletedIconRef(c.opts, iconID) {
+		idx.Icon = nil
+		if c.opts.OnWarning != nil {
+			c.opts.OnWarning(anyblockjson.Issue{Path: "/icon/file", Message: fmt.Sprintf(
+				"space icon %q names an image object the space deleted and is dropped — an icon is optional, "+
+					"and the index falls through to whatever icon channel is left", iconID)})
+		}
+	}
 	idx.Homepage = spaceSettings.Homepage
 	// the caller's name is the fallback for a space whose document has none
 	if idx.Name == "" {
@@ -1101,10 +1121,13 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// question "is this export incomplete" is answered where the bundle is
 	// described, rather than by a reader discovering silence.
 	unresolvedTargets := c.unresolvedIndexTargets(&idx)
+	unresolvedDeleted, unresolvedOmitted := c.classifyUnresolvedTargets(unresolvedTargets)
 	if len(orphans) > 0 || len(unresolvedTargets) > 0 {
 		idx.Unresolved = &anyblockjson.Unresolved{
 			Properties: orphans,
 			Targets:    unresolvedTargets,
+			Deleted:    unresolvedDeleted,
+			Omitted:    unresolvedOmitted,
 		}
 	}
 	idxData, err := anyblockjson.MarshalIndex(&idx, c.opts)
@@ -1130,6 +1153,8 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	}
 	stats.RefusedOptions = refusedOptions
 	stats.UnresolvedTargets = unresolvedTargets
+	stats.UnresolvedDeleted = unresolvedDeleted
+	stats.UnresolvedOmitted = unresolvedOmitted
 	stats.UnresolvedReferences = c.unresolvedIndexReferences(&idx)
 	return idxData, dictData, stats, nil
 }
@@ -1158,6 +1183,23 @@ func (c *Composer) unresolvedIndexTargets(idx *anyblockjson.Index) []string {
 		}
 	}
 	return out
+}
+
+// classifyUnresolvedTargets asks the wired store WHY each unresolved target
+// dangles (§2c, anyblockjson.ClassifyUnresolvedTarget) and splits the
+// tombstones from the rows the space still holds. Both come back sorted,
+// which they are already, since the input is. With no store wired nothing
+// is classified and every target reads as absent, the fail-safe direction.
+func (c *Composer) classifyUnresolvedTargets(targets []string) (deleted, omitted []string) {
+	for _, id := range targets {
+		switch anyblockjson.ClassifyUnresolvedTarget(c.opts, id) {
+		case anyblockjson.UnresolvedDeleted:
+			deleted = append(deleted, id)
+		case anyblockjson.UnresolvedOmitted:
+			omitted = append(omitted, id)
+		}
+	}
+	return deleted, omitted
 }
 
 // hasSemanticState distinguishes a genuinely empty composition from one in

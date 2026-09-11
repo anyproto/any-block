@@ -80,8 +80,18 @@ const (
 type IssueCode string
 
 const (
-	// IssueCodeUnresolvedTarget identifies a reference to a missing object.
+	// IssueCodeUnresolvedTarget identifies a reference to an object the
+	// space had no row for — ABSENT: not synced, or never in this space.
+	// The one unresolved class that is a loss (§2c, §9).
 	IssueCodeUnresolvedTarget IssueCode = "unresolved_target"
+	// IssueCodeDeletedTarget identifies a reference to an object the space
+	// DELETED — a tombstone. Ordinary state, by design; reported so a
+	// report is complete, never as a loss (§2c).
+	IssueCodeDeletedTarget IssueCode = "deleted_target"
+	// IssueCodeOmittedTarget identifies a reference to an object the space
+	// still holds that the export did not write — archived under an export
+	// without archived objects, or outside a partial export's scope (§2c).
+	IssueCodeOmittedTarget IssueCode = "omitted_target"
 	// IssueCodeTypeIdentityMismatch identifies an export rejected because a
 	// type document and its references would use different identities.
 	IssueCodeTypeIdentityMismatch IssueCode = "type_identity_mismatch"

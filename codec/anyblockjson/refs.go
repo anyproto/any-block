@@ -135,6 +135,76 @@ func DroppedDeletedIconRef(opts Options, id string) bool {
 	return known && deleted
 }
 
+// UnresolvedClass says WHY an id the index names is not in the bundle
+// (§2c, Index.Unresolved). The store already draws this line — a deleted
+// object keeps a tombstone row so a link to it can be told apart from a
+// link to an object that has not loaded — and the composer, the validator
+// and the comparator must all read it the same way, so the predicate lives
+// here and is exported.
+type UnresolvedClass uint8
+
+const (
+	// UnresolvedAbsent: the space holds no row for the id — it has not
+	// synced, or it was never here — or nothing could ask. This is the one
+	// class that is a loss, and the fail-safe direction: a store that did
+	// not answer, a capability that is not wired, and an id the store was
+	// never the authority for all land here.
+	UnresolvedAbsent UnresolvedClass = iota
+	// UnresolvedDeleted: a tombstone. The space deleted the object, by
+	// design, and a reference to it is ordinary state.
+	UnresolvedDeleted
+	// UnresolvedOmitted: the space still holds the object and this export
+	// did not write it — archived under an export without archived objects,
+	// or outside a partial export's scope. A loss in this bundle, not in
+	// the space.
+	UnresolvedOmitted
+)
+
+// ClassifyUnresolvedTarget asks the wired store which UnresolvedClass an
+// unresolved index target belongs to. Only CID-shaped ids are asked
+// (isObjectIdShaped); the existence capability must be wired and must
+// answer; and a row whose deletion cannot be asked is reported as omitted,
+// because "the space holds it" is the half that was answered.
+func ClassifyUnresolvedTarget(opts Options, id string) UnresolvedClass {
+	if !isObjectIdShaped(id) {
+		return UnresolvedAbsent
+	}
+	existence, ok := opts.ResolveObjectNames.(ObjectExistenceResolver)
+	if !ok {
+		return UnresolvedAbsent
+	}
+	exists, known := existence.ObjectExists(id)
+	if !known || !exists {
+		return UnresolvedAbsent
+	}
+	if deletion, ok := opts.ResolveObjectNames.(ObjectDeletionResolver); ok {
+		if deleted, known := deletion.ObjectDeleted(id); known && deleted {
+			return UnresolvedDeleted
+		}
+	}
+	return UnresolvedOmitted
+}
+
+// isContentCid reports whether s is a CONTENT address rather than an object
+// id: a CID whose codec is dag-pb or raw — the shape file bytes get, and
+// the shape a participant avatar or a 1-to-1 space icon carries when no file
+// object stands behind the image (§2b). An object id is dag-cbor. The two
+// never share a codec, so this is a classifier, not a heuristic.
+func isContentCid(s string) bool {
+	if len(s) < 46 {
+		return false
+	}
+	c, err := cid.Decode(s)
+	if err != nil {
+		return false
+	}
+	switch c.Prefix().Codec {
+	case cid.DagProtobuf, cid.Raw:
+		return true
+	}
+	return false
+}
+
 // isObjectIdShaped reports whether s parses as a content id (CID) — the
 // shape of every object and file id a space actually mints. It is the gate
 // that keeps the existence question OFF everything that is not a space
@@ -175,23 +245,26 @@ func missingFromSpace(opts Options, id string) bool {
 
 // DroppedMissingObjectRef reports whether export drops entry from a
 // LIST-valued reference slot — an objects/files property value (§3), a
-// property document's `object_types` (§2d): the stored `_missing_object`
-// sentinel, or an object id the wired store says the space does not hold.
-// A list expresses absence by being shorter; singular slots rewrite to the
-// sentinel instead (§9) and are not this predicate's business.
+// property document's `object_types` (§2d). Exactly one thing drops: the
+// stored `_missing_object` sentinel, and only when the existence capability
+// is wired. A real id is kept whatever the store says of it (§9): an object
+// the space holds no row for may simply not have synced yet, and the
+// sentinel is the importer's answer for a reference it cannot resolve,
+// never the exporter's — a backup that replaced the id would have lost, for
+// good, the one thing a later sync could still make whole.
 //
 // Exported because snapshotdiff — the comparator behind the corpus sweep —
 // must apply the SAME predicate to both sides, or every dropped-by-design
-// entry reports as data loss (the drift class that once produced 1,344
+// sentinel reports as data loss (the drift class that once produced 1,344
 // false failures in one sweep, §11). With no capability wired it drops
 // nothing, sentinel included: a package-only export passes every entry
 // through verbatim.
 func DroppedMissingObjectRef(opts Options, entry string) bool {
-	if entry == missingObjectId {
-		_, ok := opts.ResolveObjectNames.(ObjectExistenceResolver)
-		return ok
+	if entry != missingObjectId {
+		return false
 	}
-	return missingFromSpace(opts, entry)
+	_, ok := opts.ResolveObjectNames.(ObjectExistenceResolver)
+	return ok
 }
 
 // isAccountIdentity reports whether s is a member's account identity — the
@@ -464,59 +537,57 @@ func (e *exporter) objectRef(id string) string {
 
 // singularObjectRef renders a SINGULAR reference slot — a block's
 // `object_id` (link, bookmark, file kinds, dataview) — under the
-// missing-reference rule (§9): a target the space does not hold is written
-// as the `_missing_object` sentinel, because omission cannot express "no
-// target" here — only deleting the block could, and that would lose the
-// fact that a link existed. A target the store DOES hold, the store cannot
-// speak for (missingFromSpace's gates), or that already IS the sentinel
-// passes to the ordinary objectRef untouched.
+// missing-reference rule (§9): a target the space holds no row for is
+// written VERBATIM and warned. The id is kept because absence from the
+// store is not absence from the world — the object may not have synced
+// yet — and the importer already writes the `_missing_object` sentinel for
+// any target it cannot resolve, so rewriting here preserved nothing and
+// destroyed the one thing a later sync could still make whole. A target the
+// store DOES hold, the store cannot speak for (missingFromSpace's gates), or
+// that already IS the sentinel passes to the ordinary objectRef silently.
 //
-// The rewrite warns, naming the id: unlike the sentinel — which says
-// nothing beyond "gone" — the id is real information, and the warning is
-// its last appearance anywhere. After one round trip the slot is a
-// fixpoint: the sentinel is kept as-is, so re-exports are byte-stable.
+// The warning names the id and the slot, so an export report can say what
+// the space could not serve. The slot is a fixpoint from the first
+// generation: the id is kept, import stores it, and re-exports are
+// byte-stable.
 func (e *exporter) singularObjectRef(path, slot, id string) string {
 	if missingFromSpace(e.opts, id) {
-		e.warnReference(path, "%s %q names no object in this space and is written as %q — "+
-			"the slot cannot say \"no target\" without deleting the block, and the sentinel "+
-			"keeps the fact that a reference existed", slot, id, missingObjectId)
-		return e.objectRef(missingObjectId)
+		e.warnReference(path, "%s %q names no object in this space — not synced, or never here — "+
+			"and is written as it stands; the importer resolves it, or writes the sentinel", slot, id)
 	}
 	return e.objectRef(id)
 }
 
 // droppedMissingListEntry is the LIST half of the missing-reference rule
-// (§9): an objects/files property value entry, or an `object_types` entry,
-// that the space does not hold is dropped — a list expresses absence by
-// being shorter. The predicate is the exported DroppedMissingObjectRef, so
+// (§9): an objects/files property value entry, or an `object_types` entry.
+// A stored `_missing_object` sentinel drops silently — it carries nothing,
+// which object it was is already gone, and the corpus holds ~990 of them in
+// property values alone, which would triple a warning channel that was just
+// cut down to what is worth reading (§12). A real id the space holds no
+// row for is KEPT and warned, for the reason singularObjectRef gives: it
+// may not have synced yet, and the importer is the one that writes the
+// sentinel. The drop predicate is the exported DroppedMissingObjectRef, so
 // the comparator applies exactly what export applied.
-//
-// Only a REAL id warns. A stored `_missing_object` sentinel drops silently:
-// it carries nothing — which object it was is already gone — and the corpus
-// holds ~990 of them in property values alone, which would triple a warning
-// channel that was just cut down to what is worth reading (§12).
 func (e *exporter) droppedMissingListEntry(path, id string) bool {
-	if !DroppedMissingObjectRef(e.opts, id) {
+	if missingFromSpace(e.opts, id) {
+		e.warnReference(path, "%q names no object in this space — not synced, or never here — "+
+			"and is kept as it stands; the importer resolves it, or drops it", id)
 		return false
 	}
-	if id != missingObjectId {
-		e.warnReference(path, "%q names no object in this space and is dropped — "+
-			"a list expresses absence by being shorter", id)
-	}
-	return true
+	return DroppedMissingObjectRef(e.opts, id)
 }
 
 // exportMarks applies the reference rules to inline markup (§8, §9). A
-// `<mention object_id="…">` whose target the space does not hold is
-// rewritten to the `_missing_object` sentinel — a mention is a singular
-// slot; dropping the mark would lose the fact that a mention existed while
-// its text stayed. Then the derived-id fold (foldRef) runs on every mention,
-// object-mark and object-link target, exactly as it runs on every other
-// reference slot: a text mention of a member spells `participant-<identity>`
-// like the `Assignee` value beside it, so a reader joins both to the same
-// document. Copy-on-write: the snapshot's own marks are caller-owned state
-// and are never mutated, and the common case — nothing to rewrite — returns
-// the input slice untouched.
+// `<mention object_id="…">` whose target the space holds no row for is
+// kept verbatim and warned, like every other singular slot
+// (singularObjectRef): the mention's text and its address both stay. Then
+// the derived-id fold (foldRef) runs on every mention, object-mark and
+// object-link target, exactly as it runs on every other reference slot: a
+// text mention of a member spells `participant-<identity>` like the
+// `Assignee` value beside it, so a reader joins both to the same document.
+// Copy-on-write: the snapshot's own marks are caller-owned state and are
+// never mutated, and the common case — nothing to fold — returns the input
+// slice untouched.
 func (e *exporter) exportMarks(path string, marks []*model.BlockContentTextMark) []*model.BlockContentTextMark {
 	out := marks
 	copied := false
@@ -536,10 +607,8 @@ func (e *exporter) exportMarks(path string, marks []*model.BlockContentTextMark)
 		switch m.Type {
 		case model.BlockContentTextMark_Mention:
 			if missingFromSpace(e.opts, m.Param) {
-				e.warnReference(fmt.Sprintf("%s/text/marks/%d/param", path, i), "mention target %q names no object in this space and is written as %q — "+
-					"the mention's own text stays; only its address is gone", m.Param, missingObjectId)
-				replace(i, m, missingObjectId)
-				continue
+				e.warnReference(fmt.Sprintf("%s/text/marks/%d/param", path, i), "mention target %q names no object in this space — "+
+					"not synced, or never here — and is written as it stands; the importer resolves it, or writes the sentinel", m.Param)
 			}
 			if folded := e.opts.foldRef(m.Param); folded != m.Param {
 				replace(i, m, folded)

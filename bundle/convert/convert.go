@@ -34,6 +34,45 @@ type Result struct {
 	// Files maps native archive paths to source blob paths. Callers stream these from the input filesystem.
 	Files           map[string]string
 	SourceNetworkID string
+	// Unresolved is what the index declared it could not carry, by class
+	// (SPEC §2c), spelled as the index spells it. An importer keeps a
+	// Deleted id and tombstones it; Omitted and Absent take the sentinel
+	// the importer has always written, and each earns a report entry.
+	Unresolved UnresolvedTargets
+}
+
+// UnresolvedTargets splits an index's declared dangling targets into the
+// three classes of SPEC §2c. Each list is sorted; the three are disjoint
+// and together are exactly `unresolved.targets`.
+type UnresolvedTargets struct {
+	Deleted []string
+	Omitted []string
+	Absent  []string
+}
+
+func unresolvedTargets(u *ab.Unresolved) UnresolvedTargets {
+	var out UnresolvedTargets
+	if u == nil {
+		return out
+	}
+	classified := map[string]bool{}
+	for _, id := range u.Deleted {
+		classified[id] = true
+	}
+	for _, id := range u.Omitted {
+		classified[id] = true
+	}
+	out.Deleted = append([]string(nil), u.Deleted...)
+	out.Omitted = append([]string(nil), u.Omitted...)
+	for _, id := range u.Targets {
+		if !classified[id] {
+			out.Absent = append(out.Absent, id)
+		}
+	}
+	sort.Strings(out.Deleted)
+	sort.Strings(out.Omitted)
+	sort.Strings(out.Absent)
+	return out
 }
 
 // Authoring converts a validated v2 authoring bundle to a native v1 archive.
@@ -64,12 +103,24 @@ func convertBundle(fsys fs.FS, options Options, authoring bool) (*Result, error)
 			options.OnWarning(message)
 		}
 	}
-	validate := anyblockbundle.Validate
+	inspect := anyblockbundle.Inspect
 	if authoring {
-		validate = anyblockbundle.ValidateAuthoring
+		inspect = anyblockbundle.InspectAuthoring
 	}
-	if err := validate(fsys); err != nil {
+	report, err := inspect(fsys)
+	if err != nil {
 		return nil, err
+	}
+	if err := report.Err(); err != nil {
+		return nil, err
+	}
+	// what the bundle states about itself and is still valid for: the
+	// declared dangling targets, graded (§2c). Forwarded as lines so a
+	// caller with only a string sink still shows the loss.
+	for _, issue := range report.Issues {
+		if issue.Severity != anyblockbundle.SeverityError {
+			warn(fmt.Sprintf("%s: %s", issue.Severity, issue.Message))
+		}
 	}
 	indexData, err := fs.ReadFile(fsys, ab.IndexFileName)
 	if err != nil {
@@ -332,7 +383,8 @@ func convertBundle(fsys fs.FS, options Options, authoring bool) (*Result, error)
 	if authoring && (idx.Icon != nil || idx.Description != "") {
 		warn("index.json: v1 profile has no space emoji or description fields; object icons and content are preserved")
 	}
-	return &Result{Entries: entries, Documents: len(documents), Files: files, SourceNetworkID: idx.NetworkId}, nil
+	return &Result{Entries: entries, Documents: len(documents), Files: files, SourceNetworkID: idx.NetworkId,
+		Unresolved: unresolvedTargets(idx.Unresolved)}, nil
 }
 
 // The codec preserves document semantics; these fields are required by the

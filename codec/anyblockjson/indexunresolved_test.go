@@ -107,7 +107,7 @@ func TestIndexUnresolved_TheSchemaPublishesTheShape(t *testing.T) {
 	for m := range def.Properties {
 		stated[m] = true
 	}
-	assert.Equal(t, map[string]bool{"properties": true, "targets": true}, stated)
+	assert.Equal(t, map[string]bool{"properties": true, "targets": true, "deleted": true, "omitted": true}, stated)
 }
 
 // ReferencedObjectIds is the one list of slots that name an object, shared
@@ -156,4 +156,92 @@ func TestIndexObjectReferencesKeepEachLocation(t *testing.T) {
 		{TargetObjectID: "same-target", Path: "/icon/file"},
 	}, idx.ObjectReferences(Options{}))
 	assert.Equal(t, []string{"same-target"}, idx.ReferencedObjectIds(Options{}))
+}
+
+// The two subsets say WHY a target is dangling, which the store knew and the
+// bundle would otherwise lose: `deleted` names the tombstones (the space
+// deleted them, by design), `omitted` names the objects the space holds
+// that this export did not write (archived under an export without archived
+// objects, or outside a partial export's scope). What is in neither is
+// absent — no row in the space — and that is the one class that is a loss.
+func TestIndexUnresolved_DeletedAndOmittedAreSubsetsOfTargets(t *testing.T) {
+	idx := &Index{
+		Name:     "Corpus",
+		Homepage: "bafyreigone",
+		Unresolved: &Unresolved{
+			Targets: []string{"bafyreigone", "bafyreiarchived", "bafyreiabsent"},
+			Deleted: []string{"bafyreigone"},
+			Omitted: []string{"bafyreiarchived"},
+		},
+	}
+
+	data, err := MarshalIndex(idx, Options{})
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"deleted"`)
+	assert.Contains(t, string(data), `"omitted"`)
+
+	back, err := UnmarshalIndex(data, Options{})
+	require.NoError(t, err)
+	require.NotNil(t, back.Unresolved)
+	assert.Equal(t, []string{"bafyreiabsent", "bafyreiarchived", "bafyreigone"}, back.Unresolved.Targets, "sorted")
+	assert.Equal(t, []string{"bafyreigone"}, back.Unresolved.Deleted)
+	assert.Equal(t, []string{"bafyreiarchived"}, back.Unresolved.Omitted)
+
+	again, err := MarshalIndex(back, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, string(data), string(again), "the report round-trips byte for byte")
+}
+
+// A subset entry that is not in `targets` is a contradiction, not a report:
+// the writer says an id is deleted while also saying the index does not
+// name it. Both doors refuse it, the way both refuse the empty object.
+func TestIndexUnresolved_ASubsetEntryMustBeADeclaredTarget(t *testing.T) {
+	stray := []byte(`{"formatVersion":"2.0","name":"Corpus","unresolved":{"targets":["bafyreigone"],"deleted":["bafyreiother"]}}`)
+	_, err := UnmarshalIndex(stray, Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bafyreiother")
+
+	_, err = MarshalIndex(&Index{
+		Name:       "Corpus",
+		Unresolved: &Unresolved{Targets: []string{"bafyreigone"}, Omitted: []string{"bafyreiother"}},
+	}, Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bafyreiother")
+}
+
+// An id cannot be both a tombstone and an object the space still holds.
+func TestIndexUnresolved_DeletedAndOmittedDoNotOverlap(t *testing.T) {
+	both := []byte(`{"formatVersion":"2.0","name":"Corpus","unresolved":{"targets":["bafyreigone"],"deleted":["bafyreigone"],"omitted":["bafyreigone"]}}`)
+	_, err := UnmarshalIndex(both, Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bafyreigone")
+
+	_, err = MarshalIndex(&Index{
+		Name: "Corpus",
+		Unresolved: &Unresolved{
+			Targets: []string{"bafyreigone"},
+			Deleted: []string{"bafyreigone"},
+			Omitted: []string{"bafyreigone"},
+		},
+	}, Options{})
+	require.Error(t, err)
+}
+
+// The subsets are references too, folded and unfolded with `targets` — a
+// subset spelled one way and the target it classifies spelled another would
+// never match.
+func TestIndexUnresolved_SubsetsAreSpelledLikeTargets(t *testing.T) {
+	opts := Options{ResolveProperties: newTypeIdVocabulary()}
+	data, err := MarshalIndex(&Index{
+		Name:       "Corpus",
+		Unresolved: &Unresolved{Targets: []string{"typeid-wine"}, Omitted: []string{"typeid-wine"}},
+	}, opts)
+	require.NoError(t, err)
+	assert.Equal(t, 2, strings.Count(string(data), `"type-wine"`), "folded in both lists")
+	assert.NotContains(t, string(data), "typeid-wine")
+
+	back, err := UnmarshalIndex(data, opts)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"typeid-wine"}, back.Unresolved.Targets)
+	assert.Equal(t, []string{"typeid-wine"}, back.Unresolved.Omitted)
 }

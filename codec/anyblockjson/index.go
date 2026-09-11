@@ -452,6 +452,51 @@ type Unresolved struct {
 	// usually names a widget the user deleted, which is what the ledger is
 	// FOR, so a missing document is its normal state rather than a loss.
 	Targets []string `json:"targets"`
+	// Deleted is the subset of Targets the space DELETED: tombstones in the
+	// source store. A reference to a deleted object is ordinary Anytype
+	// state — the app does not rewrite every object that mentions a deleted
+	// one — so a reader treats these as known, by design, and a restore
+	// keeps the id and writes a tombstone. Sorted, folded like Targets.
+	Deleted []string `json:"deleted"`
+	// Omitted is the subset of Targets the space still HOLDS and this
+	// export did not write: an archived object under an export without
+	// archived objects, or one outside a partial export's scope. A loss in
+	// this bundle, not in the space. Sorted, folded like Targets.
+	//
+	// A target in neither subset is ABSENT — the space had no row for it,
+	// typically because it had not synced — and that is the one class a
+	// reader warns about.
+	Omitted []string `json:"omitted"`
+}
+
+// check refuses a report that contradicts itself: a subset entry that
+// `targets` does not declare, or an id that is both a tombstone and an
+// object the space still holds. Both doors run it, the way both refuse the
+// empty object.
+func (u *Unresolved) check() error {
+	if u == nil {
+		return nil
+	}
+	declared := map[string]struct{}{}
+	for _, id := range u.Targets {
+		declared[id] = struct{}{}
+	}
+	deleted := map[string]struct{}{}
+	for _, id := range u.Deleted {
+		if _, ok := declared[id]; !ok {
+			return fmt.Errorf("unresolved.deleted names %q, which unresolved.targets does not declare", id)
+		}
+		deleted[id] = struct{}{}
+	}
+	for _, id := range u.Omitted {
+		if _, ok := declared[id]; !ok {
+			return fmt.Errorf("unresolved.omitted names %q, which unresolved.targets does not declare", id)
+		}
+		if _, ok := deleted[id]; ok {
+			return fmt.Errorf("unresolved.deleted and unresolved.omitted both name %q; an id is a tombstone or an object the space holds, not both", id)
+		}
+	}
+	return nil
 }
 
 // empty reports whether the report says nothing — the shape setNonEmpty
@@ -460,7 +505,7 @@ type Unresolved struct {
 // empty object rather than let it read as a promise that everything
 // resolves.
 func (u *Unresolved) empty() bool {
-	return u == nil || (len(u.Properties) == 0 && len(u.Targets) == 0)
+	return u == nil || (len(u.Properties) == 0 && len(u.Targets) == 0 && len(u.Deleted) == 0 && len(u.Omitted) == 0)
 }
 
 // EntryPoint returns the entry point the bundle *declares*: the entrypoint
@@ -691,6 +736,11 @@ func UnmarshalIndex(data []byte, opts Options) (*Index, error) {
 	idx.AutoWidgetTargets = mapStrings(idx.AutoWidgetTargets, opts.unfoldRef)
 	if idx.Unresolved != nil {
 		idx.Unresolved.Targets = mapStrings(idx.Unresolved.Targets, opts.unfoldRef)
+		idx.Unresolved.Deleted = mapStrings(idx.Unresolved.Deleted, opts.unfoldRef)
+		idx.Unresolved.Omitted = mapStrings(idx.Unresolved.Omitted, opts.unfoldRef)
+		if err := idx.Unresolved.check(); err != nil {
+			return nil, &ValidationError{Issues: []Issue{{Path: "/unresolved", Message: err.Error()}}}
+		}
 	}
 	if idx.Icon != nil && idx.Icon.File != "" {
 		idx.Icon.File = opts.unfoldRef(idx.Icon.File)
@@ -842,11 +892,14 @@ func indexIconOmap(ic *Icon) *omap {
 	return iconOmap(ic)
 }
 
-// IconImageId is the object id of an index's image icon, or "" when the index
-// has no icon or an emoji one. The bundle wiring resolves that id to an image
-// NAME, which is what the installer actually takes.
+// IconImageId is the OBJECT id of an index's image icon, or "" when the
+// index has no icon, an emoji one, or an image addressed by content cid
+// (§2b): a `cid` icon names no object the bundle could carry, and neither
+// does the legacy overloaded spelling — a `file` holding a content cid,
+// read for compatibility and never written. The bundle wiring resolves the
+// object id to an image NAME, which is what the installer actually takes.
 func (i *Index) IconImageId() string {
-	if i == nil || i.Icon == nil || i.Icon.Format != "file" {
+	if i == nil || i.Icon == nil || i.Icon.Format != "file" || isContentCid(i.Icon.File) {
 		return ""
 	}
 	return i.Icon.File
@@ -956,9 +1009,14 @@ func MarshalIndex(idx *Index, opts Options) ([]byte, error) {
 	// reference — a report that spelled a type one way while the widget
 	// targeting it spelled it another would name two different things.
 	if !idx.Unresolved.empty() {
+		if err := idx.Unresolved.check(); err != nil {
+			return nil, err
+		}
 		u := &omap{}
 		u.setNonEmpty("properties", stringsToAny(sortedCopy(idx.Unresolved.Properties)))
 		u.setNonEmpty("targets", stringsToAny(sortedCopy(mapStrings(idx.Unresolved.Targets, opts.foldRef))))
+		u.setNonEmpty("deleted", stringsToAny(sortedCopy(mapStrings(idx.Unresolved.Deleted, opts.foldRef))))
+		u.setNonEmpty("omitted", stringsToAny(sortedCopy(mapStrings(idx.Unresolved.Omitted, opts.foldRef))))
 		doc.set("unresolved", u)
 	}
 	return marshalCanonical(doc)

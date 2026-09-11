@@ -1,12 +1,15 @@
 package snapshotdiff
 
 // missingref_test.go — the missing-reference rule (§9) reaches this
-// comparator in the SAME change that taught export: an objects/files value
-// entry or an `object_types` entry naming an object the space does not hold
-// is dropped by design, and the comparison applies the format's own
-// predicate (DroppedMissingObjectRef) to both sides. Without that, every
-// document the rule touches would report its dropped entries as data loss —
-// the drift class that once produced 1,344 false failures in one sweep.
+// comparator through the format's own predicate (DroppedMissingObjectRef),
+// applied to both sides. Export keeps an ABSENT real id verbatim now — the
+// sentinel is the importer's answer, never the exporter's — so the only
+// entry export drops is a stored `_missing_object` sentinel in a list slot,
+// and that is the only entry the comparator may excuse. A real id that
+// vanishes is loss, whether the store holds it or not. Without the
+// predicate, every document carrying a stored sentinel would report its
+// drop as data loss — the drift class that once produced 1,344 false
+// failures in one sweep.
 
 import (
 	"testing"
@@ -75,11 +78,13 @@ func pageSnap(related *types.Value) *model.SmartBlockSnapshotBase {
 
 // The real shape of the sweep: an actual round trip through the codec, with
 // the SAME options handed to export, import and Compare — exactly how
-// Heart's extraction-time roundtrip harness wires it. The dropped entries must not report.
+// Heart's extraction-time roundtrip harness wires it. The absent id travels
+// and compares equal; the stored sentinel drops and must not report.
 //
-// How this can fail: teach export the drop without this file's normalization
-// and the objects-format row reports `detail "related" changed` on every
-// object carrying a dangling reference — ~990 documents in the last corpus.
+// How this can fail: drop the absent id on export and the round-tripped
+// side is shorter than the original on every object carrying a dangling
+// reference; excuse it in the comparator and a real loss hides behind the
+// excuse. ~990 corpus documents carry a stored sentinel in property values.
 func TestCompare_MissingReferenceDropIsNotLoss(t *testing.T) {
 	t.Run("objects-format value through a real round trip", func(t *testing.T) {
 		// given
@@ -87,6 +92,7 @@ func TestCompare_MissingReferenceDropIsNotLoss(t *testing.T) {
 		orig := pageSnap(list(liveCid, deadCid, missingObjectSentinel))
 		data, err := anyblockjson.Marshal(model.SmartBlockType_Page, orig, opts)
 		require.NoError(t, err)
+		require.Contains(t, string(data), deadCid, "the absent id is kept on export")
 		sbType, got, err := anyblockjson.Unmarshal(data, opts)
 		require.NoError(t, err)
 
@@ -94,7 +100,35 @@ func TestCompare_MissingReferenceDropIsNotLoss(t *testing.T) {
 		diffs := Compare(orig, got, sbType, opts)
 
 		// then
-		assert.Empty(t, diffs, "a dropped-by-design entry is a normalization, not loss")
+		assert.Empty(t, diffs, "the sentinel drop is a normalization, not loss; the kept id compares equal")
+	})
+
+	t.Run("an absent id kept on both sides is not loss", func(t *testing.T) {
+		// given — the wired store says deadCid has no row; both sides carry it
+		opts := missingRefOpts()
+		orig := pageSnap(list(liveCid, deadCid))
+		got := pageSnap(list(liveCid, deadCid))
+
+		// when
+		diffs := Compare(orig, got, model.SmartBlockType_Page, opts)
+
+		// then
+		assert.Empty(t, diffs)
+	})
+
+	t.Run("an absent id that vanishes IS loss", func(t *testing.T) {
+		// given — export no longer drops a real id, so a comparator that
+		// excused its absence would hide a real loss
+		opts := missingRefOpts()
+		orig := pageSnap(list(liveCid, deadCid))
+		got := pageSnap(list(liveCid))
+
+		// when
+		diffs := Compare(orig, got, model.SmartBlockType_Page, opts)
+
+		// then
+		require.Len(t, diffs, 1)
+		assert.Contains(t, diffs[0], `detail "related" changed`)
 	})
 
 	t.Run("object_types on a property document through a real round trip", func(t *testing.T) {
@@ -104,10 +138,11 @@ func TestCompare_MissingReferenceDropIsNotLoss(t *testing.T) {
 		opts.ResolveProperties = relTypeResolver{}
 		orig := relationSnap(map[string]*types.Value{
 			"relationFormat":            number(float64(model.RelationFormat_object)),
-			"relationFormatObjectTypes": list("typeid-page", deadCid, "wine"),
+			"relationFormatObjectTypes": list("typeid-page", deadCid, "wine", missingObjectSentinel),
 		})
 		data, err := anyblockjson.Marshal(model.SmartBlockType_STRelation, orig, opts)
 		require.NoError(t, err)
+		require.Contains(t, string(data), deadCid, "the absent id is kept on export")
 		sbType, got, err := anyblockjson.Unmarshal(data, opts)
 		require.NoError(t, err)
 
@@ -119,10 +154,10 @@ func TestCompare_MissingReferenceDropIsNotLoss(t *testing.T) {
 	})
 }
 
-// The suppression is scoped exactly to what export drops: a LIVE entry that
-// vanishes still reports, and with no existence capability in the options
-// nothing is suppressed — export dropped nothing, so a shorter list really
-// is loss.
+// The suppression is scoped exactly to what export drops — the stored
+// sentinel, with the capability wired: a LIVE entry that vanishes still
+// reports, and with no existence capability in the options nothing is
+// suppressed — export dropped nothing, so a shorter list really is loss.
 func TestCompare_MissingReferenceScopeStaysTight(t *testing.T) {
 	t.Run("a live entry that vanishes still reports", func(t *testing.T) {
 		// given

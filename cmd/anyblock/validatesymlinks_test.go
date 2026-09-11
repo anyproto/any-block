@@ -22,7 +22,7 @@ func TestCLIContainsAuthoritativeSymlinkTargets(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(escaping, "index.json"), dictionaryManifestIndex(), 0o644))
 	require.NoError(t, os.Symlink(outside, filepath.Join(escaping, "dictionary.data")))
 
-	secureErr := validateBundleDirectory(escaping)
+	_, secureErr := validateBundleDirectory(escaping)
 	require.ErrorContains(t, secureErr, `manifest.properties cannot inspect target "dictionary.data"`)
 	require.ErrorContains(t, secureErr, "path escapes from parent")
 

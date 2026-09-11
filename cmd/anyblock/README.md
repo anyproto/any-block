@@ -24,6 +24,13 @@ a bundled key is exempt, since every reader carries the shipped table), and
 file bindings. A directory without `index.json` is treated as a collection of
 independent documents.
 
+A valid bundle's own account of what it could not carry (`unresolved`, SPEC
+§2c) is printed to stderr as `info: …` (a target the source space deleted) or
+`warning: …` (one it holds and did not export, or one it had no row for)
+lines, one per declared target, and the bundle still reports `ok bundle`.
+`validate -strict` fails on warnings for CI over authored bundles; info never
+fails. An undeclared dangling target is an error either way.
+
 `to-v2 -include-file-remote` preserves a file object's remote CID, encryption
 keys, and optional indexed variant metadata in the base64 `file_remote`
 field. It defaults to false. `to-v1` restores a supported payload

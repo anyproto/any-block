@@ -15,6 +15,14 @@ maps native attachment paths to their source paths; callers must stream those
 files from the input filesystem, keeping it open until copying is complete.
 `SourceNetworkID` identifies the export's network when present.
 
+`Bundle` validates through `bundle.Inspect`: a declared dangling index target
+(SPEC §2c) is admitted, and every non-error issue is forwarded to `OnWarning`
+as a `severity: message` line. `Result.Unresolved` splits the declared targets
+into `Deleted`, `Omitted` and `Absent`, spelled as the index spells them, so an
+importer can keep a deleted id and tombstone it while the other two take the
+sentinel it has always written. Homepage and widget targets are converted
+verbatim either way.
+
 Full conversion preserves stored property and option keys, installed built-in
 and custom definitions, type/template settings, participant references, file
 metadata and encryption keys, views, widgets, and space settings. Unknown
