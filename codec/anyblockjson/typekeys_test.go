@@ -370,13 +370,30 @@ func TestExport_ASharedTypeSpellingIsHarmless(t *testing.T) {
 		ObjectTypes: []string{"wiki person"},
 	}}
 
+	// the envelope slot, on an ordinary document: a type document's own type
+	// is normalized to objectType whatever the store holds (§2a), so only a
+	// page can carry the shared spelling there
+	page := &model.SmartBlockSnapshotBase{
+		Blocks: []*model.Block{{Id: "p1",
+			Content: &model.BlockContentOfSmartblock{Smartblock: &model.BlockContentSmartblock{}}}},
+		Details:     fields(map[string]*types.Value{"id": str("p1")}),
+		ObjectTypes: []string{"ot-" + customTypeKey},
+	}
+	pageData, err := Marshal(model.SmartBlockType_Page, page, Options{Keys: vocab})
+	require.NoError(t, err)
+	pageDoc := decodeEnvelope(t, pageData)
+	assert.Equal(t, "wiki person", pageDoc.Type, "the vocabulary's spelling, shared or not")
+	assert.Equal(t, customTypeKey, pageDoc.TypeInternalKey, "and the key says which type it is")
+	_, pageBack, err := Unmarshal(pageData, Options{GenerateId: seqIds("h")})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ot-" + customTypeKey}, pageBack.ObjectTypes)
+
+	// the property target slot, on the type document that declares it
 	data, err := Marshal(model.SmartBlockType_STType, snap,
 		Options{Keys: vocab, ResolveProperties: resolver})
 	require.NoError(t, err)
 
 	doc := decodeEnvelope(t, data)
-	assert.Equal(t, "wiki person", doc.Type, "the vocabulary's spelling, shared or not")
-	assert.Equal(t, customTypeKey, doc.TypeInternalKey, "and the key says which type it is")
 	require.Len(t, doc.TypeProps(), 1)
 	assert.Equal(t, []string{"wiki person"}, doc.TypeProps()[0].ObjectTypes,
 		"a key the fold gate refuses is written verbatim, its own address")
@@ -390,7 +407,7 @@ func TestExport_ASharedTypeSpellingIsHarmless(t *testing.T) {
 	r := &recordingPropertyResolver{}
 	_, snap3, err := Unmarshal(data, Options{GenerateId: seqIds("h"), ResolveProperties: r})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"ot-" + customTypeKey}, snap3.ObjectTypes)
+	assert.Equal(t, []string{"ot-objectType"}, snap3.ObjectTypes, "a type document is a Type")
 	require.Len(t, r.defs, 1)
 	assert.Equal(t, []string{"wiki person"}, r.defs[0].ObjectTypes,
 		"verbatim-first: a stored key is its own address in a package-only reader")

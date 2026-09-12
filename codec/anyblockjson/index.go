@@ -467,6 +467,15 @@ type Unresolved struct {
 	// typically because it had not synced — and that is the one class a
 	// reader warns about.
 	Omitted []string `json:"omitted"`
+	// Types are the TYPES this bundle's documents name by derived id —
+	// `type-<internal_key>`, in a `type_internal_key`, a `template_for`,
+	// an `object_types` entry — that no type document carries and the
+	// space has no row for: an object or template an old import created
+	// with a type it never made. Spelled as the derived id, which is the
+	// address the document uses and the validator checks, and never
+	// folded. A reader imports such an object as a Page and warns (§2c).
+	// Sorted.
+	Types []string `json:"types"`
 }
 
 // check refuses a report that contradicts itself: a subset entry that
@@ -505,7 +514,7 @@ func (u *Unresolved) check() error {
 // empty object rather than let it read as a promise that everything
 // resolves.
 func (u *Unresolved) empty() bool {
-	return u == nil || (len(u.Properties) == 0 && len(u.Targets) == 0 && len(u.Deleted) == 0 && len(u.Omitted) == 0)
+	return u == nil || (len(u.Properties) == 0 && len(u.Targets) == 0 && len(u.Deleted) == 0 && len(u.Omitted) == 0 && len(u.Types) == 0)
 }
 
 // EntryPoint returns the entry point the bundle *declares*: the entrypoint
@@ -1017,6 +1026,7 @@ func MarshalIndex(idx *Index, opts Options) ([]byte, error) {
 		u.setNonEmpty("targets", stringsToAny(sortedCopy(mapStrings(idx.Unresolved.Targets, opts.foldRef))))
 		u.setNonEmpty("deleted", stringsToAny(sortedCopy(mapStrings(idx.Unresolved.Deleted, opts.foldRef))))
 		u.setNonEmpty("omitted", stringsToAny(sortedCopy(mapStrings(idx.Unresolved.Omitted, opts.foldRef))))
+		u.setNonEmpty("types", stringsToAny(sortedCopy(idx.Unresolved.Types)))
 		doc.set("unresolved", u)
 	}
 	return marshalCanonical(doc)

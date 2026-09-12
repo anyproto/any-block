@@ -361,3 +361,52 @@ func assertValidationIssueAt(t *testing.T, err error, path string) {
 	require.NotEmpty(t, validationErr.Issues)
 	assert.Equal(t, path, validationErr.Issues[0].Path)
 }
+
+// An exported declaration states BOTH the spelling and the stored key. The
+// spelling still wins when it resolves — that is the member the document's
+// own legend speaks for — but when the spelling is CONTESTED the stated
+// `internal_key` is the tie-break, which is the remedy the refusal itself
+// names. Six real declarations spelled `Tag` with `internal_key: "tag"` in
+// a space that also minted a custom property named Tag, and the pair was
+// refused for an ambiguity it was carrying the answer to.
+func TestAuthoringVocabularyInternalKeyOutranksAnAmbiguousSpelling(t *testing.T) {
+	dictionary := []byte(`{"formatVersion":"2.0","properties":[` +
+		`{"property":"68cdaa41e9223c9dc7ce5f30","internal_key":"68cdaa41e9223c9dc7ce5f30","name":"Tag","format":"select"}]}`)
+	typeDoc := []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-6a7b","internal_key":"6a7b","properties":{"Name":"Recipe"},` +
+		`"type_settings":{"layout":"basic","property_definitions":[{"property":"Tag","internal_key":"tag","name":"Tag","format":"select"}]}}`)
+
+	vocab, err := PlanAuthoringTypeVocabulary(
+		map[string][]byte{"types/recipe.json": typeDoc},
+		AuthoringVocabularyPlanOptions{PropertyDictionary: dictionary, Installed: true})
+
+	require.NoError(t, err, "the declaration carries its stored key; nothing is ambiguous")
+	assert.Equal(t, []string{"tag"}, vocab.TypePropertyKeys("6a7b"))
+}
+
+// A dictionary entry's `property` member is the bundle's own statement of
+// how that key is SPELLED in its documents (§2f), and it outranks a display
+// name another entry happens to carry. The measured space renamed the
+// bundled Tag to "Regs" and minted a custom property named Tag: the
+// exporter spelled the bundled key `Tag` (the table's spelling) and the
+// custom one by its stored key, then 542 object documents spelling `Tag`
+// were refused on read as ambiguous between the entry that SPELLS it and
+// the entry that is merely NAMED it.
+func TestAuthoringVocabulary_ADictionarySpellingOutranksANameClaim(t *testing.T) {
+	dictionary := []byte(`{"formatVersion":"2.0","properties":[` +
+		`{"property":"Description","internal_key":"description","name":"Summary","format":"text","bundled_diverged":true},` +
+		`{"property":"68cdaa41e9223c9dc7ce5f30","internal_key":"68cdaa41e9223c9dc7ce5f30","name":"Description","format":"text"}]}`)
+	vocab, err := PlanAuthoringTypeVocabulary(map[string][]byte{},
+		AuthoringVocabularyPlanOptions{PropertyDictionary: dictionary, Installed: true})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"description"}, vocab.PropertyKeyCandidates("Description"),
+		"the entry that spells the term claims it; the entry merely named after it does not")
+	key, ok := vocab.PropertyKey("Description")
+	assert.True(t, ok)
+	assert.Equal(t, "description", key)
+
+	object := []byte(`{"formatVersion":"2.0","id":"o1","type":"Page","properties":{"Description":"the bundled one"}}`)
+	_, snapshot, err := Unmarshal(object, Options{Keys: vocab})
+	require.NoError(t, err, "no ambiguity: the dictionary said what the spelling means")
+	assert.Equal(t, "the bundled one", snapshot.Details.Fields["description"].GetStringValue())
+}

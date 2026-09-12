@@ -576,6 +576,11 @@ func invertedTypes(objectTypes []string, sbType model.SmartBlockType) []string {
 	if len(keys) == 0 {
 		return nil
 	}
+	// a type document IS a Type: export writes objectType as its own type
+	// whatever the store held (§2a), so that is what comes back
+	if isTypeSmartBlock(sbType) {
+		keys[0] = "objectType"
+	}
 	out := []string{"ot-" + keys[0]}
 	if sbType == model.SmartBlockType_Template && len(keys) > 1 {
 		out = append(out, "ot-"+keys[1])

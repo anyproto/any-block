@@ -107,7 +107,7 @@ func TestIndexUnresolved_TheSchemaPublishesTheShape(t *testing.T) {
 	for m := range def.Properties {
 		stated[m] = true
 	}
-	assert.Equal(t, map[string]bool{"properties": true, "targets": true, "deleted": true, "omitted": true}, stated)
+	assert.Equal(t, map[string]bool{"properties": true, "targets": true, "deleted": true, "omitted": true, "types": true}, stated)
 }
 
 // ReferencedObjectIds is the one list of slots that name an object, shared
@@ -244,4 +244,30 @@ func TestIndexUnresolved_SubsetsAreSpelledLikeTargets(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"typeid-wine"}, back.Unresolved.Targets)
 	assert.Equal(t, []string{"typeid-wine"}, back.Unresolved.Omitted)
+}
+
+// The third loss a bundle can state (§2c): a TYPE its documents name by
+// derived id that no type document carries and the space has no row for —
+// an object or template an old import created with a type it never made.
+// Spelled as the derived id, because that is the address a document uses
+// and the one the validator checks; never folded, since it is already the
+// bundle-internal spelling. A reader imports such an object as a Page and
+// warns.
+func TestIndexUnresolved_TypesTheDocumentsNameAndNothingCarries(t *testing.T) {
+	idx := &Index{
+		Name:       "Corpus",
+		Unresolved: &Unresolved{Types: []string{"type-69aab09861fab2bc0d9afdb6", "type-69aab06861fab2bc0d9afc59"}},
+	}
+	data, err := MarshalIndex(idx, Options{})
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"types"`)
+
+	back, err := UnmarshalIndex(data, Options{})
+	require.NoError(t, err)
+	require.NotNil(t, back.Unresolved)
+	assert.Equal(t, []string{"type-69aab06861fab2bc0d9afc59", "type-69aab09861fab2bc0d9afdb6"}, back.Unresolved.Types, "sorted")
+
+	bare := []byte(`{"formatVersion":"2.0","name":"Corpus","unresolved":{"types":["69aab06861fab2bc0d9afc59"]}}`)
+	_, err = UnmarshalIndex(bare, Options{})
+	require.Error(t, err, "a type is named by its derived id, never a bare key")
 }

@@ -315,13 +315,14 @@ Fields, in **canonical order** (§4):
 | `type` | string | no | The object's type **document spelling**, canonically its NFC display name (`Page`, `Task`, `Property`) — the key vocabulary of §3, not the stored `ot-`-prefixed key and not a derived API slug. Legacy derived slugs such as `object_type` remain input-only compatibility spellings; canonical re-export uses the display name. Maps to `object_types[0]` in the snapshot. Absent when the snapshot has no object types (legacy/system objects). **The stored key stands beside it in `type_internal_key`, on every typed document**, so a reader resolves the key and shows the spelling; only a document that states no key — an authored one — has its `type` inverted through the §3 chain in the type namespace (the vocabulary in force: the bundled table offline, the space's stored names and compatibility spellings inside a node), and the resulting stored key is handed to the wiring, which resolves it — matching an existing type or creating one (the Markdown importer's behavior). A term the chain does not know passes through verbatim — an exact stored key is always its own address (§3). No spelling is reserved: `template` is an ordinary type term that a key or vocabulary may bind wherever it likes, because `kind` — a field no chain touches — is the sole template authority. With no `kind`, even a literal `"type": "template"` is an ordinary page type (§10). |
 | `template_for` | string | no | Only for templates: the target type (`object_types[1]`), written as the type's **derived id** `type-<internal_key>` (§9) — a reference by key, the same spelling every id-valued slot folds a type to, so a template names its type the way a filter or a `Set of` value does and a reader never resolves a spelling here. That describes the DEFAULT shape; a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode spells the vocabulary here instead — the same word the envelope `type` writes — and a reader resolves it through the §3 chain. No bundle carries that shape: the mode is scoped to one document and the `bundle` package refuses it (§9). On input a display name (`"Task"`, `"Habit"` for a type this bundle declares) or the legacy `ot-<key>` is accepted through the §3 chain, for authoring (§2g); canonical export writes the derived id. Admitted on `kind: "template"` and nothing else — present without it, or without a `type` beside it to be `object_types[0]`, is a validation error. Note what this is NOT keyed off: the template's own type. A template whose `object_types` do not begin with the template key is a shape the model permits. The target does not depend on what `object_types[0]` holds. |
 | `internal_key` | string | no | Identity key of *system* objects (types, properties). This is the STORED identity key (a `uniqueKey`'s internal part), written verbatim: unlike every key slot in §3 it is **not** translated, so for an object whose stored key is a minted BSON it does not match the slug the public API serves as that object's `key`. The name says what the value is — an id the app MINTS (a bson for a custom definition, the camelCase bundled key for a bundled one), never something an author derives — where the word `key` used to name this stored id AND a property definition's spelling one level down, one word for two concepts (§15 #14). Because it is verbatim, its charset is whatever the store already holds: a relation option's key is built from the option's *name*, so `completion_status_Not Started`, `…_C/C++` and `…_тогглы` are all real stored keys. The rule is therefore a deny rule — non-empty — not an allowlist. An allowlist was tried and falsified: it failed 59 objects of a 36 808-object account, every one a relation option. Length and charset are not bounded either: the app mints an option's key from the option's name, and the name is whatever an import carried, so any bound here makes an object the store already holds unexportable. `Marshal` never emits what `Validate` rejects (§11) is the stronger promise. Never emitted for ordinary documents. |
+| `uninstalled` | bool | no | Only for type documents (`kind: "object_type"`): the user **REMOVED** this type from the space (stored `isUninstalled`), and the bundle carries it for backup fidelity — its objects still carry the key, and the definition is still the space's (§2a). The mirror of the member a removed property's declaration and dictionary entry carry (§2f). Written `true` only; absent is the same statement as `false`. A reader restores it hidden, as the user left it, never as an installed type, and a live type owning the same stored key in the destination stays live. Output-only: the authoring subset refuses it. Present on any other kind → validation error. |
 | `property_settings` | object | on `kind: "property"` | Only for property documents, where it is **required**: the definition of the property this document IS — one `propertyDefinition` (§2d, §2e). Carries `format` (required, a §3 format NAME — never a raw enum number; stands for the stored `relationFormat` key, which `properties` refuses), `include_time` and `object_types`, each present exactly when its stored key is, value included. Illegal on every other kind. |
 | `icon` | object | no | The object's icon — ONE object whose `format` selects the variant (§2b). Stands for the stored `iconEmoji` / `iconImage` / `iconName` / `iconOption` keys, which `properties` refuses. |
 | `cover` | object | no | The object's cover — same shape, three variants (§2b). Stands for the stored `coverId` / `coverType` / `coverScale` / `coverX` / `coverY` keys, which `properties` refuses. |
 | `properties` | object | no | The object's properties, §3. |
 | `type_settings` | object | no | Only for type documents (`kind: "object_type"`, `"bundled_object_type"`): everything that defines the TYPE, in one gated subtree — `layout`, `api_key`, `plural_name`, `default_template`, `default_view`, and `property_definitions` (§2a). Present on any other kind → validation error. The root spelling `type_properties` is refused with the repair named. |
 | `file_remote` | string | no | Only for `kind: "file_object"` or legacy `"file"`: standard base64 encoding of independently versioned JSON containing the remote CID, encryption keys, and optional indexed variant metadata (§2h). |
-| `property_internal_keys` | object | no | Legend: the stored property key each spelling in this document names (§3). Written for every spelling the **bundled table does not bind to the key being written** — a spelling the table cannot invert (a space's own key) *and* the **identity entry**, which is the ordinary case: a custom key written verbatim names itself, because nothing else in the document says the term is a stored key rather than somebody's display-name spelling. A reader consults it **before** its own vocabulary and takes the value as **authoritative**: it is not liveness-checked, deliberately (§3). Absent only from a document whose every spelling is bundled. |
+| `property_internal_keys` | object | no | Legend: the stored property key each spelling in this document names (§3). Written for every spelling the **bundled table does not bind to the key being written** — a spelling the table cannot invert (a space's own key) *and* the **identity entry**, which is the ordinary case: a custom key written verbatim names itself, because nothing else in the document says the term is a stored key rather than somebody's display-name spelling — and for a bundled spelling that a **live custom property also carries as its name**: the writer's own vocabulary resolves such a spelling bundled-first, so the table and the writer both say "no entry owed" while a reader planning from the bundle's dictionary sees two live claimants; a scoped vocabulary reporting more than one claimant is what makes the entry owed (measured: one space renamed the bundled Tag to "Regs" and minted a custom Tag; 542 documents spelled `Tag` with no entry). A reader consults it **before** its own vocabulary and takes the value as **authoritative**: it is not liveness-checked, deliberately (§3). Absent only from a document whose every spelling is bundled. |
 | `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. (In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode those two slots spell the vocabulary rather than the derived id; the type namespace carries no legend either way, and a bundle refuses that mode — §9.) A document carrying the map is refused with the repair named (§10). |
 | `option_ids` | object | no | Legend: the id of the option each select/multi_select **name** in this document stands for — nested, `{property spelling: {option name: option id}}` (§3, §9a). Written **unconditionally** wherever export spells an option by name; dropped by `OmitIds` (§9). Read as a **hint**, not an address: an id is honored only where the target space still serves it as a live option of that relation, and otherwise the name resolves exactly as it did before the legend existed. |
 | `blocks` | array | no | The document's blocks as a **flat pre-order array**; nesting via `indent` (§4). |
@@ -449,6 +450,32 @@ query-source lift (§6.2) and is the only kind test that lift makes: on a
 type document there is nothing left to lift, so a type document carries no
 `query_source` either, and one that states it is refused.
 
+**A type the user removed still travels, and comes back removed.** Removing
+a type from a space sets `isUninstalled`, and the app mirrors that into
+`isDeleted` on load, which is what hides it — the definition stays, and
+every object of the type keeps the key. Measured on the 79-bundle corpus
+before this rule: 64 of the 72 type identities that objects named and no
+document carried were exactly this, full rows with names and layouts
+intact, dropped because the export enumerated through a query that refuses
+`isDeleted` rows. The type now travels as an ordinary type document
+carrying `uninstalled: true` on the envelope, the mirror of the member a
+removed property's declaration and dictionary entry carry (§2f); the stored
+flag is lifted there and never spelled as a property. Import writes the
+flag back, so the type restores hidden and reinstallable from the library,
+never as an installed type — restoring it live would change a choice the
+user made — and a live type owning the same stored key in the destination
+stays live. In the vocabulary an uninstalled type owns its stored key, so
+`type-<key>` references resolve, but claims no spelling, so a live type
+that took the freed name is not shadowed by the corpse; the store resolver
+applies the same rule on the export side.
+
+**A type document's own type is `objectType`, by definition.** It is
+derivable from the kind, like the layout keys above, so export writes it
+whatever the store holds and warns when the two differ. Three real type
+objects, all from an old markdown import, stored `ot-type` — a key no space
+in the account ever minted — and copying it named a type document no
+bundle could carry.
+
 Seven candidates FAILED the admission test, and six of them stay in
 `properties`: `is_hidden` (cannot be proven install-only),
 `layout_width`/`layout_align` (the type object's own
@@ -490,7 +517,7 @@ style.
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `property` | string | no* | The property's document-facing SPELLING — a key slot like any other, inverted through `property_internal_keys` (§3). Deliberately not called a key: the word used to name this spelling AND the envelope's stored id at once (§15 #14). |
-| `internal_key` | string | no* | The property's STORED internal key, verbatim — never run through the §3 ladder, because a stored id is its own address and the bundled fold would rebind a slug-shaped one (`due_date` onto `dueDate`). Export writes it beside `property` for fidelity; an author never needs it, and cannot produce a correct one for a custom property (the app mints those — a bson id). *An entry must state an identity: `property`, or `internal_key`, or a `name` the spelling derives from; when both `property` and `internal_key` are present the spelling wins, and export writes an agreeing pair. A custom property whose entry states no `internal_key` gets a FRESH minted internal key from the import wiring's create path, the way the app mints one when a user creates a property — the spelling must not silently become the stored key. |
+| `internal_key` | string | no* | The property's STORED internal key, verbatim — never run through the §3 ladder, because a stored id is its own address and the bundled fold would rebind a slug-shaped one (`due_date` onto `dueDate`). Export writes it beside `property` for fidelity; an author never needs it, and cannot produce a correct one for a custom property (the app mints those — a bson id). *An entry must state an identity: `property`, or `internal_key`, or a `name` the spelling derives from; when both `property` and `internal_key` are present the spelling wins, and export writes an agreeing pair — except where the spelling is CONTESTED (several live claimants in the bundle's vocabulary), where the stated `internal_key` is the tie-break: it is the remedy the refusal names, and an export states it beside every spelling. A custom property whose entry states no `internal_key` gets a FRESH minted internal key from the import wiring's create path, the way the app mints one when a user creates a property — the spelling must not silently become the stored key. |
 | `name` | string | no | Display name. Import uses it only when the property must be **created**; an existing property keeps its own name. Every bundled key already exists, so a name given for one is inert — `{"property": "Description", "name": "Summary"}` renders as *Description*. Validation warns. If the label is the point, mint a custom key instead of reusing a bundled one. |
 | `format` | string | no | Property format (§3 names). Same import rule as `name`; a conflict with an existing property's format is an error at the wiring level (the package cannot see the space). |
 | `options` | (string \| object)[] | no | A select/multi_select property's **vocabulary, in display order**. Each entry is a bare option name, or `{"name": …, "color": …}` when the option's color is part of the design — the color belongs to the option rather than to a parallel array, so inserting or reordering an option cannot shift it. `color` is one of `grey`, `yellow`, `orange`, `red`, `pink`, `purple`, `blue`, `ice`, `teal`, `lime` (`util/constant`); anything else is a validation error rather than a silently ignored value. The bare string is **canonical** only when the option carries NONE of `color`, `internal_key` and `api_key`; any one of the three present makes the object form canonical, and export writes every member it holds. The criterion is all three because the object form is the only one that can STATE what it holds: a bare name for an option carrying a stored key or an api key would erase the option's stored identity and the spelling its API callers address it by, and neither is derivable from the name (below). A scalar for the simple case and an object for the enriched one is the SHAPE cells follow in §6.1; the criterion is this one, and it is the same one §2f's dictionary entry uses — one serializer writes both homes. Leaving a color out does not mean *no* color: the wiring assigns one, cycling the palette in declaration order and skipping whatever the vocabulary claims explicitly, so a vocabulary that names no colors still gets distinct ones. (The app assigns one at random on every other creation path; cycling keeps a converted bundle identical run to run.) Options are otherwise discovered only from values that happen to be used, so a vocabulary entry no record carries would never exist — its kanban column simply absent — and a discovered option carries no `orderId`. Declaring them lets the wiring create each one up front with an order id. The app's own vocabulary listing puts every option carrying an `orderId` first, those ascending, then the ones carrying none, `createdDate` descending — the picker's subscription sorts `orderId` ascending with no empty-placement, which lists the order-less ones first, and the picker then re-sorts the received rows so that an option with an order id precedes one without. Since a new option is minted with the smallest order id of its siblings, ascending order ids and descending creation dates agree on newest-first. Two options tying on both — a `createdDate` is a whole-second stamp — are then ordered by the option's own id, ascending: a third key the app never needs and a writer does, without which two options minted in the same second swap places between runs. A bundle writes the array in the RENDERED order, with that tie-break (§2f). (Sorting objects by their tag COLUMN is a different feature with a different rule, `[orderId, name]` concatenated per record — `pkg/lib/database.BuildOrderMap`; it says nothing about how a vocabulary lists.) Names discovered from usage rather than declared are ordered after the declared ones. The object form takes two more members, `internal_key` and `api_key` — the option's STORED key, which the app mints and an author never writes, and its public API key (stored `apiObjectKey`), the spelling callers address it by. Export states each where the store holds one. The stored key is what lets a bundle STATE a vocabulary rather than describe it (§2f, where the dictionary entry states a vocabulary in these same members — the dictionary's entry and a type's are the two homes of this shape that admit them, since no option document carries either). The api key is not a slug of the name: it does not follow a rename and nothing rewrites it, and it travels because no restore mints one (§15 #21). Only meaningful on `select`/`multi_select`; duplicate names are a validation error in a TYPE's definition, across both forms — authoring resolves an option by its name and so cannot state one twice. The property dictionary is the exception: its entries carry explicit `internal_key`s, which tell same-named twins apart, and real spaces hold them (§2f). |
@@ -1241,6 +1268,34 @@ has something to report, and each earning its place differently.
   icon whose image object is a tombstone follows the document-level icon
   rule (§2b, §9) — an icon is optional, so it is dropped with a warning and
   the index falls through to whatever channel is left.
+- **`types`** — the TYPES the bundle's documents name by derived id (a
+  `type_internal_key`, a `template_for`, an `object_types` entry) that no
+  type document carries. A type is never deleted in Anytype and every
+  uninstalled one travels (§2a), so what remains here is a type the source
+  space never held: an object or template an old import created with a
+  type it never made. Measured on the corpus: five, from three importers.
+  Spelled as the derived id — the address the document uses and the
+  validator checks — and never folded; a bundled key never appears, since
+  every reader carries the shipped table. Declaring it is what makes the
+  bundle admissible on the full surface, as a warning; an undeclared one is
+  still refused as an exporter bug, and the authoring surface refuses both.
+  A reader imports an object of such a type as a **Page**, and a template
+  for one as a template for Page, each with a warning naming the document
+  and the type: restoring the dangling key verbatim would reproduce an
+  object no type search finds and the app can only guess a layout for,
+  which reads as broken, and a Page is what the user can work with. That
+  substitution is for the slots that say what an object **is**. A slot that
+  merely REFERENCES the type — a `query_source.types` entry, a property's
+  `object_types` — drops the entry with a warning instead, the way §9
+  already has a list express an absent reference by being shorter: nothing
+  there is broken, only a stale constraint, and retyping it to Page would
+  widen a query or a target set to every page in the space.
+
+  **Declaring a type the bundle CARRIES is refused.** The list states what
+  the source space never held, and a reader acts on it by retyping objects;
+  an index naming a carried type would silently retype live objects and
+  orphan their type document, so the contradiction is refused at the door
+  like every other self-contradicting report.
 
 **Stating a target is what makes it admissible, and only on the full
 surface.** `bundle.Validate` admits a declared target, and `bundle.Inspect`
@@ -8399,6 +8454,37 @@ being true.
   with it the "Set of" → "Query source" display-name rename, which is MOOT
   once the property leaves documents, sparing a bundled-relation `revision`
   bump and a space-by-space reviser pass.
+
+- **#33 A type the space never held imports as a Page** — settled in §2c.
+  The five type references left on the corpus after #32 were objects an
+  old import created with a type it never made: two markdown pages, two
+  pb templates' targets, one pb profile object, each key minted at the
+  moment of its own import. The composer declares such derived ids under
+  `unresolved.types`, the full surface admits a declared one as a warning
+  and refuses an undeclared one, and the converter imports the object as a
+  Page — a template as one for Page — with a warning per document. Kept
+  verbatim, the object would have been unsearchable by type and rendered
+  with a guessed layout, exactly as it is in the source; a Page is usable.
+  Found on the same sweep and settled beside it: a stored `_missing_object`
+  in a relation's target list, written by an old importer, drops from the
+  dictionary entry's `object_types` by the predicate the document slot
+  already applies (§9) — the dictionary path had copied it, and three
+  spaces failed on read for a target that names no type.
+
+- **#32 Uninstalled types travel, and two repairs beside them** — settled
+  in §2a and §2b. A type the user removed is exported as a type document
+  carrying `uninstalled: true` and restored hidden; it owns its key in the
+  vocabulary and claims no spelling. A type document's own type is written
+  as `objectType`, derivable from the kind, with a warning when the store
+  disagrees. In a property declaration the stated `internal_key` is the
+  tie-break when the spelling is contested, the remedy the refusal itself
+  named; and a dictionary entry's own `property` spelling outranks a
+  display name another entry carries, because the entry that SPELLS a
+  term is the bundle's statement of what the term means, while the entry
+  merely NAMED it spells itself some other way — 542 documents in one
+  space were refused for that ambiguity before the rule. Measured: 64 of 72 unresolved type identities on the corpus were
+  uninstalled types; 3 were the `ot-type` legacy; six declarations spelled
+  `Tag` beside `internal_key: "tag"` in a space with a custom Tag.
 
 - **#31 The `cid` icon variant** — settled in §2b. A participant avatar
   and a 1-to-1 space icon are raw content cids with no file object behind

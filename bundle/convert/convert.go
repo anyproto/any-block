@@ -48,6 +48,11 @@ type UnresolvedTargets struct {
 	Deleted []string
 	Omitted []string
 	Absent  []string
+	// Types are the derived type ids the documents name that no type
+	// document carries and the source space never held (SPEC §2c). Each
+	// object of such a type is imported as a Page, and each template for
+	// one as a template for Page, with a warning.
+	Types []string
 }
 
 func unresolvedTargets(u *ab.Unresolved) UnresolvedTargets {
@@ -64,6 +69,7 @@ func unresolvedTargets(u *ab.Unresolved) UnresolvedTargets {
 	}
 	out.Deleted = append([]string(nil), u.Deleted...)
 	out.Omitted = append([]string(nil), u.Omitted...)
+	out.Types = append([]string(nil), u.Types...)
 	for _, id := range u.Targets {
 		if !classified[id] {
 			out.Absent = append(out.Absent, id)
@@ -72,7 +78,37 @@ func unresolvedTargets(u *ab.Unresolved) UnresolvedTargets {
 	sort.Strings(out.Deleted)
 	sort.Strings(out.Omitted)
 	sort.Strings(out.Absent)
+	sort.Strings(out.Types)
 	return out
+}
+
+// normalizeMissingTypes gives an object whose type the bundle declares it
+// cannot carry (SPEC §2c, unresolved.types) the Page type, and a template
+// for such a type the Page target, each with a warning. The source space
+// never held the type — an old import created the object with a type it
+// never made — so restoring the key verbatim would reproduce an object no
+// type search finds and the app can only guess a layout for; a Page is
+// what the user can work with. A type document is never touched.
+func normalizeMissingTypes(name string, kind model.SmartBlockType, snapshot *model.SmartBlockSnapshotBase, missing map[string]bool, warn func(string)) {
+	if len(missing) == 0 || kind == model.SmartBlockType_STType || snapshot == nil {
+		return
+	}
+	for i, objectType := range snapshot.ObjectTypes {
+		key := strings.TrimPrefix(objectType, "ot-")
+		if !missing["type-"+key] {
+			continue
+		}
+		snapshot.ObjectTypes[i] = "ot-page"
+		if kind == model.SmartBlockType_Template && i == 1 {
+			if snapshot.Details != nil {
+				// re-derived from the Page target by completeBundleSnapshot
+				delete(snapshot.Details.Fields, "targetObjectType")
+			}
+			warn(fmt.Sprintf("%s: template targets type %q, which no document carries and the source space never held; imported as a template for Page", name, key))
+			continue
+		}
+		warn(fmt.Sprintf("%s: type %q has no declaration in the bundle and the source space never held it; imported as a Page", name, key))
+	}
 }
 
 // Authoring converts a validated v2 authoring bundle to a native v1 archive.
@@ -281,6 +317,22 @@ func convertBundle(fsys fs.FS, options Options, authoring bool) (*Result, error)
 		entries[name] = data
 		return nil
 	}
+	// what the index declares the source space never held (§2c). A
+	// declaration for a type the bundle DOES carry is a contradiction the
+	// validator refuses; ignore it here too, so an over-declaring index can
+	// never retype live objects to Page behind the validator's back.
+	missingTypes := map[string]bool{}
+	resolver.missingTypes = map[string]bool{}
+	if idx.Unresolved != nil {
+		for _, id := range idx.Unresolved.Types {
+			key := strings.TrimPrefix(id, ab.TypeRefPrefix)
+			if _, carried := typeIDs[key]; carried {
+				continue
+			}
+			missingTypes[id] = true
+			resolver.missingTypes[key] = true
+		}
+	}
 	names := sortedBundleNames(documents)
 	for _, name := range names {
 		source = name
@@ -310,6 +362,7 @@ func convertBundle(fsys fs.FS, options Options, authoring bool) (*Result, error)
 				}
 			}
 		}
+		normalizeMissingTypes(name, kind, snapshot, missingTypes, warn)
 		if err := completeBundleSnapshot(kind, snapshot, resolver); err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
@@ -397,7 +450,13 @@ func completeBundleSnapshot(kind model.SmartBlockType, snapshot *model.SmartBloc
 			return err
 		}
 		if _, ok := resolver.TypeIdByKey(string(key)); !ok {
-			return resolver.err
+			if resolver.err != nil {
+				return resolver.err
+			}
+			// a declared missing type reached an identity slot that
+			// normalizeMissingTypes did not rewrite: loud, never a nil
+			// error that would skip the rest of this function
+			return fmt.Errorf("type %q is declared missing and was not normalized", key)
 		}
 	}
 	details := snapshot.Details.Fields

@@ -72,7 +72,10 @@ type jsonDoc struct {
 	// TypeSettings is a kind:object_type document's definition group (§2a):
 	// the five lifted settings plus property_definitions.
 	TypeSettings *jsonTypeSettings `json:"type_settings"`
-	FileRemote   *string           `json:"file_remote"`
+	// Uninstalled says the user REMOVED this type from its space (§2a): it
+	// restores hidden, as the mirror member on a property declaration does.
+	Uninstalled bool    `json:"uninstalled"`
+	FileRemote  *string `json:"file_remote"`
 	// PropertyKeys is the §3 spelling→stored-key legend: what this document says
 	// its own key spellings mean, consulted before any vocabulary so a reader
 	// without the space still lands on the right relation. Its values are
@@ -1010,6 +1013,11 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 	}
 	if err := imp.applyTypeSettings(details, sbType); err != nil {
 		return 0, nil, err
+	}
+	if imp.doc.Uninstalled && isTypeSmartBlock(sbType) {
+		// the stored flag the app sets on removal; the runtime mirrors it
+		// into isDeleted on load, which is what hides the type (§2a)
+		details.Fields[detailKeyIsUninstalled] = &types.Value{Kind: &types.Value_BoolValue{BoolValue: true}}
 	}
 	if err := imp.applyQuerySource(details, sbType); err != nil {
 		return 0, nil, err

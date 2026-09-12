@@ -119,3 +119,53 @@ func TestInspect_AContentCidIconIsNotATarget(t *testing.T) {
 		})
 	}
 }
+
+// A type a document names and no document carries is admitted when the
+// index declares it (unresolved.types): a warning on the full surface, an
+// error on the authoring surface and whenever undeclared — the same rule a
+// dangling index target follows (§2c).
+func TestInspect_ADeclaredMissingTypeIsAWarning(t *testing.T) {
+	bundleWith := func(unresolved string) fstest.MapFS {
+		index := `{"formatVersion":"2.0","entrypoint":"page"`
+		if unresolved != "" {
+			index += `,"unresolved":` + unresolved
+		}
+		index += `}`
+		return fstest.MapFS{
+			"index.json":        &fstest.MapFile{Data: []byte(index)},
+			"objects/page.json": &fstest.MapFile{Data: []byte(`{"formatVersion":"2.0","id":"page","type":"gone","type_internal_key":"gone"}`)},
+			"properties.json":   &fstest.MapFile{Data: []byte(`{"formatVersion":"2.0"}`)},
+		}
+	}
+	declared := bundleWith(`{"types":["type-gone"]}`)
+	require.NoError(t, Validate(declared))
+	report, err := Inspect(declared)
+	require.NoError(t, err)
+	require.Len(t, report.Issues, 1)
+	assert.Equal(t, SeverityWarning, report.Issues[0].Severity)
+	assert.Equal(t, anyblockjson.IssueCodeUnresolvedType, report.Issues[0].Code)
+	assert.Contains(t, report.Issues[0].Message, "type-gone")
+	require.ErrorContains(t, ValidateAuthoring(declared), `references type "type-gone"`)
+
+	require.ErrorContains(t, Validate(bundleWith("")), `references type "type-gone"`)
+}
+
+// An index may not declare a type the bundle CARRIES. The declaration means
+// "the source space never held this", and the converter acts on it by
+// importing every object of that type as a Page — so an over-declaring
+// index silently retypes live objects and orphans their type document.
+// Refused at the door, like every other self-contradicting report (§2c).
+func TestInspect_ADeclaredTypeTheBundleCarriesIsRefused(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.json": &fstest.MapFile{Data: []byte(
+			`{"formatVersion":"2.0","entrypoint":"page","unresolved":{"types":["type-wine"]}}`)},
+		"objects/page.json": &fstest.MapFile{Data: []byte(`{"formatVersion":"2.0","id":"page","type":"Wine","type_internal_key":"wine"}`)},
+		"types/wine.json": &fstest.MapFile{Data: []byte(
+			`{"formatVersion":"2.0","kind":"object_type","id":"type-wine","internal_key":"wine","type":"Type","properties":{"Name":"Wine"}}`)},
+		"properties.json": &fstest.MapFile{Data: []byte(`{"formatVersion":"2.0"}`)},
+	}
+
+	err := Validate(fsys)
+	require.ErrorContains(t, err, "type-wine")
+	require.ErrorContains(t, err, "carries")
+}

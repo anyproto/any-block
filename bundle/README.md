@@ -116,6 +116,13 @@ states the same subsets as `unresolved.deleted` and `unresolved.omitted`,
 and a space icon whose image object is a tombstone is dropped with a warning
 rather than declared, following the document-level icon rule.
 
+`Stats.UnresolvedTypes` and `Stats.UnresolvedTypeReferences` name the types
+the written documents reference by derived id that no written type document
+carries (SPEC §2c): a type the source space never held, left by an old
+import. `index.json` states the same list as `unresolved.types`. A bundled
+key never appears; an uninstalled type travels as a type document carrying
+`uninstalled: true`, so it is not one of these either.
+
 `Inspect` is `Validate` with the whole verdict kept: a `Report` of issues
 graded `error`, `warning` or `info`, each with a stable code and the index
 field it is about. On the full surface a declared target is admitted — a

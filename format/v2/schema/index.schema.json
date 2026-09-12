@@ -149,6 +149,16 @@
             "pattern": "^[^_]"
           },
           "description": "The subset of `targets` the space still HOLDS and this export did not write: an archived object under an export without archived objects, or an object outside a partial export's scope. Not a loss in the space, only in this bundle. Every entry must also appear in `targets`, and none may appear in `deleted`. A target in neither subset is ABSENT — the space had no row for it, typically because it had not synced — and that is the one class a reader should warn about."
+        },
+        "types": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 6,
+            "pattern": "^type-"
+          },
+          "description": "The types this bundle's documents name by derived id — `type-<internal_key>` in a `type_internal_key`, a `template_for`, an `object_types` entry — that no type document carries and the source space has no row for: an object or template an old import created with a type it never made. Spelled as the derived id, the address a document uses and the validator checks; never folded. A reader imports such an object as a Page, and a template as one for Page, and warns; a slot that merely REFERENCES the type (a `query_source.types` entry, a property's `object_types`) drops the entry instead of retyping anything. Declaring the loss is what makes the bundle admissible on the full surface; an undeclared one is still refused as an exporter bug, and so is a declaration naming a type the bundle actually carries."
         }
       }
     },

@@ -21,7 +21,10 @@ as a `severity: message` line. `Result.Unresolved` splits the declared targets
 into `Deleted`, `Omitted` and `Absent`, spelled as the index spells them, so an
 importer can keep a deleted id and tombstone it while the other two take the
 sentinel it has always written. Homepage and widget targets are converted
-verbatim either way.
+verbatim either way. A declared missing type (`unresolved.types`) is
+normalized: the object is imported as a Page, a template as one for Page,
+each with a warning naming the document and the type, and
+`Result.Unresolved.Types` lists them.
 
 Full conversion preserves stored property and option keys, installed built-in
 and custom definitions, type/template settings, participant references, file

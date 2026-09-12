@@ -92,6 +92,11 @@ const (
 	// still holds that the export did not write — archived under an export
 	// without archived objects, or outside a partial export's scope (§2c).
 	IssueCodeOmittedTarget IssueCode = "omitted_target"
+	// IssueCodeUnresolvedType identifies a document naming a type, by
+	// derived id, that no type document carries and the space has no row
+	// for — an old import's leftover. A reader imports the object as a
+	// Page and warns (§2c).
+	IssueCodeUnresolvedType IssueCode = "unresolved_type"
 	// IssueCodeTypeIdentityMismatch identifies an export rejected because a
 	// type document and its references would use different identities.
 	IssueCodeTypeIdentityMismatch IssueCode = "type_identity_mismatch"

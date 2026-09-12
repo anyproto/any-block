@@ -241,6 +241,12 @@ func Compare(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockTyp
 			if gotFields[k] == nil && omittable && anyblockjson.OmittedUninstallStamp(k, orig.Details.Fields[k]) {
 				continue
 			}
+			// a type document's `isUninstalled` stored FALSE (§2a): the
+			// envelope member is written true only, so absent is the same
+			// statement. Same ownership of the predicate.
+			if gotFields[k] == nil && anyblockjson.DroppedTypeUninstallFlag(sbType, k, orig.Details.Fields[k]) {
+				continue
+			}
 			// an omitted widget document's residual keys (§2c): the two
 			// object timestamps, and a name that was EMPTY — a non-empty
 			// name keeps the whole document, so within the omitted scope it
@@ -359,6 +365,12 @@ var typeKeyIdPrefix = domain.TypeKey("").URL()
 func compareObjectTypes(orig, got *model.SmartBlockSnapshotBase, sbType model.SmartBlockType) []string {
 	origKeys := typeKeysOf(orig)
 	gotKeys := typeKeysOf(got)
+	// a type document's own type is written as objectType whatever the
+	// store held (§2a) — the same normalization export applies, so a
+	// stored `ot-type` coming back as objectType is not loss
+	if anyblockjson.IsTypeSmartBlock(sbType) && len(origKeys) > 0 {
+		origKeys[0] = anyblockjson.TypeKeyObjectType
+	}
 	modelled := modelledTypeSlots(origKeys, sbType)
 
 	var out []string

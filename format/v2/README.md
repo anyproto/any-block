@@ -12,6 +12,7 @@ the format Anytype exports to, imports from, and serves over API v2.
 | [`examples/reader`](examples/reader) | those nine steps, runnable, standard library only |
 | [`examples/exported_space`](examples/exported_space) | a tiny export-shaped bundle to run them on |
 | [`examples/habit_tracker`](examples/habit_tracker) | an authoring bundle — what a person writes by hand |
+| [`SKILL.md`](SKILL.md) | agent skill for creating a bundle around a user's use case |
 | [`SPEC.md`](SPEC.md) | normative and complete |
 | [`PRINCIPLES.md`](PRINCIPLES.md) | the ten rules the format answers to |
 

@@ -26,7 +26,13 @@ type bundleResolver struct {
 	nativeTypeKeys map[string]string
 	options        map[string]*bundleOption
 	installed      bool
-	err            error
+	// missingTypes are the STORED KEYS the index declares the source space
+	// never held (SPEC §2c, unresolved.types). A lookup for one is a soft
+	// miss: it returns not-found without arming err, so each slot degrades
+	// the way it already degrades an absent reference instead of failing
+	// the whole conversion.
+	missingTypes map[string]bool
+	err          error
 }
 
 type bundleOption struct {
@@ -198,6 +204,10 @@ func (r *bundleResolver) TypeIdByKey(key string) (string, bool) {
 			return key, true
 		}
 	}
+	if r.missingTypes[key] {
+		// declared missing: the caller degrades, the conversion goes on
+		return "", false
+	}
 	r.err = fmt.Errorf("type %q has no declaration in the bundle", key)
 	return "", false
 }
@@ -236,7 +246,7 @@ func (r *bundleResolver) addOption(key string, def ab.OptionDefinition) *bundleO
 		optionKey = hex.EncodeToString(hash[:12])
 		def.InternalKey = optionKey
 	}
-	option := &bundleOption{key: key, id: "opt-" + optionKey, definition: def, order: 1}
+	option := &bundleOption{key: key, id: "opt-" + archiveSafeId(optionKey), definition: def, order: 1}
 	for _, existing := range r.options {
 		if existing.id == option.id && existing.key != key {
 			r.err = fmt.Errorf("option key %q belongs to multiple properties", option.definition.InternalKey)
@@ -247,6 +257,20 @@ func (r *bundleResolver) addOption(key string, def ab.OptionDefinition) *bundleO
 	}
 	r.options[identity] = option
 	return option
+}
+
+// archiveSafeId makes a stored key usable as a native archive entry id. An
+// option's key is minted from its name, so "C/C++" puts a slash in it, and
+// the archive names an entry by the object's id, where a slash is a path.
+// Only the archive id is escaped: the option's real key travels as the
+// snapshot's Key, which is what the destination derives its object id
+// from, and every value naming the option resolves to this same id.
+// The escape character is escaped FIRST, so the mapping is injective: two
+// keys that differ only by an escape sequence ("a/b" and "a%2Fb") must not
+// collapse onto one archive entry, where one value is silently dropped and
+// which one survives depends on map iteration order.
+func archiveSafeId(key string) string {
+	return strings.NewReplacer("%", "%25", "/", "%2F", "\\", "%5C").Replace(key)
 }
 
 func (r *bundleResolver) OptionId(key domain.RelationKey, name string) (string, bool) {
@@ -274,6 +298,11 @@ func (r *bundleResolver) OptionName(key domain.RelationKey, id string) (string, 
 	}
 	return "", false
 }
+
+// missingObjectSentinel is the store's own marker for a reference an
+// importer could not resolve (SPEC §9). It can sit in a relation's stored
+// target list and reach a dictionary entry written by an older export.
+const missingObjectSentinel = "_missing_object"
 
 func (r *bundleResolver) propertySnapshots(opts ab.Options) (map[string]*model.SmartBlockSnapshotBase, error) {
 	out := map[string]*model.SmartBlockSnapshotBase{}
@@ -326,13 +355,35 @@ func (r *bundleResolver) propertySnapshots(opts ab.Options) (map[string]*model.S
 		if len(def.ObjectTypes) > 0 {
 			var targets []*types.Value
 			for _, target := range def.ObjectTypes {
+				if target == missingObjectSentinel {
+					// the app's own sentinel, written by an old importer where a
+					// type it could not resolve belonged and copied by older
+					// exports: it names no type, so the entry keeps its other
+					// targets and goes on without it
+					if opts.OnWarning != nil {
+						opts.OnWarning(ab.Issue{Path: "/properties/" + key + "/object_types",
+							Message: fmt.Sprintf("property %q targets the missing-object sentinel %q, which names no type; dropped", key, target)})
+					}
+					continue
+				}
 				id, ok := r.TypeIdByKey(target)
 				if !ok {
+					if r.missingTypes[target] {
+						// a target type the source space never held: the
+						// list expresses the absence by being shorter (§9)
+						if opts.OnWarning != nil {
+							opts.OnWarning(ab.Issue{Path: "/properties/" + key + "/object_types",
+								Message: fmt.Sprintf("property %q targets type %q, which no document carries and the source space never held; dropped", key, target)})
+						}
+						continue
+					}
 					return nil, r.err
 				}
 				targets = append(targets, stringValue(id))
 			}
-			details["relationFormatObjectTypes"] = listValue(targets)
+			if len(targets) > 0 {
+				details["relationFormatObjectTypes"] = listValue(targets)
+			}
 		}
 		id := "rel-" + key
 		out[id] = metadataSnapshot(id, key, "ot-relation", details)

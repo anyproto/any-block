@@ -30,6 +30,14 @@ type AuthoringTypeVocabulary struct {
 	propertyStored map[string]struct{}
 	propertyNames  []string
 	typeProperties map[string][]string
+	// propertySpellings is the dictionary's own statement of how a key is
+	// SPELLED in this bundle's documents (§2f): each entry's `property`
+	// member, mapped to the stored key it names. A spelling stated by one
+	// entry outranks a display NAME another entry happens to carry, which
+	// is what tells the entry that spells "Tag" apart from the entry that
+	// is merely named Tag. A spelling two entries state is nobody's and is
+	// left to the claim count.
+	propertySpellings map[string]string
 }
 
 // AuthoringVocabularyPlanOptions supplies the bundle-level declarations that
@@ -75,6 +83,11 @@ func PlanAuthoringTypeVocabulary(
 ) (*AuthoringTypeVocabulary, error) {
 	type declaration struct {
 		source, name, key, alias string
+		// uninstalled: the user removed the type (§2a). It owns its stored
+		// key — every `type-<key>` reference resolves — but claims no
+		// spelling, so a live type that took the freed name is not shadowed
+		// by the corpse. Same rule the store resolver applies on export.
+		uninstalled bool
 	}
 	paths := make([]string, 0, len(documents))
 	for source := range documents {
@@ -87,6 +100,7 @@ func PlanAuthoringTypeVocabulary(
 		var doc struct {
 			Kind         string                     `json:"kind"`
 			InternalKey  string                     `json:"internal_key"`
+			Uninstalled  bool                       `json:"uninstalled"`
 			PropertyKeys map[string]string          `json:"property_internal_keys"`
 			Properties   map[string]json.RawMessage `json:"properties"`
 		}
@@ -133,10 +147,11 @@ func PlanAuthoringTypeVocabulary(
 			}}}
 		}
 		declarations = append(declarations, declaration{
-			source: source,
-			name:   displayName,
-			key:    doc.InternalKey,
-			alias:  vocabulary.MintApiSlugFromName(displayName),
+			source:      source,
+			name:        displayName,
+			key:         doc.InternalKey,
+			alias:       vocabulary.MintApiSlugFromName(displayName),
+			uninstalled: doc.Uninstalled,
 		})
 	}
 
@@ -155,13 +170,14 @@ func PlanAuthoringTypeVocabulary(
 	})
 
 	v := &AuthoringTypeVocabulary{
-		byKey:          make(map[string]string, len(declarations)),
-		claims:         make(map[string][]string, len(declarations)*2),
-		stored:         make(map[string]struct{}, len(declarations)),
-		propertyByKey:  map[string]string{},
-		propertyClaims: map[string][]string{},
-		propertyStored: map[string]struct{}{},
-		typeProperties: map[string][]string{},
+		byKey:             make(map[string]string, len(declarations)),
+		claims:            make(map[string][]string, len(declarations)*2),
+		stored:            make(map[string]struct{}, len(declarations)),
+		propertyByKey:     map[string]string{},
+		propertyClaims:    map[string][]string{},
+		propertyStored:    map[string]struct{}{},
+		typeProperties:    map[string][]string{},
+		propertySpellings: map[string]string{},
 	}
 	keyOwner := make(map[string]declaration, len(declarations))
 	var issues []Issue
@@ -187,6 +203,9 @@ func PlanAuthoringTypeVocabulary(
 	claimOwner := map[string]declaration{}
 	for _, decl := range declarations {
 		if _, admitted := v.stored[decl.key]; !admitted {
+			continue
+		}
+		if decl.uninstalled {
 			continue
 		}
 		terms := []struct {
@@ -238,6 +257,9 @@ func PlanAuthoringTypeVocabulary(
 		return nil, &ValidationError{Issues: issues}
 	}
 	for _, decl := range declarations {
+		if decl.uninstalled {
+			continue
+		}
 		v.names = append(v.names, decl.name)
 	}
 	sort.Strings(v.names)
@@ -314,6 +336,36 @@ func (v *AuthoringTypeVocabulary) planAuthoringProperties(
 		for _, def := range dictionary.Properties {
 			register(string(def.Key), def.Name, true)
 		}
+		// the entries' own spellings, read off the bytes: the decoded
+		// definition inverts `property` to a stored key and keeps no record
+		// of how the entry spelled it
+		var raw struct {
+			Properties []struct {
+				Property    string `json:"property"`
+				InternalKey string `json:"internal_key"`
+			} `json:"properties"`
+		}
+		if json.Unmarshal(dictionaryData, &raw) == nil && len(raw.Properties) == len(dictionary.Properties) {
+			contested := map[string]bool{}
+			for i, entry := range raw.Properties {
+				spelling := nfcTerm(entry.Property)
+				key := entry.InternalKey
+				if key == "" {
+					key = string(dictionary.Properties[i].Key)
+				}
+				if spelling == "" || key == "" || spelling == key {
+					continue
+				}
+				if owner, seen := v.propertySpellings[spelling]; seen && owner != key {
+					contested[spelling] = true
+					continue
+				}
+				v.propertySpellings[spelling] = key
+			}
+			for spelling := range contested {
+				delete(v.propertySpellings, spelling)
+			}
+		}
 	}
 
 	typeDocs := make(map[string]authoringTypePropertyDocument, len(paths))
@@ -363,7 +415,14 @@ func (v *AuthoringTypeVocabulary) planAuthoringProperties(
 			key, ambiguous := v.resolvePlannedProperty(term)
 			if len(ambiguous) > 1 {
 				// The scope cannot identify itself through an already ambiguous
-				// name. Authors can make this exact with internal_key or a legend.
+				// name. Authors can make this exact with internal_key or a
+				// legend — and an export already did: it writes the stored key
+				// beside every spelling, so a stated internal_key decides here
+				// (six real declarations spelled `Tag` beside `internal_key:
+				// "tag"` in a space that also minted a custom Tag).
+				if property.InternalKey != "" {
+					register(property.InternalKey, property.Name, false)
+				}
 				continue
 			}
 			register(key, property.Name, false)
@@ -409,6 +468,12 @@ func (v *AuthoringTypeVocabulary) planAuthoringProperties(
 			if key == "" {
 				var ambiguous []string
 				key, ambiguous = v.resolvePlannedProperty(term)
+				if len(ambiguous) > 1 && property.InternalKey != "" {
+					// the spelling is contested and the entry states which
+					// claimant it meant: the stored key is the tie-break,
+					// exactly the remedy the refusal below names
+					key, ambiguous = property.InternalKey, nil
+				}
 				if len(ambiguous) > 1 {
 					return &ValidationError{Issues: []Issue{{
 						Path: fmt.Sprintf("/type_settings/property_definitions/%d/property", i),
@@ -508,6 +573,11 @@ func (v *AuthoringTypeVocabulary) PropertyKeyCandidates(spelling string) []strin
 	spelling = nfcTerm(spelling)
 	var out []string
 	if v != nil {
+		// the dictionary's own spelling of a key is the one claimant that
+		// counts: the bundle said, in so many words, what this term means
+		if key, ok := v.propertySpellings[spelling]; ok {
+			return []string{key}
+		}
 		out = append(out, v.propertyClaims[spelling]...)
 	}
 	if key, ok := BundledPropertyKeyByName(spelling); ok {

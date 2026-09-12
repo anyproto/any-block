@@ -29,7 +29,10 @@ A valid bundle's own account of what it could not carry (`unresolved`, SPEC
 `warning: …` (one it holds and did not export, or one it had no row for)
 lines, one per declared target, and the bundle still reports `ok bundle`.
 `validate -strict` fails on warnings for CI over authored bundles; info never
-fails. An undeclared dangling target is an error either way.
+fails. An undeclared dangling target is an error either way. A type the
+documents name that no type document carries prints as a warning when the
+index declares it under `unresolved.types` (a reader imports the object as a
+Page) and as an error otherwise.
 
 `to-v2 -include-file-remote` preserves a file object's remote CID, encryption
 keys, and optional indexed variant metadata in the base64 `file_remote`

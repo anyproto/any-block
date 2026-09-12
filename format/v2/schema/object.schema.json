@@ -98,6 +98,11 @@
     "properties": {
       "$ref": "#/$defs/propertyMap"
     },
+    "uninstalled": {
+      "type": "boolean",
+      "const": true,
+      "description": "Only on type documents (kind \"object_type\"): the user REMOVED this type from the space (stored `isUninstalled`), and the bundle carries it for backup fidelity — its objects still carry the key, and the definition is still the space's. The mirror of the member a removed property's declaration and dictionary entry carry (§2f). Written `true` only; absent is the same statement as `false`. A reader restores it hidden, as the user left it, never as an installed type; a type that owns the same stored key and is live in the destination stays live. Output-only: the authoring subset refuses it, because an author declares a type to use it."
+    },
     "type_settings": {
       "description": "Only on type documents (kind \"object_type\" or \"bundled_object_type\"): everything that defines the TYPE, in one gated subtree (§2a). `layout` is the recommended layout of objects of this type (a layout name; a stored number outside the vocabulary passes through raw). `api_key` is the type's public API key — NOT a slug: of 1,326 corpus type documents with one, it differs from the document's own spelling in 247 (the `property` type's api key is `relation`, the word the public API kept when the format renamed the concept) — calling it a slug would imply it is the term used elsewhere in the document, which for those 247 it is not. `plural_name` is the plural display name. `default_template` is the object id of the template new objects of this type start from. `default_view` is the default view type (a §6.2 view-type name; a stored number outside the vocabulary passes through raw). `property_definitions` is the type's property list — one propertyDefinition + `section` per entry (§2e); it lived at the document root as `type_properties` until v0.32, and the word is `property_definitions` rather than `properties` because the document already uses that word for property VALUES at the root — one word per concept.",
       "type": "object",
@@ -273,7 +278,8 @@
       "then": {},
       "else": {
         "properties": {
-          "type_settings": false
+          "type_settings": false,
+          "uninstalled": false
         }
       }
     },

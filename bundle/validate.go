@@ -596,6 +596,23 @@ func inspect(fsys fs.FS, surface bundleSurface) (*Report, error) {
 	// document cannot know whether `type-habit` is here. Reported once per
 	// distinct (slot, id, file) so a type named from forty objects does not
 	// produce forty lines.
+	declaredTypes := map[string]struct{}{}
+	if idx.Unresolved != nil {
+		for _, id := range idx.Unresolved.Types {
+			declaredTypes[id] = struct{}{}
+		}
+	}
+	// a declaration means the source space never held the type, and a
+	// reader acts on it by importing every object of that type as a Page.
+	// Declaring one the bundle CARRIES would retype live objects and orphan
+	// their type document, so the contradiction is refused at the door.
+	for id := range declaredTypes {
+		if path, carried := documentPaths[id]; carried {
+			issues = append(issues, fmt.Sprintf(
+				"unresolved.types names %q, but the bundle carries that type at %s; "+
+					"the list states what the source space never held", id, path))
+		}
+	}
 	reportedTypeUse := map[derivedTypeUse]struct{}{}
 	for _, use := range typeUses {
 		if _, exists := documentPaths[use.ref]; exists {
@@ -605,6 +622,16 @@ func inspect(fsys fs.FS, surface bundleSurface) (*Report, error) {
 			continue
 		}
 		reportedTypeUse[use] = struct{}{}
+		// a type the index DECLARES it cannot carry (§2c) is admitted on
+		// the full surface as the loss it states: the source space never
+		// held the type, and a reader imports the object as a Page. The
+		// authoring surface refuses it like every dangling reference.
+		if _, declared := declaredTypes[use.ref]; declared && !authoring {
+			report.add(ReportIssue{Severity: SeverityWarning, Code: anyblockjson.IssueCodeUnresolvedType, Path: use.source,
+				Message: fmt.Sprintf("%s: %s references type %q, which no document carries and the source space never held; "+
+					"the index declares it (unresolved.types), and a reader imports the object as a Page", use.source, use.slot, use.ref)})
+			continue
+		}
 		issues = append(issues, fmt.Sprintf(
 			"%s: %s references type %q, but the bundle contains no document with that id — "+
 				"a type document's id IS its derived id (SPEC §9), and since the manifest lost its "+
