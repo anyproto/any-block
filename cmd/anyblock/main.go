@@ -59,13 +59,22 @@ func run(args []string) error {
 	}
 }
 
-func runValidate(paths []string) error {
-	if len(paths) == 1 && (paths[0] == "-h" || paths[0] == "--help") {
-		fmt.Fprintln(os.Stdout, "usage: anyblock validate <file-or-directory>...")
+func runValidate(args []string) error {
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		fmt.Fprintln(os.Stdout, "usage: anyblock validate [-strict] <file-or-directory>...")
 		return nil
 	}
+	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
+	strict := flags.Bool("strict", false, "fail on warnings too (a declared omitted or absent target); info never fails")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	paths := flags.Args()
 	if len(paths) == 0 {
-		return fmt.Errorf("usage: anyblock validate <file-or-directory>...")
+		return fmt.Errorf("usage: anyblock validate [-strict] <file-or-directory>...")
 	}
 	failures := 0
 	for _, root := range paths {
@@ -79,9 +88,29 @@ func runValidate(paths []string) error {
 			return err
 		}
 		if info.IsDir() {
-			err = validateBundleDirectory(root)
+			var report *anyblockbundle.Report
+			report, err = validateBundleDirectory(root)
 			switch {
 			case err == nil:
+				// what a valid bundle states about itself (§2c): printed at
+				// the severity its class earns, and failing only under -strict
+				// and only for warnings — info is a tombstone the space still
+				// names, which is by design
+				warned := false
+				for _, issue := range report.Issues {
+					if issue.Severity == anyblockbundle.SeverityError {
+						continue
+					}
+					if issue.Severity == anyblockbundle.SeverityWarning {
+						warned = true
+					}
+					fmt.Fprintf(cliWarningOutput, "%s: %s\n", issue.Severity, issue.Message)
+				}
+				if *strict && warned {
+					failures++
+					fmt.Fprintf(os.Stderr, "invalid bundle %s: warnings are errors under -strict\n", root)
+					continue
+				}
 				fmt.Printf("ok bundle %s\n", root)
 				continue
 			case !errors.Is(err, anyblockbundle.ErrIndexNotFound):
@@ -121,17 +150,28 @@ func runValidate(paths []string) error {
 	return nil
 }
 
-func validateBundleDirectory(name string) (err error) {
+// validateBundleDirectory inspects a bundle rooted at name. A nil error
+// with a report means the bundle is valid and the report carries what it
+// states about itself; an error is either a refusal (report.Err) or a walk
+// that could not run.
+func validateBundleDirectory(name string) (report *anyblockbundle.Report, err error) {
 	root, err := os.OpenRoot(name)
 	if err != nil {
-		return fmt.Errorf("open bundle root %s: %w", name, err)
+		return nil, fmt.Errorf("open bundle root %s: %w", name, err)
 	}
 	defer func() {
 		if closeErr := root.Close(); err == nil && closeErr != nil {
 			err = fmt.Errorf("close bundle root %s: %w", name, closeErr)
 		}
 	}()
-	return anyblockbundle.Validate(root.FS())
+	report, err = anyblockbundle.Inspect(root.FS())
+	if err != nil {
+		return nil, err
+	}
+	if err := report.Err(); err != nil {
+		return nil, err
+	}
+	return report, nil
 }
 
 func validateFile(path string) error {
@@ -153,9 +193,11 @@ func validateFile(path string) error {
 func runToV1(args []string) error {
 	flags := flag.NewFlagSet("to-v1", flag.ContinueOnError)
 	flags.SetOutput(os.Stdout)
-	in := flags.String("in", "", "AnyBlock v2 object document")
-	out := flags.String("out", "", "AnyBlock v1 snapshot envelope")
+	in := flags.String("in", "", "AnyBlock v2 object document or authoring bundle directory")
+	out := flags.String("out", "", "AnyBlock v1 snapshot, bundle directory, or ZIP with -zip")
 	encoding := flags.String("encoding", "pb", "output encoding: pb or json")
+	full := flags.Bool("full", false, "convert full space exports, including attachments and stored definitions")
+	zipOutput := flags.Bool("zip", false, "write a bundle as a ZIP archive (directory input only)")
 	spaceID := flags.String("space-id", "", "space receiving the v1 snapshot (required to rebuild folded participant references)")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -168,6 +210,22 @@ func runToV1(args []string) error {
 	}
 	if err := validateOptionalSpaceID(*spaceID); err != nil {
 		return err
+	}
+	info, err := os.Stat(*in)
+	if err != nil {
+		return fmt.Errorf("read input: %w", err)
+	}
+	if info.IsDir() {
+		if *full {
+			return runToV1FullBundle(*in, *out, *encoding, *spaceID, *zipOutput)
+		}
+		return runToV1Bundle(*in, *out, *encoding, *spaceID, *zipOutput)
+	}
+	if *full {
+		return fmt.Errorf("-full requires a bundle directory as -in")
+	}
+	if *zipOutput {
+		return fmt.Errorf("-zip requires a bundle directory as -in")
 	}
 	data, err := os.ReadFile(*in)
 	if err != nil {
@@ -188,12 +246,21 @@ func runToV1(args []string) error {
 	if err := outcome.preWriteError(); err != nil {
 		return err
 	}
+	output, err := encodeV1Snapshot(sbType, snapshot, *encoding)
+	if err != nil {
+		return err
+	}
+	return writeOutput(*out, output)
+}
+
+func encodeV1Snapshot(sbType model.SmartBlockType, snapshot *model.SmartBlockSnapshotBase, encoding string) ([]byte, error) {
 	envelope := &envelopepb.SnapshotWithType{
 		SbType:   sbType,
 		Snapshot: &envelopepb.ChangeSnapshot{Data: snapshot},
 	}
 	var output []byte
-	switch *encoding {
+	var err error
+	switch encoding {
 	case "pb":
 		output, err = proto.Marshal(envelope)
 	case "json":
@@ -202,12 +269,12 @@ func runToV1(args []string) error {
 		text, err = (&jsonpb.Marshaler{Indent: "  "}).MarshalToString(envelope)
 		output = []byte(text)
 	default:
-		return fmt.Errorf("unknown encoding %q: use pb or json", *encoding)
+		return nil, fmt.Errorf("unknown encoding %q: use pb or json", encoding)
 	}
 	if err != nil {
-		return fmt.Errorf("encode v1: %w", err)
+		return nil, fmt.Errorf("encode v1: %w", err)
 	}
-	return writeOutput(*out, output)
+	return output, nil
 }
 
 func runToV2(args []string) error {

@@ -86,9 +86,9 @@ func TestExport_EveryEmittedIconShape(t *testing.T) {
 				"iconName": str("folder"), "iconOption": num(10), "iconEmoji": str("🌎")},
 			icon: `{"format":"icon","name":"folder","color":"lime","emoji":"🌎"}`,
 		},
-		"an avatar image and its colour — 55 documents": {
-			details: map[string]*types.Value{"iconImage": strList("bafybeic7zrh5fa"), "iconOption": num(5)},
-			icon:    `{"format":"file","file":"bafybeic7zrh5fa","color":"pink"}`,
+		"an avatar image and its colour — 55 documents; a content cid, not an object": {
+			details: map[string]*types.Value{"iconImage": strList(testfixtures.ContentID), "iconOption": num(5)},
+			icon:    `{"format":"cid","cid":"` + testfixtures.ContentID + `","color":"pink"}`,
 		},
 		"a colour with no source — 29 documents": {
 			details: map[string]*types.Value{"iconOption": num(9)},
@@ -519,11 +519,11 @@ func TestValidate_AWrongIconGetsExactlyOneIssue(t *testing.T) {
 		{`{"formatVersion":"2.0","icon":{"format":"emoji","emoji":"📕","name":"rocket"}}`,
 			"/icon/name", `property "name" is not allowed`},
 		{`{"formatVersion":"2.0","icon":{"format":"image","url":"https://x/y.png"}}`,
-			"/icon/format", "value must be one of 'emoji', 'file', 'icon', 'color'"},
+			"/icon/format", "value must be one of 'emoji', 'file', 'cid', 'icon', 'color'"},
 		{`{"formatVersion":"2.0","icon":{"format":"url","url":"https://x/y.png"}}`,
-			"/icon/format", "value must be one of 'emoji', 'file', 'icon', 'color'"},
+			"/icon/format", "value must be one of 'emoji', 'file', 'cid', 'icon', 'color'"},
 		{`{"formatVersion":"2.0","icon":{"emoji":"🚀"}}`,
-			"/icon", "an icon is one of 'emoji', 'file', 'icon', 'color'"},
+			"/icon", "an icon is one of 'emoji', 'file', 'cid', 'icon', 'color'"},
 		{`{"formatVersion":"2.0","icon":{"format":"emoji"}}`,
 			"/icon", "missing property 'emoji'"},
 		{`{"formatVersion":"2.0","icon":{"format":"icon","name":"rocket","color":"turquoise"}}`,
@@ -559,9 +559,9 @@ func TestValidate_AWrongIconGetsExactlyOneIssue(t *testing.T) {
 // How this can fail: hardcode the variant names in iconFormatIssues and this
 // test still passes on the happy path but the appended variant never appears.
 func TestValidate_TheFormatUnionIsReadFromTheSchema(t *testing.T) {
-	assert.Equal(t, []string{"emoji", "file", "icon", "color"}, schemaFormatEnum("icon"))
+	assert.Equal(t, []string{"emoji", "file", "cid", "icon", "color"}, schemaFormatEnum("icon"))
 	assert.Equal(t, []string{"image", "color", "gradient"}, schemaFormatEnum("cover"))
-	assert.Equal(t, []string{"emoji", "file"}, schemaFormatEnum("plainIcon"),
+	assert.Equal(t, []string{"emoji", "file", "cid"}, schemaFormatEnum("plainIcon"),
 		"the narrowed definition answers with the narrowed set, not the one it refs")
 }
 

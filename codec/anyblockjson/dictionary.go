@@ -583,6 +583,13 @@ func dictionaryEntryOmapWithOptions(def PropertyDefinition, opts Options) (*omap
 	}
 	targets := make([]string, 0, len(def.ObjectTypes))
 	for _, key := range def.ObjectTypes {
+		// a stored `_missing_object` sentinel in the relation's target list
+		// drops here exactly as it drops from a document's `object_types`
+		// (§9): it names no type, and the predicate is the one the document
+		// slot and the comparator already share
+		if DroppedMissingObjectRef(opts, key) {
+			continue
+		}
 		// a type is named by its derived id wherever a key admits one (§9);
 		// a vocabulary's spelling is the fallback for a key the gate refuses
 		spelling := dictionaryTypeSpelling(key)

@@ -229,7 +229,10 @@ const (
 	// a template. validate.go's matching refusal died at the freeze — the
 	// version gate answers for every pre-freeze document now (§15 #9).
 	typeKeyTemplate = "template"
-	storeKeyItems   = "objects"
+	// typeKeyObjectType is the bundled key of the Type type — what every
+	// type document's own type is, by definition (§2a).
+	typeKeyObjectType = "objectType"
+	storeKeyItems     = "objects"
 	// codeLangField is the internal fields key holding a code block's
 	// language (§5.1)
 	codeLangField = "lang"
@@ -875,7 +878,8 @@ func (e *exporter) recordPropertyKey(term, key string) {
 		return
 	}
 	if bundledBinds(term, key, (BundledKeyVocabulary{}).PropertyKey) &&
-		termInverts(term, key, e.opts.keys().PropertyKey) {
+		termInverts(term, key, e.opts.keys().PropertyKey) &&
+		!e.contestedPropertySpelling(term, key) {
 		return
 	}
 	if reason, refused := legendEntryRefusal(term, key, true); refused {
@@ -931,6 +935,37 @@ func legendEntryRefusal(term, key string, deny bool) (string, bool) {
 			"the term is spelled verbatim", reason, term), true
 	}
 	return "", false
+}
+
+// contestedPropertySpelling reports that the writer's own space has more
+// than one live property answering to the spelling — the bundled key the
+// table binds it to AND a custom property that carries the same display
+// name. The two questions recordPropertyKey asks both say "no entry owed":
+// the table binds the spelling, and the writer's vocabulary resolves it
+// bundled-first. A reader planning from the bundle's dictionary sees both
+// claimants and refuses the document. Measured: a space that renamed the
+// bundled Tag to "Regs" and minted a custom property named Tag shipped 542
+// object documents spelling `Tag` with no entry, every one refused on read.
+// Only a scoped vocabulary can answer; a package-only writer has no space
+// to ask, and its documents were never contested.
+//
+// The question is whether ANY claimant other than the key being written
+// answers to the spelling — not whether the set has two members. A store
+// vocabulary lists the space's own claimants and may or may not add the
+// bundled binding; the space that measured this had renamed the bundled
+// Tag to "Regs", so its set for "Tag" held the custom property alone, and
+// a count of two would have said nothing was owed.
+func (e *exporter) contestedPropertySpelling(term, key string) bool {
+	scoped, ok := e.opts.keys().(ScopedKeyVocabulary)
+	if !ok {
+		return false
+	}
+	for _, candidate := range scoped.PropertyKeyCandidates(term) {
+		if candidate != key {
+			return true
+		}
+	}
+	return false
 }
 
 // termInverts reports whether `term`, written for the stored key `key` with
@@ -1584,6 +1619,16 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	doc.set("formatVersion", FormatVersion)
 
 	typeKeys := e.modelledTypeKeys(true)
+	// a type document IS a Type, so its own type is the bundled objectType
+	// whatever the store holds — derivable from the kind, like the layout
+	// keys §2a drops. Three real type objects from an old markdown import
+	// carried `ot-type`, a key no space ever minted, and copying it named a
+	// type document no bundle could carry.
+	if e.isTypeDoc() && len(typeKeys) > 0 && typeKeys[0] != typeKeyObjectType {
+		e.warn("/"+memberTypeInternalKey, "type document stores its own type as %q; a type document is a Type, so %q is written instead",
+			typeKeys[0], typeKeyObjectType)
+		typeKeys = append([]string{typeKeyObjectType}, typeKeys[1:]...)
+	}
 	typeTerm := ""
 	if len(typeKeys) > 0 {
 		typeTerm = e.typeSlug(typeKeys[0])
@@ -1668,6 +1713,14 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 		doc.setNonEmpty("template_for", e.typeKeyRef(typeKeys[1]))
 	}
 	doc.setNonEmpty(memberInternalKey, e.snapshot.Key)
+	// a type the user REMOVED from the space travels as an ordinary type
+	// document carrying `uninstalled: true` (§2a) — the mirror of the member
+	// a removed property's declaration and dictionary entry carry — and
+	// restores hidden, as the user left it. The stored flag is lifted here
+	// and refused in `properties` (droppedPropertyKey), never spelled as one.
+	if e.isTypeDoc() && e.detail(detailKeyIsUninstalled).GetBoolValue() {
+		doc.set(memberUninstalled, true)
+	}
 	// a relation document states its own definition next (§2d): `format`,
 	// `include_time`, `object_types` — before `icon`, because what a property
 	// IS outranks what it looks like, and before the legends, so the type
@@ -1952,6 +2005,10 @@ func (e *exporter) droppedPropertyKey(k string, warn func(path, format string, a
 	// the comparator consults the same predicate.
 	if e.isTypeDoc() {
 		if _, dropped := typeProvenanceKeys[k]; dropped {
+			return true
+		}
+		// lifted onto the envelope as `uninstalled` (§2a), never a property
+		if k == detailKeyIsUninstalled {
 			return true
 		}
 	}

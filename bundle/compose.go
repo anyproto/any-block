@@ -137,8 +137,27 @@ type Stats struct {
 	// its normal state. The slots are the ones bundle.Validate refuses on,
 	// so an export states exactly what a later validation would find.
 	UnresolvedTargets []string
+	// UnresolvedDeleted and UnresolvedOmitted are the subsets of
+	// UnresolvedTargets the wired store could classify (§2c,
+	// anyblockjson.ClassifyUnresolvedTarget): tombstones, and rows the space
+	// still holds that this export did not write. What is in neither is
+	// absent — the one class that is a loss. Sorted. index.json states the
+	// same subsets (Index.Unresolved.Deleted / Omitted).
+	UnresolvedDeleted []string
+	UnresolvedOmitted []string
 	// UnresolvedReferences retains each missing index target with source location.
 	UnresolvedReferences []anyblockjson.ObjectReference
+	// UnresolvedTypes are the derived type ids the written documents name
+	// — in a type_internal_key, a template_for, an object_types entry — that
+	// no written type document carries (§2c): an object or template an old
+	// import created with a type it never made. Bundled keys are never
+	// here; every reader carries the shipped table. Sorted. index.json
+	// states the same list (Index.Unresolved.Types), and a reader imports
+	// such an object as a Page and warns.
+	UnresolvedTypes []string
+	// UnresolvedTypeReferences retains each such reference with the slot
+	// (Path) and the written document id (ObjectID) it came from.
+	UnresolvedTypeReferences []anyblockjson.ObjectReference
 	// RefusedOptions names the vocabularies the dictionary cannot state and
 	// why — one `key: reason` line each, sorted. The writer refuses a
 	// vocabulary on a property whose format does not admit one (§2a), and
@@ -244,7 +263,11 @@ type Composer struct {
 	// function Marshal used to write them, rather than a second opinion that
 	// could disagree about a type's derived id. They answer the one question
 	// no document can: whether an id this index names is carried here.
-	documentIds           map[string]bool
+	documentIds map[string]bool
+	// typeRefs are the derived type ids the written documents name, by
+	// slot and document — the validator's own census (derivedTypeUses),
+	// taken here so the index can state what no document carries (§2c).
+	typeRefs              map[derivedTypeUse]struct{}
 	indexReferenceSources map[anyblockjson.ObjectReference]struct{}
 	widgetViewLabels      map[string]map[string]string
 
@@ -291,6 +314,7 @@ func NewComposer(opts anyblockjson.Options, spaceName string) (*Composer, error)
 		used:         map[string]bool{},
 		declared:     map[string]map[declaredProperty]bool{},
 		documentIds:  map[string]bool{},
+		typeRefs:     map[derivedTypeUse]struct{}{},
 		spaceSettings: spaceSettingsCandidates{
 			names:        map[string]struct{}{},
 			descriptions: map[string]struct{}{},
@@ -498,11 +522,11 @@ func (c *Composer) observeRelation(sbType model.SmartBlockType, base *model.Smar
 // Close, so whatever the composition needs to know about a document it has
 // to take from the bytes it is about to write (design §1.1).
 func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.SmartBlockSnapshotBase, doc []byte) error {
+	var envelope bundleDocumentEnvelope
+	if err := json.Unmarshal(doc, &envelope); err != nil {
+		return fmt.Errorf("read document envelope: %w", err)
+	}
 	if sbType == model.SmartBlockType_FileObject || sbType == model.SmartBlockType_File {
-		var envelope bundleDocumentEnvelope
-		if err := json.Unmarshal(doc, &envelope); err != nil {
-			return fmt.Errorf("read file envelope: %w", err)
-		}
 		if c.opts.IncludeFileRemote && envelope.FileRemote == nil {
 			return fmt.Errorf("observe written file: IncludeFileRemote requires file_remote; use the same Options for Marshal and NewComposer")
 		}
@@ -546,6 +570,12 @@ func (c *Composer) ObserveWritten(sbType model.SmartBlockType, base *model.Smart
 	if id := anyblockjson.FoldDocumentId(c.opts, sbType,
 		base.GetDetails().GetFields()["id"].GetStringValue(), base.GetKey()); id != "" {
 		c.documentIds[id] = true
+		// the derived type ids this document names, by slot — the same
+		// census the validator takes, so what the index declares and what
+		// the validator would refuse cannot disagree (§2c)
+		for _, use := range derivedTypeUses(id, envelope) {
+			c.typeRefs[use] = struct{}{}
+		}
 	}
 	for key := range used {
 		c.used[key] = true
@@ -1062,6 +1092,18 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	idx.Name = spaceSettings.Name
 	idx.Description = spaceSettings.Description
 	idx.Icon = spaceSettings.Icon
+	// the space icon follows the document-level icon rule (§2b, §9): an
+	// icon is optional, so one whose image object the space DELETED is
+	// dropped and warned rather than carried as a declared target, and the
+	// index falls through to whatever icon channel is left
+	if iconID := idx.IconImageId(); iconID != "" && anyblockjson.DroppedDeletedIconRef(c.opts, iconID) {
+		idx.Icon = nil
+		if c.opts.OnWarning != nil {
+			c.opts.OnWarning(anyblockjson.Issue{Path: "/icon/file", Message: fmt.Sprintf(
+				"space icon %q names an image object the space deleted and is dropped — an icon is optional, "+
+					"and the index falls through to whatever icon channel is left", iconID)})
+		}
+	}
 	idx.Homepage = spaceSettings.Homepage
 	// the caller's name is the fallback for a space whose document has none
 	if idx.Name == "" {
@@ -1101,10 +1143,26 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	// question "is this export incomplete" is answered where the bundle is
 	// described, rather than by a reader discovering silence.
 	unresolvedTargets := c.unresolvedIndexTargets(&idx)
-	if len(orphans) > 0 || len(unresolvedTargets) > 0 {
+	unresolvedDeleted, unresolvedOmitted := c.classifyUnresolvedTargets(unresolvedTargets)
+	// a relation document is never written (§2f), so a property's target
+	// types reach the bundle only through its dictionary entry — a slot the
+	// validator censuses, and one the document walk above cannot see
+	for _, def := range dict.Properties {
+		for _, target := range def.ObjectTypes {
+			spelling := anyblockjson.TypeKeySpelling(target)
+			if anyblockjson.IsDerivedTypeId(spelling) {
+				c.typeRefs[derivedTypeUse{ref: spelling, slot: "object_types", source: anyblockjson.PropertiesFileName}] = struct{}{}
+			}
+		}
+	}
+	unresolvedTypes, unresolvedTypeRefs := c.unresolvedTypeReferences()
+	if len(orphans) > 0 || len(unresolvedTargets) > 0 || len(unresolvedTypes) > 0 {
 		idx.Unresolved = &anyblockjson.Unresolved{
 			Properties: orphans,
 			Targets:    unresolvedTargets,
+			Deleted:    unresolvedDeleted,
+			Omitted:    unresolvedOmitted,
+			Types:      unresolvedTypes,
 		}
 	}
 	idxData, err := anyblockjson.MarshalIndex(&idx, c.opts)
@@ -1130,6 +1188,10 @@ func (c *Composer) Finish() (index, properties []byte, stats Stats, err error) {
 	}
 	stats.RefusedOptions = refusedOptions
 	stats.UnresolvedTargets = unresolvedTargets
+	stats.UnresolvedDeleted = unresolvedDeleted
+	stats.UnresolvedOmitted = unresolvedOmitted
+	stats.UnresolvedTypes = unresolvedTypes
+	stats.UnresolvedTypeReferences = unresolvedTypeRefs
 	stats.UnresolvedReferences = c.unresolvedIndexReferences(&idx)
 	return idxData, dictData, stats, nil
 }
@@ -1158,6 +1220,56 @@ func (c *Composer) unresolvedIndexTargets(idx *anyblockjson.Index) []string {
 		}
 	}
 	return out
+}
+
+// unresolvedTypeReferences names the derived type ids the written documents
+// reference that no written type document carries (§2c), as a sorted set
+// and as the references themselves with the slot and the document each
+// came from. Bundled keys never appear: derivedTypeUses skips them, since
+// every reader carries the shipped table. Called with the mutex held.
+func (c *Composer) unresolvedTypeReferences() ([]string, []anyblockjson.ObjectReference) {
+	seen := map[string]bool{}
+	var ids []string
+	var refs []anyblockjson.ObjectReference
+	for use := range c.typeRefs {
+		if c.documentIds[use.ref] {
+			continue
+		}
+		if !seen[use.ref] {
+			seen[use.ref] = true
+			ids = append(ids, use.ref)
+		}
+		refs = append(refs, anyblockjson.ObjectReference{TargetObjectID: use.ref, Path: "/" + use.slot, ObjectID: use.source})
+	}
+	sort.Strings(ids)
+	sort.Slice(refs, func(i, j int) bool {
+		a, b := refs[i], refs[j]
+		if a.TargetObjectID != b.TargetObjectID {
+			return a.TargetObjectID < b.TargetObjectID
+		}
+		if a.ObjectID != b.ObjectID {
+			return a.ObjectID < b.ObjectID
+		}
+		return a.Path < b.Path
+	})
+	return ids, refs
+}
+
+// classifyUnresolvedTargets asks the wired store WHY each unresolved target
+// dangles (§2c, anyblockjson.ClassifyUnresolvedTarget) and splits the
+// tombstones from the rows the space still holds. Both come back sorted,
+// which they are already, since the input is. With no store wired nothing
+// is classified and every target reads as absent, the fail-safe direction.
+func (c *Composer) classifyUnresolvedTargets(targets []string) (deleted, omitted []string) {
+	for _, id := range targets {
+		switch anyblockjson.ClassifyUnresolvedTarget(c.opts, id) {
+		case anyblockjson.UnresolvedDeleted:
+			deleted = append(deleted, id)
+		case anyblockjson.UnresolvedOmitted:
+			omitted = append(omitted, id)
+		}
+	}
+	return deleted, omitted
 }
 
 // hasSemanticState distinguishes a genuinely empty composition from one in

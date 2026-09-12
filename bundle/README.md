@@ -108,6 +108,29 @@ Repeated targets at different locations remain separate diagnostics.
 target inventories. Authored index fields without a source snapshot have a
 path and target but no source object.
 
+`Stats.UnresolvedDeleted` and `Stats.UnresolvedOmitted` are the subsets the
+wired store could classify (SPEC §2c, `anyblockjson.ClassifyUnresolvedTarget`):
+tombstones, and rows the space still holds that this export did not write.
+What is in neither is absent — the one class that is a loss. `index.json`
+states the same subsets as `unresolved.deleted` and `unresolved.omitted`,
+and a space icon whose image object is a tombstone is dropped with a warning
+rather than declared, following the document-level icon rule.
+
+`Stats.UnresolvedTypes` and `Stats.UnresolvedTypeReferences` name the types
+the written documents reference by derived id that no written type document
+carries (SPEC §2c): a type the source space never held, left by an old
+import. `index.json` states the same list as `unresolved.types`. A bundled
+key never appears; an uninstalled type travels as a type document carrying
+`uninstalled: true`, so it is not one of these either.
+
+`Inspect` is `Validate` with the whole verdict kept: a `Report` of issues
+graded `error`, `warning` or `info`, each with a stable code and the index
+field it is about. On the full surface a declared target is admitted — a
+deleted one as info, an omitted or absent one as a warning — while an
+undeclared dangling target stays an error; `InspectAuthoring` and
+`ValidateAuthoring` refuse every dangling target. `Validate` is `Inspect`
+refusing exactly on the error-severity issues, with the same wording.
+
 Codec `unresolved_target` warnings put the complete source location in `Path`,
 for example `/blocks/<stored-block-id>/object_id`,
 `/blocks/<stored-block-id>/text/marks/0/param`, or `/properties/<stored-key>/1`.
@@ -119,12 +142,12 @@ or `<object-id>/properties/<stored-key>/1`; the message names the missing target
 Index references with a known source use the same object prefix and `SourcePath`
 in the report; otherwise they use `index.json#` followed by the index pointer.
 
-## Known integration issue: icons in 1-to-1 spaces
+## Icons by content cid (1-to-1 spaces, participants)
 
-In 1-to-1 spaces, `spaceIcon` can reference a raw file CID with no corresponding
-file object in the space's object store. Export preserves that CID in
-`index.json` at `/icon/file`, but the bundle's target check expects an exported
-object and reports `unresolved_target`. This is a known mismatch between the
-stored icon reference and the bundle's object-reference model; it does not by
-itself mean an object was deleted or a file export failed. Resolving these raw
-icon CIDs is not yet implemented.
+In 1-to-1 spaces `spaceIcon`, and on participant objects `iconImage`, hold a
+raw content CID with no file object behind it. Export writes that as the
+icon's `cid` variant (SPEC §2b), decided by the CID's codec, and neither the
+composer nor `Validate` treats it as an object the bundle should carry. A
+bundle written before the variant existed carries the same CID under
+`icon.file`; that spelling is read as the `cid` variant for compatibility and
+names no object either. Import writes the CID back to the stored slot.

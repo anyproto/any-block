@@ -177,7 +177,9 @@ func (denyBindingVocabulary) PropertyKey(slug string) (string, bool) {
 
 // The type namespace has the same two shapes at the envelope `type`, which
 // carries no length or charset rule of its own (§3) and so hands the stored
-// key to the ledger untouched.
+// key to the ledger untouched. The vehicle is a PAGE: a type document's own
+// type is normalized to objectType whatever the store holds (§2a), so only
+// an ordinary document can carry a hostile key in that slot.
 func TestExport_TypeLegendRefusesAnEntryItCannotHold(t *testing.T) {
 	for _, tc := range []struct {
 		name, key, wantWarn string
@@ -211,7 +213,7 @@ func TestExport_TypeLegendRefusesAnEntryItCannotHold(t *testing.T) {
 			}
 
 			// when
-			data, err := Marshal(model.SmartBlockType_STType, snap, opts)
+			data, err := Marshal(model.SmartBlockType_Page, snap, opts)
 
 			// then
 			require.NoError(t, err)

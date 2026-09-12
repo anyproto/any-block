@@ -229,6 +229,28 @@ func (e *exporter) isTypeDoc() bool {
 	return isTypeSmartBlock(e.sbType)
 }
 
+// TypeKeyObjectType is the bundled key of the Type type: what every type
+// document's own type is, by definition (§2a). Export writes it whatever
+// the store holds, and the comparator reads the same normalization.
+const TypeKeyObjectType = typeKeyObjectType
+
+// IsTypeSmartBlock reports a type document's smartblock kinds — the scope
+// of the §2a normalizations, exported so the comparator applies exactly the
+// predicate export applies.
+func IsTypeSmartBlock(sbType model.SmartBlockType) bool {
+	return isTypeSmartBlock(sbType)
+}
+
+// DroppedTypeUninstallFlag reports a type document's `isUninstalled` stored
+// FALSE: the envelope member is written `true` only, absent being the same
+// statement, so the key comes back absent and nothing was lost (§2a). A
+// TRUE flag is not this predicate's business — it travels as `uninstalled`
+// and comes back as stored state. Exported so snapshotdiff applies the
+// same rule rather than reporting the omission as loss.
+func DroppedTypeUninstallFlag(sbType model.SmartBlockType, key string, v *types.Value) bool {
+	return isTypeSmartBlock(sbType) && key == detailKeyIsUninstalled && !v.GetBoolValue()
+}
+
 // buildTypeSettings renders the §2a group, or nil off a type document. The
 // five settings members follow the §4 omit-empty canon (see
 // DroppedEmptyTypeSetting for why the §2d mirror does not apply);

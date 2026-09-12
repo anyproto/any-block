@@ -410,15 +410,25 @@ func TestComposeNoDerivedTypeIds_ADanglingTemplateTargetIsStillReported(t *testi
 	path, ok := plan.DocPath(noDerivedTemplateId)
 	require.True(t, ok)
 
-	err = Validate(fstest.MapFS{
+	fsys := fstest.MapFS{
 		path:                            {Data: data},
 		anyblockjson.IndexFileName:      {Data: index},
 		anyblockjson.PropertiesFileName: {Data: dict},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `template_for references type "type-ghost"`,
+	}
+	// the composer declared the type it could not carry (unresolved.types,
+	// §2c), so the full surface admits the bundle and states the loss —
+	// which is still a report, and the same report a mode-on export would
+	// never have produced
+	require.NoError(t, Validate(fsys))
+	report, err := Inspect(fsys)
+	require.NoError(t, err)
+	require.Len(t, report.Issues, 1)
+	assert.Equal(t, anyblockjson.IssueCodeUnresolvedType, report.Issues[0].Code)
+	assert.Contains(t, report.Issues[0].Message, `template_for references type "type-ghost"`,
 		"the bundle names the type document it is missing — 39 of these across the corpus, "+
 			"and a mode-on export would have reported none of them")
+	require.ErrorContains(t, ValidateAuthoring(fsys), `template_for references type "type-ghost"`,
+		"and an author's dangling target is still refused")
 }
 
 // THE SECOND FINDING, from the side that survives. The dictionary's
