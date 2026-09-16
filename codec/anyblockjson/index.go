@@ -779,7 +779,7 @@ func manifestTypesRetiredIssues(doc map[string]any) []Issue {
 	}
 	return []Issue{{
 		Path: "/manifest/types",
-		Message: `manifest "types" is not allowed — the type table was removed (§2c, §15 #26): a type document ` +
+		Message: `manifest "types" is not allowed — the type table was removed: a type document ` +
 			`is found by its id, which is its stored key spelled type-<internal_key>, and every object states ` +
 			`that key in type_internal_key. This index was written by an older exporter; drop "types" — nothing ` +
 			`resolves through it any more`,

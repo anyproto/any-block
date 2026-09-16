@@ -11,14 +11,14 @@
   "properties": {
     "$schema": {
       "type": "string",
-      "description": "Which of the format's three grammars this document follows — an object document, a bundle index, or a property dictionary. OPTIONAL and DECORATIVE for validity: `formatVersion` alone gates the format, so a stale or invented URL here never makes a document invalid. What it does do is DISPATCH: a reader handed a file with no filename to go by uses this to pick the grammar, matching on the trailing `object|index|properties.schema.json` and ignoring the version segment. Without it a reader falls back to the document's shape, which can only tell the grammars apart when the document happens to carry a member unique to one. Every document this format writes carries it, and a hand-written one is easier for a reader to place if it does too."
+      "description": "Which of the format's three grammars this document follows. Optional, since `formatVersion` gates the version, but a reader dispatches on it and a URL naming another grammar is refused."
     },
     "formatVersion": {
       "const": "2.0"
     },
     "network_id": {
       "type": "string",
-      "description": "Optional opaque source network identifier from the exporting node's active configuration. Its value is not validated by export or bundle validation. Import uses it to determine whether remote files can be recovered. An absent, empty, or unrecognized identifier does not invalidate the bundle."
+      "description": "Optional opaque identifier of the exporting node's network, not validated. Import uses it to decide whether remote files can be recovered; an unrecognized value does not invalidate the bundle."
     },
     "name": {
       "type": "string",
@@ -31,13 +31,13 @@
     },
     "icon": {
       "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/icon",
-      "description": "The space's icon — exactly the shape `icon` has on any object (§2b), so an author never has to remember a second convention: an emoji, the **object id** of an image in the bundle, the raw content cid of an image no file object holds (a 1-to-1 space's icon, output-only), a built-in icon name, or a bare colour. Two flat keys used to stand here with no rule for which one wins, and they disagreed with the object surface about whether an image is a scalar or a list. This field was then narrowed to emoji-or-image, which silently dropped the icon of a space whose icon is a bare colour — 20 of 77 real spaces, the letter avatars the client draws when no image was ever set. An image needs the image object AND its file in the archive, which is why a generated bundle uses an emoji. (The installer resolves the space icon by image *name*, not id — the wiring does that lookup, so this field stays consistent with every other id in the format; an emoji or colour icon reaches no installer field at all, and is carried so a round trip does not lose it.)"
+      "description": "The space's icon, exactly the shape `icon` has on any object: an emoji, the object id of an image in the bundle, a raw content cid, a built-in icon name, or a bare colour."
     },
     "entrypoint": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[^_]",
-      "description": "The declared entry object's bundle-local id. Used as the space homepage when `homepage` is absent, on the first entry through the bundle install path and later entries (SPEC §2c). Declaring it does not insert or reorder sidebar widgets. For compatibility with legacy built-in archives that open the first profile widget once, authors may also list this object first. If absent, the first widget naming an object supplies the compatibility fallback; reserved listings are skipped."
+      "description": "The declared entry object's bundle-local id, used as the space homepage when `homepage` is absent. Declaring it does not insert or reorder sidebar widgets."
     },
     "homepage": {
       "type": "string",
@@ -53,11 +53,11 @@
           "pattern": "^[^_]"
         }
       ],
-      "description": "What opens on entering the space, including the first entry through the bundle install path (SPEC §2c). An explicit homepage takes precedence over entrypoint. If absent, use entrypoint, then the first widget naming an object, skipping reserved listings; if none exists, the installer supplies its default dashboard. An unresolved explicit id is an error, not a reason to try a fallback. May name a bundle object or the reserved _widgets or _graph screens; explicit reserved values also take precedence."
+      "description": "What opens on entering the space. Wins over `entrypoint`; if absent use `entrypoint`, then the first widget naming an object, then the installer's default. An explicit id is never replaced."
     },
     "widgets": {
       "type": "array",
-      "description": "Sidebar widgets in their declared order. Navigation fields do not insert or reorder them. When homepage and entrypoint are both absent, the first widget naming an object supplies the homepage fallback (SPEC §2c); reserved listings are skipped. A type needs a widget only for fast access to its objects (layout \"view\").",
+      "description": "Sidebar widgets in their declared order. Navigation fields do not insert or reorder them. When `homepage` and `entrypoint` are both absent, the first widget naming an object is the fallback.",
       "items": {
         "$ref": "#/$defs/widget"
       }
@@ -67,19 +67,19 @@
       "items": {
         "$ref": "#/$defs/widgetTarget"
       },
-      "description": "The targets the client has already auto-added a widget for — its ledger for not re-adding one the user then deleted. Space state, not sidebar content: an entry usually names a widget that is NOT in `widgets` any more, which is the point. Entries are spelled like widget targets (an object id, or a reserved listing). Machine-written on export; an authored bundle has no reason to carry one."
+      "description": "The targets the client has already auto-added a widget for, so it does not re-add one the user deleted. Space state, not sidebar content. Written on export."
     },
     "auto_widget_disabled": {
       "type": "boolean",
-      "description": "The user turned automatic widget creation off for this space entirely. Machine-written on export, like the ledger above."
+      "description": "The user turned automatic widget creation off for this space. Written on export."
     },
     "manifest": {
       "$ref": "#/$defs/manifest",
-      "description": "Where to find what a reader cannot reach by walking the documents (§2c): the property dictionary and the bytes behind each file document. The format defines NO folder layout — objects/, types/, files/ are one exporter's convention — and a document is found by its id; a type document's id is its stored key spelled type-<internal_key> (§9), so no type table is needed or admitted here (§15 #26). An AUTHORED bundle may file a type document under some other id, and the object → type-document join then costs a scan; the member is still not admitted. The `NoDerivedTypeIds` export mode cannot produce such a bundle — it is scoped to a single document and the bundle composer refuses it, precisely because this join is the only one a bundle has (§9)."
+      "description": "Where to find what a reader cannot reach by walking the documents: the property dictionary and the bytes behind each file document. The format defines no folder layout."
     },
     "unresolved": {
       "$ref": "#/$defs/unresolved",
-      "description": "What this bundle NAMES and cannot answer for (§2c). Optional, and present only when there is something to report — an index with no \"unresolved\" member says that it reports nothing, NEVER that every reference in every document resolves: what a writer checks here is bounded, so absence is not a completeness claim. Both losses reach a reader as silence — a property key that resolves to no definition, a reference that leads nowhere — and in both cases the reader's next question is whether the export is incomplete or the read was wrong. Only the writer can answer that, and this is where it does."
+      "description": "What this bundle names and cannot answer for. Present only when there is something to report; absence says it reports nothing, never that every reference resolves."
     }
   },
   "$defs": {
@@ -90,7 +90,7 @@
         "properties": {
           "type": "string",
           "minLength": 1,
-          "description": "The property dictionary's path, relative to this file — properties.json at the bundle root (§2f). A pointer rather than an inline map because properties resolve by stored KEY through each document's own legend, and the dictionary is the file that answers for stored keys."
+          "description": "The property dictionary's path, relative to this file. It is properties.json at the bundle root unless the manifest names another path."
         },
         "files": {
           "type": "object",
@@ -98,16 +98,16 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "File object id → the blob's path, relative to this file (§2c, v0.47). The authoritative binding between a `kind: \"file_object\"` document and its bytes: the document itself carries no path — a document member is not a slot for archive bookkeeping — and every importer holding a file document must find its bytes, so the lookup lives where every other by-id lookup lives. Keys are object ids verbatim, an authored bundle writes them against its own minted ids and any layout it likes; adjacency of blob and document in files/ is one exporter's convention, never load-bearing. An entry that cannot be honoured — a key naming no document, a path escaping the bundle, a blob missing at the path — is a cross-document refusal for the tooling; a file document a present map does not bind is warned about (its bytes did not travel). The member has THREE states, and the third is the one a reader kept asking for. A populated map is the binding. An ABSENT member states nothing, which this format reads as a metadata-only export (§2c) — the mode inferred, and also what an authored bundle and every exporter written before the map existed produce. An EMPTY object, \"files\": {}, is the export SAYING it: this run enumerated its file documents and carried the bytes of none of them. Two bytes settle a real ambiguity: one audited space carries 666 file_object documents and not one blob, 68 of 79 measured bundles are in the same state, and an absent member alone cannot tell an export that chose metadata-only from one whose manifest never got written. Only the writer knows which, so only the writer can say it — a reader must not infer intent from an absence, and must not read an empty object as an error."
+          "description": "File object id to the blob's path, relative to this file. A populated map is the binding; `{}` is the export stating it carried no blobs; an absent member states nothing and reads the same way."
         }
       },
-      "description": "Where to find what a reader cannot reach by walking the documents (§2c): the property dictionary and the bytes behind each file document. Types are NOT located here (§15 #26): a type document is found by its id, which is its stored key spelled type-<internal_key>, and every object states that key in type_internal_key. An AUTHORED bundle may file a type document under any id, and a reader that needs the join then indexes the type documents by their internal_key itself. The `NoDerivedTypeIds` export mode is not a source of such a bundle: it is scoped to a single document and the bundle composer refuses it, because this join is the only one a bundle has (§9)."
+      "description": "Where to find what a reader cannot reach by walking the documents: the property dictionary and the bytes behind each file document. Types are not located here; a type document is found by its id."
     },
     "unresolved": {
       "type": "object",
       "additionalProperties": false,
       "minProperties": 1,
-      "description": "The bundle's account of the names it uses and cannot explain. Two lists, and each earns its place differently.\n\n`properties` RESTATES what properties.json already says per key (an entry whose format is the `unknown` sentinel, §2f). The restatement is the point: the per-key entry answers 'what is this key', one key at a time, in another file; this answers 'did this export lose definitions, and which' — a set, and a property of the export rather than of any key. index.json is where a bundle is described as a whole, so the set belongs here, and answering the question must not require opening a dictionary of hundreds of entries and filtering it.\n\n`targets` has no other home at all. Whether an id resolves is a cross-document fact no single document holds, and this file is the only one that names these ids. Stating them does NOT make them legal: a bundle whose index points at a document it does not carry is still refused by cross-document validation (§2c). What the statement buys is the distinction the refusal cannot make — an export that knew what it could not carry, against one that shipped a dangling reference without noticing.\n\nMeasured, so the shape is not theoretical: one audited 3,286-document space names 238 property keys nothing defines, and its homepage and 16 of its 23 widget targets name documents the bundle does not carry; 61 of 79 measured bundles carry at least one unresolved index reference.",
+      "description": "The bundle's account of the names it uses and cannot explain: property keys nothing defines, and ids no document in the bundle carries.",
       "properties": {
         "properties": {
           "type": "array",
@@ -118,7 +118,7 @@
             "maxLength": 128,
             "pattern": "^[^\u0000-\u001f]+$"
           },
-          "description": "The stored property keys the bundle's documents reference and nothing could define — mostly relations the user deleted, whose definition went with them. Written VERBATIM: a key nothing defines has no spelling but itself, and nothing may ever be derived from a stored id (§2f). Each also has a dictionary entry carrying `format: \"unknown\"`, so the key resolves to something; this list is the same fact stated as a set."
+          "description": "The stored property keys the bundle's documents reference and nothing could define, written verbatim. An export also gives each one a dictionary entry whose format is `unknown`."
         },
         "targets": {
           "type": "array",
@@ -128,7 +128,7 @@
             "minLength": 1,
             "pattern": "^[^_]"
           },
-          "description": "The ids this index names that no document in the bundle carries — an `entrypoint`, a `homepage`, a widget `target`, an image icon. Spelled like every other reference in this file, the derived-id fold included (§9), so the report and the slot it reports on name the same thing. A reserved listing (`_set`, `_widgets`) never appears: those name built-in screens, resolve everywhere, and are not the bundle's to carry. Neither does the auto-widget ledger's content — an entry there usually names a widget the user deleted, which is what the ledger is FOR, so a missing document is its normal state rather than a loss."
+          "description": "The ids this index names that no document in the bundle carries: an `entrypoint`, a `homepage`, a widget `target`, an image icon. A reserved listing never appears here."
         },
         "deleted": {
           "type": "array",
@@ -138,7 +138,7 @@
             "minLength": 1,
             "pattern": "^[^_]"
           },
-          "description": "The subset of `targets` the space DELETED: each names a tombstone in the source store. A reference to a deleted object is ordinary Anytype state — the app does not rewrite every object that mentions a deleted one — so a reader treats these as known, by design, and a restore keeps the id and writes a tombstone rather than a dangling reference. Every entry must also appear in `targets`, and none may appear in `omitted`."
+          "description": "The subset of `targets` the space deleted, each naming a tombstone in the source store. Every entry must also appear in `targets`, and none in `omitted`."
         },
         "omitted": {
           "type": "array",
@@ -148,7 +148,7 @@
             "minLength": 1,
             "pattern": "^[^_]"
           },
-          "description": "The subset of `targets` the space still HOLDS and this export did not write: an archived object under an export without archived objects, or an object outside a partial export's scope. Not a loss in the space, only in this bundle. Every entry must also appear in `targets`, and none may appear in `deleted`. A target in neither subset is ABSENT — the space had no row for it, typically because it had not synced — and that is the one class a reader should warn about."
+          "description": "The subset of `targets` the space still holds that this export did not write, such as an archived or out-of-scope object. Every entry must also appear in `targets`, and none in `deleted`."
         },
         "types": {
           "type": "array",
@@ -158,7 +158,7 @@
             "minLength": 6,
             "pattern": "^type-"
           },
-          "description": "The types this bundle's documents name by derived id — `type-<internal_key>` in a `type_internal_key`, a `template_for`, an `object_types` entry — that no type document carries and the source space has no row for: an object or template an old import created with a type it never made. Spelled as the derived id, the address a document uses and the validator checks; never folded. A reader imports such an object as a Page, and a template as one for Page, and warns; a slot that merely REFERENCES the type (a `query_source.types` entry, a property's `object_types`) drops the entry instead of retyping anything. Declaring the loss is what makes the bundle admissible on the full surface; an undeclared one is still refused as an exporter bug, and so is a declaration naming a type the bundle actually carries."
+          "description": "Types named by derived id that no type document carries and the source space never held. An object of one imports as a Page; a slot that only references it drops the entry instead."
         }
       }
     },
@@ -182,7 +182,7 @@
           "pattern": "^[^_]"
         }
       ],
-      "description": "An object id from this bundle (a page, a type, a set, a collection), or one of the eight reserved listings — the built-in screens a live sidebar can show. The leading `_` is the platform's address space and is what keeps the two kinds of target apart: an object id from the bundle may never begin with one, so a bundle cannot shadow a listing with an object of its own. All eight survive import (widget.IsPredefinedWidgetTargetId knows their wire spellings); a `_`-prefixed name outside the inventory is refused by name, with the inventory in the message, because it can only be a typo."
+      "description": "An object id from this bundle, or a reserved listing: `_favorite`, `_set`, `_collection`, `_all_objects`, `_recent` (edited), `_recent_open` (opened), `_chat`, `_bin`. Object ids never start with `_`."
     },
     "widget": {
       "type": "object",
@@ -198,11 +198,11 @@
         "layout": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/widgetLayout",
           "default": "link",
-          "description": "How the widget renders — the widget BLOCK's own §5 vocabulary, one $ref rather than a copy. `link` is a single row; `tree` expands children; `list` and `compact_list` show contents; `view` renders a type's or query's own view."
+          "description": "How the widget renders: `link` is a single row, `tree` expands children, `list` and `compact_list` show contents, `view` renders a type's or query's own view."
         },
         "limit": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/widgetListingLimit",
-          "description": "How many entries a listing widget shows. Ignored by `link`. The cap is the object schema's $defs/widgetListingLimit — one $ref rather than a copy, like the display members beside it."
+          "description": "How many entries a listing widget shows, ignored by `link`. The cap is the object schema's $defs/widgetListingLimit."
         },
         "view_id": {
           "type": "string",
@@ -211,19 +211,19 @@
         },
         "auto_added": {
           "type": "boolean",
-          "description": "The client added this widget automatically (a new type, the bin) rather than the user placing it. Machine-written on export; carried so a restored sidebar keeps behaving like the original — the client treats auto-added widgets as its own to manage."
+          "description": "The client added this widget automatically rather than the user placing it. Written on export, so a restored sidebar keeps behaving like the original."
         },
         "card_style": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/cardStyle",
-          "description": "How the widget's row renders — the link block's own §5 member, one $ref rather than a copy. Defaults to `text`."
+          "description": "How the widget's row renders, the link block's own member. Defaults to `text`."
         },
         "icon_size": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/iconSize",
-          "description": "The icon size on the widget's card — the link block's own §5 member. Defaults to `none`."
+          "description": "The icon size on the widget's card, the link block's own member. Defaults to `none`."
         },
         "description": {
           "$ref": "https://schemas.anytype.io/anyblock/2.0/object.schema.json#/$defs/linkDescription",
-          "description": "What the widget's card shows under the title — the link block's own §5 member. Defaults to `none`."
+          "description": "What the widget's card shows under the title, the link block's own member. Defaults to `none`."
         },
         "properties": {
           "type": "array",
@@ -233,7 +233,7 @@
             "maxLength": 128,
             "pattern": "^[^\u0000-\u001f]+$"
           },
-          "description": "The property SPELLINGS shown on the widget's card — the link block's own §5 member. They resolve through the bundle's property dictionary (properties.json), the file that answers for stored keys; there is no per-document legend here."
+          "description": "The property spellings shown on the widget's card. They resolve through the bundle's property dictionary, properties.json; there is no per-document legend here."
         }
       }
     }

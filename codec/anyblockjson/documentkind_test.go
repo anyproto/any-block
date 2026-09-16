@@ -76,7 +76,13 @@ func TestDocumentKind_TheWrongReaderSaysSo(t *testing.T) {
 		err := Validate([]byte(index), Options{})
 		require.Error(t, err)
 		assert.Contains(t, err.(*ValidationError).Issues[0].String(), "this is a bundle index")
-		assert.Contains(t, err.(*ValidationError).Issues[0].String(), "UnmarshalIndex")
+		// the verdict names the KIND, never the Go reader: this message is
+		// served to API callers, who have no UnmarshalIndex to call and
+		// cannot act on the name of one
+		for _, symbol := range []string{"UnmarshalIndex", "UnmarshalPropertyDictionary", "Unmarshal or Validate"} {
+			assert.NotContains(t, err.Error(), symbol,
+				"the misroute verdict leaks a Go symbol to whoever reads it")
+		}
 		assert.NotContains(t, err.Error(), `"name" is not allowed`,
 			"the old verdict blamed the field that names the space")
 	})

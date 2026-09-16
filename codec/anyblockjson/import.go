@@ -685,7 +685,7 @@ func (imp *importer) typeKey(slug, path string) string {
 	// one is refused where it stands rather than resolved as something else.
 	if strings.HasPrefix(slug, TypeRefPrefix) {
 		imp.refuse(path, fmt.Sprintf(
-			"%q wears the reserved type- prefix (§9) but %q is not a stored type key "+
+			"%q wears the reserved type- prefix but %q is not a stored type key "+
 				"([A-Za-z0-9_], 1 to 120 characters); a derived id names its key outright, and a "+
 				"type spelling may not begin with the prefix", slug, slug[len(TypeRefPrefix):]))
 		return slug
@@ -727,7 +727,7 @@ func (imp *importer) typeKey(slug, path string) string {
 	// a shared property name gets when its type cannot place it
 	imp.refuse(path, fmt.Sprintf(
 		"the spelling %q names %d live types in this space; write the intended type's "+
-			"derived id instead (type-<internal_key>, §9)",
+			"derived id instead, type-<internal_key>",
 		slug, len(cands)))
 	return slug
 }
@@ -988,7 +988,7 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 				// the two spellings render identically, so %q would print
 				// the same glyphs twice; %+q names the code points apart
 				msg = fmt.Sprintf("%+q and %+q are one name in two Unicode normal forms, "+
-					"and both address property %q — keep one; NFC is the canonical spelling (§3)",
+					"and both address property %q — keep one; NFC is the canonical spelling",
 					first, slug, key)
 			}
 			return 0, nil, &ValidationError{Issues: []Issue{{

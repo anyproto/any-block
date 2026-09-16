@@ -1013,7 +1013,7 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 			return fmt.Sprintf("added_at %q is not an RFC 3339 timestamp: write the full UTC "+
 				"form, \"2026-07-06T15:04:05Z\", which is what export writes; an offset form, "+
 				"\"2026-07-06T17:04:05+02:00\"; or the bare date \"2026-07-06\", which means UTC "+
-				"midnight (§3, §5). The year is four digits, `T` and `Z` are upper case, and "+
+				"midnight. The year is four digits, `T` and `Z` are upper case, and "+
 				"an absent timestamp is stated by leaving the member out, not by writing \"\"", k.Got)
 		}
 	}
@@ -1057,7 +1057,7 @@ var propertySettingsMemberHomes = map[string]string{
 	"property":      "a property document is addressed by its envelope `internal_key`; its spelling is its display name, which the `name` property already carries",
 	"name":          "the property's name is the `name` property",
 	"description":   "the property's description is the `description` property",
-	"options":       "a property's vocabulary is stated inline on its dictionary entry (§2f) or a type's property_definitions declaration (§2a) — a bundle carries no option documents",
+	"options":       "a property's vocabulary is stated inline on its dictionary entry or a type's property_definitions declaration — a bundle carries no option documents",
 	"max_count":     "it still travels in `properties` as \"Max values\"",
 	"readonly":      "it still travels in `properties` as \"Property value is readonly\"",
 	"default_value": "it still travels in `properties` as \"Default value\"",
@@ -1077,7 +1077,7 @@ func unknownPropertyMessage(prop string) string {
 		// by embedSourceSlotIssues, which knows the processor
 		return `property "url" is not allowed here — a url is carried by a bookmark block, and by an embed block whose processor is a SERVICE processor (youtube, figma, spotify, …), where it is an input alias for the block's "text". A renderer embed (latex, mermaid, chart, graphviz, kroki, excalidraw, drawio) carries its source in "text" instead`
 	case memberTypeInternalKeys:
-		return `property "type_internal_keys" is not allowed — the type legend was retired (§2, §15 #28): an object has exactly one type, so the stored key of "type" is the scalar "type_internal_key" beside it, written on every typed document; a template's target and every object_types entry are the type's derived id, type-<internal_key> (§9), and need no legend. This document was written by an older exporter; write "type_internal_key": "<the key the map bound the type spelling to>" and drop the map`
+		return `property "type_internal_keys" is not allowed — the type legend was retired: an object has exactly one type, so the stored key of "type" is the scalar "type_internal_key" beside it, written on every typed document; a template's target and every object_types entry are the type's derived id, type-<internal_key>, and need no legend. This document was written by an older exporter; write "type_internal_key": "<the key the map bound the type spelling to>" and drop the map`
 	}
 	return fmt.Sprintf("property %q is not allowed", prop)
 }
@@ -1154,7 +1154,7 @@ func embedSourceSlotIssues(doc map[string]any, r *keySlotReport) {
 				spelled = fmt.Sprintf("whose processor is `%s`", name)
 			}
 			r.rejectValueAt(path+"/url", fmt.Sprintf(
-				"an embed %s carries SOURCE CODE, and it goes in \"text\" (§5.2): "+
+				"an embed %s carries SOURCE CODE, and it goes in \"text\": "+
 					"`url` is an input alias for the URL a SERVICE processor embeds, and this is "+
 					"not one. Rename the member to \"text\" and keep its value — the stored model "+
 					"has one slot for an embed's payload, so a source written here is not stored at all",
@@ -1163,7 +1163,7 @@ func embedSourceSlotIssues(doc map[string]any, r *keySlotReport) {
 		}
 		if _, hasText := block["text"]; hasText {
 			r.rejectValueAt(path, "an embed states its payload once: \"url\" is an input "+
-				"alias for \"text\" (§5.2), the two are one stored slot, and this block writes both. "+
+				"alias for \"text\", the two are one stored slot, and this block writes both. "+
 				"Keep whichever holds the URL and remove the other")
 		}
 	}
@@ -1817,7 +1817,7 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 			// mode too, because clamping it to indent 1 is the silent
 			// reparenting itself and not a repair of it.
 			if inCell && i > 0 && k == 0 {
-				addIssue(path, "indent 0 makes this a second cell root — a cell's array form is one block and its descendants (§6.1), so every element after the first is indented under it")
+				addIssue(path, "indent 0 makes this a second cell root — a cell's array form is one block and its descendants, so every element after the first is indented under it")
 			}
 			for len(stack) > 0 && stack[len(stack)-1].indent >= k {
 				stack = stack[:len(stack)-1]
@@ -1921,7 +1921,7 @@ var neverWritableProperties = map[string]string{
 var transientProperties = map[string]string{
 	"internalFlags": "editor state for an object being created, which a restored object never is",
 	// the store's private ordering coordinate — see the ruling above
-	"orderId": "a lexid: a coordinate in the source space's private ordering, meaningless without the sibling lexids that stay home; order that matters travels as array position (§2f)",
+	"orderId": "a lexid: a coordinate in the source space's private ordering, meaningless without the sibling lexids that stay home; order that matters travels as array position",
 	// The client's ANALYTICS context, persisted onto the object instead of
 	// only being sent as an event. `route` is anytype-ts's analytics-route
 	// concept (`analytics.route.shortcut`, `.header`, `.menuSystem`), and
@@ -2511,7 +2511,7 @@ func deniedPropertyKey(key string) (string, bool) {
 	// bytes alone can partition it.
 	if querySourceLiftedDetailKeys()[key] {
 		return fmt.Sprintf("%q is written on the root as %s, not as a property — the query source is two "+
-			"lists because a flat one cannot say whether an entry names a type or a property (§6.2)",
+			"lists because a flat one cannot say whether an entry names a type or a property",
 			key, querySourceLiftedKeyRepair(key)), true
 	}
 	return "", false
@@ -3237,7 +3237,7 @@ func warnNFCTwinSpellings(doc map[string]any, warn func(path, format string, arg
 			}
 			warn("/"+member+"/"+escapeJSONPointer(term),
 				"%+q and %+q are one name in two Unicode normal forms — byte-distinct, "+
-					"rendered identically; NFC is the canonical spelling (§3), and both "+
+					"rendered identically; NFC is the canonical spelling, and both "+
 					"resolve through it unless a legend or a live stored key binds the "+
 					"exact bytes",
 				first, term)

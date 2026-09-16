@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.anytype.io/anyblock/2.0/authoring/index.schema.json",
   "title": "AnyBlock bundle index — authoring subset",
-  "description": "One index.json at the bundle root describes the bundle as a whole: what the space is called, what a user lands on, what the sidebar shows. A strict subset of the full index schema (../index.schema.json) — every index valid here is valid there. Every other file in the bundle is one object (authoring/object.schema.json) or the property dictionary (authoring/properties.schema.json).",
+  "description": "One index.json at the bundle root describes the bundle as a whole: what the space is called, what a user lands on, what the sidebar shows. A strict subset of the full index schema (../index.schema.json): every index valid here is valid there. Every other file in the bundle is one object or the property dictionary.",
   "x-app": "Anytype",
   "type": "object",
   "required": [
@@ -48,18 +48,18 @@
     },
     "entrypoint": {
       "$ref": "#/$defs/documentId",
-      "description": "The declared entry object's bundle-local id. Used as the space homepage when `homepage` is absent, on the first entry through the bundle install path and later entries (SPEC §2c). Declaring it does not insert or reorder sidebar widgets. For compatibility with legacy built-in archives that open the first profile widget once, authors may also list this object first. Required in the authoring profile."
+      "description": "The declared entry object's bundle-local id, used as the space homepage when `homepage` is absent. Declaring it does not insert or reorder sidebar widgets. Required in this profile."
     },
     "homepage": {
       "$ref": "#/$defs/documentId",
-      "description": "What opens on entering the space, including the first entry through the bundle install path (SPEC §2c). An explicit homepage takes precedence over entrypoint. If absent, use entrypoint, then the first widget naming an object, skipping reserved listings; if none exists, the installer supplies its default dashboard. An unresolved explicit id is an error, not a reason to try a fallback. This profile names a page in the bundle."
+      "description": "What opens on entering the space. Takes precedence over `entrypoint`; if absent, use `entrypoint`, then the first widget naming an object. An unresolved explicit id is an error."
     },
     "widgets": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/widget"
       },
-      "description": "Sidebar widgets in their declared order. Navigation fields do not insert or reorder them. When homepage and entrypoint are both absent, the first widget naming an object supplies the homepage fallback (SPEC §2c); reserved listings are skipped. A type needs a widget only for fast access to its objects (layout \"view\")."
+      "description": "Sidebar widgets in their declared order. Navigation fields do not insert or reorder them. A type needs a widget only for fast access to its objects (layout \"view\")."
     }
   },
   "$defs": {
@@ -80,7 +80,7 @@
           "graph"
         ]
       },
-      "description": "The bundle-local id of a document in this bundle — the `id` its file declares. The excluded words are the built-in listings' and screens' own names; an id claiming one would capture the built-in."
+      "description": "The bundle-local id of a document in this bundle, the `id` its file declares. The excluded words are the built-in listings' own names; an id claiming one would capture the built-in."
     },
     "widget": {
       "type": "object",
@@ -107,7 +107,7 @@
               ]
             }
           ],
-          "description": "What the widget points at: the id of a page, type, query or collection in this bundle, or a built-in listing (_favorite, _recent, _recent_open, _set, _collection, _all_objects, _chat, _bin). Name your own pages and types first; the listings exist in every space already."
+          "description": "What the widget points at: the id of a page, type, query or collection in this bundle, or a built-in listing (_favorite, _recent, _recent_open, _set, _collection, _all_objects, _chat, _bin)."
         },
         "layout": {
           "enum": [
@@ -117,7 +117,7 @@
             "compact_list",
             "view"
           ],
-          "description": "How it renders: \"link\" one row (the default), \"tree\" expands children, \"list\"/\"compact_list\" show contents, \"view\" renders a type's or query's own view (a `view` widget shows the type's default view — view ids are minted on import, so there is nothing else to name)."
+          "description": "How it renders: \"link\" one row (the default), \"tree\" expands children, \"list\" and \"compact_list\" show contents, \"view\" renders the type's default view."
         },
         "limit": {
           "type": "integer",
@@ -131,7 +131,7 @@
             "card",
             "inline"
           ],
-          "description": "How the widget's row renders; omit for a plain text row — the same choice a link block offers."
+          "description": "How the widget's row renders; omit for a plain text row. The same choice a link block offers."
         }
       }
     }

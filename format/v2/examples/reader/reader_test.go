@@ -260,44 +260,44 @@ func TestADataviewSaysWhereItsRecordsComeFrom(t *testing.T) {
 		want      []string
 	}{
 		{"a collection is answered from the bundle: its own items", "bafyreicollection", []string{
-			"records: the 3 ids this document lists in `collection_items` — a collection is answered from this bundle alone (§6.2)",
+			"records: the 3 ids this document lists in `collection_items` — a collection is answered from this bundle alone",
 			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,
 			`bafyreimembertwo -> "Beck in spate" in objects/bafyreimembertwo.anyblock.json`,
 			"bafyreighost (not in this bundle)",
 		}},
 		{"query results require live evaluation", "bafyreiset", []string{
-			`records: every object matching this document's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote)) — query results require live evaluation, and no bundle answers it (§6.2)`,
+			`records: every object matching this document's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote)) — query results require live evaluation, and no bundle answers it`,
 		}},
 		{"a type document's own listing", "type-fieldnote", []string{
-			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
+			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it`,
 		}},
 		{"one member is one id, not one ids", "bafyreionemember", []string{
-			"records: the 1 id this document lists in `collection_items` — a collection is answered from this bundle alone (§6.2)",
+			"records: the 1 id this document lists in `collection_items` — a collection is answered from this bundle alone",
 		}},
 		{"a collection with no items member is empty, not unanswerable", "bafyreiemptycollection", []string{
-			"records: this document's own `collection_items`, which lists none — an empty collection (§6.2)",
+			"records: this document's own `collection_items`, which lists none — an empty collection",
 		}},
 		{"a type document hosting its own listing without naming itself", "type-walk", []string{
-			`records: every object of type "Walk" — a live query, and no bundle answers it (§6.2)`,
+			`records: every object of type "Walk" — a live query, and no bundle answers it`,
 		}},
 		{"a query over two types and a property: each target resolved, not echoed", "bafyreisetbylegend", []string{
-			`records: every object matching this document's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote), objects of type "Walk" (type-walk), objects carrying "Last modified date" (lastModifiedDate)) — query results require live evaluation, and no bundle answers it (§6.2)`,
+			`records: every object matching this document's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote), objects of type "Walk" (type-walk), objects carrying "Last modified date" (lastModifiedDate)) — query results require live evaluation, and no bundle answers it`,
 		}},
 		{"a `query_source` naming nothing is a query, and says so", "bafyreiemptyset", []string{
-			"records: this document's `query_source` names nothing — a query that declares no source targets, which is not the same as a query matching nothing (§6.2)",
+			"records: this document's `query_source` names nothing — a query that declares no source targets, which is not the same as a query matching nothing",
 		}},
 		{"a query that states no `query_source` at all", "bafyreinosetof", []string{
-			"records: this document states no `query_source` at all — query results require live evaluation, and no bundle answers it (§6.2)",
+			"records: this document states no `query_source` at all — query results require live evaluation, and no bundle answers it",
 		}},
 		{"the same seven sources, named from another document", "bafyreiportal", []string{
-			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it (§6.2)`,
+			`records: every object of type "Field note" (type-fieldnote in types/type-fieldnote.anyblock.json) — a live query, and no bundle answers it`,
 			"records: the 3 ids bafyreicollection lists in `collection_items` (objects/bafyreicollection.anyblock.json)",
 			`bafyreimemberone -> "Ridge, first thaw" in objects/bafyreimemberone.anyblock.json`,
-			`records: every object matching bafyreiset's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote)) — query results require live evaluation, and no bundle answers it (§6.2)`,
+			`records: every object matching bafyreiset's ` + "`query_source`" + ` (objects of type "Field note" (type-fieldnote)) — query results require live evaluation, and no bundle answers it`,
 			"records: from bafyreighost (not in this bundle), so this block does not say where they come from",
 			"records: bafyreimemberone (objects/bafyreimemberone.anyblock.json) has no query or collection source kind this reader can resolve",
 			"records: from _missing_object (the space's own sentinel for a reference it could not serve — it does not resolve, it IS the answer), so this block does not say where they come from",
-			"records: a legacy detached inline query over source [ot-task] — a live query, and no bundle answers it (§6.2)",
+			"records: a legacy detached inline query over source [ot-task] — a live query, and no bundle answers it",
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

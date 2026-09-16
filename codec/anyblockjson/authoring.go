@@ -271,5 +271,5 @@ var authoringDeniedPropertyKeys = map[string]string{
 	"featuredRelations": "a per-object featured list no UI sets: the layout syncer owns it, " +
 		"and a type's featured properties belong in that type's recommended lists",
 	"isArchived": "the app's bin membership, moved by archiving an object rather than by writing a property",
-	"orderId":    "the store's private ordering coordinate, minted by the app; order that matters is array position (§2f)",
+	"orderId":    "the store's private ordering coordinate, minted by the app; order that matters is array position",
 }

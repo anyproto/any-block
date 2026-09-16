@@ -135,7 +135,7 @@ var typeProvenanceKeys = map[string]string{
 	"origin": "install provenance, not the type's definition",
 	// 1,627 docs, 1,600 of them the epoch zero (1970-01-01): an install
 	// timestamp at best, garbage at median
-	"addedDate": "install timestamp, epoch-zero on 98% of the corpus",
+	"addedDate": "install timestamp, not the type's definition",
 	// 1,757 docs, and 1,756 of them hold the document's OWN id — a
 	// self-reference, not the pointer-to-nothing an earlier measurement
 	// reported (it compared raw values against bare ids while the corpus

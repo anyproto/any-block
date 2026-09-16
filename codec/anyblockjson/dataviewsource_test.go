@@ -94,48 +94,48 @@ func TestDataviewSource_TheSchemaStatesWhereTheRecordsComeFrom(t *testing.T) {
 		}
 	})
 
-	t.Run("one account of the model, and it is §6.2's", func(t *testing.T) {
+	t.Run("the model is stated here, not pointed at", func(t *testing.T) {
+		// These descriptions used to carry a §6.2 reference instead of the
+		// rule, on the principle that the model should be stated once. A
+		// caller outside this repository cannot open that section, so each
+		// member now states its own part and the reference is refused.
+		sectionRef := regexp.MustCompile(`§`)
 		for member, text := range docs {
-			assert.Contains(t, text, "§6.2",
-				"%s must point at the section that states the model once, not restate it", member)
+			assert.NotRegexp(t, sectionRef, text,
+				"%s points at an internal section instead of stating its part of the model", member)
 		}
 	})
 
-	t.Run("each states the part of the model §6.2 gives it", func(t *testing.T) {
+	t.Run("each states the part of the model it carries", func(t *testing.T) {
 		for member, want := range map[string][]string{
 			// the three target kinds, and what absence means
 			"object_id": {
-				"the objects of that type",
-				"`query_source`",
-				"the target lists in its own `collection_items`",
-				"THIS document is the source",
-				"_missing_object",
+				"query, collection or type document",
+				"or this one",
+				"Empty means absent",
 			},
-			// whose ids, never where they live
+			// whose ids, never where they live, and the rest of the ladder
 			"is_collection": {
-				"curated LIST",
-				"THIS document's `collection_items`",
+				"`collection_items`",
 				"`query_source`",
-				"decides nothing",
+				"absent or empty",
 			},
-			// the query the other members point at, and its three states
+			// the query the other members point at, and the empty-group state
 			"query_source": {
-				"a TYPE target matches every object OF that type",
-				"CARRIES that property",
-				"combine with OR",
-				"THREE STATES",
+				"every object of that type",
+				"carrying it",
+				"`{}`",
 			},
 			// legacy, verbatim, output-only
 			"source": {
-				"DETACHED inline query",
-				"VERBATIM",
-				"§4a",
+				"detached inline query",
+				"verbatim",
+				"Output only",
 			},
 			// the membership list the other three point at
 			"collection_items": {
 				"the only place its membership is written",
-				"`is_collection: true`",
-				"import wiring",
+				"Absent and [] both mean empty",
 			},
 		} {
 			for _, phrase := range want {
@@ -145,13 +145,13 @@ func TestDataviewSource_TheSchemaStatesWhereTheRecordsComeFrom(t *testing.T) {
 		}
 	})
 
-	t.Run("they state the model, never a corpus count", func(t *testing.T) {
-		// A published schema cannot keep a measurement true. Section
-		// references are the only numerals allowed here.
-		sectionRef := regexp.MustCompile(`§[0-9]+[0-9a-z.]*`)
-		digit := regexp.MustCompile(`[0-9]`)
+	t.Run("they state the model, never a measurement", func(t *testing.T) {
+		// A published schema cannot keep a measurement true. With section
+		// references gone, the only numerals left are the ones a caller acts
+		// on, and none of these five members has one.
+		measurement := regexp.MustCompile(`(?i)\b(sweep of|occurrences?|\d+ of \d|across \d|corpus)\b`)
 		for member, text := range docs {
-			assert.NotRegexp(t, digit, sectionRef.ReplaceAllString(text, ""),
+			assert.NotRegexp(t, measurement, text,
 				"%s cites a figure the schema has no way to keep true", member)
 		}
 	})

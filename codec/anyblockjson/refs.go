@@ -774,7 +774,7 @@ type TypeIdentityMismatchError struct {
 
 func (e *TypeIdentityMismatchError) Error() string {
 	return fmt.Sprintf("type document %q exports as %q, but references export as %q: "+
-		"ResolveProperties must provide a TypeResolver mapping this id to stored key %q (SPEC §9)",
+		"ResolveProperties must provide a TypeResolver mapping this id to stored key %q",
 		e.ObjectID, e.DocumentID, e.ReferenceID, e.InternalKey)
 }
 
@@ -800,27 +800,27 @@ func reservedIdViolation(id string, isType, isParticipant bool, internalKey, kin
 	case strings.HasPrefix(id, TypeRefPrefix):
 		key := id[len(TypeRefPrefix):]
 		if !isType {
-			return fmt.Sprintf("id %q wears the reserved type- prefix (§9), which belongs to a type document whose "+
+			return fmt.Sprintf("id %q wears the reserved type- prefix, which belongs to a type document whose "+
 				"internal_key is %q; this document is not a type (kind %q) — choose an id without the prefix", id, key, kind)
 		}
 		if internalKey != key {
-			return fmt.Sprintf("id %q wears the reserved type- prefix (§9), which belongs to the type whose internal_key "+
+			return fmt.Sprintf("id %q wears the reserved type- prefix, which belongs to the type whose internal_key "+
 				"is %q; this document's internal_key is %q — the two must agree", id, key, internalKey)
 		}
 	case strings.HasPrefix(id, ParticipantRefPrefix):
 		identity := id[len(ParticipantRefPrefix):]
 		if !isParticipant {
-			return fmt.Sprintf("id %q wears the reserved participant- prefix (§9), which belongs to a participant "+
+			return fmt.Sprintf("id %q wears the reserved participant- prefix, which belongs to a participant "+
 				"document; this document is not one (kind %q) — choose an id without the prefix", id, kind)
 		}
 		if !isAccountIdentity(identity) {
-			return fmt.Sprintf("id %q wears the reserved participant- prefix (§9), but %q is not an account identity",
+			return fmt.Sprintf("id %q wears the reserved participant- prefix, but %q is not an account identity",
 				id, identity)
 		}
 	case isAccountIdentity(id):
 		if !isParticipant {
 			return fmt.Sprintf("id %q is an account identity, the reserved bare spelling of that member's participant "+
-				"(§9): every object reference written this way rebuilds into that participant, so this document (kind "+
+				": every object reference written this way rebuilds into that participant, so this document (kind "+
 				"%q) would be addressed by nothing that names it — choose an id that is not an account identity, or "+
 				"declare this document kind %q", id, kind, kindNames.name(model.SmartBlockType_Participant))
 		}
