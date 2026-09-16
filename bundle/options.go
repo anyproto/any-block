@@ -25,10 +25,10 @@ func refuseDocumentOnlyOptions(opts anyblockjson.Options, seam string) error {
 	if !opts.NoDerivedTypeIds {
 		return nil
 	}
-	return fmt.Errorf("%s: Options.NoDerivedTypeIds is a single document's export mode (SPEC §9) "+
+	return fmt.Errorf("%s: Options.NoDerivedTypeIds is a single document's export mode "+
 		"and a bundle cannot be composed with it — a bundle reaches a type document by its derived id, "+
 		"type-<internal_key>, which every typed document spells out in type_internal_key and which has been "+
-		"the only road there since the manifest lost its type table (§2c, §15 #26); declining the fold files "+
+		"the only road there since the manifest lost its type table; declining the fold files "+
 		"that document under its store id, so the road is gone, properties.json goes on spelling the same type "+
 		"type-<key> while no document does, and a template_for naming a type document the bundle does not carry "+
 		"stops being reported at all. Pass these Options to anyblockjson.Marshal on ONE document, for a consumer "+

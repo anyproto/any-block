@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.anytype.io/anyblock/2.0/authoring/object.schema.json",
   "title": "AnyBlock object — authoring subset",
-  "description": "One object you are creating from nothing: a page, a type, or a template. This is a strict subset of the full object schema (../object.schema.json) — every document valid here is valid there, same format, same version. What the full schema additionally admits is what only a live space can produce: block ids, attribution, timestamps, minted internal keys, legends, provenance. You never write those; a reader mints or derives them. Write what the object IS and leave the rest out.",
+  "description": "One object you are creating from nothing: a page, a type, or a template. A strict subset of the full object schema (../object.schema.json): every document valid here is valid there. The full schema also admits what only a live space can produce, such as block ids, attribution, timestamps and legends. Write what the object is and leave the rest out.",
   "x-app": "Anytype",
   "type": "object",
   "properties": {
@@ -19,28 +19,28 @@
         "object_type",
         "template"
       ],
-      "description": "OMIT for an ordinary object — absent means page. Write \"object_type\" for a type document and \"template\" for a template; nothing else is authorable."
+      "description": "Omit for an ordinary object; absent means page. Write \"object_type\" for a type document and \"template\" for a template. Nothing else is authorable."
     },
     "id": {
       "$ref": "#/$defs/documentId",
-      "description": "This document's bundle-local id, a slug you pick: \"page-welcome\", \"type-habit\". Other files point here with it — a widget target, a link block, a collection's collection_items. Give every document one."
+      "description": "This document's bundle-local id, a slug you pick: \"page-welcome\", \"type-habit\". Other files point here with it: a widget target, a link block, a collection's items. Give every document one."
     },
     "type": {
       "type": "string",
       "minLength": 1,
-      "description": "The object's type, by its NFC display name: a built-in type name (\"Page\", \"Task\", \"Collection\") or the Name property of a type this bundle declares (\"Habit\"). Never copy the type document's internal_key here; stored and legacy derived keys are accepted only as input compatibility. On a template, write the literal \"template\" for the template's own type."
+      "description": "The object's type, by its NFC display name: a built-in name (\"Page\", \"Task\", \"Collection\") or the Name of a type this bundle declares (\"Habit\"). On a template, write \"template\"."
     },
     "template_for": {
       "type": "string",
       "minLength": 1,
-      "description": "Templates only: the target type — its derived id `type-<internal_key>` (\"type-habit\" for a type document whose internal_key is \"habit\"), or its NFC display name (\"Habit\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC §9)."
+      "description": "Templates only: the target type, as its derived id `type-<internal_key>` (\"type-habit\") or its NFC display name (\"Habit\")."
     },
     "internal_key": {
       "type": "string",
       "minLength": 1,
       "maxLength": 64,
       "pattern": "^[^\u0000-\u001f]+$",
-      "description": "Type documents only: the stored identity used when this type is installed, for example \"habit\". It is internal metadata, not the document spelling: an object names this type by the NFC display name in its Name property, and a template's `template_for` or an `object_types` entry names it by that display name or by the derived id built from this key, `type-<internal_key>` (\"type-habit\"). Keep it distinct from bundled stored identities."
+      "description": "Type documents only: the stored identity used when this type is installed, such as \"habit\". Objects name the type by display name; `template_for` and `object_types` may use `type-<internal_key>`."
     },
     "icon": {
       "$ref": "#/$defs/icon"
@@ -87,7 +87,7 @@
           "items": {
             "$ref": "#/$defs/propertyDefinition"
           },
-          "description": "The type's properties, in display order. An entry names a property (by `property` or `name`) and says where it shows (`section`); its definition — format, options — can live here or in the bundle's properties.json."
+          "description": "The type's properties, in display order. An entry names a property (by `property` or `name`) and says where it shows (`section`). Its format and options live here or in properties.json."
         }
       },
       "additionalProperties": false
@@ -97,11 +97,11 @@
       "items": {
         "$ref": "#/$defs/block"
       },
-      "description": "The document's content, top to bottom, as one flat array. Nesting is the per-block `indent`. No ids — the app assigns them."
+      "description": "The document's content, top to bottom, as one flat array. Nesting is the per-block `indent`. No ids: the app assigns them."
     },
     "query_source": {
       "type": "object",
-      "description": "For query objects (type \"Query\", stored type key `set`): what the query ranges over (SPEC §6.2). A type target matches objects of that type; a property target matches objects carrying that property, even when its value is empty. Several targets combine with OR. `{}` declares a query with no source targets; absence states no query declaration. Empty inner lists can be omitted while preserving the group. If `collection_items` also exists, source selection follows §6.2; the two are never merged or used as empty-value fallbacks.",
+      "description": "For query objects (type \"Query\"): what the query ranges over. A type target matches objects of that type; a property target matches objects carrying it. Several targets combine with `or`.",
       "properties": {
         "types": {
           "type": "array",
@@ -109,7 +109,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Type targets, each written as the type's derived id `type-<internal_key>` (\"type-habit\" for a type document whose internal_key is \"habit\") or as its NFC display name (\"Habit\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC \u00a79)."
+          "description": "Type targets, each the type's derived id `type-<internal_key>` (\"type-habit\") or its NFC display name (\"Habit\")."
         },
         "properties": {
           "type": "array",
@@ -119,7 +119,7 @@
             "maxLength": 128,
             "pattern": "^[^\u0000-\u001f]+$"
           },
-          "description": "Property targets, each written as the property's stored internal key, bare (\"lastModifiedDate\") \u2014 the same key `properties.json` states as `internal_key`. Bare and never prefixed: a bundle carries no property documents, so a property has no derived id. A key this bundle mints must be defined in properties.json."
+          "description": "Property targets, each the property's stored internal key, bare (\"lastModifiedDate\"), the same key properties.json states as `internal_key`. A key this bundle mints must be defined there."
         }
       },
       "additionalProperties": false
@@ -129,7 +129,7 @@
       "items": {
         "$ref": "#/$defs/documentId"
       },
-      "description": "For collections (type \"Collection\"): member objects by bundle-local id, in order. Absent and [] both mean empty membership; canonical export omits []. May coexist with `query_source`, but a dataview selects one source under SPEC §6.2 and never switches to the query because membership is empty."
+      "description": "For collections (type \"Collection\"): member objects by bundle-local id, in order. Absent and [] both mean empty. May coexist with `query_source`; a dataview selects one source and never switches."
     }
   },
   "required": [
@@ -234,11 +234,11 @@
           }
         ]
       },
-      "description": "A bundle-local id: letters, digits, `-`, `_`; never starting with `_` (that prefix is the platform's), never one of the ten reserved listing words — the index authoring schema beside this one reserves the same ten, and `chat` and `bin` are the two most common listing widgets — and never `participant-…`, which belongs to a participant document, a kind an author never writes. `type-<internal_key>` is a type document's own id (§9): write it on the type document whose internal_key it names, and nowhere else. A bare ACCOUNT IDENTITY is reserved the same way and refused the same way, though this pattern cannot show it: a 48-character base58 identity carrying its version byte and CRC16 checksum is the older spelling of that member's participant, so an object reference written that way addresses the participant — pick any other slug, or the pages you name with it will be read as somebody's membership."
+      "description": "A bundle-local id: letters, digits, `-` and `_`, never starting with `_` and never a reserved listing word. `type-<internal_key>` belongs only to the type document it names."
     },
     "propertyMap": {
       "type": "object",
-      "description": "The object's property values, keyed by property NAME: `Name` (the title), `Description`, and the names this bundle's types and properties.json declare. Value shape follows the property's format — text/url/email/phone: a string; number: a number; checkbox: a boolean; date: an RFC 3339 UTC string (\"2026-07-06T15:04:05Z\"); select and multi_select: an ARRAY of option names; objects/files: an array of bundle-local ids; `Layout align`: an alignment NAME (see $defs/blockAlign) — the stored value is a number, but an author writes the name, exactly as blocks and views spell alignment. Only write a key to say something — an absent key means \"not set\". Property keys resolve case- and separator-insensitively, so \"Creation date\", `created_date` and `createdDate` are ONE key: the refusals below are stated per KEY, and every spelling of a refused key is refused. `Favorited: true` pins the object to Favorites. Do NOT write ids, icons, covers, timestamps or attribution here: the icon and cover are envelope fields, and the rest is the app's to derive.",
+      "description": "The object's property values, keyed by property name: `Name` (the title), `Description`, and the names this bundle's types and properties.json declare. Value shape follows the property's format:\n  text, url, email, phone: a string\n  number: a number\n  checkbox: a boolean\n  date: an RFC 3339 UTC string (\"2026-07-06T15:04:05Z\")\n  select, multi_select: an array of option names\n  objects, files: an array of bundle-local ids\n  `Layout align`: an alignment name (see $defs/blockAlign)\nAn absent key means not set. Keys resolve case- and separator-insensitively, so \"Creation date\", `created_date` and `createdDate` are one key. `Favorited: true` pins the object to Favorites. The icon and cover are envelope fields; do not write ids, timestamps or attribution here at all.",
       "propertyNames": {
         "pattern": "^[^\u0000-\u001f]+$",
         "maxLength": 128,
@@ -321,7 +321,7 @@
       "properties": {
         "Layout align": {
           "$ref": "#/$defs/blockAlign",
-          "description": "The object's own page alignment, by NAME. An author writes the name; raw numbers are the full format's stored-value pass-through, which the subset removes. This is the canonical spelling, and property keys resolve case- and separator-insensitively, so `layout_align` and `layoutAlign` reach the same property and are narrowed the same way."
+          "description": "The object's own page alignment, by name. Keys resolve case- and separator-insensitively, so `layout_align` and `layoutAlign` reach this same property."
         },
         "layout_align": {
           "$ref": "#/$defs/blockAlign",
@@ -351,11 +351,11 @@
         "right",
         "justify"
       ],
-      "description": "Horizontal alignment, by NAME — the one vocabulary the format spells alignment in."
+      "description": "Horizontal alignment by name, the one vocabulary the format spells alignment in."
     },
     "icon": {
       "type": "object",
-      "description": "The object's icon — ONE of three kinds, chosen by `format`: an emoji, a built-in named icon, or a bare palette colour.",
+      "description": "The object's icon: one of three kinds, chosen by `format`. An emoji, a built-in named icon, or a bare palette colour.",
       "required": [
         "format"
       ],
@@ -457,7 +457,7 @@
     },
     "cover": {
       "type": "object",
-      "description": "The object's cover — a flat colour or a gradient, chosen by `format`. The names are the app's own; observed colours: black, ice, blue; observed gradients: pinkOrange, red, sky, blue, bluePink, greenOrange.",
+      "description": "The object's cover: a flat colour or a gradient, chosen by `format`. The names are the app's own, such as black, ice and blue, or gradients like pinkOrange and bluePink.",
       "required": [
         "format"
       ],
@@ -547,7 +547,7 @@
       "minLength": 1,
       "maxLength": 128,
       "pattern": "^[^\u0000-\u001f]+$",
-      "description": "A property spelling — a display name, written exactly: a built-in property's name (\"Name\", \"Due date\", \"Done\") or one this bundle declares (\"Streak\")."
+      "description": "A property spelling, a display name written exactly: a built-in property's name (\"Name\", \"Due date\", \"Done\") or one this bundle declares (\"Streak\")."
     },
     "propertyFormat": {
       "enum": [
@@ -592,7 +592,7 @@
     },
     "propertyDefinition": {
       "type": "object",
-      "description": "One property of a type. Identify it by `property` (the spelling — the property's name) or by `name` (the display name — \"Cooking Time\" declares a property spelled exactly that). Never invent stored ids: the app mints those on import.",
+      "description": "One property of a type. Identify it by `property`, the spelling, or by `name`, the display name: \"Cooking Time\" declares a property spelled exactly that. Never invent stored ids.",
       "properties": {
         "property": {
           "$ref": "#/$defs/propertyKey"
@@ -617,7 +617,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "objects/files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\", \"type-task\") or its NFC display name (\"Habit\", \"Task\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC §9). Empty or absent = any object."
+          "description": "objects and files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\") or its NFC display name (\"Habit\"). Empty or absent means any object."
         },
         "include_time": {
           "type": "boolean",
@@ -658,7 +658,7 @@
               "name": {
                 "minLength": 1,
                 "pattern": "^[^\u0000-\u001f]+$",
-                "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
+                "description": "When `name` supplies the property identity, it is NFC-normalized before the 128-character key bound applies. This schema checks the non-empty, control-free part; readers enforce the bound."
               }
             }
           }
@@ -728,7 +728,7 @@
     },
     "literalText": {
       "type": "string",
-      "description": "Raw content, verbatim — no inline markup is parsed here."
+      "description": "Raw content, verbatim: no inline markup is parsed here."
     },
     "block": {
       "type": "object",
@@ -740,7 +740,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 32,
-          "description": "Nesting depth; omit for top level. A block may be at most ONE level deeper than the block before it, and the first block is at 0."
+          "description": "Nesting depth; omit for top level. A block may be at most one level deeper than the block before it, and the first block is at 0."
         },
         "type": {
           "enum": [
@@ -768,7 +768,7 @@
             "table_of_contents",
             "dataview"
           ],
-          "description": "There is no title block — the title is the `name` property — and no image block: this format cannot fetch. A `row` contains only `column` blocks (indented under it); content nests under a column."
+          "description": "There is no title block; the title is the `name` property. There is no image block, since this format cannot fetch. A `row` contains only `column` blocks, and content nests under a column."
         }
       },
       "allOf": [
@@ -1035,7 +1035,7 @@
                   "properties": {},
                   "additionalProperties": false
                 },
-                "description": "One `{}` per column — the entry only counts; the app assigns ids and widths. A row may not have more cells than there are columns. The implicit grid is rows × columns and must not exceed 100,000 pairs, including empty cells."
+                "description": "One `{}` per column; the entry only counts, and the app assigns ids and widths. A row may not have more cells than columns. The implicit grid is rows × columns, at most 100,000 pairs."
               },
               "rows": {
                 "type": "array",
@@ -1062,18 +1062,18 @@
             "properties": {
               "object_id": {
                 "$ref": "#/$defs/documentId",
-                "description": "Set only for an inline dataview hosted by an object whose resolved type is neither Query nor Collection (§6.2). It must point to a Query or Collection object in the bundle. Omit on a Query or Collection's own dataview, and on a type document's own listing. The target's resolved type chooses the source and takes precedence over `is_collection` and the host's source fields. The authoring profile requires a non-empty id when present; omit the member instead of writing an empty string."
+                "description": "Set only for an inline dataview whose host is neither a Query nor a Collection, pointing at a Query or Collection in the bundle. Omit the member rather than writing an empty string."
               },
               "is_collection": {
                 "type": "boolean",
-                "description": "With `object_id` omitted, true selects THIS document's `collection_items`, a curated list (§6.2). Empty or absent membership means an empty collection. With `object_id` present, the target's resolved type chooses the source and this flag does not override it."
+                "description": "With `object_id` omitted, true selects this document's `collection_items`. With `object_id` present, the target's resolved type chooses the source and this flag does not override it."
               },
               "properties": {
                 "type": "array",
                 "items": {
                   "$ref": "#/$defs/dataviewProperty"
                 },
-                "description": "The properties available to the views — every property a view's columns, sorts, filters or group_by name, with its format."
+                "description": "The properties available to the views: every property a view's columns, sorts, filters or group_by name, with its format."
               },
               "views": {
                 "type": "array",
@@ -1108,7 +1108,7 @@
     },
     "dataviewProperty": {
       "type": "object",
-      "description": "One property available to the views, with its format. `property` is the same member name — and the same spelling — the view's columns, sorts, filters and group_by use to refer to it.",
+      "description": "One property available to the views, with its format. `property` is the same member name, and the same spelling, the view's columns, sorts, filters and group_by use.",
       "required": [
         "property",
         "format"
@@ -1125,7 +1125,7 @@
     },
     "view": {
       "type": "object",
-      "description": "One way to look at the objects. No ids — the app assigns them.",
+      "description": "One way to look at the objects. No ids: the app assigns them.",
       "properties": {
         "type": {
           "enum": [
@@ -1164,7 +1164,7 @@
           "items": {
             "$ref": "#/$defs/filterNode"
           },
-          "description": "Top-level entries combine with AND; use one group node for OR."
+          "description": "Top-level entries combine with `and`; use one group node for `or`."
         },
         "columns": {
           "type": "array",
@@ -1271,7 +1271,7 @@
                 "current_year",
                 "next_year"
               ],
-              "description": "Date properties, with equal/in/less/greater/less_or_equal/greater_or_equal: a rolling range instead of a fixed `value`. An \"overdue\" filter (`less` + a date) must sit in an `and` group with a `not_empty` on the same property, or undated objects match too."
+              "description": "Date properties, with equal/in/less/greater/less_or_equal/greater_or_equal: a rolling range instead of a fixed `value`. Pair an overdue filter with `not_empty` so undated objects do not match."
             }
           }
         }

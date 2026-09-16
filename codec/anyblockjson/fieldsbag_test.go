@@ -77,36 +77,49 @@ var fieldsBagKeys = []struct {
 	key   string
 	count int
 	on    string
+	// stale marks a key that contradicts a first-class prop beside it: a link
+	// block carries `cardStyle: 0` next to `card_style: "card"`. A reader has
+	// to be told which of the two is the value, so these — and only these —
+	// are named in the published description.
+	stale bool
 }{
-	{"width", 597, "column 405 · image 172 · video 14 · embed 6"},
-	{"isUnwrapped", 24, "code"},
-	{"cardStyle", 17, "link"},
-	{"description", 17, "link"},
-	{"iconSize", 17, "link"},
-	{"relations", 17, "link"},
-	{"_link_migrated", 7, "link"},
-	{"isRtlDetected", 4, "paragraph"},
-	{"type", 2, "embed"},
-	{"lang", 1, "bulleted_list_item — a stray the code lift never reached"},
+	{"width", 597, "column 405 · image 172 · video 14 · embed 6", false},
+	{"isUnwrapped", 24, "code", false},
+	{"cardStyle", 17, "link", true},
+	{"description", 17, "link", true},
+	{"iconSize", 17, "link", true},
+	{"relations", 17, "link", true},
+	{"_link_migrated", 7, "link", false},
+	{"isRtlDetected", 4, "paragraph", false},
+	{"type", 2, "embed", false},
+	{"lang", 1, "bulleted_list_item — a stray the code lift never reached", false},
 }
 
-// The bag's description must name every key the corpus actually carries. A
-// reader who meets `"fields": {"cardStyle": 0}` beside `"card_style": "card"`
-// has to be told which one is the value; a schema node that says only
-// `{"type": "object"}` tells them nothing.
+// The bag's description must state what a reader cannot work out from the
+// bytes: that the bag is output-only, which keys were lifted out of it, and
+// which keys inside it are stale copies that lose to the first-class prop
+// beside them. The full inventory stays in fieldsBagKeys above rather than in
+// the published prose — a caller never writes this bag, so enumerating it for
+// them costs tokens and buys nothing, and the table is what drifts if a new
+// key starts being written.
 func TestSchema_FieldsBagNamesTheKeysThatOccur(t *testing.T) {
 	core := readBlockCoreSchema(t)
 	desc := core.Properties.Fields.Description
 	require.NotEmpty(t, desc, "the fields bag must state its inventory")
 	for _, k := range fieldsBagKeys {
+		if !k.stale {
+			continue
+		}
 		assert.Contains(t, desc, "`"+k.key+"`",
-			"the fields inventory does not name %s (%d occurrences, on %s)", k.key, k.count, k.on)
+			"the description does not name %s, a stale copy a reader must not prefer "+
+				"(%d occurrences, on %s)", k.key, k.count, k.on)
 	}
-	// the four link keys are stale copies of first-class props, measured
-	// disagreeing in the corpus (`cardStyle: 0` beside `card_style: "card"`),
-	// so the description has to say which wins
 	assert.Contains(t, desc, "stale",
 		"a legacy key that contradicts the first-class prop beside it must be marked as such")
+	assert.Contains(t, desc, "Output only",
+		"the bag is output-only, and an author who is not told so will write into it")
+	assert.Contains(t, desc, "`language`",
+		"a lifted key must say where it went, or a reader looks for `lang` here")
 }
 
 // `row` and `column` were the two §5 block types with no conditional branch

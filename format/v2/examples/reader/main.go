@@ -630,45 +630,45 @@ func (b *bundle) dataviewSource(host *document, blk block) []string {
 			// reserved id says it is reserved rather than merely absent.
 			return []string{fmt.Sprintf("records: from %s, so this block does not say where they come from", b.describeReference(blk.ObjectID))}
 		case target.Kind == "object_type":
-			return []string{fmt.Sprintf("records: every object of type %q (%s in %s) — a live query, and no bundle answers it (§6.2)",
+			return []string{fmt.Sprintf("records: every object of type %q (%s in %s) — a live query, and no bundle answers it",
 				b.title(target), target.ID, target.path)}
 		case target.sourceKind() == "collection":
 			if len(target.CollectionItems) == 0 {
-				return []string{fmt.Sprintf("records: %s (%s) lists no `collection_items` — an empty collection (§6.2)", id, target.path)}
+				return []string{fmt.Sprintf("records: %s (%s) lists no `collection_items` — an empty collection", id, target.path)}
 			}
 			return b.listMembers(fmt.Sprintf("records: the %s %s lists in `collection_items` (%s)", countIDs(len(target.CollectionItems)), id, target.path), target.CollectionItems)
 		case target.sourceKind() != "query":
-			return []string{fmt.Sprintf("records: %s (%s) has no query or collection source kind this reader can resolve; do not infer one from `collection_items` or `query_source` (§6.2)", id, target.path)}
+			return []string{fmt.Sprintf("records: %s (%s) has no query or collection source kind this reader can resolve; do not infer one from `collection_items` or `query_source`", id, target.path)}
 		}
 		if query, stated := b.querySource(target); stated {
-			return []string{fmt.Sprintf("records: every object matching %s's `query_source` (%s) — query results require live evaluation, and no bundle answers it (§6.2)", id, query)}
+			return []string{fmt.Sprintf("records: every object matching %s's `query_source` (%s) — query results require live evaluation, and no bundle answers it", id, query)}
 		}
 		if target.QuerySource != nil {
-			return []string{fmt.Sprintf("records: %s (%s) states a `query_source` that names nothing — a query with no source targets (§6.2)", id, target.path)}
+			return []string{fmt.Sprintf("records: %s (%s) states a `query_source` that names nothing — a query with no source targets", id, target.path)}
 		}
-		return []string{fmt.Sprintf("records: %s (%s) states no `query_source` at all — a query with no source declaration (§6.2)", id, target.path)}
+		return []string{fmt.Sprintf("records: %s (%s) states no `query_source` at all — a query with no source declaration", id, target.path)}
 	}
 
 	switch {
 	case blk.IsCollection:
 		if len(host.CollectionItems) == 0 {
-			return []string{"records: this document's own `collection_items`, which lists none — an empty collection (§6.2)"}
+			return []string{"records: this document's own `collection_items`, which lists none — an empty collection"}
 		}
-		return b.listMembers(fmt.Sprintf("records: the %s this document lists in `collection_items` — a collection is answered from this bundle alone (§6.2)", countIDs(len(host.CollectionItems))), host.CollectionItems)
+		return b.listMembers(fmt.Sprintf("records: the %s this document lists in `collection_items` — a collection is answered from this bundle alone", countIDs(len(host.CollectionItems))), host.CollectionItems)
 	case len(blk.Source) > 0:
-		return []string{fmt.Sprintf("records: a legacy detached inline query over source [%s] — a live query, and no bundle answers it (§6.2)", strings.Join(blk.Source, ", "))}
+		return []string{fmt.Sprintf("records: a legacy detached inline query over source [%s] — a live query, and no bundle answers it", strings.Join(blk.Source, ", "))}
 	case host.Kind == "object_type":
 		// A type document's own listing, written without the self-reference
 		// that 1,776 of the measured blocks spell out.
-		return []string{fmt.Sprintf("records: every object of type %q — a live query, and no bundle answers it (§6.2)", b.title(host))}
+		return []string{fmt.Sprintf("records: every object of type %q — a live query, and no bundle answers it", b.title(host))}
 	}
 	if query, stated := b.querySource(host); stated {
-		return []string{fmt.Sprintf("records: every object matching this document's `query_source` (%s) — query results require live evaluation, and no bundle answers it (§6.2)", query)}
+		return []string{fmt.Sprintf("records: every object matching this document's `query_source` (%s) — query results require live evaluation, and no bundle answers it", query)}
 	}
 	if host.QuerySource != nil {
-		return []string{"records: this document's `query_source` names nothing — a query that declares no source targets, which is not the same as a query matching nothing (§6.2)"}
+		return []string{"records: this document's `query_source` names nothing — a query that declares no source targets, which is not the same as a query matching nothing"}
 	}
-	return []string{"records: this document states no `query_source` at all — query results require live evaluation, and no bundle answers it (§6.2)"}
+	return []string{"records: this document states no `query_source` at all — query results require live evaluation, and no bundle answers it"}
 }
 
 // sourceKind recognizes the two bundled source types this example can resolve.

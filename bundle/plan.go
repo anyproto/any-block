@@ -118,7 +118,7 @@ func BuildPlan(opts anyblockjson.Options, docs []DocMeta) (*Plan, error) {
 		docPath := dir + "/" + stem + DocExtension
 		if first, taken := claimed[docPath]; taken {
 			return nil, fmt.Errorf("plan document paths: %s and %s are both planned onto %q — "+
-				"a derived id (SPEC §9) is a function of the document's content, and these two state the same one",
+				"a derived id is a function of the document's content, and these two state the same one",
 				first, d.Id, docPath)
 		}
 		claimed[docPath] = d.Id

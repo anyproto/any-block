@@ -504,7 +504,7 @@ func inspect(fsys fs.FS, surface bundleSurface) (*Report, error) {
 		paths := append([]string(nil), storedTypeKeyPaths[key]...)
 		sort.Strings(paths)
 		issues = append(issues, fmt.Sprintf(
-			"stored type key %q is defined by %d type documents (%s); a type document's id is type-%s (§9), "+
+			"stored type key %q is defined by %d type documents (%s); a type document's id is type-%s, "+
 				"so these are two definitions of one identity and one file — give each type its own internal_key, "+
 				"or keep one document",
 			key, len(paths), strings.Join(paths, ", "), key))
@@ -634,8 +634,8 @@ func inspect(fsys fs.FS, surface bundleSurface) (*Report, error) {
 		}
 		issues = append(issues, fmt.Sprintf(
 			"%s: %s references type %q, but the bundle contains no document with that id — "+
-				"a type document's id IS its derived id (SPEC §9), and since the manifest lost its "+
-				"type table it is the only way to reach one (§2c)", use.source, use.slot, use.ref))
+				"a type document's id IS its derived id, and since the manifest lost its "+
+				"type table it is the only way to reach one", use.source, use.slot, use.ref))
 	}
 
 	requireObject("entrypoint", idx.Entrypoint)

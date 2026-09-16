@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.anytype.io/anyblock/2.0/authoring/properties.schema.json",
   "title": "AnyBlock property dictionary — authoring subset",
-  "description": "One properties.json at the bundle root, beside index.json: the bundle's own properties, declared once, in one place. A strict subset of the full dictionary schema (../properties.schema.json) — every dictionary valid here is valid there. Declare a property here, reference it from a type's property_definitions by its key, and write its values in objects under the same key; the app mints the stored identity on import.",
+  "description": "One properties.json at the bundle root, beside index.json: the bundle's own properties, declared once, in one place. A strict subset of the full dictionary schema (../properties.schema.json): every dictionary valid here is valid there. Declare a property here, reference it from a type's property_definitions, and write its values in objects under the same key.",
   "x-app": "Anytype",
   "type": "object",
   "required": [
@@ -29,7 +29,7 @@
   "$defs": {
     "property": {
       "type": "object",
-      "description": "One property. Identify it by `property` (the spelling your documents will write — the property's name: \"Streak\") or by `name` (\"Cooking Time\" declares a property spelled exactly that); `format` is required. Never invent stored ids — the app mints those on import.",
+      "description": "One property. Identify it by `property`, the spelling your documents will write (\"Streak\"), or by `name` (\"Cooking Time\"). `format` is required. Never invent stored ids.",
       "required": [
         "format"
       ],
@@ -59,7 +59,7 @@
               "name": {
                 "minLength": 1,
                 "pattern": "^[^\u0000-\u001f]+$",
-                "description": "When name supplies the property identity, readers NFC-normalize it before applying the 128-character writable-key bound. Standard JSON Schema cannot count characters after normalization, so this schema enforces the expressible non-empty/control-free part and semantic readers enforce the normalized maximum."
+                "description": "When `name` supplies the property identity, it is NFC-normalized before the 128-character key bound applies. This schema checks the non-empty, control-free part; readers enforce the bound."
               }
             }
           }
@@ -120,7 +120,7 @@
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[^\u0000-\u001f]+$",
-          "description": "The property's spelling — its display name, written exactly: \"Streak\", \"Last done\". A fresh name — a built-in property's name (\"Due date\") names the built-in property instead."
+          "description": "The property's spelling, its display name written exactly: \"Streak\", \"Last done\". Use a fresh name; a built-in property's name (\"Due date\") names the built-in instead."
         },
         "name": {
           "type": "string",
@@ -187,7 +187,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "objects/files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\", \"type-task\") or its NFC display name (\"Habit\", \"Task\"). Export writes the derived id, unless a SINGLE-DOCUMENT run sets the `NoDerivedTypeIds` export mode, which writes the vocabulary spelling here instead; a bundle refuses that mode (SPEC §9). Empty or absent = any object."
+          "description": "objects and files only: the types the property may point at, each as its derived id `type-<internal_key>` (\"type-habit\") or its NFC display name (\"Habit\"). Empty or absent means any object."
         },
         "description": {
           "type": "string",

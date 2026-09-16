@@ -108,8 +108,7 @@ func misroutedIssues(data []byte, want string) []Issue {
 		return nil
 	}
 	return []Issue{{Message: "this is " + articleFor(got) + ", not " +
-		articleFor(want) + " — read it with " + readerFor(got) +
-		". " + evidenceFor(data, got)}}
+		articleFor(want) + ". " + evidenceFor(data, got)}}
 }
 
 func articleFor(kind string) string {
@@ -120,17 +119,6 @@ func articleFor(kind string) string {
 		return "a property dictionary"
 	default:
 		return "an object document"
-	}
-}
-
-func readerFor(kind string) string {
-	switch kind {
-	case KindIndex:
-		return "UnmarshalIndex"
-	case KindPropertyDictionary:
-		return "UnmarshalPropertyDictionary"
-	default:
-		return "Unmarshal or Validate"
 	}
 }
 

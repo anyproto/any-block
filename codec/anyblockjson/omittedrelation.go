@@ -143,7 +143,7 @@ var relationInstallArtifactKeys = map[string]string{
 	// what the relation OBJECT's page features — an app-version stamp, not
 	// the definition: 90 of 134 keys carry two different stamps for the SAME
 	// key across spaces
-	"featuredRelations": "the copy's page stamp: 90 of 134 keys carry two versions of it",
+	"featuredRelations": "the copy's page stamp, which varies between spaces rather than defining the property",
 	// the deprecated pre-object-relations scope enum, written by legacy
 	// installs; nothing reads it (330 docs)
 	"scope": "deprecated legacy relation scope, unread",

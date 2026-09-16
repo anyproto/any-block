@@ -191,7 +191,7 @@ func (e *exporter) querySourceTargets() querySource {
 // resolver already said it is a property, and the id round-trips exactly.
 func (e *exporter) queryPropertyKey(key, id string) string {
 	if strings.HasPrefix(key, TypeRefPrefix) {
-		e.warn("/"+memberQuerySource, "stored property key %q wears the reserved type- prefix (§9), which "+
+		e.warn("/"+memberQuerySource, "stored property key %q wears the reserved type- prefix, which "+
 			"%q may not hold, so the query source keeps the property's object id %q",
 			key, memberQuerySource+"."+memberQueryProperties, id)
 		return id
@@ -271,7 +271,7 @@ func (imp *importer) applyQuerySource(details *types.Struct, sbType model.SmartB
 	if isTypeSmartBlock(sbType) {
 		return &ValidationError{Issues: []Issue{{
 			Path: "/" + memberQuerySource,
-			Message: "a type document states no query source (§2a): its stored setOf is the type's own id, " +
+			Message: "a type document states no query source: its stored setOf is the type's own id, " +
 				"re-stamped on every init, and this format does not carry it",
 		}}}
 	}
@@ -343,7 +343,7 @@ func (imp *importer) applyQuerySource(details *types.Struct, sbType model.SmartB
 // cannot resolve look alike — and neither is a bare key sitting in `types`,
 // which is why `types` states the derived id.
 func queryPropertyWrongListMessage(entry string) string {
-	return fmt.Sprintf("%q wears the reserved type- prefix (§9) and sits in %q — a type target belongs in "+
+	return fmt.Sprintf("%q wears the reserved type- prefix and sits in %q — a type target belongs in "+
 		"%q; %q holds a property's STORED KEY, bare (a bundle carries no property documents, so a property "+
 		"has no derived id)", entry, memberQuerySource+"."+memberQueryProperties,
 		memberQuerySource+"."+memberQueryTypes, memberQuerySource+"."+memberQueryProperties)
@@ -362,7 +362,7 @@ func querySourceIssues(doc map[string]any, addIssue func(path, format string, ar
 		return
 	}
 	if isTypeKind(doc) {
-		addIssue("/"+memberQuerySource, "a type document states no query source (§2a): its stored setOf is "+
+		addIssue("/"+memberQuerySource, "a type document states no query source: its stored setOf is "+
 			"the type's own id, re-stamped on every init, and this format does not carry it")
 		return
 	}
@@ -376,7 +376,7 @@ func querySourceIssues(doc map[string]any, addIssue func(path, format string, ar
 			continue
 		}
 		addIssue(fmt.Sprintf("/%s/%s/%d", memberQuerySource, memberQueryTypes, i),
-			"%q wears the reserved type- prefix (§9) but %q is not a stored type key "+
+			"%q wears the reserved type- prefix but %q is not a stored type key "+
 				"([A-Za-z0-9_], 1 to 120 characters); a derived id names its key outright",
 			slug, slug[len(TypeRefPrefix):])
 	}
