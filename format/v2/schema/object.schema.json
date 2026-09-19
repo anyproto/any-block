@@ -941,7 +941,7 @@
               },
               "text": {
                 "type": "string",
-                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
+                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `[text](anytype://object?objectId=<id>&spaceId=<space_id>)` links to an object in another space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
               }
             }
           }
@@ -970,7 +970,7 @@
               },
               "text": {
                 "type": "string",
-                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
+                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `[text](anytype://object?objectId=<id>&spaceId=<space_id>)` links to an object in another space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
               }
             }
           }
@@ -996,7 +996,7 @@
               },
               "text": {
                 "type": "string",
-                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
+                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `[text](anytype://object?objectId=<id>&spaceId=<space_id>)` links to an object in another space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
               }
             }
           }
@@ -1019,7 +1019,7 @@
               },
               "text": {
                 "type": "string",
-                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
+                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `[text](anytype://object?objectId=<id>&spaceId=<space_id>)` links to an object in another space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
               }
             }
           }
@@ -1045,7 +1045,7 @@
               },
               "text": {
                 "type": "string",
-                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
+                "description": "The block's text, with formatting written inline. There is no marks array and no offsets. The accepted syntax, and nothing else:\n  `**bold**`, `*italic*`, `~~strikethrough~~`, `` `code` ``\n  `[text](https://example.com)` links out\n  `[text](anytype://object?objectId=<id>)` links to an object in this space\n  `[text](anytype://object?objectId=<id>&spaceId=<space_id>)` links to an object in another space\n  `<mention object_id=\"<id>\">text</mention>` is a decorated object reference\n  `<u>underline</u>`, `<font color=\"red\">text</font>`, `<font background=\"yellow\">text</font>`\nEverything else is literal text: no block syntax, no images, no autolinks, no other HTML. `\\n` is a soft line break. Escape a literal `*`, `` ` ``, `[`, `]`, `~`, `<` or `\\` with a backslash."
               }
             }
           }

@@ -90,7 +90,7 @@ Where canonical output rewrites the string, the row says so.
 | `~x~` | literal | only runs of exactly two tildes delimit |
 | `^x^` | literal | |
 | `&lt;u&gt;` | the text `<u>` | entities are decoded on input; canonical output writes `\<u>` instead |
-| `[t](anytype://object?objectId=X&spaceId=Y)` | an **ordinary link**, param verbatim | a second parameter makes it not-an-object-link. Guessing which half is the id and guessing wrong is unrecoverable, so nothing guesses |
+| `[t](anytype://object?objectId=X&spaceId=Y)` | a **cross-space object link** — an ordinary link, param verbatim | the platform's own two-parameter deep link to an object in another space (`core/block/export/writer.go`); a second parameter makes it not-an-object-link here, and guessing which half is the id and guessing wrong is unrecoverable, so nothing guesses. The API expands a short space id in it to the full one on write |
 
 The delimiter set — `**`, `*`, `~~`, `` ` ``, `[…](…)` — is **closed**. A future
 version adds a mark as a tag, never as new punctuation, which is what makes
