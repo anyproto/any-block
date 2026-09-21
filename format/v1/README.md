@@ -10,33 +10,25 @@ reinterpreted.
 - [`proto/changes.proto`](proto/changes.proto) defines persisted CRDT changes.
 - [`proto/snapshot.proto`](proto/snapshot.proto) defines snapshot envelopes.
 
-The files under `format/v1/proto/` are the canonical editable sources. The
-historical public paths at repository root (`models.proto`, `events.proto`,
-`changes.proto`, and `snapshot.proto`) remain available as deterministic
-compatibility mirrors for existing `protoc` commands, imports, Buf inputs, and
-raw-file URLs. The mirrors are byte-for-byte canonical content except that
-their imports use the historical root paths.
+The files under `format/v1/proto/` are the only copies of these definitions in
+this repository; the four paths that used to be mirrored at the repository root
+were removed. They are synced from `anytype-heart` by its
+`mirror-any-block.yml` workflow, which rewrites the import paths and
+`go_package` values, so upstream changes to the v1 wire format belong in heart.
 
-Edit only the canonical files, then refresh and verify the mirrors with:
+After the sources change, refresh the generated artifacts:
 
 ```sh
-go generate ./format/v1
-sh format/v1/check-proto-compat.sh
+go generate ./format/v1          # JSON Schemas
+go generate ./codec/anyblockjson # Go bindings in format/v1/model
 ```
 
-Each tree is a complete alternative import graph defining the same protobuf
-API. Compile either all root paths or all `format/v1/proto/` paths in one
-`protoc`/Buf module; never mix both graphs in the same invocation, because two
-physical `.proto` names defining the same package symbols are duplicates. The
-check compiles both graphs separately and compares normalized descriptor sets,
-while the project's checked-in Go bindings and JSON Schemas continue to be
-generated only from the canonical tree.
-
-The historical root-path smoke command is supported:
+A `protoc` smoke compile of the graph:
 
 ```sh
 protoc -I . --descriptor_set_out=/tmp/anyblock-v1.pb \
-  models.proto events.proto changes.proto snapshot.proto
+  format/v1/proto/models.proto format/v1/proto/events.proto \
+  format/v1/proto/changes.proto format/v1/proto/snapshot.proto
 ```
 
 Generated model bindings used by the converter live in `format/v1/model`.
