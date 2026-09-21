@@ -22,8 +22,6 @@ jobs:
         with:
           version: "33.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify v1 proto compatibility paths
-        run: sh format/v1/check-proto-compat.sh
       - name: Install pinned generators
         run: |
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"

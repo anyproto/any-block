@@ -57,10 +57,6 @@ is the Go conversion API, and `bundle` and `cmd/anyblock` provide the bundle
 and command-line surfaces. `Options.TableColumnHeaders` remains opt-in so
 backup output is stable.
 
-The four historical root-level v1 `.proto` paths are retained as generated
-compatibility mirrors. Their canonical editable sources live in
-`format/v1/proto/`; see [the v1 mirror rules](format/v1/README.md).
-
 For the v1 side, start with [format/v1/README.md](format/v1/README.md). The
 normative v2 definition is [format/v2/SPEC.md](format/v2/SPEC.md); it is long,
 and reading an export does not require it.
