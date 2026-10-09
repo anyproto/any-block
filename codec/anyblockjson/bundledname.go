@@ -42,6 +42,10 @@ package anyblockjson
 // address, so an ambiguous bundled name can never be emitted at all. The
 // guard tests in bundledname_test.go keep the wire-reachable population
 // clean so this fallback only ever covers invisible machinery.
+//
+// **A hidden internal key has no name either** (unnamedInternalProperty):
+// no document spells it, so its name only ever reached a reader as a trap —
+// "Score" binding to the fulltext `_score` and then being refused.
 
 import (
 	"sort"
@@ -128,7 +132,7 @@ func init() {
 	// them onto the lifted stored keys would turn that warning into a
 	// refusal.
 	bundledPropertyNameByKey, bundledPropertyKeyByName, bundledPropertyKeysByFold =
-		buildNameTables(relKeys, relName, func(key string) bool {
+		buildNameTables(relKeys, relName, unnamedInternalProperty(strippedDetailKeys()), func(key string) bool {
 			_, denied := deniedPropertyKey(key)
 			return denied
 		})
@@ -146,7 +150,30 @@ func init() {
 		return t.Name
 	}
 	bundledTypeNameByKey, bundledTypeKeyByName, bundledTypeKeysByFold =
-		buildNameTables(typeKeys, typeName, func(string) bool { return false })
+		buildNameTables(typeKeys, typeName, func(string) bool { return false }, func(string) bool { return false })
+}
+
+// unnamedInternalProperty reports whether a bundled relation answers to no
+// display name: an internal key (export strips it, import refuses it) that is
+// also hidden, so nobody ever saw the name. "Score" is the case that forced
+// this — the name of the derived fulltext `_score` — together with
+// "Timestamp", "Snippet", "Mentions" and "Sync status": a caller writing one
+// of those means a property of its own, and binding it to the internal key
+// turned a create into a refusal of a key the caller never named.
+//
+// A VISIBLE internal key keeps its name ("Created by", "Links"): the caller
+// saw it in the app and means the system property, so the refusal that
+// explains it is read-only is the right answer, not a lookalike custom
+// property. id and type keep theirs for the same reason — their refusal
+// names the envelope member to use.
+func unnamedInternalProperty(internal map[string]bool) func(string) bool {
+	return func(key string) bool {
+		if key == detailKeyId || key == detailKeyType || !internal[key] {
+			return false
+		}
+		rel, err := vocabulary.PickRelation(domain.RelationKey(key))
+		return err == nil && rel.GetHidden()
+	}
 }
 
 // buildNameTables derives one namespace's three tables from the shipped
@@ -159,19 +186,27 @@ func init() {
 //     same way — the stored key resolves verbatim-first at every reader, so
 //     a spelling equal to it could never invert to anyone else;
 //   - a name that is not a writable key (empty, over the bound, control
-//     characters) has no wire form and the key spells itself.
+//     characters) has no wire form and the key spells itself;
+//   - a key nameExcluded reports claims no name at all: it spells its stored
+//     key, and its name is free for a caller's own property (and for any
+//     other bundled entry that shares it).
 //
 // The fold table is built over every entry regardless: an ambiguous fold
 // class simply holds several candidates, which the forgiving layer already
 // treats as "refuse, never guess".
-func buildNameTables(keys []string, nameOf func(string) string, foldExcluded func(string) bool) (
+func buildNameTables(keys []string, nameOf func(string) string, nameExcluded, foldExcluded func(string) bool) (
 	nameByKey, keyByName map[string]string, foldTable map[string][]string) {
 	stored := make(map[string]bool, len(keys))
 	for _, k := range keys {
 		stored[k] = true
 	}
 	claim := map[string][]string{}
+	unnamed := map[string]bool{}
 	for _, k := range keys {
+		if nameExcluded(k) {
+			unnamed[k] = true
+			continue
+		}
 		name := norm.NFC.String(nameOf(k))
 		if name == "" || name == k || !isWritablePropertyKey(name) {
 			continue
@@ -190,6 +225,12 @@ func buildNameTables(keys []string, nameOf func(string) string, foldExcluded fun
 		nameByKey[holders[0]] = name
 		keyByName[name] = holders[0]
 	}
+	// an unnamed key spells its stored key, and the reverse table inverts
+	// the spelling exactly — its fold class answers nothing when it is
+	// denied, so without this entry its own spelling would not come back
+	for k := range unnamed {
+		keyByName[k] = k
+	}
 	foldTable = map[string][]string{}
 	addFoldClass := func(class, key string) {
 		for _, existing := range foldTable[class] {
@@ -204,6 +245,9 @@ func buildNameTables(keys []string, nameOf func(string) string, foldExcluded fun
 			continue
 		}
 		addFoldClass(FoldKeyTerm(k), k)
+		if nameExcluded(k) {
+			continue
+		}
 		if name := norm.NFC.String(nameOf(k)); name != "" {
 			addFoldClass(FoldKeyTerm(name), k)
 		}

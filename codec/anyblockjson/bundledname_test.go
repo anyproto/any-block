@@ -309,6 +309,64 @@ func TestBundledNames_TheWireReachableTableStaysClean(t *testing.T) {
 	})
 }
 
+// A hidden internal key answers to no name. "Score" is the case that found
+// it: the name of the derived fulltext `_score`, so a caller declaring its
+// own "Score" property was bound to the internal key and then refused for
+// writing it. The name is free for the caller's property; the stored key
+// still spells and resolves itself. A VISIBLE internal key keeps its name:
+// "Created by" is a property the caller saw, and the refusal is the answer.
+//
+// How this can fail: drop the nameExcluded arm and "Score" binds `_score`
+// again; drop the self-entry and `_score` spells a term nothing inverts.
+func TestBundledNames_HiddenInternalKeysAnswerToNoName(t *testing.T) {
+	internal := InternalPropertyKeys()
+
+	t.Run("no hidden internal key binds its display name", func(t *testing.T) {
+		for _, key := range bundledRelationKeys() {
+			rel, err := vocabulary.PickRelation(domain.RelationKey(key))
+			require.NoError(t, err)
+			if !internal[key] || !rel.GetHidden() || key == detailKeyId || key == detailKeyType {
+				continue
+			}
+			if name := norm.NFC.String(rel.Name); name != key {
+				got, ok := BundledPropertyKeyByName(name)
+				assert.Falsef(t, ok && got == key, "hidden internal %q still answers to %q", key, name)
+			}
+			assert.Equalf(t, key, BundledKeyVocabulary{}.PropertySlug(key), "%q spells its stored key", key)
+			back, ok := BundledKeyVocabulary{}.PropertyKey(key)
+			require.Truef(t, ok, "%q resolves its own spelling", key)
+			assert.Equal(t, key, back)
+		}
+	})
+
+	t.Run("Score is an ordinary custom property", func(t *testing.T) {
+		doc := []byte(`{"formatVersion":"2.0","id":"o1","properties":{"Score":7}}`)
+		require.NoError(t, Validate(doc, Options{}))
+
+		_, snap, err := Unmarshal(doc, Options{GenerateId: seqIds("g")})
+		require.NoError(t, err)
+		assert.Nil(t, snap.Details.Fields["_score"])
+	})
+
+	t.Run("the stored key is still refused", func(t *testing.T) {
+		doc := []byte(`{"formatVersion":"2.0","id":"o1","properties":{"_score":7}}`)
+		assert.Error(t, Validate(doc, Options{}))
+	})
+
+	t.Run("visible internal keys and the envelope keys keep their names", func(t *testing.T) {
+		for name, key := range map[string]string{
+			"Created by":  "creator",
+			"Links":       "links",
+			"Object type": "type",
+			"Anytype ID":  "id",
+		} {
+			got, ok := BundledPropertyKeyByName(name)
+			require.Truef(t, ok, "%q must still bind", name)
+			assert.Equal(t, key, got)
+		}
+	})
+}
+
 // Every bundled spelling — names with spaces included — is a writable key
 // the whole codec carries: as a `properties` member name, a legend spelling
 // and an envelope type term. The old guard asserted bundled slugs were bare

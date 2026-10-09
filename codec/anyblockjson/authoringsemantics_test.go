@@ -62,10 +62,16 @@ func TestAuthoringTypeDocumentNamesItself(t *testing.T) {
 // pre-raw-name one the schema's literal list happens to name.
 func TestAuthoringDeniedKeysAreRefusedUnderEverySpelling(t *testing.T) {
 	for key, why := range authoringDeniedPropertyKeys {
+		// a hidden internal key (internalFlags, orderId, featuredRelations)
+		// has no display name and spells its stored key; its old name is
+		// banned by the schema list alone, which the next test pins
 		name := BundledKeyVocabulary{}.PropertySlug(key)
-		require.NotEqual(t, key, name, "%s has a display name to be spelled by", key)
+		spellings := []string{key}
+		if name != key {
+			spellings = append(spellings, name, strings.ToLower(name))
+		}
 
-		for _, spelling := range []string{key, name, strings.ToLower(name)} {
+		for _, spelling := range spellings {
 			t.Run(key+" as "+spelling, func(t *testing.T) {
 				b, err := json.Marshal(map[string]any{
 					"formatVersion": "2.0", "id": "o1",
