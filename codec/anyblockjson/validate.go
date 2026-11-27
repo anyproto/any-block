@@ -2538,8 +2538,8 @@ func deniedPropertyKey(key string) (string, bool) {
 // `number`. In a 77-space export that is 71,736 warnings — 93% of the entire
 // warning channel, against 371 warnings that tell a reader something. A
 // channel that is 99% noise is a channel nobody reads, which costs the format
-// the warnings it actually needs: the unguarded date filter that silently
-// widens a view, the group_by a view type cannot honour.
+// the warnings it actually needs: the date preset that silently
+// does nothing, the group_by a view type cannot honour.
 //
 // The right repair is in the bundled table, which is not this package's to
 // change (§15). Until it happens, the format declines to report a mismatch
