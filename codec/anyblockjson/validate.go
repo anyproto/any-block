@@ -2538,8 +2538,8 @@ func deniedPropertyKey(key string) (string, bool) {
 // `number`. In a 77-space export that is 71,736 warnings — 93% of the entire
 // warning channel, against 371 warnings that tell a reader something. A
 // channel that is 99% noise is a channel nobody reads, which costs the format
-// the warnings it actually needs: the unguarded date filter that silently
-// widens a view, the group_by a view type cannot honour.
+// the warnings it actually needs: the date preset that silently
+// does nothing, the group_by a view type cannot honour.
 //
 // The right repair is in the bundled table, which is not this package's to
 // change (§15). Until it happens, the format declines to report a mismatch
@@ -3008,43 +3008,24 @@ func sortedKeys(m map[string]struct{}) []string {
 	return out
 }
 
-// checkDateFilters warns about `less`/`less_or_equal` on a date property that
-// is not guarded by a `not_empty`/`exists` on the same property in an
-// enclosing AND. An object with no value for that date matches: the filter's
-// value is set and the record's is not, so domain.Value.Compare returns 1,
-// which is exactly what Less tests for. A freshness view written the obvious
-// way ("verifiedUntil less today") therefore lists every never-verified
-// object alongside the genuinely stale ones. It is a warning, not an error —
-// including undated objects is a legal thing to want, and real exported data
-// contains such filters.
+// checkDateFilters checks the date presets of a view's filter leaves: a preset
+// the condition ignores, and a day-count preset with no day count.
+//
+// It no longer warns about `less`/`less_or_equal` on a date. That warning said
+// an undated object also matches; since any-store v2 an ordering condition
+// compares only values of one type, so a comparison against a date or a
+// preset never matches an undated object (GO-7613; the exception is a
+// null or valueFromRelation operand with include_time, SPEC §6.2). Excluding
+// the undated is what a reader expects, and including them takes an `empty`
+// leaf OR-ed in, which a filter states in its own text.
 func checkDateFilters(view map[string]any, formats map[string]string, isDate func(string) bool,
 	path string, addIssue, warnIssue func(string, string, ...any)) {
 	nodes, _ := view["filters"].([]any)
 	if len(nodes) == 0 {
 		return
 	}
-	var walk func(nodes []any, path string, and bool, guarded map[string]bool)
-	walk = func(nodes []any, path string, and bool, guarded map[string]bool) {
-		// only an AND lets a sibling notEmpty guarantee anything: under an OR
-		// the comparison can be reached without it
-		scope := guarded
-		if and {
-			scope = map[string]bool{}
-			for k := range guarded {
-				scope[k] = true
-			}
-			for _, raw := range nodes {
-				n, ok := raw.(map[string]any)
-				if !ok {
-					continue
-				}
-				cond, _ := n["condition"].(string)
-				if prop, _ := n[memberProperty].(string); prop != "" &&
-					(cond == "not_empty" || cond == "exists") {
-					scope[prop] = true
-				}
-			}
-		}
+	var walk func(nodes []any, path string)
+	walk = func(nodes []any, path string) {
 		for i, raw := range nodes {
 			n, ok := raw.(map[string]any)
 			if !ok {
@@ -3052,29 +3033,7 @@ func checkDateFilters(view map[string]any, formats map[string]string, isDate fun
 			}
 			nPath := fmt.Sprintf("%s/%d", path, i)
 			if sub, isGroup := n["filters"].([]any); isGroup {
-				op, _ := n["operator"].(string)
-				childScope := scope
-				if op == "or" {
-					// an `empty` sibling on the same property under an OR is
-					// intent to INCLUDE the undated objects ("… OR dueDate IS
-					// EMPTY") — warning that the comparison also matches them
-					// would contradict the filter's own text
-					childScope = map[string]bool{}
-					for k := range scope {
-						childScope[k] = true
-					}
-					for _, subRaw := range sub {
-						leaf, isLeaf := subRaw.(map[string]any)
-						if !isLeaf {
-							continue
-						}
-						cond, _ := leaf["condition"].(string)
-						if prop, _ := leaf[memberProperty].(string); prop != "" && cond == "empty" {
-							childScope[prop] = true
-						}
-					}
-				}
-				walk(sub, nPath+"/filters", op != "or", childScope)
+				walk(sub, nPath+"/filters")
 				continue
 			}
 			// the day-count presets read their operand from value; without
@@ -3133,9 +3092,13 @@ func checkDateFilters(view map[string]any, formats map[string]string, isDate fun
 					}
 				}
 			}
-			// a dynamic filter token resolves to an object id, so it can
-			// only match an object/file property; anywhere else it is
-			// compared as a literal string and matches nothing. A WARNING
+			// a dynamic filter token stands for an object id, so it is meant
+			// for an object/file property. The warning names the format
+			// mismatch and nothing else: what the token is compared against
+			// differs by surface (a stored view substitutes the query id into
+			// any string leaf, direct search compares the literal), and the
+			// property is not quoted because the caller may have spelled it
+			// differently from the key this layer sees. A WARNING
 			// and not an error, for the reason the date-preset gate above
 			// gives: export must stay lossless — stored filters carry this
 			// pair (a template token on a text-declared property is real
@@ -3148,24 +3111,13 @@ func checkDateFilters(view map[string]any, formats map[string]string, isDate fun
 				if f, declared := formats[prop]; declared && f != "objects" && f != "files" {
 					for _, tok := range filterTemplateValues(n["value"]) {
 						warnIssue(nPath+"/value",
-							"%q resolves to an object id and cannot match %q (format %q); the filter matches nothing until the property is object- or file-valued", tok, prop, f)
+							"%q is intended for object or file properties, and this one is %q", tok, f)
 					}
 				}
 			}
-			cond, _ := n["condition"].(string)
-			if cond != "less" && cond != "less_or_equal" {
-				continue
-			}
-			prop, _ := n[memberProperty].(string)
-			if !isDate(prop) || scope[prop] {
-				continue
-			}
-			warnIssue(nPath, "%q on date %q also matches objects with no %s; "+
-				"pair it with a %q leaf in an \"and\" group to exclude them",
-				cond, prop, prop, "not_empty")
 		}
 	}
-	walk(nodes, path+"/filters", true, map[string]bool{})
+	walk(nodes, path+"/filters")
 }
 
 // filterTemplateValues returns the dynamic filter tokens (§6.2) inside a

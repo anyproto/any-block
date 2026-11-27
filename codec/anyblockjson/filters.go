@@ -10,7 +10,7 @@ package anyblockjson
 // Validation runs the same checks the document path applies to a view's
 // filters: enum vocabulary (conditions, date presets, sort directions),
 // the counting-preset operand rule, the dynamic-placeholder format rule, and
-// the unguarded-date-comparison warning (SPEC §6.2 — surfaced through
+// the inert-date-preset warning (SPEC §6.2 — surfaced through
 // Options.OnWarning, the C11 channel). Issue paths are fragment-relative:
 // `/filters/i/…` and `/sorts/i/…`.
 
@@ -43,7 +43,7 @@ var datePresetList = strings.Join([]string{
 // wire a read-only resolver on query paths and a creating resolver on write
 // paths. Formats rehydrate through Options.ResolveFormat. Errors wrap
 // *ValidationError with `/filters/i/…` paths; warning-grade findings (the
-// §6.2 unguarded-date-comparison trap) ride Options.OnWarning.
+// §6.2 inert date preset) ride Options.OnWarning.
 func UnmarshalFilters(raw json.RawMessage, opts Options) ([]*model.BlockContentDataviewFilter, error) {
 	// Raw ambiguity owns the first verdict. Both tolerant decoders below and
 	// the synthetic-document wrapper otherwise observe only one survivor of a
@@ -83,7 +83,7 @@ func UnmarshalFilters(raw json.RawMessage, opts Options) ([]*model.BlockContentD
 	validateFilterVocabulary(nodes, "/filters", addIssue)
 
 	// the document path's per-view semantic checks (counting-preset operand,
-	// placeholder format rule, the unguarded date-less warning) run on the
+	// placeholder format rule, the inert date preset warning) run on the
 	// generic form, with formats resolved from the space instead of the
 	// dataview's properties list
 	formats := referencedFormats(nodes, opts)

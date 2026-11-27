@@ -4611,13 +4611,21 @@ values verbatim), `empty_placement` (`start · end`, omit unspecified),
 `include_time` (include time-of-day when comparing dates), `no_collate`
 (disable locale-aware collation; compare raw strings), `id` (output-only).
 
-**Dates are not empty-safe.** An object with no value for a date property
-matches `less` and `less_or_equal` regardless of the threshold. An "overdue" view
-must therefore pair the comparison with a `not_empty` on the same property
-inside an `and` group; a `not_empty` under an `or` guards nothing.
-`greater`/`greater_or_equal` are unaffected. Import warns on an unguarded
-comparison rather than rejecting it — including undated objects is a legal
-thing to want, and stored data contains such filters.
+**Ordering conditions skip undated objects.** `less`, `less_or_equal`,
+`greater` and `greater_or_equal` compare only values of one type, so an object
+with no value for a date property never matches a comparison against a date or
+a date preset, whatever the threshold. An "overdue" view (`dueDate less
+today`) lists only dated objects. To include the undated ones, OR an `empty`
+leaf on the same property into the comparison: `{ "operator": "or",
+"filters": [<less leaf>, { "property": "dueDate", "condition": "empty" }] }`.
+A `not_empty` guard is not needed. The one exception needs both
+`include_time: true` and no preset: the operand then reaches the store
+untouched, so a `less_or_equal` or `greater_or_equal` with no value (compared
+against null) or a `valueFromRelation` operand (compared by encoded bytes) can
+match a missing value. With the default `include_time: false` the operand
+becomes a day bound (an absent one reads as the epoch day): `>=` and `<` use
+the start of the day, `>` and `<=` its end, and the undated stay out.
+Import does not warn about these comparisons.
 
 **Filter** (`Dataview.Filter`) — a filter node is either a **group** or a
 **leaf** (schema `oneOf`); the top-level `filters` array combines its nodes
@@ -4652,13 +4660,17 @@ a group exists only for `or` or nesting):
   the query (`Dataview.valueTemplateMapper`): `_filter_template_2_` is the
   current user, resolving to `_participant_<space>_<account>`, and
   `_filter_template_1_` is the object hosting an inline dataview, resolving
-  to its id. They are stored verbatim and are **opaque to the middleware** —
-  nothing in Go resolves them, so a query evaluated server-side compares
-  against the literal string and matches nothing. They are not object ids, and nothing in either direction rewrites them —
+  to its id. They are stored verbatim; the codec never resolves them. What a
+  query evaluated server-side does with one differs by surface: a consumer may
+  substitute it (Heart's stored-view execution puts the query id or the
+  current participant into every string-valued leaf, whatever the property's
+  format), and one that does not applies its ordinary value validation to the
+  literal string, which can refuse it (a date leaf, an unknown select option).
+  They are not object ids, and nothing in either direction rewrites them —
   object references are never compacted, so there is no legend one could be
   swallowed into (§9a). They are meaningful only on `objects`/`files`
   properties, since they resolve to an object id; on any other format the
-  placeholder is stored UI state that matches nothing, and the mismatch is a
+  placeholder is stored UI state, and the mismatch is a
   **warning, not a refusal** — the same severity the neighbouring date-preset
   rule takes, for the same reason. Both doors warn — the fragment surface
   too, or one filter would validate on one door and be refused on the other.
@@ -4818,8 +4830,8 @@ string-driven**: it happens only for keys whose format resolves to `date`
 through the consumer-wired `Options.ResolveFormat` (a date-looking string
 on a text property stays a string; a non-RFC-3339 string on a date
 property is a parse error steering to the presets). A consumer that wires
-no resolver gets string values verbatim — executing such a filter against
-date properties matches nothing, so query surfaces MUST wire the resolver.
+no resolver gets string values verbatim, so query surfaces MUST wire the
+resolver: the format has to be resolved before parsing.
 
 Parser interpretation calls (normative, matching the shipped parser):
 keywords match **case-insensitively** (`and` ≡ `AND`) and are **reserved**
@@ -5315,7 +5327,7 @@ a document is found by its id and by nothing else (§2c).
 | `_date_<YYYY-MM-DD>` — a virtual date object | mention targets, and a link block's `object_id`. Measured corpus-wide: 104 (103 mentions, 1 block target) | the date is IN the id; the platform mints the object on demand | nothing is missing: no space stores a row for it, and no export can |
 | `_ot<key>` / `_br<key>` — the platform's ids for a bundled type / bundled property | stored values that predate the derived-id fold; `ot-<key>` is also accepted as INPUT in a type-KEY slot (never in a reference slot, where `ot-wine` is an ordinary bundle-local slug) | against the shipped bundled tables | never a bundle's to carry. Measured: no value in the 79-bundle corpus is one |
 | `_favorite` · `_recent` · `_recent_open` · `_set` · `_collection` · `_all_objects` · `_chat` · `_bin` (widget `target`), `_widgets` · `_graph` (`homepage`) | `index.json` only (§2c) | they name a built-in screen, not an object; the client's own listing. A bundle-local id may never begin with `_` (§1), so the two kinds can never be confused | never unresolved, never listed in `unresolved.targets`. Measured: 2 of this space's 23 widget targets |
-| `_filter_template_<n>_` — a dynamic filter value (§6.2) | a view filter's `value` | **not an object id.** The CLIENT substitutes one before issuing the query: `_filter_template_2_` is the current user, `_filter_template_1_` the object hosting an inline dataview | opaque to the middleware — a query evaluated server-side compares against the literal string and matches nothing |
+| `_filter_template_<n>_` — a dynamic filter value (§6.2) | a view filter's `value` | **not an object id.** The CLIENT substitutes one before issuing the query: `_filter_template_2_` is the current user, `_filter_template_1_` the object hosting an inline dataview | never resolved by the codec — Heart substitutes it in stored-view execution, and direct search applies ordinary value validation to the literal string |
 | `<mention object_id="…">text</mention>` — an inline reference inside `text` (§8.1) | any text-bearing block, and table cells | the attribute holds an id in any of the forms above (folded like every other reference); the element's text is the caption, and it is the ONLY caption this format has — a reference in an attribute or a property value never carries one | the target may be `_missing_object`: the mention's text stays and only its address is gone. Measured: 13 |
 | `[text](anytype://object?objectId=<id>)` — an inline object link (§8.1) | any text-bearing block | percent-decode the single `objectId` parameter. The form is exact — any other `anytype://` destination is a plain link, preserved verbatim | the same as a bare id. Measured: 2. The deep-link string occurs 9 times in this export and 7 of them are not links: 4 sit inside `code` blocks, whose text is never parsed for markup at all (§8.1), 1 inside a code span, where a destination is literal text, and 2 are `Name` property VALUES, which no text parser ever sees. Counting those would mean parsing what §8.1 forbids parsing |
 | `option_ids` values (§9a) | the envelope's option legend, beside select/multi_select values | an option's OBJECT id, and a **hint** rather than a reference: honored only where the reading space still serves it as a live option of that relation, then the name, then the value unchanged | it never resolves inside a bundle and is not meant to — a bundle carries no option documents at all (§15 #21), and the option's whole meaning is already inline on the dictionary entry (§2f) |

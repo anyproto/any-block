@@ -5,6 +5,11 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **The date `less` / `less_or_equal` warning is REMOVED** (SPEC §6.2,
+  GO-7613). It said an undated object also matches; since any-store v2 an
+  ordering condition compared against a date or a date preset never matches
+  a missing value, so undated objects are excluded. Including them takes an `empty` leaf OR-ed in.
+
 - **The `<id>#<name>` reference caption is REMOVED from the format** (SPEC
   §3, §9, §11, §12, §13, §15 #3/#3a; PRINCIPLES rule 6; READING.md step 6;
   `object.schema.json`). A reference is an id — the whole string, with no

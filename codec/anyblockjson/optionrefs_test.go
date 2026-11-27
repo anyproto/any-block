@@ -690,8 +690,8 @@ func (v slugVocab) PropertyKey(slug string) (string, bool) {
 //
 
 // optionIdsWarnings keeps the warnings addressed at the legend and drops the
-// rest, so a corpus that legitimately warns about something else (an unguarded
-// date filter, a tag-shaped literal) cannot make one of these tests pass or
+// rest, so a corpus that legitimately warns about something else (an inert
+// date preset, a tag-shaped literal) cannot make one of these tests pass or
 // fail for a reason it is not about.
 func optionIdsWarnings(issues []Issue) []Issue {
 	var out []Issue

@@ -191,7 +191,7 @@ func TestQueryFragments_SuppliedLegendWarningsMatchDocument(t *testing.T) {
 }
 
 func TestQueryFragments_DoNotDuplicateSyntheticDataviewWarnings(t *testing.T) {
-	raw := json.RawMessage(`[{"property":"dueDate","condition":"less","date_preset":"today"}]`)
+	raw := json.RawMessage(`[{"property":"dueDate","condition":"empty","date_preset":"today"}]`)
 	var warnings []Issue
 	opts := fragFilterOpts()
 	opts.OnWarning = func(issue Issue) { warnings = append(warnings, issue) }
