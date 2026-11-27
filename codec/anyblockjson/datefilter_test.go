@@ -1,10 +1,8 @@
 package anyblockjson
 
-// `less` on a date matches objects that have no value for it: the filter's
-// value is set and the record's is not, so domain.Value.Compare returns 1 —
-// precisely what Less tests for (database/filter.go). A freshness view
-// written the obvious way therefore lists every never-dated object as
-// overdue.
+// An ordering condition (less, less_or_equal, greater, greater_or_equal) never
+// matches a missing value since any-store v2, so a date `less` excludes the
+// undated objects and the validator does not warn about it (GO-7613).
 
 import (
 	"encoding/json"
@@ -34,84 +32,33 @@ func warningsFor(t *testing.T, doc string) []Issue {
 	return got
 }
 
-func TestValidate_UnguardedDateLessWarns(t *testing.T) {
+// GO-7613: an ordering condition never matches a missing value, so a plain
+// `less` on a date already excludes the undated objects and has nothing to
+// warn about, whatever sits next to it.
+func TestValidate_DateLessDoesNotWarn(t *testing.T) {
 	for _, cond := range []string{"less", "less_or_equal"} {
 		t.Run(cond, func(t *testing.T) {
-			w := warningsFor(t, dateFilterDoc(
-				`{"property": "verifiedUntil", "condition": "`+cond+`", "date_preset": "today"}`))
-			require.Len(t, w, 1)
-			assert.Contains(t, w[0].Message, "no verifiedUntil")
-			assert.Contains(t, w[0].Message, "not_empty")
+			assert.Empty(t, warningsFor(t, dateFilterDoc(
+				`{"property": "verifiedUntil", "condition": "`+cond+`", "date_preset": "today"}`)))
 		})
 	}
-}
 
-func TestValidate_GuardedDateLessIsClean(t *testing.T) {
-	t.Run("not_empty sibling in the implicit top-level AND", func(t *testing.T) {
-		assert.Empty(t, warningsFor(t, dateFilterDoc(
-			`{"property": "verifiedUntil", "condition": "not_empty"},
-			 {"property": "verifiedUntil", "condition": "less", "date_preset": "today"}`)))
-	})
-
-	t.Run("not_empty in an enclosing and-group", func(t *testing.T) {
-		assert.Empty(t, warningsFor(t, dateFilterDoc(
-			`{"operator": "and", "filters": [
-				{"property": "verifiedUntil", "condition": "not_empty"},
-				{"property": "verifiedUntil", "condition": "less", "date_preset": "today"}]}`)))
-	})
-
-	// the real shape from the wiki: the guarded pair lives inside an OR branch
-	t.Run("and-group nested under an or-group", func(t *testing.T) {
-		assert.Empty(t, warningsFor(t, dateFilterDoc(
-			`{"operator": "or", "filters": [
-				{"operator": "and", "filters": [
-					{"property": "verifiedUntil", "condition": "not_empty"},
-					{"property": "verifiedUntil", "condition": "less", "date_preset": "today"}]},
-				{"property": "status", "condition": "in", "value": ["Needs update"]}]}`)))
-	})
-
-	t.Run("exists guards too", func(t *testing.T) {
-		assert.Empty(t, warningsFor(t, dateFilterDoc(
-			`{"property": "verifiedUntil", "condition": "exists"},
-			 {"property": "verifiedUntil", "condition": "less", "date_preset": "today"}`)))
-	})
-}
-
-// `… OR dueDate IS EMPTY` deliberately INCLUDES the undated objects, so the
-// "also matches objects with no X" warning would contradict the filter's own
-// text — the canonical worked example (`done = false AND (dueDate <
-// currentWeek() OR dueDate IS EMPTY)`) must not warn on every execution.
-func TestValidate_EmptySiblingUnderOrSuppressesTheWarning(t *testing.T) {
-	t.Run("empty on the same property under the same OR", func(t *testing.T) {
+	t.Run("OR-ed with an empty leaf to include the undated", func(t *testing.T) {
 		assert.Empty(t, warningsFor(t, dateFilterDoc(
 			`{"operator": "or", "filters": [
 				{"property": "verifiedUntil", "condition": "less", "date_preset": "current_week"},
 				{"property": "verifiedUntil", "condition": "empty"}]}`)))
 	})
 
-	t.Run("empty on a DIFFERENT property does not suppress", func(t *testing.T) {
-		w := warningsFor(t, dateFilterDoc(
-			`{"operator": "or", "filters": [
-				{"property": "verifiedUntil", "condition": "less", "date_preset": "current_week"},
-				{"property": "status", "condition": "empty"}]}`))
-		require.Len(t, w, 1)
-		assert.Contains(t, w[0].Message, "no verifiedUntil")
+	t.Run("with a not_empty sibling", func(t *testing.T) {
+		assert.Empty(t, warningsFor(t, dateFilterDoc(
+			`{"property": "verifiedUntil", "condition": "not_empty"},
+			 {"property": "verifiedUntil", "condition": "less", "date_preset": "today"}`)))
 	})
-}
-
-// an OR sibling guarantees nothing — the comparison is reachable without it
-func TestValidate_NotEmptyUnderOrDoesNotGuard(t *testing.T) {
-	w := warningsFor(t, dateFilterDoc(
-		`{"operator": "or", "filters": [
-			{"property": "verifiedUntil", "condition": "not_empty"},
-			{"property": "verifiedUntil", "condition": "less", "date_preset": "today"}]}`))
-	require.Len(t, w, 1)
-	assert.Contains(t, w[0].Message, "no verifiedUntil")
 }
 
 func TestValidate_DateFilterNonTriggers(t *testing.T) {
 	t.Run("greater is unaffected", func(t *testing.T) {
-		// an unset value compares as 1, and Greater tests for -1
 		assert.Empty(t, warningsFor(t, dateFilterDoc(
 			`{"property": "verifiedUntil", "condition": "greater", "date_preset": "today"}`)))
 	})
@@ -365,13 +312,9 @@ func TestValidate_InertPresetWarns(t *testing.T) {
 			assert.Empty(t, warningsFor(t, dateFilterDoc(
 				`{"property": "verifiedUntil", "condition": "`+cond+`", "date_preset": "current_week"}`)), cond)
 		}
-		// less and less_or_equal apply too; their one warning is the
-		// unguarded-comparison trap, not this rule
 		for _, cond := range []string{"less", "less_or_equal"} {
-			w := warningsFor(t, dateFilterDoc(
-				`{"property": "verifiedUntil", "condition": "`+cond+`", "date_preset": "current_week"}`))
-			require.Len(t, w, 1, cond)
-			assert.NotContains(t, w[0].Message, "is ignored", cond)
+			assert.Empty(t, warningsFor(t, dateFilterDoc(
+				`{"property": "verifiedUntil", "condition": "`+cond+`", "date_preset": "current_week"}`)), cond)
 		}
 	})
 

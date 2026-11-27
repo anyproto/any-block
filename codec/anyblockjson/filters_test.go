@@ -128,7 +128,7 @@ func TestUnmarshalFilters(t *testing.T) {
 		assert.Contains(t, ve.Issues[0].Message, "needs a day count")
 	})
 
-	t.Run("unguarded date less warns on the OnWarning channel", func(t *testing.T) {
+	t.Run("date less does not warn, undated objects are excluded by the store", func(t *testing.T) {
 		raw := json.RawMessage(`[{"property":"dueDate","condition":"less","date_preset":"today"}]`)
 		opts := fragFilterOpts()
 		var warnings []Issue
@@ -138,13 +138,10 @@ func TestUnmarshalFilters(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, got, 1)
-		require.Len(t, warnings, 1)
-		assert.Equal(t, "/filters/0", warnings[0].Path)
-		assert.Contains(t, warnings[0].Message, "also matches objects with no dueDate")
-		assert.Contains(t, warnings[0].Message, "not_empty")
+		assert.Empty(t, warnings)
 	})
 
-	t.Run("guarded date less is clean", func(t *testing.T) {
+	t.Run("date less with a not_empty sibling is clean", func(t *testing.T) {
 		raw := json.RawMessage(`[
 			{"property":"dueDate","condition":"not_empty"},
 			{"property":"dueDate","condition":"less","date_preset":"today"}]`)

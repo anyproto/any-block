@@ -169,7 +169,7 @@ func TestPartialValidationSkipsOnlyUnusedOptionCoverage(t *testing.T) {
 }
 
 func TestFilterWarningOrderMatchesWholeDocument(t *testing.T) {
-	filter := `[{"property":"dueDate","condition":"less","date_preset":"today"}]`
+	filter := `[{"property":"dueDate","condition":"empty","date_preset":"today"}]`
 	document := []byte(`{"formatVersion":"2.0","type":"page",` +
 		`"property_internal_keys":{" trailing ":"customTrailing"},` +
 		`"blocks":[{"id":"dv","type":"dataview","views":[{"id":"view",` +

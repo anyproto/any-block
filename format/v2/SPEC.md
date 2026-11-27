@@ -4611,13 +4611,14 @@ values verbatim), `empty_placement` (`start · end`, omit unspecified),
 `include_time` (include time-of-day when comparing dates), `no_collate`
 (disable locale-aware collation; compare raw strings), `id` (output-only).
 
-**Dates are not empty-safe.** An object with no value for a date property
-matches `less` and `less_or_equal` regardless of the threshold. An "overdue" view
-must therefore pair the comparison with a `not_empty` on the same property
-inside an `and` group; a `not_empty` under an `or` guards nothing.
-`greater`/`greater_or_equal` are unaffected. Import warns on an unguarded
-comparison rather than rejecting it — including undated objects is a legal
-thing to want, and stored data contains such filters.
+**Ordering conditions skip undated objects.** `less`, `less_or_equal`,
+`greater` and `greater_or_equal` compare only values of one type, so an object
+with no value for a date property never matches any of them, whatever the
+threshold. An "overdue" view (`dueDate less today`) lists only dated objects.
+To include the undated ones, OR an `empty` leaf on the same property into the
+comparison: `{ "operator": "or", "filters": [<less leaf>, { "property":
+"dueDate", "condition": "empty" }] }`. A `not_empty` guard is not needed.
+Import does not warn about these comparisons.
 
 **Filter** (`Dataview.Filter`) — a filter node is either a **group** or a
 **leaf** (schema `oneOf`); the top-level `filters` array combines its nodes
