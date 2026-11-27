@@ -664,10 +664,10 @@ const propertyFormatUnknown = "unknown"
 // _filter_template_1_ is the object hosting an inline dataview, resolving to
 // its id.
 //
-// They are stored verbatim in the filter's value and are opaque to the
-// middleware: nothing in Go resolves them, so a query evaluated server-side
-// compares against the literal string. They are not
-// object ids and must never be remapped as such.
+// They are stored verbatim in the filter's value and the codec never resolves
+// them: a consumer may substitute them (Heart does in stored-view execution),
+// and one that does not applies its ordinary value validation to the literal
+// string. They are not object ids and must never be remapped as such.
 const filterTemplatePrefix = "_filter_template_"
 
 func isFilterTemplate(v string) bool {

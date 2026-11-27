@@ -560,9 +560,14 @@ func (p *parser) parseValueLeaf(key, condition string) (*node, error) {
 	if preset != "" && condition != "equal" &&
 		condition != "greater" && condition != "less" &&
 		condition != "greater_or_equal" && condition != "less_or_equal" {
+		hint := `presets work with = > < >= <=`
+		if condition == "not_equal" {
+			// the range repair keeps what != keeps, the undated objects too
+			hint += `; negate by range instead, e.g. due_date < today() OR due_date > today() OR due_date IS EMPTY`
+		}
 		return nil, &Error{Offset: p.presetTok.offset, Token: p.presetTok.raw,
 			Message: fmt.Sprintf("a date preset cannot be used with %s", condition),
-			Hint:    `presets work with = > < >= <=; negate by range instead, e.g. due_date < today() OR due_date > today() OR due_date IS EMPTY`}
+			Hint:    hint}
 	}
 	return n, nil
 }
