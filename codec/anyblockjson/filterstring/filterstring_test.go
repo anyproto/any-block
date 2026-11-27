@@ -438,6 +438,7 @@ func TestParse_PresetConditions(t *testing.T) {
 		assert.Equal(t, "today", pe.Token)
 		assert.Contains(t, pe.Message, "a date preset cannot be used with not_equal")
 		assert.Contains(t, pe.Hint, "negate by range")
+		assert.Contains(t, pe.Hint, "OR due_date IS EMPTY", "a not-equal also keeps the undated objects, so the range repair must too")
 	})
 
 	t.Run("a preset with CONTAINS addresses the preset name", func(t *testing.T) {

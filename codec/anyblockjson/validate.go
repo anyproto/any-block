@@ -3013,9 +3013,11 @@ func sortedKeys(m map[string]struct{}) []string {
 //
 // It no longer warns about `less`/`less_or_equal` on a date. That warning said
 // an undated object also matches; since any-store v2 an ordering condition
-// compares only values of one type, so an undated object never matches `less`
-// (GO-7613). Excluding the undated is what a reader expects, and including
-// them takes an `empty` leaf OR-ed in, which a filter states in its own text.
+// compares only values of one type, so a comparison against a date or a
+// preset never matches an undated object (GO-7613; the exception is a
+// null or valueFromRelation operand with include_time, SPEC §6.2). Excluding
+// the undated is what a reader expects, and including them takes an `empty`
+// leaf OR-ed in, which a filter states in its own text.
 func checkDateFilters(view map[string]any, formats map[string]string, isDate func(string) bool,
 	path string, addIssue, warnIssue func(string, string, ...any)) {
 	nodes, _ := view["filters"].([]any)
@@ -3090,13 +3092,13 @@ func checkDateFilters(view map[string]any, formats map[string]string, isDate fun
 					}
 				}
 			}
-			// a dynamic filter token resolves to an object id, so it can
-			// only be substituted on an object/file property; anywhere else it
-			// is compared as a literal string. The warning names the format
-			// mismatch and does not predict rows: a not_equal against the
-			// literal still matches every object, and the property is not
-			// quoted because the caller may have spelled it differently from
-			// the key this layer sees. A WARNING
+			// a dynamic filter token stands for an object id, so it is meant
+			// for an object/file property. The warning names the format
+			// mismatch and nothing else: what the token is compared against
+			// differs by surface (a stored view substitutes the query id into
+			// any string leaf, direct search compares the literal), and the
+			// property is not quoted because the caller may have spelled it
+			// differently from the key this layer sees. A WARNING
 			// and not an error, for the reason the date-preset gate above
 			// gives: export must stay lossless — stored filters carry this
 			// pair (a template token on a text-declared property is real
@@ -3109,7 +3111,7 @@ func checkDateFilters(view map[string]any, formats map[string]string, isDate fun
 				if f, declared := formats[prop]; declared && f != "objects" && f != "files" {
 					for _, tok := range filterTemplateValues(n["value"]) {
 						warnIssue(nPath+"/value",
-							"%q resolves to an object id, which a %q property cannot hold; the placeholder is substituted only on object- or file-valued properties and is compared as a literal string elsewhere", tok, f)
+							"%q is intended for object or file properties, and this one is %q", tok, f)
 					}
 				}
 			}

@@ -1,8 +1,9 @@
 package anyblockjson
 
-// An ordering condition (less, less_or_equal, greater, greater_or_equal) never
-// matches a missing value since any-store v2, so a date `less` excludes the
-// undated objects and the validator does not warn about it (GO-7613).
+// An ordering condition (less, less_or_equal, greater, greater_or_equal)
+// compared against a date or a date preset never matches a missing value since
+// any-store v2, so a date `less` excludes the undated objects and the
+// validator does not warn about it (GO-7613).
 
 import (
 	"encoding/json"
@@ -32,8 +33,8 @@ func warningsFor(t *testing.T, doc string) []Issue {
 	return got
 }
 
-// GO-7613: an ordering condition never matches a missing value, so a plain
-// `less` on a date already excludes the undated objects and has nothing to
+// GO-7613: an ordering condition against a date or a preset never matches a
+// missing value, so a plain `less` on a date already excludes the undated objects and has nothing to
 // warn about, whatever sits next to it.
 func TestValidate_DateLessDoesNotWarn(t *testing.T) {
 	for _, cond := range []string{"less", "less_or_equal"} {

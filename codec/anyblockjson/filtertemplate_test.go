@@ -55,7 +55,7 @@ func TestRoundtrip_FilterTemplateSurvives(t *testing.T) {
 	}
 }
 
-// Resolving to an object id, a template token can only match an object/file
+// Standing for an object id, a template token is meant for an object/file
 // property — and saying so is a WARNING, never a refusal: a stored dataview
 // filter really carries this pair, so the rule as an error was an I1 break —
 // export wrote the document with zero warnings and the package's own
@@ -65,7 +65,7 @@ func TestRoundtrip_FilterTemplateSurvives(t *testing.T) {
 //
 // How this can fail: turn the warnIssue back into addIssue and the Marshal
 // arm below fails on its own output; drop the warning entirely and a filter
-// that matches nothing ships with a clean bill of health.
+// that cannot mean what it says ships with a clean bill of health.
 func TestValidate_FilterTemplateOnWrongFormat(t *testing.T) {
 	for _, f := range []string{"select", "date", "text", "number"} {
 		t.Run(f, func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestValidate_FilterTemplateOnWrongFormat(t *testing.T) {
 				"a stored filter must not make an object unexportable")
 			found := false
 			for _, w := range warns {
-				if strings.Contains(w.Message, "resolves to an object id") {
+				if strings.Contains(w.Message, "intended for object or file properties") {
 					found = true
 				}
 			}
@@ -91,7 +91,7 @@ func TestValidate_FilterTemplateOnWrongFormat(t *testing.T) {
 				`{"property": "assignee", "format": "`+f+`"}`,
 				`{"property": "assignee", "condition": "in", "value": ["_filter_template_2_"]}`)), Options{OnWarning: func(i Issue) { warns = append(warns, i) }}))
 			for _, w := range warns {
-				assert.NotContains(t, w.Message, "resolves to an object id")
+				assert.NotContains(t, w.Message, "intended for object or file properties")
 			}
 		})
 	}

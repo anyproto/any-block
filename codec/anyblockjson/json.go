@@ -666,7 +666,7 @@ const propertyFormatUnknown = "unknown"
 //
 // They are stored verbatim in the filter's value and are opaque to the
 // middleware: nothing in Go resolves them, so a query evaluated server-side
-// compares against the literal string and matches nothing. They are not
+// compares against the literal string. They are not
 // object ids and must never be remapped as such.
 const filterTemplatePrefix = "_filter_template_"
 
