@@ -170,6 +170,10 @@ func TestUnmarshalFilters(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0].Message, "resolves to an object id")
+		// GO-7613: it predicts no rows (a not_equal still matches every
+		// object) and quotes no key (the caller may have spelled it otherwise)
+		assert.NotContains(t, warnings[0].Message, "matches nothing")
+		assert.NotContains(t, warnings[0].Message, "status")
 	})
 
 	t.Run("leaf without property errors", func(t *testing.T) {

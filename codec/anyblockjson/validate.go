@@ -3091,8 +3091,12 @@ func checkDateFilters(view map[string]any, formats map[string]string, isDate fun
 				}
 			}
 			// a dynamic filter token resolves to an object id, so it can
-			// only match an object/file property; anywhere else it is
-			// compared as a literal string and matches nothing. A WARNING
+			// only be substituted on an object/file property; anywhere else it
+			// is compared as a literal string. The warning names the format
+			// mismatch and does not predict rows: a not_equal against the
+			// literal still matches every object, and the property is not
+			// quoted because the caller may have spelled it differently from
+			// the key this layer sees. A WARNING
 			// and not an error, for the reason the date-preset gate above
 			// gives: export must stay lossless — stored filters carry this
 			// pair (a template token on a text-declared property is real
@@ -3105,7 +3109,7 @@ func checkDateFilters(view map[string]any, formats map[string]string, isDate fun
 				if f, declared := formats[prop]; declared && f != "objects" && f != "files" {
 					for _, tok := range filterTemplateValues(n["value"]) {
 						warnIssue(nPath+"/value",
-							"%q resolves to an object id and cannot match %q (format %q); the filter matches nothing until the property is object- or file-valued", tok, prop, f)
+							"%q resolves to an object id, which a %q property cannot hold; the placeholder is substituted only on object- or file-valued properties and is compared as a literal string elsewhere", tok, f)
 					}
 				}
 			}

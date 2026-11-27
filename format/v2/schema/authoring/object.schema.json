@@ -1271,7 +1271,7 @@
                 "current_year",
                 "next_year"
               ],
-              "description": "Date properties, with equal/in/less/greater/less_or_equal/greater_or_equal: a rolling range instead of a fixed `value`. Pair an overdue filter with `not_empty` so undated objects do not match."
+              "description": "Date properties, with equal/in/less/greater/less_or_equal/greater_or_equal: a rolling range instead of a fixed `value`. Undated objects never match; OR an `empty` leaf in."
             }
           }
         }
