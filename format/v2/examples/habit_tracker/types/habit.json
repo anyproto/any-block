@@ -7,11 +7,11 @@
   "icon": { "format": "icon", "name": "repeat", "color": "teal" },
   "properties": {
     "Name": "Habit",
-    "Description": "One habit you are building.",
-    "Layout width": 0.5
+    "Description": "One habit you are building."
   },
   "type_settings": {
     "layout": "basic",
+    "layout_width_percent": 150,
     "plural_name": "Habits",
     "default_view": "table",
     "property_definitions": [

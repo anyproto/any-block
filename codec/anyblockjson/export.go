@@ -1860,10 +1860,9 @@ func (e *exporter) rootAttributes() (float64, *omap) {
 	var widthPercent float64
 	m := &omap{}
 	if fields := withoutAnalyticsFields(root.Fields); fields != nil {
-		n, numeric := fields.Fields["width"].GetKind().(*types.Value_NumberValue)
-		if supportsLayoutWidth(e.sbType) && numeric && n != nil {
-			if percent, lossless := exportLayoutWidth(n.NumberValue); lossless {
-				widthPercent = percent
+		if supportsLayoutWidth(e.sbType) {
+			widthPercent = layoutWidthPercentOf(fields.Fields["width"])
+			if widthPercent != 0 {
 				delete(fields.Fields, "width")
 			}
 		}
@@ -1979,6 +1978,11 @@ func (e *exporter) envelopeLiftedKeys() map[string]bool {
 	if e.isTypeDoc() {
 		for k := range typeSettingsLiftedDetailKeys() {
 			lifted[k] = true
+		}
+		// Older backups can carry values with no exact percentage. Those
+		// retain their original slot and take part in property name resolution.
+		if layoutWidthPercentOf(e.detail(detailKeyLayoutWidth)) != 0 {
+			lifted[detailKeyLayoutWidth] = true
 		}
 	}
 	return lifted

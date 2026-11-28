@@ -321,7 +321,7 @@ Fields, in **canonical order** (§4):
 | `cover` | object | no | The object's cover — same shape, three variants (§2b). Stands for the stored `coverId` / `coverType` / `coverScale` / `coverX` / `coverY` keys, which `properties` refuses. |
 | `layout_width_percent` | number | no | Width override on a page or template. Use 100 for standard width, 200 for the widest layout, or a number in between. Omit to inherit the type default. |
 | `properties` | object | no | The object's properties, §3. |
-| `type_settings` | object | no | Only for type documents (`kind: "object_type"`, `"bundled_object_type"`): everything that defines the TYPE, in one gated subtree — `layout`, `api_key`, `plural_name`, `default_template`, `default_view`, and `property_definitions` (§2a). Present on any other kind → validation error. The root spelling `type_properties` is refused with the repair named. |
+| `type_settings` | object | no | Only for type documents (`kind: "object_type"`, `"bundled_object_type"`): everything that defines the TYPE, in one gated subtree — `layout`, `layout_width_percent`, `api_key`, `plural_name`, `default_template`, `default_view`, and `property_definitions` (§2a). Present on any other kind → validation error. The root spelling `type_properties` is refused with the repair named. |
 | `file_remote` | string | no | Only for `kind: "file_object"` or legacy `"file"`: standard base64 encoding of independently versioned JSON containing the remote CID, encryption keys, and optional indexed variant metadata (§2h). |
 | `property_internal_keys` | object | no | Legend: the stored property key each spelling in this document names (§3). Written for every spelling the **bundled table does not bind to the key being written** — a spelling the table cannot invert (a space's own key) *and* the **identity entry**, which is the ordinary case: a custom key written verbatim names itself, because nothing else in the document says the term is a stored key rather than somebody's display-name spelling — and for a bundled spelling that a **live custom property also carries as its name**: the writer's own vocabulary resolves such a spelling bundled-first, so the table and the writer both say "no entry owed" while a reader planning from the bundle's dictionary sees two live claimants; a scoped vocabulary reporting more than one claimant is what makes the entry owed (measured: one space renamed the bundled Tag to "Regs" and minted a custom Tag; 542 documents spelled `Tag` with no entry). A reader consults it **before** its own vocabulary and takes the value as **authoritative**: it is not liveness-checked, deliberately (§3). Absent only from a document whose every spelling is bundled. |
 | `type_internal_key` | string | no | The STORED type key the `type` spelling names — the bundled key (`page`, `task`) or the minted key of a space's own type — written on **every** document that states a `type`, bundled or not (§15 #28). A scalar, because an object has exactly one type: a map overstated the shape. Import takes it as **authoritative** and never resolves the spelling beside it; the spelling is the caption a reader shows. Canonical export writes it after `type`; a key the writable-key rule cannot hold (over-long, control characters) is not written, with a warning, and `type` then carries the key verbatim. Present without `type` is a validation error. The former `type_internal_keys` map is retired: a template's target and every `object_types` entry are the type's derived id `type-<key>` (§9) and need no legend, so the map had exactly one entry left to hold. (In a SINGLE DOCUMENT exported under the `NoDerivedTypeIds` mode those two slots spell the vocabulary rather than the derived id; the type namespace carries no legend either way, and a bundle refuses that mode — §9.) A document carrying the map is refused with the repair named (§10). |
@@ -339,8 +339,11 @@ the indent-0 blocks).
 For example, a page can set `"layout_width_percent": 175` for a width of
 175%. A template can set the same field. Omitting it leaves the object's
 width unset, so the client can use the type's default. An explicit `100`
-overrides a wider type default. On a type document, the bundled
-`"Layout width"` property sets that default in the stored 0–1 units.
+overrides a wider type default. A type document sets the default in
+`type_settings.layout_width_percent` using the same percentage, range
+and warning rules. When the type omits its width, its pages use 100%.
+Earlier type documents that set the bundled `"Layout width"` property in
+stored 0–1 units still import. For example, `0.75` represents 175%.
 On a page or template, import preserves this property independently of
 the width override. When the property is present and the override is
 absent, a warning directs the author to `layout_width_percent`.
@@ -392,6 +395,7 @@ involved.
   "properties": { "Name": "Task", "Description": "…" },
   "type_settings": {
     "layout": "todo",
+    "layout_width_percent": 175,
     "api_key": "task",
     "plural_name": "Tasks",
     "default_template": "bafyrei…",
@@ -419,7 +423,7 @@ conditional on the schema, five more root fields would be five more, the
 eval found models putting `type_properties` on non-type documents precisely
 BECAUSE the root had no conditionals, and many constrained decoders do not
 implement `if`/`then` at all. One group is one conditional, and a per-kind
-generated schema includes or omits it in one move. The five settings members
+generated schema includes or omits it in one move. Five settings members
 lift from `properties` (their flat spellings — `recommended_layout`,
 `api_object_key`, `plural_name`, `default_template_id`, `default_view_type`
 — are refused there ON TYPE DOCUMENTS with the repair named; the refusal is
@@ -430,12 +434,20 @@ property):
 | member | stored key | shape |
 |---|---|---|
 | `layout` | `recommendedLayout` | the recommended layout of objects OF this type, as a layout name; a stored number outside the vocabulary passes through raw, and an unknown NAME is refused (it would import as a string onto a number detail, silently read as `basic`). |
+| `layout_width_percent` | `layoutWidth` | Default page width, a percentage from 100 to 200 inclusive. A concrete page or template can set its own `layout_width_percent` (§2). |
 | `api_key` | `apiObjectKey` | the type's public API key. **`api_key`, not `slug`**: of 1,326 corpus type documents with one, it differs from the document's own spelling in 247 (the `property` type's api key is `relation`, the word the public API kept when the format renamed the concept) — calling it a slug would imply it is the term used elsewhere in the document, which for those 247 it is not. |
 | `plural_name` | `pluralName` | the plural display name. |
 | `default_template` | `defaultTemplateId` | the object id of the template new objects start from — a scalar: the stored value is a list in every corpus document, with at most one entry (55 of 142; 87 empty), and a second entry is dropped with a warning. |
 | `default_view` | `defaultViewType` | the default view type, as a §6.2 view-type name; same raw-number/unknown-name policy as `layout`. |
 
-The five follow the **§4 omit-empty canon** — a `pluralName` of `""` (145
+For the width setting, absence and an explicit 100% remain distinct on
+export. A legacy stored width that cannot round-trip exactly through a
+percentage stays in `properties`. Supplying the width in `type_settings`
+and in a property that resolves to the bundled `layoutWidth` key is an
+error, even when their values agree. A custom property named “Layout width”
+keeps its own identity and can coexist with the setting.
+
+The five other settings follow the **§4 omit-empty canon** — a `pluralName` of `""` (145
 corpus docs) or a `defaultTemplateId` of `[]` (87) says nothing a reader
 could act on — unlike §2d's members, which are a property's definition and
 mirror presence exactly; the comparator reads the same rule through
@@ -500,10 +512,8 @@ objects, all from an old markdown import, stored `ot-type` — a key no space
 in the account ever minted — and copying it named a type document no
 bundle could carry.
 
-Seven candidates FAILED the admission test, and six of them stay in
-`properties`: `is_hidden` (cannot be proven install-only),
-`layout_width` (the width inherited by pages of this type, §2),
-`layout_align` (a display setting), `header_relations_layout`
+The following settings stay in `properties`: `is_hidden` (cannot be proven
+install-only), `layout_align` (a display setting), `header_relations_layout`
 (a real per-type editor setting the group does not model, 51 corpus
 documents), `featured_properties` —
 which means what this type OBJECT features, while `section: "featured"`
@@ -518,8 +528,7 @@ documents, **40 carry a local name the reviser would overwrite** (key
 `relation` is locally "Relation", bundled "Property") and 36 a local plural
 name. Dropping it reverts a user's rename on restore, silently.
 
-**`order_id` is the seventh, and it does not stay.** It failed the admission
-test for the reason the other six did — it carries something real: the
+**`order_id` is excluded from type documents.** It carries the
 user's own hand-ordering of types in the library, on 343 corpus type
 documents — and it was kept in `properties` for exactly that reason, until
 the ruling that took option documents out of a bundle settled the wider
@@ -6951,7 +6960,7 @@ fail neither test belong in authoring guidance and in review.
   `Validate` is `Inspect` refusing exactly on the error-severity issues,
   with the wording it always had; `InspectAuthoring` and `ValidateAuthoring`
   are the same pair on the authoring surface. Declared dangling targets
-  receive the severity defined in §2c. Page width corrections and unit
+  receive the severity defined in §2c. Page and type width corrections and unit
   hints (§2) are warnings with the document path and JSON pointer. The CLI
   prints warnings and info alongside the bundle verdict. With `-strict`,
   a warning also makes validation fail.

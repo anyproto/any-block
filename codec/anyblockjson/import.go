@@ -181,7 +181,7 @@ type jsonBlock struct {
 // still wrap *ValidationError with the authored JSON path, and every Validate
 // rejection reaches Unmarshal before vocabulary resolution.
 func Unmarshal(data []byte, opts Options) (model.SmartBlockType, *model.SmartBlockSnapshotBase, error) {
-	validated, err := validateToDoc(data, opts.NormalizeIndent, opts.OnWarning)
+	validated, err := validateToDocInScope(data, opts.NormalizeIndent, opts.OnWarning, validationScope{deferTypeWidthBinding: opts.Keys != nil})
 	if err != nil {
 		return 0, nil, err
 	}
@@ -190,6 +190,10 @@ func Unmarshal(data []byte, opts Options) (model.SmartBlockType, *model.SmartBlo
 		return 0, nil, fmt.Errorf("decode document: %w", err)
 	}
 	doc.LayoutWidthPercent, _ = validated[memberLayoutWidthPercent].(json.Number)
+	if doc.TypeSettings != nil {
+		settings, _ := typeSettingsOf(validated)
+		doc.TypeSettings.LayoutWidthPercent, _ = settings[memberLayoutWidthPercent].(json.Number)
+	}
 	imp := &importer{opts: opts, doc: &doc}
 	return imp.build()
 }
@@ -952,6 +956,11 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		// kind they stay ordinary properties (apiObjectKey is real data on
 		// 9,725 relation documents)
 		if isTypeSmartBlock(sbType) {
+			if key == detailKeyLayoutWidth && doc.TypeSettings != nil && doc.TypeSettings.LayoutWidthPercent != "" {
+				return 0, nil, &ValidationError{Issues: []Issue{{
+					Path: "/properties/" + escapeJSONPointer(slug), Message: typeLayoutWidthConflict,
+				}}}
+			}
 			if typeSettingsLiftedDetailKeys()[key] {
 				return 0, nil, &ValidationError{Issues: []Issue{{
 					Path: "/properties/" + escapeJSONPointer(slug),
@@ -1060,8 +1069,7 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 		if root.Fields == nil {
 			root.Fields = &types.Struct{Fields: make(map[string]*types.Value)}
 		}
-		percent, _ := doc.LayoutWidthPercent.Float64() // validated and clamped
-		root.Fields.Fields["width"] = jsonToProtoValue(storedLayoutWidth(percent))
+		root.Fields.Fields["width"] = layoutWidthDetail(doc.LayoutWidthPercent)
 	}
 
 	// A legacy page can carry the type's width property as metadata. Check

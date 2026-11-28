@@ -9,10 +9,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gogo/protobuf/types"
+
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
 const memberLayoutWidthPercent = "layout_width_percent"
+const typeLayoutWidthPath = "/type_settings/" + memberLayoutWidthPercent
+const typeLayoutWidthConflict = "this property and type_settings.layout_width_percent both set the type's default width. Supply only type_settings.layout_width_percent"
 
 // IsLayoutWidthWarning reports whether the issue concerns an out-of-range
 // layout_width_percent. Both validation and import can report these issues.
@@ -59,7 +63,7 @@ func compareWidthPercent(n json.Number, boundary int) int {
 	return strings.Compare(strings.TrimRight(digits, "0"), strings.TrimRight(target, "0"))
 }
 
-func clampLayoutWidthPercent(n json.Number, warn func(Issue)) json.Number {
+func clampLayoutWidthPercent(n json.Number, path string, warn func(Issue)) json.Number {
 	var endpoint json.Number
 	switch {
 	case compareWidthPercent(n, 100) < 0:
@@ -70,12 +74,11 @@ func clampLayoutWidthPercent(n json.Number, warn func(Issue)) json.Number {
 		return n
 	}
 	if warn != nil {
-		path := "/" + memberLayoutWidthPercent
 		warn(Issue{Path: path, Code: IssueCodeLayoutWidthClamped, Message: fmt.Sprintf(
 			"%s is outside the 100–200%% range and was clamped to %s%%", n, endpoint)})
 		if compareWidthPercent(n, 0) > 0 && compareWidthPercent(n, 1) < 0 {
 			warn(Issue{Path: path, Code: IssueCodeLayoutWidthFraction,
-				Message: "use a percentage for page width (for example, write 175 for the legacy root width 0.75)"})
+				Message: "use a percentage (for example, write 175 for the legacy width 0.75)"})
 		}
 	}
 	return endpoint
@@ -92,12 +95,44 @@ func DecodeLayoutWidthPercent(raw json.RawMessage, warn func(Issue)) (float64, e
 		return 0, &ValidationError{Issues: []Issue{{Path: "/" + memberLayoutWidthPercent,
 			Message: "layout_width_percent must be a JSON number (100–200%)"}}}
 	}
-	number = clampLayoutWidthPercent(number, warn)
+	number = clampLayoutWidthPercent(number, "/"+memberLayoutWidthPercent, warn)
 	percent, fault := jsonNumberRepresentabilityFault(number)
 	if fault != "" {
 		return 0, numberValidationError("/"+memberLayoutWidthPercent, number.String(), fault)
 	}
 	return storedLayoutWidth(percent), nil
+}
+
+// A zero result means the stored value needs its legacy representation.
+// Every representable percentage, including an explicit standard width, is positive.
+func layoutWidthPercentOf(value *types.Value) float64 {
+	n, ok := value.GetKind().(*types.Value_NumberValue)
+	if !ok || n == nil {
+		return 0
+	}
+	p, _ := exportLayoutWidth(n.NumberValue)
+	return p
+}
+
+func layoutWidthDetail(percent json.Number) *types.Value {
+	f, _ := percent.Float64() // validation has already corrected and checked this value
+	return jsonToProtoValue(storedLayoutWidth(f))
+}
+
+// An exact document legend entry always binds first. Before live binding, any
+// other spelling may identify a custom stored key even if it looks bundled.
+// The default reader normalizes the spelling before falling back to its bundled table.
+func conflictsWithTypeWidth(term, bundledKey string, expandedLegend map[string]any, deferBinding bool) bool {
+	if key, ok := expandedLegend[term].(string); ok {
+		return key == detailKeyLayoutWidth
+	}
+	if deferBinding {
+		return false
+	}
+	if key, ok := expandedLegend[nfcTerm(term)].(string); ok {
+		return key == detailKeyLayoutWidth
+	}
+	return bundledKey == detailKeyLayoutWidth
 }
 
 // storedLayoutWidth scales the authored decimal before rounding to the

@@ -69,6 +69,11 @@
           ],
           "description": "How objects of this type look: \"basic\" (title + content), \"profile\" (round avatar), \"todo\" (checkbox in the title), \"note\" (no title)."
         },
+        "layout_width_percent": {
+          "type": "number",
+          "examples": [175],
+          "description": "Default width for pages of this type, from 100 (standard) to 200 (widest). Omit for 100%. Out-of-range values clamp with a warning."
+        },
         "plural_name": {
           "type": "string",
           "description": "The plural display name: \"Habits\"."

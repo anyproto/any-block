@@ -213,7 +213,7 @@ func convertBundle(fsys fs.FS, options Options, authoring bool) (*Result, error)
 			return err
 		}
 		if authoring {
-			if err := ab.ValidateAuthoring(data); err != nil {
+			if err := ab.ValidateBeforeBinding(data, ab.Options{}, true); err != nil {
 				return fmt.Errorf("%s: %w", name, err)
 			}
 		}

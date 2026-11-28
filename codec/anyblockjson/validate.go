@@ -213,6 +213,18 @@ func Validate(data []byte, opts Options) error {
 	return err
 }
 
+// ValidateBeforeBinding checks an object before its bundle or space vocabulary
+// is available. Unmarshal with that vocabulary must follow: a legacy property
+// caption can refer to either the type's width or a different custom property.
+// Set authoring to check the authoring subset as well as the full grammar.
+func ValidateBeforeBinding(data []byte, opts Options, authoring bool) error {
+	_, err := validateToDocInScope(data, false, opts.OnWarning, validationScope{deferTypeWidthBinding: true})
+	if err != nil || !authoring {
+		return err
+	}
+	return validateObjectAuthoringSubset(data)
+}
+
 // validateToDoc runs the full validation pipeline and returns the decoded
 // document for the importer to consume. With lenient set, over-deep indents
 // are clamped instead of rejected, each clamp reported through warn (§4).
@@ -226,6 +238,7 @@ func validateToDoc(data []byte, lenient bool, warn func(Issue)) (map[string]any,
 // that require seeing uses elsewhere in the enclosing document.
 type validationScope struct {
 	skipUnusedOptionCoverage bool
+	deferTypeWidthBinding    bool
 }
 
 func validatePartialToDoc(data []byte, lenient bool, warn func(Issue)) (map[string]any, error) {
@@ -1364,7 +1377,12 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// A width outside the editor's range imports as an endpoint. Check the
 	// number that will actually be transported, including for overflow.
 	if p, ok := doc[memberLayoutWidthPercent].(json.Number); ok {
-		doc[memberLayoutWidthPercent] = clampLayoutWidthPercent(p, warn)
+		doc[memberLayoutWidthPercent] = clampLayoutWidthPercent(p, "/"+memberLayoutWidthPercent, warn)
+	}
+	typeSettings, _ := typeSettingsOf(doc)
+	typeWidth, hasTypeWidth := typeSettings[memberLayoutWidthPercent].(json.Number)
+	if hasTypeWidth {
+		typeSettings[memberLayoutWidthPercent] = clampLayoutWidthPercent(typeWidth, typeLayoutWidthPath, warn)
 	}
 	checkNumbers(doc, "", addIssue)
 
@@ -1451,6 +1469,10 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// caller-supplied vocabulary can resolve further than Validate can see,
 	// which is why importer.build re-runs admission on ITS resolved key.
 	legend, _ := doc[memberPropertyInternalKeys].(map[string]any)
+	var widthLegend map[string]any
+	if hasTypeWidth {
+		widthLegend = nfcExpandLegend(legend)
+	}
 	resolveDocKey := func(term string) string {
 		if v, ok := legend[term]; ok {
 			if key, isStr := v.(string); isStr && key != "" {
@@ -1524,6 +1546,10 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 			key := term
 			if term != detailKeyId && term != detailKeyType {
 				key = resolveDocKey(term)
+				if hasTypeWidth && conflictsWithTypeWidth(term, key, widthLegend, scope.deferTypeWidthBinding) {
+					addIssue(path, "%s", typeLayoutWidthConflict)
+					continue
+				}
 			}
 			if reason, denied := deniedPropertyKey(key); denied {
 				addIssue(path, "%s", reason)

@@ -13,9 +13,12 @@ import (
 )
 
 type exportedLayoutWidth struct {
-	Percent    *float64       `json:"layout_width_percent"`
-	Properties map[string]any `json:"properties"`
-	Root       struct {
+	Percent      *float64       `json:"layout_width_percent"`
+	Properties   map[string]any `json:"properties"`
+	TypeSettings struct {
+		Percent *float64 `json:"layout_width_percent"`
+	} `json:"type_settings"`
+	Root struct {
 		Fields map[string]any `json:"fields"`
 	} `json:"root"`
 	Blocks []struct {
@@ -218,7 +221,9 @@ func TestLayoutWidthPercentInheritanceAndTypeDefault(t *testing.T) {
 		require.Equal(t, 1.0, snap.Details.GetFields()["layoutWidth"].GetNumberValue())
 		_, exported := marshalWidthFixture(t, kind, snap)
 		require.Nil(t, exported.Percent)
-		require.Equal(t, 1.0, exported.Properties["Layout width"])
+		require.NotContains(t, exported.Properties, "Layout width")
+		require.NotNil(t, exported.TypeSettings.Percent)
+		require.Equal(t, 200.0, *exported.TypeSettings.Percent)
 	})
 	t.Run("raw width on another kind", func(t *testing.T) {
 		doc := []byte(`{"formatVersion":"2.0","kind":"participant","root":{"fields":{"width":0.75}}}`)

@@ -109,7 +109,7 @@
       "description": "Type documents only: the user removed this type, and the bundle carries it for backup fidelity. Written `true` only; absent means `false`. An author never writes it; a reader restores it hidden."
     },
     "type_settings": {
-      "description": "Type documents only: everything that defines the type. Carries `layout`, `api_key`, `plural_name`, `default_template`, `default_view` and `property_definitions`, the type's property list.",
+      "description": "Settings for an object type, including its page layout, default width and property definitions.",
       "type": "object",
       "properties": {
         "layout": {
@@ -122,6 +122,11 @@
             }
           ],
           "description": "The layout instances of this type get. Stated as a name; see $defs/objectLayout."
+        },
+        "layout_width_percent": {
+          "type": "number",
+          "examples": [175],
+          "description": "Default width for pages of this type, from 100 (standard) to 200 (widest). Omit for 100%. Out-of-range values clamp with a warning."
         },
         "api_key": {
           "type": "string"
