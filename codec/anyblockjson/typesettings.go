@@ -19,6 +19,8 @@ package anyblockjson
 // are recorded there too.
 
 import (
+	"encoding/json"
+
 	"github.com/gogo/protobuf/types"
 
 	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
@@ -30,6 +32,7 @@ import (
 // un-lift (the §2b rule).
 var (
 	detailKeyRecommendedLayout = vocabulary.RelationKeyRecommendedLayout.String()
+	detailKeyLayoutWidth       = vocabulary.RelationKeyLayoutWidth.String()
 	detailKeyApiObjectKey      = vocabulary.RelationKeyApiObjectKey.String()
 	detailKeyPluralName        = vocabulary.RelationKeyPluralName.String()
 	detailKeyDefaultTemplateId = vocabulary.RelationKeyDefaultTemplateId.String()
@@ -94,8 +97,8 @@ func typeSettingsLiftedKeyRepair(key string) string {
 //     a source-space ordering coordinate this format does not export on
 //     any kind (§3, transientProperties). The library ordering is the
 //     accepted loss of that ruling, recorded in §2a.
-//   - `layoutWidth` / `layoutAlign` (40/38 docs, 3/1 non-zero): the display
-//     of the type object's OWN page, set by a person where non-zero. Kept.
+//   - `layoutWidth` / `layoutAlign` (40/38 docs, 3/1 non-zero): kept.
+//     A representable width now travels in type_settings as a percentage.
 //   - `featuredRelations` (400 docs): what this type OBJECT features —
 //     which differs from `section: "featured"` (what objects OF this type
 //     feature) in 361 of 400 corpus cases. Two things, not one. Kept.
@@ -273,6 +276,7 @@ func (e *exporter) buildTypeSettings() (*omap, error) {
 	// layout as the zero's name
 	g.setNonEmpty("layout", e.typeSettingEnumValue(detailKeyRecommendedLayout, "/type_settings/layout",
 		layoutVocabulary.has, layoutVocabulary.name))
+	g.setNonEmpty(memberLayoutWidthPercent, layoutWidthPercentOf(e.detail(detailKeyLayoutWidth)))
 	g.setNonEmpty("api_key", e.typeSettingString(detailKeyApiObjectKey, "/type_settings/api_key"))
 	g.setNonEmpty("plural_name", e.typeSettingString(detailKeyPluralName, "/type_settings/plural_name"))
 	g.setNonEmpty("default_template", e.typeSettingTemplate())
@@ -375,12 +379,13 @@ func (e *exporter) typeSettingTemplate() string {
 // number, with a raw number passing through for a value outside the enum —
 // the layout-key policy `properties` has always applied.
 type jsonTypeSettings struct {
-	Layout          any                 `json:"layout"`
-	ApiKey          string              `json:"api_key"`
-	PluralName      string              `json:"plural_name"`
-	DefaultTemplate string              `json:"default_template"`
-	DefaultView     any                 `json:"default_view"`
-	TypeProps       *[]jsonTypeProperty `json:"property_definitions"` // pointer: [] and absent differ (§2a)
+	Layout             any                 `json:"layout"`
+	LayoutWidthPercent json.Number         `json:"-"` // supplied by validation after range correction
+	ApiKey             string              `json:"api_key"`
+	PluralName         string              `json:"plural_name"`
+	DefaultTemplate    string              `json:"default_template"`
+	DefaultView        any                 `json:"default_view"`
+	TypeProps          *[]jsonTypeProperty `json:"property_definitions"` // pointer: [] and absent differ (§2a)
 }
 
 // applyTypeSettings writes the stored keys the §2a group members stand for,
@@ -403,6 +408,9 @@ func (imp *importer) applyTypeSettings(details *types.Struct, sbType model.Smart
 		return float64(layoutNames.value(name)), true
 	}); v != nil {
 		details.Fields[detailKeyRecommendedLayout] = v
+	}
+	if ts.LayoutWidthPercent != "" {
+		details.Fields[detailKeyLayoutWidth] = layoutWidthDetail(ts.LayoutWidthPercent)
 	}
 	if ts.ApiKey != "" {
 		details.Fields[detailKeyApiObjectKey] = &types.Value{

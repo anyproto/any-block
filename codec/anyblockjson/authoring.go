@@ -9,7 +9,6 @@ package anyblockjson
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"sync"
@@ -91,6 +90,10 @@ func ValidateAuthoring(data []byte) error {
 	if err := Validate(data, Options{}); err != nil {
 		return err
 	}
+	return validateObjectAuthoringSubset(data)
+}
+
+func validateObjectAuthoringSubset(data []byte) error {
 	// the semantic rules run BEFORE the schema: they are stated on the
 	// resolved property key and say which key was written and why an author
 	// does not write it, where the schema's literal list can only say that
@@ -183,7 +186,7 @@ func validateAuthoringSubset(data []byte, compile func() (*jsonschema.Schema, er
 // cannot rot again.
 func authoringSemantics(data []byte) error {
 	var doc map[string]any
-	if err := json.Unmarshal(data, &doc); err != nil {
+	if err := jsonUnmarshalUseNumber(data, &doc); err != nil {
 		return &ValidationError{Issues: []Issue{{Message: fmt.Sprintf("invalid JSON: %v", err)}}}
 	}
 	var issues []Issue

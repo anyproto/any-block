@@ -31,6 +31,36 @@ func decodeEntries(t *testing.T, result *Result) map[string]*pb.SnapshotWithType
 	}
 	return out
 }
+
+func TestLayoutWidthCorrectionAcrossBundleConversion(t *testing.T) {
+	fixture := fstest.MapFS{
+		"index.json":            {Data: []byte(`{"formatVersion":"2.0","name":"Widths","entrypoint":"wide"}`)},
+		"objects/wide.json":     {Data: []byte(`{"formatVersion":"2.0","id":"wide","layout_width_percent":1e400}`)},
+		"objects/fraction.json": {Data: []byte(`{"formatVersion":"2.0","id":"fraction","layout_width_percent":0.75}`)},
+		"types/work.json":       {Data: []byte(`{"formatVersion":"2.0","kind":"object_type","id":"type-work","internal_key":"work","properties":{"Name":"Work"},"type_settings":{"layout":"basic","layout_width_percent":0.75}}`)},
+	}
+	for name, convert := range map[string]func(fs.FS, Options) (*Result, error){"full": Bundle, "authoring": Authoring} {
+		t.Run(name, func(t *testing.T) {
+			var warnings []string
+			result, err := convert(fixture, Options{OnWarning: func(w string) { warnings = append(warnings, w) }})
+			require.NoError(t, err)
+			messages := strings.Join(warnings, "\n")
+			assert.Equal(t, 1, strings.Count(messages, "objects/wide.json: /layout_width_percent:"))
+			assert.Equal(t, 2, strings.Count(messages, "objects/fraction.json: /layout_width_percent:"))
+			assert.Equal(t, 2, strings.Count(messages, "types/work.json: /type_settings/layout_width_percent:"))
+			entries := decodeEntries(t, result)
+			typeDetails := entries["type-work"].Snapshot.Data.Details.Fields
+			require.Contains(t, typeDetails, "layoutWidth")
+			assert.Equal(t, 0.0, typeDetails["layoutWidth"].GetNumberValue())
+			for id, want := range map[string]float64{"wide": 1, "fraction": 0} {
+				fields := entries[id].Snapshot.Data.Blocks[0].Fields.GetFields()
+				require.Contains(t, fields, "width")
+				assert.Equal(t, want, fields["width"].GetNumberValue())
+			}
+		})
+	}
+}
+
 func TestFullExport(t *testing.T) {
 	fixture := os.DirFS("../../format/v2/examples/exported_space")
 	var warnings []string

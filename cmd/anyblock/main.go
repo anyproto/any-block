@@ -65,7 +65,7 @@ func runValidate(args []string) error {
 		return nil
 	}
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
-	strict := flags.Bool("strict", false, "fail on warnings too (a declared omitted or absent target); info never fails")
+	strict := flags.Bool("strict", false, "fail on validation warnings as well as errors")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -92,10 +92,6 @@ func runValidate(args []string) error {
 			report, err = validateBundleDirectory(root)
 			switch {
 			case err == nil:
-				// what a valid bundle states about itself (§2c): printed at
-				// the severity its class earns, and failing only under -strict
-				// and only for warnings — info is a tombstone the space still
-				// names, which is by design
 				warned := false
 				for _, issue := range report.Issues {
 					if issue.Severity == anyblockbundle.SeverityError {
@@ -127,9 +123,22 @@ func runValidate(args []string) error {
 				return nil
 			}
 			considered++
-			if err := validateFile(path); err != nil {
+			warned := false
+			err := validateFile(path, anyblockjson.Options{OnWarning: func(issue anyblockjson.Issue) {
+				if !issue.Code.IsLayoutWidthWarning() {
+					return
+				}
+				warned = true
+				fmt.Fprintf(cliWarningOutput, "warning: %s: %s\n", path, issue)
+			}})
+			if err != nil {
 				failures++
 				fmt.Fprintf(os.Stderr, "invalid %s: %v\n", path, err)
+				return nil
+			}
+			if *strict && warned {
+				failures++
+				fmt.Fprintf(os.Stderr, "invalid %s: warnings are errors under -strict\n", path)
 				return nil
 			}
 			fmt.Printf("ok %s\n", path)
@@ -174,7 +183,7 @@ func validateBundleDirectory(name string) (report *anyblockbundle.Report, err er
 	return report, nil
 }
 
-func validateFile(path string) error {
+func validateFile(path string, opts anyblockjson.Options) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -185,7 +194,7 @@ func validateFile(path string) error {
 	case anyblockjson.PropertiesFileName:
 		_, err = anyblockjson.UnmarshalPropertyDictionary(data, anyblockjson.Options{})
 	default:
-		err = anyblockjson.Validate(data, anyblockjson.Options{})
+		err = anyblockjson.Validate(data, opts)
 	}
 	return err
 }

@@ -80,6 +80,10 @@ const (
 type IssueCode string
 
 const (
+	// IssueCodeLayoutWidthClamped reports correction to the closest endpoint.
+	IssueCodeLayoutWidthClamped IssueCode = "layout_width_clamped"
+	// IssueCodeLayoutWidthFraction explains percentage units for inputs in (0, 1).
+	IssueCodeLayoutWidthFraction IssueCode = "layout_width_fraction"
 	// IssueCodeUnresolvedTarget identifies a reference to an object the
 	// space had no row for — ABSENT: not synced, or never in this space.
 	// The one unresolved class that is a loss (§2c, §9).
@@ -177,7 +181,7 @@ func DetectFormat(data []byte) (formatVersion string, schemaURL string, ok bool)
 		return "", "", false
 	}
 	var probe map[string]any
-	if err := json.Unmarshal(data, &probe); err != nil {
+	if err := jsonUnmarshalUseNumber(data, &probe); err != nil {
 		return "", "", false
 	}
 	schemaURL, _ = probe["$schema"].(string)
@@ -188,8 +192,10 @@ func DetectFormat(data []byte) (formatVersion string, schemaURL string, ok bool)
 		return formatVersion, schemaURL, true
 	}
 	if legacy, exists := probe["version"]; exists {
-		if number, isNumber := legacy.(float64); isNumber && number == 2 {
-			return FormatVersion, schemaURL, true
+		if number, isNumber := legacy.(json.Number); isNumber {
+			if v, ok := jsonIntValue(number); ok && v == 2 {
+				return FormatVersion, schemaURL, true
+			}
 		}
 	}
 	return "", "", false
@@ -207,6 +213,18 @@ func Validate(data []byte, opts Options) error {
 	return err
 }
 
+// ValidateBeforeBinding checks an object before its bundle or space vocabulary
+// is available. Unmarshal with that vocabulary must follow: a legacy property
+// caption can refer to either the type's width or a different custom property.
+// Set authoring to check the authoring subset as well as the full grammar.
+func ValidateBeforeBinding(data []byte, opts Options, authoring bool) error {
+	_, err := validateToDocInScope(data, false, opts.OnWarning, validationScope{deferTypeWidthBinding: true})
+	if err != nil || !authoring {
+		return err
+	}
+	return validateObjectAuthoringSubset(data)
+}
+
 // validateToDoc runs the full validation pipeline and returns the decoded
 // document for the importer to consume. With lenient set, over-deep indents
 // are clamped instead of rejected, each clamp reported through warn (§4).
@@ -220,6 +238,7 @@ func validateToDoc(data []byte, lenient bool, warn func(Issue)) (map[string]any,
 // that require seeing uses elsewhere in the enclosing document.
 type validationScope struct {
 	skipUnusedOptionCoverage bool
+	deferTypeWidthBinding    bool
 }
 
 func validatePartialToDoc(data []byte, lenient bool, warn func(Issue)) (map[string]any, error) {
@@ -986,6 +1005,12 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 					return fmt.Sprintf("property %q is only valid on property documents "+
 						`(kind "property")`, prop)
 				}
+				if len(toks) == 1 && prop == memberLayoutWidthPercent {
+					return "layout_width_percent is only valid on pages and templates"
+				}
+				if len(toks) == 3 && toks[0] == "root" && toks[1] == "fields" && prop == "width" {
+					return "root.fields.width and layout_width_percent both set the page width. Supply only layout_width_percent"
+				}
 				if len(toks) == 1 && prop == "type_settings" {
 					return fmt.Sprintf("property %q is only valid on type documents "+
 						`(kind "object_type")`, prop)
@@ -1349,6 +1374,16 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// without closing surfaces the format deliberately leaves open. Left
 	// unchecked, Validate accepted 1e400 and Unmarshal then failed with a bare
 	// Go decode error carrying no JSON pointer — the divergence §12 rules out.
+	// A width outside the editor's range imports as an endpoint. Check the
+	// number that will actually be transported, including for overflow.
+	if p, ok := doc[memberLayoutWidthPercent].(json.Number); ok {
+		doc[memberLayoutWidthPercent] = clampLayoutWidthPercent(p, "/"+memberLayoutWidthPercent, warn)
+	}
+	typeSettings, _ := typeSettingsOf(doc)
+	typeWidth, hasTypeWidth := typeSettings[memberLayoutWidthPercent].(json.Number)
+	if hasTypeWidth {
+		typeSettings[memberLayoutWidthPercent] = clampLayoutWidthPercent(typeWidth, typeLayoutWidthPath, warn)
+	}
 	checkNumbers(doc, "", addIssue)
 
 	// The §6.2 group's two refusals the schema cannot make: an entry wearing
@@ -1434,6 +1469,10 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// caller-supplied vocabulary can resolve further than Validate can see,
 	// which is why importer.build re-runs admission on ITS resolved key.
 	legend, _ := doc[memberPropertyInternalKeys].(map[string]any)
+	var widthLegend map[string]any
+	if hasTypeWidth {
+		widthLegend = nfcExpandLegend(legend)
+	}
 	resolveDocKey := func(term string) string {
 		if v, ok := legend[term]; ok {
 			if key, isStr := v.(string); isStr && key != "" {
@@ -1507,6 +1546,10 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 			key := term
 			if term != detailKeyId && term != detailKeyType {
 				key = resolveDocKey(term)
+				if hasTypeWidth && conflictsWithTypeWidth(term, key, widthLegend, scope.deferTypeWidthBinding) {
+					addIssue(path, "%s", typeLayoutWidthConflict)
+					continue
+				}
 			}
 			if reason, denied := deniedPropertyKey(key); denied {
 				addIssue(path, "%s", reason)

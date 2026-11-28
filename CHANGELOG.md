@@ -5,6 +5,12 @@
 Newest first; the initial extraction's entries close the list in their
 original order.
 
+- **Pages and templates can set `layout_width_percent`** in the 2.0 release
+  candidate. For example, `175` selects the desktop slider's 175% setting.
+  Omit the field to inherit the type's width. Import clamps percentages to
+  100–200 with a warning and continues to accept earlier exports that carry
+  `root.fields.width`.
+
 - **The date `less` / `less_or_equal` warning is REMOVED** (SPEC §6.2,
   GO-7613). It said an undated object also matches; since any-store v2 an
   ordering condition compared against a date or a date preset never matches

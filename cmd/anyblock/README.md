@@ -34,6 +34,12 @@ documents name that no type document carries prints as a warning when the
 index declares it under `unresolved.types` (a reader imports the object as a
 Page) and as an error otherwise.
 
+For a page, template, or type, `validate` prints a warning when import would
+clamp `layout_width_percent` to 100 or 200. A type sets the field inside
+`type_settings`. A value strictly between 0 and 1 also
+produces a percentage hint. These warnings apply to both files and bundles
+and cause `validate -strict` to fail.
+
 `to-v2 -include-file-remote` preserves a file object's remote CID, encryption
 keys, and optional indexed variant metadata in the base64 `file_remote`
 field. It defaults to false. `to-v1` restores a supported payload

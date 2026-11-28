@@ -95,6 +95,11 @@
     "cover": {
       "$ref": "#/$defs/cover"
     },
+    "layout_width_percent": {
+      "type": "number",
+      "examples": [175],
+      "description": "Page or template width in percent. Use 100 for standard width and 200 for the widest layout. Omit to inherit the type default. Out-of-range values use the nearest endpoint with a warning."
+    },
     "properties": {
       "$ref": "#/$defs/propertyMap"
     },
@@ -104,7 +109,7 @@
       "description": "Type documents only: the user removed this type, and the bundle carries it for backup fidelity. Written `true` only; absent means `false`. An author never writes it; a reader restores it hidden."
     },
     "type_settings": {
-      "description": "Type documents only: everything that defines the type. Carries `layout`, `api_key`, `plural_name`, `default_template`, `default_view` and `property_definitions`, the type's property list.",
+      "description": "Settings for an object type, including its page layout, default width and property definitions.",
       "type": "object",
       "properties": {
         "layout": {
@@ -117,6 +122,11 @@
             }
           ],
           "description": "The layout instances of this type get. Stated as a name; see $defs/objectLayout."
+        },
+        "layout_width_percent": {
+          "type": "number",
+          "examples": [175],
+          "description": "Default width for pages of this type, from 100 (standard) to 200 (widest). Omit for 100%. Out-of-range values clamp with a warning."
         },
         "api_key": {
           "type": "string"
@@ -216,7 +226,12 @@
       "description": "Escape hatch for non-default root-block attributes. The two members a reader understands are typed here; any other member is carried and ignored.",
       "properties": {
         "fields": {
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "width": {
+              "description": "Earlier page and template exports stored their width here (0.75 means 175%). Values that cannot round-trip through layout_width_percent remain here."
+            }
+          }
         },
         "background_color": {
           "type": "string"
@@ -229,6 +244,14 @@
   ],
   "additionalProperties": false,
   "allOf": [
+    {
+      "if": {"properties": {"kind": {"enum": ["page", "template"]}}},
+      "else": {"properties": {"layout_width_percent": false}}
+    },
+    {
+      "if": {"required": ["layout_width_percent"]},
+      "then": {"properties": {"root": {"properties": {"fields": {"properties": {"width": false}}}}}}
+    },
     {
       "if": {
         "properties": {"kind": {"enum": ["file", "file_object"]}},

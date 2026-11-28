@@ -123,6 +123,14 @@ as "ordinary object" rather than as missing data. The vocabulary is larger than
 these five — `object.schema.json` lists every member — so branch on the values
 you handle and pass the rest through.
 
+For a page or template, `layout_width_percent` gives its explicit width.
+For example, `175` is 175% and `100` selects standard width even when the
+type uses a wider default. Earlier exports can carry the override in
+`root.fields.width`, where `0.75` means 175%. When both fields are absent,
+use the type's `type_settings.layout_width_percent`, or 100% if the type also
+omits the setting. Older type exports can carry the default in the bundled
+`Layout width` property. In that form, `0.75` means 175%.
+
 Do not assume there is an ordinary object to show. Across 79 measured exports,
 **12 carry none at all** — types and participants travelled, the pages did
 not — and **11 of those 12** also name a `homepage` the bundle does not carry.

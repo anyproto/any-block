@@ -458,16 +458,22 @@ func inspect(fsys fs.FS, surface bundleSurface) (*Report, error) {
 			}
 			return nil
 		}
-		if decodeErr := anyblockjson.Validate(data, anyblockjson.Options{}); decodeErr != nil {
+		opts := anyblockjson.Options{OnWarning: func(issue anyblockjson.Issue) {
+			if issue.Code.IsLayoutWidthWarning() {
+				report.add(ReportIssue{Severity: SeverityWarning, Code: issue.Code, Path: name, Message: fmt.Sprintf("%s: %s", name, issue)})
+			}
+		}}
+		// Bind property names after the vocabulary has been assembled from
+		// the type documents and property dictionary below.
+		if decodeErr := anyblockjson.ValidateBeforeBinding(data, opts, false); decodeErr != nil {
 			issues = append(issues, fmt.Sprintf("%s: %v", name, decodeErr))
 			return nil
 		}
-		// The subset runs AFTER the full grammar, so a document outside both
-		// is reported by §12's curated wording rather than by a `not`/`enum`
-		// verdict that can only say some member matched.
+		// A structurally valid document still contributes reference diagnostics
+		// when the authoring subset rejects one of its members.
 		if authoring {
-			if subsetErr := anyblockjson.ValidateAuthoring(data); subsetErr != nil {
-				issues = append(issues, fmt.Sprintf("%s: %v", name, subsetErr))
+			if err := anyblockjson.ValidateBeforeBinding(data, anyblockjson.Options{}, true); err != nil {
+				issues = append(issues, fmt.Sprintf("%s: %v", name, err))
 			}
 		}
 		authoringDocuments[name] = data

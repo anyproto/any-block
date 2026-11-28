@@ -11,6 +11,7 @@
   },
   "type_settings": {
     "layout": "basic",
+    "layout_width_percent": 150,
     "plural_name": "Habits",
     "default_view": "table",
     "property_definitions": [

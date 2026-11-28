@@ -4,6 +4,7 @@
   "id": "habit-weekly-review",
   "type": "Habit",
   "icon": { "format": "emoji", "emoji": "🗓️" },
+  "layout_width_percent": 175,
   "properties": {
     "Name": "Weekly review",
     "Frequency": [ "Weekly" ],
