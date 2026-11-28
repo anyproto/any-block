@@ -81,6 +81,25 @@ func clampLayoutWidthPercent(n json.Number, warn func(Issue)) json.Number {
 	return endpoint
 }
 
+// DecodeLayoutWidthPercent converts a single layout_width_percent JSON value
+// to the native root block width. Document editors can use the same units,
+// range correction and diagnostics as whole-document import.
+func DecodeLayoutWidthPercent(raw json.RawMessage, warn func(Issue)) (float64, error) {
+	var value any
+	err := jsonUnmarshalUseNumber(raw, &value)
+	number, ok := value.(json.Number)
+	if err != nil || !ok {
+		return 0, &ValidationError{Issues: []Issue{{Path: "/" + memberLayoutWidthPercent,
+			Message: "layout_width_percent must be a JSON number (100–200%)"}}}
+	}
+	number = clampLayoutWidthPercent(number, warn)
+	percent, fault := jsonNumberRepresentabilityFault(number)
+	if fault != "" {
+		return 0, numberValidationError("/"+memberLayoutWidthPercent, number.String(), fault)
+	}
+	return storedLayoutWidth(percent), nil
+}
+
 // storedLayoutWidth scales the authored decimal before rounding to the
 // snapshot's double. For example, 100.01% stores exactly the same double
 // as the legacy JSON value 0.0001.

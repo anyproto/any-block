@@ -71,6 +71,11 @@ func TestLayoutWidthPercentImport(t *testing.T) {
 			require.NoError(t, ValidateAuthoring(data))
 			validateIssues := issues
 			issues = nil
+			width, err := DecodeLayoutWidthPercent(json.RawMessage(tc.token), opts.OnWarning)
+			require.NoError(t, err)
+			require.Equal(t, tc.width, width)
+			require.Equal(t, validateIssues, issues)
+			issues = nil
 			kind, snap, err := Unmarshal(data, opts)
 			require.NoError(t, err)
 			require.Equal(t, validateIssues, issues)
@@ -118,6 +123,8 @@ func TestLayoutWidthPercentKindsAndConflicts(t *testing.T) {
 	}
 	for _, token := range []string{`"175"`, "true", "null", "100.000000000000001"} {
 		t.Run("invalid_"+token, func(t *testing.T) {
+			_, scalarErr := DecodeLayoutWidthPercent(json.RawMessage(token), nil)
+			require.ErrorContains(t, scalarErr, "/layout_width_percent")
 			doc := []byte(`{"formatVersion":"2.0","layout_width_percent":` + token + `}`)
 			require.ErrorContains(t, Validate(doc, Options{}), "layout_width_percent")
 			_, _, err := Unmarshal(doc, Options{})
