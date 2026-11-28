@@ -154,6 +154,10 @@ func convertBundle(fsys fs.FS, options Options, authoring bool) (*Result, error)
 	// declared dangling targets, graded (§2c). Forwarded as lines so a
 	// caller with only a string sink still shows the loss.
 	for _, issue := range report.Issues {
+		// Unmarshal reports each width correction when it restores the document.
+		if issue.Code.IsLayoutWidthWarning() {
+			continue
+		}
 		if issue.Severity != anyblockbundle.SeverityError {
 			warn(fmt.Sprintf("%s: %s", issue.Severity, issue.Message))
 		}

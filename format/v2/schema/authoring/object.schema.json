@@ -48,6 +48,11 @@
     "cover": {
       "$ref": "#/$defs/cover"
     },
+    "layout_width_percent": {
+      "type": "number",
+      "examples": [175],
+      "description": "Page or template width in percent. Use 100 for standard width and 200 for the widest layout. Omit to inherit the type default. Out-of-range values use the nearest endpoint with a warning."
+    },
     "properties": {
       "$ref": "#/$defs/propertyMap"
     },
@@ -149,6 +154,7 @@
         ]
       },
       "then": {
+        "properties": {"layout_width_percent": false},
         "required": [
           "internal_key",
           "type_settings",

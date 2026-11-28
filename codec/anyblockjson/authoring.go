@@ -9,7 +9,6 @@ package anyblockjson
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"sync"
@@ -183,7 +182,7 @@ func validateAuthoringSubset(data []byte, compile func() (*jsonschema.Schema, er
 // cannot rot again.
 func authoringSemantics(data []byte) error {
 	var doc map[string]any
-	if err := json.Unmarshal(data, &doc); err != nil {
+	if err := jsonUnmarshalUseNumber(data, &doc); err != nil {
 		return &ValidationError{Issues: []Issue{{Message: fmt.Sprintf("invalid JSON: %v", err)}}}
 	}
 	var issues []Issue

@@ -94,8 +94,8 @@ func typeSettingsLiftedKeyRepair(key string) string {
 //     a source-space ordering coordinate this format does not export on
 //     any kind (§3, transientProperties). The library ordering is the
 //     accepted loss of that ruling, recorded in §2a.
-//   - `layoutWidth` / `layoutAlign` (40/38 docs, 3/1 non-zero): the display
-//     of the type object's OWN page, set by a person where non-zero. Kept.
+//   - `layoutWidth` / `layoutAlign` (40/38 docs, 3/1 non-zero): kept as
+//     properties. Pages inherit the type's width until they set an override.
 //   - `featuredRelations` (400 docs): what this type OBJECT features —
 //     which differs from `section: "featured"` (what objects OF this type
 //     feature) in 361 of 400 corpus cases. Two things, not one. Kept.

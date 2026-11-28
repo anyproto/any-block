@@ -309,7 +309,7 @@ Fields, in **canonical order** (§4):
 | Field | Type | Req | Notes |
 |---|---|---|---|
 | `$schema` | string | no | Schema URL; written by export and used only to dispatch among object, index, and property-dictionary grammars (§10). |
-| `formatVersion` | string | **yes** | Public AnyBlock version in canonical `major.minor` form. This spec defines `2.0`. Every grammar change bumps it (§10). |
+| `formatVersion` | string | **yes** | Public AnyBlock version in canonical `major.minor` form. This release candidate uses `2.0` (§10). |
 | `kind` | string | no | System-level object kind, snake_case (`page`, `profile_page`, `template`, `archive`, `widget`, `chat`, …) — from `model.SmartBlockType`. `chat` is `ChatDerivedObject`: a standalone chat object whose identity is `internal_key`, like a type's; its messages live in the CRDT store, not in snapshots, so it always imports empty. (`chat_object` is the deprecated predecessor; `discussion` is a hidden type.) **Omitted whenever derivable**: absent means `page`. It is the SOLE authority on whether a document is a template — `template_for` is admitted on it, the second type slot exists on it, and no type spelling implies it (§3). A template therefore always spells its kind. An unrecognized value is a validation error listing the allowed values. |
 | `id` | string | no | Envelope object identity. Written by export and preserved by import: when present it is validated and claimed, and the implicit root block uses that same id; only an absent envelope id is generated. It is retained by `OmitIds`, never compacted, and written in full like every object reference (§9, §9a). This is distinct from document-local block/table/view ids. |
 | `type` | string | no | The object's type **document spelling**, canonically its NFC display name (`Page`, `Task`, `Property`) — the key vocabulary of §3, not the stored `ot-`-prefixed key and not a derived API slug. Legacy derived slugs such as `object_type` remain input-only compatibility spellings; canonical re-export uses the display name. Maps to `object_types[0]` in the snapshot. Absent when the snapshot has no object types (legacy/system objects). **The stored key stands beside it in `type_internal_key`, on every typed document**, so a reader resolves the key and shows the spelling; only a document that states no key — an authored one — has its `type` inverted through the §3 chain in the type namespace (the vocabulary in force: the bundled table offline, the space's stored names and compatibility spellings inside a node), and the resulting stored key is handed to the wiring, which resolves it — matching an existing type or creating one (the Markdown importer's behavior). A term the chain does not know passes through verbatim — an exact stored key is always its own address (§3). No spelling is reserved: `template` is an ordinary type term that a key or vocabulary may bind wherever it likes, because `kind` — a field no chain touches — is the sole template authority. With no `kind`, even a literal `"type": "template"` is an ordinary page type (§10). |
@@ -319,6 +319,7 @@ Fields, in **canonical order** (§4):
 | `property_settings` | object | on `kind: "property"` | Only for property documents, where it is **required**: the definition of the property this document IS — one `propertyDefinition` (§2d, §2e). Carries `format` (required, a §3 format NAME — never a raw enum number; stands for the stored `relationFormat` key, which `properties` refuses), `include_time` and `object_types`, each present exactly when its stored key is, value included. Illegal on every other kind. |
 | `icon` | object | no | The object's icon — ONE object whose `format` selects the variant (§2b). Stands for the stored `iconEmoji` / `iconImage` / `iconName` / `iconOption` keys, which `properties` refuses. |
 | `cover` | object | no | The object's cover — same shape, three variants (§2b). Stands for the stored `coverId` / `coverType` / `coverScale` / `coverX` / `coverY` keys, which `properties` refuses. |
+| `layout_width_percent` | number | no | Width override on a page or template. Use 100 for standard width, 200 for the widest layout, or a number in between. Omit to inherit the type default. |
 | `properties` | object | no | The object's properties, §3. |
 | `type_settings` | object | no | Only for type documents (`kind: "object_type"`, `"bundled_object_type"`): everything that defines the TYPE, in one gated subtree — `layout`, `api_key`, `plural_name`, `default_template`, `default_view`, and `property_definitions` (§2a). Present on any other kind → validation error. The root spelling `type_properties` is refused with the repair named. |
 | `file_remote` | string | no | Only for `kind: "file_object"` or legacy `"file"`: standard base64 encoding of independently versioned JSON containing the remote CID, encryption keys, and optional indexed variant metadata (§2h). |
@@ -334,6 +335,29 @@ Fields, in **canonical order** (§4):
 The root block of the snapshot (whose id equals the object id) is
 **implicit**: its subtree becomes the `blocks` array (its direct children are
 the indent-0 blocks).
+
+For example, a page can set `"layout_width_percent": 175` for a width of
+175%. A template can set the same field. Omitting it leaves the object's
+width unset, so the client can use the type's default. An explicit `100`
+overrides a wider type default. On a type document, the bundled
+`"Layout width"` property sets that default in the stored 0–1 units.
+On a page or template, import preserves this property independently of
+the width override. When the property is present and the override is
+absent, a warning directs the author to `layout_width_percent`.
+
+Validation and import accept fractional percentages such as `137.5`.
+Values below 100 or above 200 are clamped to the nearest endpoint on import
+and produce a warning. Values strictly between 0 and 1 also warrant a unit
+hint. For example, `0.75` clamps to 100%, and the warning suggests `175`
+if the author meant the stored width of 0.75. Strings and `null` are errors.
+
+Earlier 2.0 exports put the override in `root.fields.width`. Readers accept
+that form unchanged. Import of a percentage stores `(percent - 100) / 100`
+in the root block. Export writes the first-class percentage when converting
+it back through JSON and import reproduces the exact stored width.
+Otherwise export preserves the raw value, including out-of-range numbers
+and `null`, in `root.fields.width`. Other root fields are independent.
+Supplying both forms is an error even when their values agree.
 
 **The title and description are properties (§3), not blocks; the icon and the
 cover are envelope fields of their own (§2b).** There is no title block in a
@@ -478,8 +502,8 @@ bundle could carry.
 
 Seven candidates FAILED the admission test, and six of them stay in
 `properties`: `is_hidden` (cannot be proven install-only),
-`layout_width`/`layout_align` (the type object's own
-page display, set by a person where non-zero), `header_relations_layout`
+`layout_width` (the width inherited by pages of this type, §2),
+`layout_align` (a display setting), `header_relations_layout`
 (a real per-type editor setting the group does not model, 51 corpus
 documents), `featured_properties` —
 which means what this type OBJECT features, while `section: "featured"`
@@ -2408,7 +2432,7 @@ Each of the three subset schemas is materially smaller than the full one
 beside it, with every remaining `description` rewritten for an author: short,
 concrete, saying what to write. Size is the least of it; the narrowing that
 matters to a generator is structural: 3 authorable kinds where the full enum
-offers 31, 23 block types of 39, 14 envelope members of 21, and no
+offers 31, 23 block types of 39, 15 envelope members of 23, and no
 output-only member anywhere — the test asserts that literally.
 
 ## 2h. Remote file metadata (`file_remote`)
@@ -4152,8 +4176,10 @@ block's `fields`, and no others:
 | `type` | 2 | `embed` | The diagram language a `kroki` processor renders (`blockdiag`) |
 | `lang` | 1 | `bulleted_list_item` | A stray: `lang` is lifted to `language` on `code` blocks only (§5.1), so on any other type it stays put |
 
-`root.fields`, the document-level bag (§2), carries two: `isLocked` (128) and
-`width` (45, the page width, a fraction — and once a literal `null`).
+Earlier exports used two keys in `root.fields`, the document-level bag (§2).
+The corpus contained `isLocked` (128) and `width` (45, including one
+literal `null`). Pages and templates now export `layout_width_percent` when
+the stored width can be represented exactly (§2).
 
 Two consequences a reader has to know:
 
@@ -6232,9 +6258,9 @@ JSON implementation.
   `version` field: `version: 1` named several incompatible draft grammars and
   is refused with re-export as the repair; `version: 2` names the grammar that
   became public `formatVersion: "2.0"` and has a direct mechanical rewrite.
-  `2.0` is the first public, frozen grammar and the first version a later
-  reader can migrate from.
-- **Every grammar change bumps the version.** A change within the AnyBlock v2
+  The 2.0 release candidates share `formatVersion: "2.0"`. For the page
+  width change, readers accept documents from earlier candidates (§2).
+- **After the first final release, every grammar change bumps the version.** A change within the AnyBlock v2
   family increments the minor component (`2.0` → `2.1`); a future incompatible
   format family increments the major component. There is no additive-within-a-
   version rule, because there is nothing additive to have: the schema closes
@@ -6924,11 +6950,11 @@ fail neither test belong in authoring guidance and in review.
   never on the wording) and the index field or bundle path they are about.
   `Validate` is `Inspect` refusing exactly on the error-severity issues,
   with the wording it always had; `InspectAuthoring` and `ValidateAuthoring`
-  are the same pair on the authoring surface. What earns each grade is
-  §2c's classification of a declared dangling target; everything Validate
-  used to refuse is still an error. The CLI prints warnings and info after
-  the `ok bundle` line and fails on warnings only under `-strict`; info
-  never fails, because a tombstone the space still names is by design.
+  are the same pair on the authoring surface. Declared dangling targets
+  receive the severity defined in §2c. Page width corrections and unit
+  hints (§2) are warnings with the document path and JSON pointer. The CLI
+  prints warnings and info alongside the bundle verdict. With `-strict`,
+  a warning also makes validation fail.
 - **Validate and strict, default-vocabulary Unmarshal agree, in both
   directions.** With `Options{}` (or an equivalent resolver-free bundled key
   vocabulary), whatever `Validate` accepts `Unmarshal` decodes, and whatever
@@ -6951,7 +6977,9 @@ fail neither test belong in authoring guidance and in review.
     subnormals (`5e-324`), while refusing adjacent rounded integers
     (`9007199254740993`), drift-prone decimals
     (`0.10000000000000001`), underflow-to-zero (`1e-4000`) and overflow
-    (`1e400`). The recursive rule applies at exact JSON pointers everywhere,
+    (`1e400`). For `layout_width_percent`, the range correction (§2)
+    precedes this check. For example, `1e400` is clamped to `200` with
+    a warning. The recursive rule applies at exact JSON pointers everywhere,
     including dictionary defaults and the loose surfaces (§3 property values,
     block `fields`, `store`, filter values) that have no schema bound by
     design. Writers apply the same rule and use no in-band metadata key.

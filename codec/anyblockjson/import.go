@@ -13,6 +13,7 @@ import (
 	"github.com/gogo/protobuf/types"
 
 	"github.com/anyproto/any-block/codec/anyblockjson/domain"
+	"github.com/anyproto/any-block/codec/anyblockjson/vocabulary"
 	"github.com/anyproto/any-block/format/v1/model"
 )
 
@@ -23,7 +24,13 @@ func jsonUnmarshal(data []byte, v any) error {
 func jsonUnmarshalUseNumber(data []byte, v any) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
-	return decoder.Decode(v)
+	if err := decoder.Decode(v); err != nil {
+		return err
+	}
+	if len(bytes.Trim(data[decoder.InputOffset():], " \t\r\n")) != 0 {
+		return fmt.Errorf("unexpected data after JSON value")
+	}
+	return nil
 }
 
 // UnmarshalPropertyValueChecked is the lossless value-level import door. It
@@ -69,6 +76,9 @@ type jsonDoc struct {
 	Icon       *Icon          `json:"icon"`
 	Cover      *Cover         `json:"cover"`
 	Properties map[string]any `json:"properties"`
+	// Taken from validation after range correction, including for values
+	// outside float64 range in the original document.
+	LayoutWidthPercent json.Number `json:"-"`
 	// TypeSettings is a kind:object_type document's definition group (§2a):
 	// the five lifted settings plus property_definitions.
 	TypeSettings *jsonTypeSettings `json:"type_settings"`
@@ -171,13 +181,15 @@ type jsonBlock struct {
 // still wrap *ValidationError with the authored JSON path, and every Validate
 // rejection reaches Unmarshal before vocabulary resolution.
 func Unmarshal(data []byte, opts Options) (model.SmartBlockType, *model.SmartBlockSnapshotBase, error) {
-	if _, err := validateToDoc(data, opts.NormalizeIndent, opts.OnWarning); err != nil {
+	validated, err := validateToDoc(data, opts.NormalizeIndent, opts.OnWarning)
+	if err != nil {
 		return 0, nil, err
 	}
 	var doc jsonDoc
 	if err := jsonUnmarshal(data, &doc); err != nil {
 		return 0, nil, fmt.Errorf("decode document: %w", err)
 	}
+	doc.LayoutWidthPercent, _ = validated[memberLayoutWidthPercent].(json.Number)
 	imp := &importer{opts: opts, doc: &doc}
 	return imp.build()
 }
@@ -1043,6 +1055,22 @@ func (imp *importer) build() (model.SmartBlockType, *model.SmartBlockSnapshotBas
 			}
 		}
 		root.BackgroundColor = doc.Root.BackgroundColor
+	}
+	if doc.LayoutWidthPercent != "" {
+		if root.Fields == nil {
+			root.Fields = &types.Struct{Fields: make(map[string]*types.Value)}
+		}
+		percent, _ := doc.LayoutWidthPercent.Float64() // validated and clamped
+		root.Fields.Fields["width"] = jsonToProtoValue(storedLayoutWidth(percent))
+	}
+
+	// A legacy page can carry the type's width property as metadata. Check
+	// the resolved key so a custom property with the same name stays distinct.
+	if slug, present := boundBy[vocabulary.RelationKeyLayoutWidth.String()]; present && supportsLayoutWidth(sbType) {
+		if _, hasWidth := root.Fields.GetFields()["width"]; !hasWidth {
+			imp.warn("/properties/"+escapeJSONPointer(slug),
+				"this property is preserved as metadata. Set top-level layout_width_percent (100–200%%) to override the page width")
+		}
 	}
 
 	all := []*model.Block{root}

@@ -458,7 +458,12 @@ func inspect(fsys fs.FS, surface bundleSurface) (*Report, error) {
 			}
 			return nil
 		}
-		if decodeErr := anyblockjson.Validate(data, anyblockjson.Options{}); decodeErr != nil {
+		opts := anyblockjson.Options{OnWarning: func(issue anyblockjson.Issue) {
+			if issue.Code.IsLayoutWidthWarning() {
+				report.add(ReportIssue{Severity: SeverityWarning, Code: issue.Code, Path: name, Message: fmt.Sprintf("%s: %s", name, issue)})
+			}
+		}}
+		if decodeErr := anyblockjson.Validate(data, opts); decodeErr != nil {
 			issues = append(issues, fmt.Sprintf("%s: %v", name, decodeErr))
 			return nil
 		}

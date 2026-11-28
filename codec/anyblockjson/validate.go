@@ -80,6 +80,10 @@ const (
 type IssueCode string
 
 const (
+	// IssueCodeLayoutWidthClamped reports correction to the closest endpoint.
+	IssueCodeLayoutWidthClamped IssueCode = "layout_width_clamped"
+	// IssueCodeLayoutWidthFraction explains percentage units for inputs in (0, 1).
+	IssueCodeLayoutWidthFraction IssueCode = "layout_width_fraction"
 	// IssueCodeUnresolvedTarget identifies a reference to an object the
 	// space had no row for — ABSENT: not synced, or never in this space.
 	// The one unresolved class that is a loss (§2c, §9).
@@ -177,7 +181,7 @@ func DetectFormat(data []byte) (formatVersion string, schemaURL string, ok bool)
 		return "", "", false
 	}
 	var probe map[string]any
-	if err := json.Unmarshal(data, &probe); err != nil {
+	if err := jsonUnmarshalUseNumber(data, &probe); err != nil {
 		return "", "", false
 	}
 	schemaURL, _ = probe["$schema"].(string)
@@ -188,8 +192,10 @@ func DetectFormat(data []byte) (formatVersion string, schemaURL string, ok bool)
 		return formatVersion, schemaURL, true
 	}
 	if legacy, exists := probe["version"]; exists {
-		if number, isNumber := legacy.(float64); isNumber && number == 2 {
-			return FormatVersion, schemaURL, true
+		if number, isNumber := legacy.(json.Number); isNumber {
+			if v, ok := jsonIntValue(number); ok && v == 2 {
+				return FormatVersion, schemaURL, true
+			}
 		}
 	}
 	return "", "", false
@@ -986,6 +992,12 @@ func schemaIssueMessage(e *jsonschema.ValidationError, printer *message.Printer)
 					return fmt.Sprintf("property %q is only valid on property documents "+
 						`(kind "property")`, prop)
 				}
+				if len(toks) == 1 && prop == memberLayoutWidthPercent {
+					return "layout_width_percent is only valid on pages and templates"
+				}
+				if len(toks) == 3 && toks[0] == "root" && toks[1] == "fields" && prop == "width" {
+					return "root.fields.width and layout_width_percent both set the page width. Supply only layout_width_percent"
+				}
 				if len(toks) == 1 && prop == "type_settings" {
 					return fmt.Sprintf("property %q is only valid on type documents "+
 						`(kind "object_type")`, prop)
@@ -1349,6 +1361,11 @@ func semanticIssues(doc map[string]any, lenient bool, warn func(Issue), scope va
 	// without closing surfaces the format deliberately leaves open. Left
 	// unchecked, Validate accepted 1e400 and Unmarshal then failed with a bare
 	// Go decode error carrying no JSON pointer — the divergence §12 rules out.
+	// A width outside the editor's range imports as an endpoint. Check the
+	// number that will actually be transported, including for overflow.
+	if p, ok := doc[memberLayoutWidthPercent].(json.Number); ok {
+		doc[memberLayoutWidthPercent] = clampLayoutWidthPercent(p, warn)
+	}
 	checkNumbers(doc, "", addIssue)
 
 	// The §6.2 group's two refusals the schema cannot make: an entry wearing

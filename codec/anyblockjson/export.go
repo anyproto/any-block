@@ -1733,6 +1733,8 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	// legend can rebind
 	doc.setNonEmpty("icon", e.iconField())
 	doc.setNonEmpty("cover", e.coverField())
+	widthPercent, rootEscape := e.rootAttributes()
+	doc.setNonEmpty(memberLayoutWidthPercent, widthPercent)
 	// every surface that spells a property or type key runs before the
 	// envelope is assembled, so the legends they populate land in their
 	// canonical positions rather than trailing the blocks that filled them
@@ -1784,7 +1786,7 @@ func (e *exporter) buildDoc(sbType model.SmartBlockType) (*omap, error) {
 	collectionItems, store := e.buildStore()
 	doc.setNonEmpty("collection_items", collectionItems)
 	doc.setNonEmpty("store", store)
-	doc.setNonEmpty("root", e.buildRootEscape())
+	doc.setNonEmpty("root", rootEscape)
 	return doc, nil
 }
 
@@ -1848,17 +1850,29 @@ var analyticsRootFields = map[string]bool{
 	"analyticsContext":    true,
 }
 
-func (e *exporter) buildRootEscape() *omap {
+// rootAttributes returns the page width percentage (zero when absent) and
+// any remaining attributes for the root escape hatch.
+func (e *exporter) rootAttributes() (float64, *omap) {
 	root := e.blocks[e.rootId]
 	if root == nil {
-		return nil
+		return 0, nil
 	}
+	var widthPercent float64
 	m := &omap{}
 	if fields := withoutAnalyticsFields(root.Fields); fields != nil {
-		m.set("fields", protoStructToJSON(fields))
+		n, numeric := fields.Fields["width"].GetKind().(*types.Value_NumberValue)
+		if supportsLayoutWidth(e.sbType) && numeric && n != nil {
+			if percent, lossless := exportLayoutWidth(n.NumberValue); lossless {
+				widthPercent = percent
+				delete(fields.Fields, "width")
+			}
+		}
+		if len(fields.Fields) > 0 {
+			m.set("fields", protoStructToJSON(fields))
+		}
 	}
 	m.setNonEmpty("background_color", root.BackgroundColor)
-	return m
+	return widthPercent, m
 }
 
 // withoutAnalyticsFields returns f without the analytics keys, or nil when

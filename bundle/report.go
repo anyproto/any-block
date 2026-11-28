@@ -15,8 +15,8 @@ type Severity uint8
 const (
 	// SeverityError: the bundle is not valid AnyBlock. Validate refuses it.
 	SeverityError Severity = iota
-	// SeverityWarning: the bundle is valid and states a loss — a target the
-	// space had no row for, or one it holds that this export did not write.
+	// SeverityWarning: the bundle is valid, but a value needs correction
+	// or a reference cannot be restored as written.
 	SeverityWarning
 	// SeverityInfo: the bundle is valid and states something that is not a
 	// loss — a target the space deleted, by design.

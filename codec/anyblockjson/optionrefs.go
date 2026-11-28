@@ -43,11 +43,7 @@ package anyblockjson
 // that cannot name a value its own document carries is that same hole one
 // level down.
 
-import (
-	"encoding/json"
-
-	"github.com/anyproto/any-block/codec/anyblockjson/domain"
-)
+import "github.com/anyproto/any-block/codec/anyblockjson/domain"
 
 //
 // ---- export ----
@@ -323,7 +319,7 @@ type PropertyTerms struct {
 // error.
 func PropertyTermsOf(doc []byte) (PropertyTerms, error) {
 	var raw map[string]any
-	if err := json.Unmarshal(doc, &raw); err != nil {
+	if err := jsonUnmarshalUseNumber(doc, &raw); err != nil {
 		return PropertyTerms{}, err
 	}
 	terms := PropertyTerms{
